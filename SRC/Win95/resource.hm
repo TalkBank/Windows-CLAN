@@ -1,0 +1,4 @@
+// Microsoft Developer Studio generated Help ID include file.
+// Used by Clan2.rc
+//
+#define HIDC_EDIT_DO_STRING_VAL         0x80a50454    // IDD_EDIT_DO_STRING

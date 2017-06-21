@@ -1,0 +1,489 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Uni Debug|Win32">
+      <Configuration>Uni Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Uni Release|Win32">
+      <Configuration>Uni Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{9035A0C9-A05A-478B-8D2F-8FCC6450EA00}</ProjectGuid>
+    <RootNamespace>Clan2</RootNamespace>
+    <Keyword>MFCProj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Uni Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v120_xp</PlatformToolset>
+    <UseOfMfc>Static</UseOfMfc>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Uni Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v120_xp</PlatformToolset>
+    <UseOfMfc>Static</UseOfMfc>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Uni Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC60.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Uni Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC60.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>12.0.21005.1</_ProjectFileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Uni Release|Win32'">
+    <OutDir>.\Uni_Release\</OutDir>
+    <IntDir>.\Uni_Release\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+    <TargetName>CLAN</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Uni Debug|Win32'">
+    <OutDir>.\Uni_Debug\</OutDir>
+    <IntDir>.\Uni_Debug\</IntDir>
+    <LinkIncremental>true</LinkIncremental>
+    <TargetName>CLAND</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Uni Release|Win32'">
+    <Midl>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>true</MkTypLibCompatible>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <TargetEnvironment>Win32</TargetEnvironment>
+      <TypeLibraryName>.\Uni_Release/Clan2.tlb</TypeLibraryName>
+      <HeaderFileName />
+    </Midl>
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <AdditionalIncludeDirectories>.;src\ced;src\clan;src\win95;src\Win95\curl;C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\CIncludes;C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\ComponentIncludes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0501;_CRT_SECURE_NO_DEPRECATE;NDEBUG;WIN32;_WINDOWS;POSTCODE;TARGET_OS_WIN32;CALL_NOT_IN_CARBON=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <StringPooling>false</StringPooling>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <StructMemberAlignment>2Bytes</StructMemberAlignment>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
+      <PrecompiledHeaderOutputFile>$(OutDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>$(OutDir)</AssemblerListingLocation>
+      <ObjectFileName>$(OutDir)</ObjectFileName>
+      <ProgramDataBaseFileName>$(OutDir)</ProgramDataBaseFileName>
+      <WarningLevel>Level3</WarningLevel>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>imm32.lib;qtmlclient.lib;winmm.lib;libcurl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <AdditionalLibraryDirectories>C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\Libraries;src\Win95\curl\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <SubSystem>Windows</SubSystem>
+      <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>.\Uni_Release/Clan2.bsc</OutputFile>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Uni Debug|Win32'">
+    <Midl>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>true</MkTypLibCompatible>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <TargetEnvironment>Win32</TargetEnvironment>
+      <TypeLibraryName>.\Uni_Debug/Clan2.tlb</TypeLibraryName>
+      <HeaderFileName />
+    </Midl>
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>.;src\ced;src\clan;src\win95;src\Win95\curl;C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\CIncludes;C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\ComponentIncludes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0501;_CRT_SECURE_NO_DEPRECATE;_DEBUG;WIN32;_WINDOWS;POSTCODE;TARGET_OS_WIN32;CALL_NOT_IN_CARBON=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <StructMemberAlignment>2Bytes</StructMemberAlignment>
+      <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <PrecompiledHeaderOutputFile>$(OutDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>$(OutDir)</AssemblerListingLocation>
+      <ObjectFileName>$(OutDir)</ObjectFileName>
+      <ProgramDataBaseFileName>$(OutDir)</ProgramDataBaseFileName>
+      <WarningLevel>Level3</WarningLevel>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>imm32.lib;QTMLClient.lib;CVClient.lib;QTVR.lib;QTSClient.lib;winmm.lib;libcurl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <AdditionalLibraryDirectories>C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\Libraries;src\Win95\curl\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <SubSystem>Windows</SubSystem>
+      <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
+      <TargetMachine>MachineX86</TargetMachine>
+      <ProfileGuidedDatabase>$(OutDir)$(TargetName)$(TargetExt).pgd</ProfileGuidedDatabase>
+    </Link>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>.\Uni_Debug/Clan2.bsc</OutputFile>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="SRC\clan\Conll2Chat.cpp" />
+    <ClCompile Include="SRC\clan\imdi.cpp" />
+    <ClCompile Include="src\Clan\post\anaalgo.cpp" />
+    <ClCompile Include="SRC\clan\Anvil2Chat.cpp" />
+    <ClCompile Include="src\Clan\vocd\args.cpp" />
+    <ClCompile Include="src\Clan\Mor\Arules.cpp" />
+    <ClCompile Include="src\Clan\post\atom.cpp" />
+    <ClCompile Include="SRC\clan\megrasp\blmvm.cpp" />
+    <ClCompile Include="SRC\CLAN\POST\brillanx.cpp" />
+    <ClCompile Include="SRC\CLAN\POST\brilltagger.cpp" />
+    <ClCompile Include="SRC\Win95\buildtree.cpp" />
+    <ClCompile Include="src\Ced\C_curses.cpp" />
+    <ClCompile Include="src\Ced\c_main.cpp" />
+    <ClCompile Include="SRC\CLAN\c_ver.cpp" />
+    <ClCompile Include="src\Ced\ced.cpp" />
+    <ClCompile Include="src\Win95\ceddlgs.cpp" />
+    <ClCompile Include="src\Clan\chains.cpp" />
+    <ClCompile Include="SRC\clan\Chat2Anvil.cpp" />
+    <ClCompile Include="SRC\clan\Chat2CA.cpp" />
+    <ClCompile Include="SRC\clan\Chat2Elan.cpp" />
+    <ClCompile Include="SRC\clan\Chat2Praat.cpp" />
+    <ClCompile Include="SRC\clan\Chat2Xmar.cpp" />
+    <ClCompile Include="src\Clan\check.cpp" />
+    <ClCompile Include="src\Ced\check_in.cpp" />
+    <ClCompile Include="src\Win95\ChildFrm.cpp" />
+    <ClCompile Include="src\Clan\Chip.cpp" />
+    <ClCompile Include="src\Clan\Chip_utl.cpp" />
+    <ClCompile Include="SRC\clan\chstring.cpp" />
+    <ClCompile Include="src\Ced\cl_exec.cpp" />
+    <ClCompile Include="src\Ced\cl_io.cpp" />
+    <ClCompile Include="SRC\ced\cl_search.cpp" />
+    <ClCompile Include="src\Win95\Clan2.cpp" />
+    <ClCompile Include="src\Win95\Clan2Doc.cpp" />
+    <ClCompile Include="src\Win95\Clan2View.cpp" />
+    <ClCompile Include="src\Ced\codes.cpp" />
+    <ClCompile Include="src\Clan\combo.cpp" />
+    <ClCompile Include="SRC\clan\COMBTIER.CPP" />
+    <ClCompile Include="SRC\CLAN\POST\compound.cpp" />
+    <ClCompile Include="SRC\clan\post\compoundlib.cpp" />
+    <ClCompile Include="SRC\CLAN\POST\contextrl.cpp" />
+    <ClCompile Include="src\Clan\Cooccur.cpp" />
+    <ClCompile Include="SRC\clan\Cp2UTF8.cpp" />
+    <ClCompile Include="src\Clan\Mor\Crules.cpp" />
+    <ClCompile Include="src\Ced\cursor.cpp" />
+    <ClCompile Include="SRC\clan\cutt-xml.cpp" />
+    <ClCompile Include="src\Clan\cutt.cpp" />
+    <ClCompile Include="SRC\CLAN\POST\darray.cpp" />
+    <ClCompile Include="src\Clan\post\database.cpp" />
+    <ClCompile Include="SRC\clan\DataCleanUp.cpp" />
+    <ClCompile Include="src\Clan\dates.cpp" />
+    <ClCompile Include="src\Clan\vocd\dcompute.cpp" />
+    <ClCompile Include="src\Ced\delete.cpp" />
+    <ClCompile Include="SRC\clan\Delim.cpp" />
+    <ClCompile Include="src\Clan\Dist.cpp" />
+    <ClCompile Include="SRC\clan\Dos2Unix.cpp" />
+    <ClCompile Include="src\Clan\Mor\Drules.cpp" />
+    <ClCompile Include="src\Clan\dss.cpp" />
+    <ClCompile Include="SRC\clan\Elan2Chat.cpp" />
+    <ClCompile Include="SRC\clan\eval.cpp" />
+    <ClCompile Include="src\Clan\vocd\filter.cpp" />
+    <ClCompile Include="SRC\clan\FixBullets.cpp" />
+    <ClCompile Include="SRC\clan\Fixca.cpp" />
+    <ClCompile Include="SRC\clan\fixCAOverlapsSyms.cpp" />
+    <ClCompile Include="SRC\clan\Fixit.cpp" />
+    <ClCompile Include="SRC\clan\fixlang.cpp" />
+    <ClCompile Include="SRC\clan\fixMP3sBullets.cpp" />
+    <ClCompile Include="src\Clan\Flo.cpp" />
+    <ClCompile Include="SRC\CLAN\fontconvert.cpp" />
+    <ClCompile Include="src\Clan\freq.cpp" />
+    <ClCompile Include="src\Clan\Freqmerg.cpp" />
+    <ClCompile Include="src\Clan\Freqpos.cpp" />
+    <ClCompile Include="SRC\Win95\FStructViewer.cpp" />
+    <ClCompile Include="SRC\Ced\g711.cpp" />
+    <ClCompile Include="src\Clan\Gem.cpp" />
+    <ClCompile Include="src\Clan\Gemfreq.cpp" />
+    <ClCompile Include="src\Clan\Gemlist.cpp" />
+    <ClCompile Include="src\Clan\Mor\Globals.cpp" />
+    <ClCompile Include="SRC\clan\gps.cpp" />
+    <ClCompile Include="src\Clan\post\hashbsc.cpp" />
+    <ClCompile Include="src\Clan\post\hashc.cpp" />
+    <ClCompile Include="SRC\ced\ids.cpp" />
+    <ClCompile Include="SRC\clan\indent.cpp" />
+    <ClCompile Include="src\Clan\post\input.cpp" />
+    <ClCompile Include="SRC\clan\Insert.cpp" />
+    <ClCompile Include="SRC\clan\ipsyn.cpp" />
+    <ClCompile Include="SRC\clan\joinitems.cpp" />
+    <ClCompile Include="src\Ced\Key.cpp" />
+    <ClCompile Include="src\Clan\Keymap.cpp" />
+    <ClCompile Include="SRC\clan\kideval.cpp" />
+    <ClCompile Include="src\Clan\Kwal.cpp" />
+    <ClCompile Include="SRC\clan\lab2chat.cpp" />
+    <ClCompile Include="src\Clan\Mor\Lex-trie.cpp" />
+    <ClCompile Include="SRC\clan\lines.cpp" />
+    <ClCompile Include="SRC\clan\lippUTF2Chat.cpp" />
+    <ClCompile Include="SRC\clan\Longtier.cpp" />
+    <ClCompile Include="SRC\clan\Lowcase.cpp" />
+    <ClCompile Include="src\Win95\MainFrm.cpp" />
+    <ClCompile Include="SRC\clan\makemod.cpp" />
+    <ClCompile Include="SRC\clan\megrasp\maxent.cpp" />
+    <ClCompile Include="src\Clan\Maxwd.cpp" />
+    <ClCompile Include="src\Win95\mediaplayer.cpp" />
+    <ClCompile Include="SRC\clan\megrasp\megrasp.cpp" />
+    <ClCompile Include="SRC\CLAN\POST\memory.cpp" />
+    <ClCompile Include="src\Clan\mllib.cpp" />
+    <ClCompile Include="src\Clan\Mlt.cpp" />
+    <ClCompile Include="src\Clan\mlu.cpp" />
+    <ClCompile Include="src\Clan\Modrep.cpp" />
+    <ClCompile Include="src\Clan\Mor\Mor.cpp" />
+    <ClCompile Include="src\Clan\Mor\Morlib.cpp" />
+    <ClCompile Include="SRC\clan\mortable.cpp" />
+    <ClCompile Include="src\Clan\post\mortags.cpp" />
+    <ClCompile Include="SRC\Ced\mp3.cpp" />
+    <ClCompile Include="SRC\ced\MP3ImporterPatch.cpp" />
+    <ClCompile Include="src\Win95\MpegWindow.cpp" />
+    <ClCompile Include="src\Clan\post\msg.cpp" />
+    <ClCompile Include="src\Win95\MSUtils.cpp" />
+    <ClCompile Include="SRC\clan\mul.cpp" />
+    <ClCompile Include="SRC\Win95\MVHelp.cpp" />
+    <ClCompile Include="SRC\clan\my_unix.cpp" />
+    <ClCompile Include="SRC\clan\olac.cpp" />
+    <ClCompile Include="SRC\clan\ort.cpp" />
+    <ClCompile Include="src\Clan\Phonfreq.cpp" />
+    <ClCompile Include="src\Clan\post\post.cpp" />
+    <ClCompile Include="src\Clan\post\postana.cpp" />
+    <ClCompile Include="src\Clan\post\postlist.cpp" />
+    <ClCompile Include="SRC\CLAN\POST\postmodrules.cpp" />
+    <ClCompile Include="SRC\clan\postmortem.cpp" />
+    <ClCompile Include="src\Clan\post\posttrain.cpp" />
+    <ClCompile Include="SRC\clan\pp.cpp" />
+    <ClCompile Include="SRC\clan\Praat2Chat.cpp" />
+    <ClCompile Include="src\Win95\QT.cpp" />
+    <ClCompile Include="src\Win95\QTDlg.cpp" />
+    <ClCompile Include="SRC\clan\Quotes.cpp" />
+    <ClCompile Include="SRC\CLAN\POST\registry.cpp" />
+    <ClCompile Include="src\Clan\Rely.cpp" />
+    <ClCompile Include="SRC\clan\REPEAT.CPP" />
+    <ClCompile Include="SRC\clan\RETRACE.CPP" />
+    <ClCompile Include="SRC\CLAN\RTFin.cpp" />
+    <ClCompile Include="src\Clan\post\rules.cpp" />
+    <ClCompile Include="src\Clan\saltin.cpp" />
+    <ClCompile Include="SRC\clan\script.cpp" />
+    <ClCompile Include="src\Ced\search.cpp" />
+    <ClCompile Include="SRC\Ced\sendpraat.cpp" />
+    <ClCompile Include="SRC\ced\show_gra.cpp" />
+    <ClCompile Include="SRC\clan\silence.cpp" />
+    <ClCompile Include="src\Ced\sound.cpp" />
+    <ClCompile Include="src\Clan\vocd\speaker.cpp" />
+    <ClCompile Include="SRC\clan\post\splitchat.cpp" />
+    <ClCompile Include="SRC\clan\spreadsheet.cpp" />
+    <ClCompile Include="src\Win95\StdAfx.cpp" />
+    <ClCompile Include="src\Clan\post\storage.cpp" />
+    <ClCompile Include="SRC\CLAN\stringparser.cpp" />
+    <ClCompile Include="SRC\clan\subtitles.cpp" />
+    <ClCompile Include="SRC\clan\syncoding.cpp" />
+    <ClCompile Include="src\Clan\post\tags.cpp" />
+    <ClCompile Include="src\Ced\Text.cpp" />
+    <ClCompile Include="src\Clan\Textin.cpp" />
+    <ClCompile Include="SRC\CLAN\tierorder.cpp" />
+    <ClCompile Include="src\Ced\tiers.cpp" />
+    <ClCompile Include="src\Clan\Timedur.cpp" />
+    <ClCompile Include="SRC\clan\tlangcodes.cpp" />
+    <ClCompile Include="src\Clan\vocd\tokens.cpp" />
+    <ClCompile Include="SRC\CLAN\POST\trainbrill.cpp" />
+    <ClCompile Include="src\Clan\post\trainproc.cpp" />
+    <ClCompile Include="SRC\clan\TrnFix.cpp" />
+    <ClCompile Include="src\Ced\undo.cpp" />
+    <ClCompile Include="SRC\clan\UNIQ.CPP" />
+    <ClCompile Include="SRC\clan\usedlex.cpp" />
+    <ClCompile Include="src\Ced\utils.cpp" />
+    <ClCompile Include="SRC\clan\vocd\vocd.cpp" />
+    <ClCompile Include="SRC\Win95\W95_cl_eval.cpp" />
+    <ClCompile Include="SRC\Win95\W95_cl_filein.cpp" />
+    <ClCompile Include="SRC\Win95\W95_cl_folders.cpp" />
+    <ClCompile Include="SRC\Win95\W95_cl_search.cpp" />
+    <ClCompile Include="SRC\Win95\W95_cl_tiers.cpp" />
+    <ClCompile Include="Src\Win95\w95_commands.cpp" />
+    <ClCompile Include="src\Win95\W95_dial.cpp" />
+    <ClCompile Include="SRC\Win95\w95_ids.cpp" />
+    <ClCompile Include="src\Win95\W95_menu.cpp" />
+    <ClCompile Include="SRC\Win95\W95_mous.cpp" />
+    <ClCompile Include="src\Win95\w95_pict.cpp" />
+    <ClCompile Include="SRC\Win95\w95_PlaybackControl.cpp" />
+    <ClCompile Include="SRC\Win95\W95_progress.cpp" />
+    <ClCompile Include="SRC\Win95\W95_sound.cpp" />
+    <ClCompile Include="SRC\Win95\W95_SpCharsDialog.cpp" />
+    <ClCompile Include="src\Win95\W95_text.cpp" />
+    <ClCompile Include="SRC\Win95\w95_TextBullet.cpp" />
+    <ClCompile Include="SRC\Win95\w95_TxtBullet.cpp" />
+    <ClCompile Include="src\Win95\W95_util.cpp" />
+    <ClCompile Include="SRC\Win95\W95_WebData.cpp" />
+    <ClCompile Include="src\Win95\W95_wind.cpp" />
+    <ClCompile Include="src\Clan\wdlen.cpp" />
+    <ClCompile Include="src\Ced\windows.cpp" />
+    <ClCompile Include="src\Clan\post\workspace.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="SRC\ced\my_vkf.h" />
+    <ClInclude Include="src\Clan\vocd\args.h" />
+    <ClInclude Include="SRC\CLAN\POST\Atom.hpp" />
+    <ClInclude Include="SRC\clan\megrasp\blmvm.h" />
+    <ClInclude Include="SRC\CLAN\POST\bool.hpp" />
+    <ClInclude Include="SRC\clan\c_clan.h" />
+    <ClInclude Include="SRC\clan\c_curses.h" />
+    <ClInclude Include="src\Ced\ced.h" />
+    <ClInclude Include="src\Win95\ceddlgs.h" />
+    <ClInclude Include="SRC\CLAN\ChatToXML.h" />
+    <ClInclude Include="src\Clan\check.h" />
+    <ClInclude Include="src\Win95\ChildFrm.h" />
+    <ClInclude Include="src\Clan\Chip.h" />
+    <ClInclude Include="SRC\ced\cl_search.h" />
+    <ClInclude Include="src\Win95\Clan2.h" />
+    <ClInclude Include="src\Win95\Clan2Doc.h" />
+    <ClInclude Include="src\Win95\Clan2View.h" />
+    <ClInclude Include="SRC\clan\common.h" />
+    <ClInclude Include="SRC\clan\post\compound.hpp" />
+    <ClInclude Include="src\Clan\cu.h" />
+    <ClInclude Include="SRC\Win95\curl\curl.h" />
+    <ClInclude Include="SRC\Win95\curl\curl_easy.h" />
+    <ClInclude Include="SRC\Win95\curl\curl_types.h" />
+    <ClInclude Include="SRC\clan\cutt-xml.h" />
+    <ClInclude Include="SRC\CLAN\POST\darray.hpp" />
+    <ClInclude Include="SRC\CLAN\POST\darrayP.hpp" />
+    <ClInclude Include="SRC\CLAN\POST\DATABASE.HPP" />
+    <ClInclude Include="src\Clan\vocd\dcompute.h" />
+    <ClInclude Include="SRC\clan\dss.h" />
+    <ClInclude Include="src\Clan\vocd\filter.h" />
+    <ClInclude Include="SRC\CLAN\fontconvert.h" />
+    <ClInclude Include="SRC\Win95\FStructViewer.h" />
+    <ClInclude Include="SRC\CLAN\POST\HASHBSC.HPP" />
+    <ClInclude Include="SRC\CLAN\POST\HASHC.HPP" />
+    <ClInclude Include="SRC\ced\ids.h" />
+    <ClInclude Include="SRC\CLAN\POST\INPUT.HPP" />
+    <ClInclude Include="SRC\clan\ipsyn.h" />
+    <ClInclude Include="SRC\clan\megrasp\ksutil.h" />
+    <ClInclude Include="SRC\CLAN\POST\lex.hpp" />
+    <ClInclude Include="src\Win95\MainFrm.h" />
+    <ClInclude Include="SRC\CLAN\POST\MAXCONST.HPP" />
+    <ClInclude Include="SRC\clan\megrasp\maxent.h" />
+    <ClInclude Include="src\Win95\mediaplayer.h" />
+    <ClInclude Include="SRC\CLAN\POST\memory.hpp" />
+    <ClInclude Include="SRC\clan\mllib.h" />
+    <ClInclude Include="src\Ced\MMedia.h" />
+    <ClInclude Include="SRC\CLAN\POST\MOR.HPP" />
+    <ClInclude Include="src\Clan\Mor\Morph.h" />
+    <ClInclude Include="SRC\CLAN\POST\MORTAGS.HPP" />
+    <ClInclude Include="SRC\Ced\mp3.h" />
+    <ClInclude Include="SRC\ced\MP3ImporterPatch.h" />
+    <ClInclude Include="SRC\ced\MP3ImporterPatchDispatch.h" />
+    <ClInclude Include="src\Win95\MpegWindow.h" />
+    <ClInclude Include="SRC\CLAN\POST\MSG.HPP" />
+    <ClInclude Include="src\Win95\MSUtil.h" />
+    <ClInclude Include="SRC\clan\mul.h" />
+    <ClInclude Include="SRC\Win95\MVHelp.h" />
+    <ClInclude Include="SRC\clan\my_ctype.h" />
+    <ClInclude Include="SRC\clan\my_unix.h" />
+    <ClInclude Include="src\Clan\Progs.h" />
+    <ClInclude Include="src\Clan\Mor\Proto.h" />
+    <ClInclude Include="src\Win95\QT.h" />
+    <ClInclude Include="src\Win95\QTDlg.h" />
+    <ClInclude Include="SRC\CLAN\POST\registry.hpp" />
+    <ClInclude Include="SRC\CLAN\POST\registryp.hpp" />
+    <ClInclude Include="src\Win95\resource.h" />
+    <ClInclude Include="SRC\ced\search.h" />
+    <ClInclude Include="src\Clan\vocd\speaker.h" />
+    <ClInclude Include="src\Win95\StdAfx.h" />
+    <ClInclude Include="SRC\CLAN\POST\STORAGE.HPP" />
+    <ClInclude Include="SRC\CLAN\stringparser.h" />
+    <ClInclude Include="SRC\CLAN\POST\SYSTEM.HPP" />
+    <ClInclude Include="SRC\CLAN\POST\TAGS.HPP" />
+    <ClInclude Include="src\Clan\vocd\tokens.h" />
+    <ClInclude Include="SRC\CLAN\POST\useful.hpp" />
+    <ClInclude Include="src\Clan\vocd\vocdefs.h" />
+    <ClInclude Include="SRC\Win95\W95_cl_eval.h" />
+    <ClInclude Include="SRC\Win95\W95_cl_folders.h" />
+    <ClInclude Include="SRC\Win95\W95_cl_search.h" />
+    <ClInclude Include="SRC\Win95\W95_cl_tiers.h" />
+    <ClInclude Include="SRC\Win95\W95_commands.h" />
+    <ClInclude Include="SRC\Win95\w95_ids.h" />
+    <ClInclude Include="src\Win95\w95_pict.h" />
+    <ClInclude Include="SRC\Win95\W95_progress.h" />
+    <ClInclude Include="SRC\Win95\W95_SpCharsDialog.h" />
+    <ClInclude Include="SRC\Win95\w95_TxtBullet.h" />
+    <ClInclude Include="SRC\Win95\W95_WebData.h" />
+    <ClInclude Include="src\Win95\w95AIFF.h" />
+    <ClInclude Include="src\Clan\post\workspace.hpp" />
+    <ClInclude Include="SRC\clan\wstring.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="src\Win95\res\Clan2.ico" />
+    <Image Include="SRC\Win95\RES\Clan2cdc.ico" />
+    <Image Include="SRC\Win95\RES\Clan2cex.ico" />
+    <Image Include="src\Win95\res\Clan2Doc.ico" />
+    <Image Include="SRC\Win95\RES\Clan2util.ico" />
+    <Image Include="SRC\Win95\RES\CLANU.ico" />
+    <Image Include="src\Win95\res\fileind.bmp" />
+    <Image Include="src\Win95\res\fileinu.bmp" />
+    <Image Include="src\Win95\res\fileinx.bmp" />
+    <Image Include="src\Win95\res\fileoutd.bmp" />
+    <Image Include="src\Win95\res\fileoutu.bmp" />
+    <Image Include="src\Win95\res\fileoutx.bmp" />
+    <Image Include="src\Win95\res\idr_clan.ico" />
+    <Image Include="SRC\Win95\RES\IDR_MPEG.ICO" />
+    <Image Include="SRC\Win95\RES\idr_umai.ico" />
+    <Image Include="SRC\Win95\RES\mhelpd.bmp" />
+    <Image Include="SRC\Win95\RES\mhelpu.bmp" />
+    <Image Include="SRC\Win95\RES\mhelpx.bmp" />
+    <Image Include="src\Win95\res\movie.ico" />
+    <Image Include="SRC\Win95\RES\myhelp.bmp" />
+    <Image Include="src\Win95\res\optd.bmp" />
+    <Image Include="src\Win95\res\optu.bmp" />
+    <Image Include="src\Win95\res\optx.bmp" />
+    <Image Include="src\Win95\res\progsd.bmp" />
+    <Image Include="src\Win95\res\progsu.bmp" />
+    <Image Include="src\Win95\res\progsx.bmp" />
+    <Image Include="src\Win95\res\searchd.bmp" />
+    <Image Include="src\Win95\res\searchu.bmp" />
+    <Image Include="src\Win95\res\searchx.bmp" />
+    <Image Include="src\Win95\res\Toolbar.bmp" />
+    <Image Include="SRC\Win95\RES\ToolbarU.bmp" />
+    <Image Include="SRC\Win95\RES\umainfra.bmp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="src\Win95\Clan2.rc">
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Uni Debug|Win32'">src\Win95;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Uni Release|Win32'">src\Win95;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="SRC\Win95\RES\Clan2.rc2" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+  <ProjectExtensions>
+    <VisualStudio>
+      <UserProperties RESOURCE_FILE="SRC\Win95\Clan2.rc" />
+    </VisualStudio>
+  </ProjectExtensions>
+</Project>
