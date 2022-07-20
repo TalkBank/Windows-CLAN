@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -9,10 +9,11 @@
 #ifndef UNX
 	#include "ced.h"
 #endif
+/* // NO QT
 #ifdef _WIN32
 	#include <TextUtils.h>
 #endif
-
+*/
 #if !defined(UNX)
 #define _main praat2chat_main
 #define call praat2chat_call
@@ -283,10 +284,10 @@ static void rd_PraatAtts_f(const char *fname, char isFatalError) {
 	}
 	ln = 0L;
 	while (fgets_cr(templineC, 255, fp)) {
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 			continue;
 		ln++;
-		if (templineC[0] == ';')
+		if (templineC[0] == '#' || templineC[0] == ';')
 			continue;
 		uS.remblanks(templineC);
 		if (templineC[0] == EOS)
@@ -867,7 +868,8 @@ static char Praat_isOverlapFound(P2C_LINESEG *seg, char ovChar) {
 static void addBegOverlap(P2C_LINESEG *seg_s, P2C_LINESEG *seg_nt, P2C_CHATTIERS *s_nt, P2C_CHATTIERS *nt) {
 	char *s;
 
-	for (s=seg_s->text; isSpace(*s) && *s != EOS; s++) ;
+	for (s=seg_s->text; isSpace(*s) && *s != EOS; s++)
+		;
 //	if ((unsigned char)*s == 0xe2 && (unsigned char)*(s+1) == 0x8c && (unsigned char)*(s+2) == 0x88)
 //		;
 //	else {
@@ -887,7 +889,8 @@ static void addBegOverlap(P2C_LINESEG *seg_s, P2C_LINESEG *seg_nt, P2C_CHATTIERS
 		}
 //	}
 
-	for (s=seg_nt->text; isSpace(*s) && *s != EOS; s++) ;
+	for (s=seg_nt->text; isSpace(*s) && *s != EOS; s++)
+		;
 //	if ((unsigned char)*s == 0xe2 && (unsigned char)*(s+1) == 0x8c && (unsigned char)*(s+2) == 0x8a)
 //		;
 //	else {
@@ -1193,8 +1196,10 @@ static void joinConsecutive(void) {
 					else {
 						for (lineSeg=prev_nt->lineSeg; lineSeg->nextSeg != NULL; lineSeg=lineSeg->nextSeg) {
 							if (!strncmp(lineSeg->text, "0.", 2) && lineSeg->nextSeg != NULL) {
-								lineSeg->text[0] = '#';
-								lineSeg->text[1] = ' ';
+								lineSeg->text[0] = '(';
+								lineSeg->text[1] = '.';
+								lineSeg->text[2] = ')';
+								lineSeg->text[3] = ' ';
 							}
 						}
 						lineSeg->nextSeg = nt->lineSeg;
@@ -1203,8 +1208,10 @@ static void joinConsecutive(void) {
 								if (lineSeg == prev_nt->lineSeg && prev_nt->beg == nt->beg && prev_nt->end == nt->end) {
 									lineSeg->text[0] = EOS;
 								} else {
-									lineSeg->text[0] = '#';
-									lineSeg->text[1] = ' ';
+									lineSeg->text[0] = '(';
+									lineSeg->text[1] = '.';
+									lineSeg->text[2] = ')';
+									lineSeg->text[3] = ' ';
 								}
 							}
 						}
@@ -1402,7 +1409,7 @@ static void Praat_createLineFromSegs(char *line, P2C_CHATTIERS *nt, char whichLe
 }
 
 static void Praat_printOutTiers(P2C_CHATTIERS *nt, char whichLevel) {
-	ALL_BGs *bg, *tBg, *eg;
+	ALL_BGs *bg = NULL, *tBg, *eg;
 
 	if (whichLevel == 0) {
 		for (bg=RootBGs; bg != NULL; bg=bg->nextBG) {
@@ -1546,6 +1553,18 @@ static void extractSpeakerName(char *text, char *sp) {
 			} else if (uS.partwcmp(p1, "[MAIN-CHAT-HEADERS]")) {
 				uS.remblanks(p1);
 				strcpy(sp, p1);
+			} else if (p1[0] == '[' && p1[1] == '%') {
+				p2 = strrchr(text, ']');
+				if (p2 != NULL)
+					*p2 = EOS;
+				uS.remblanks(text);
+				strcpy(sp, p1+1);
+				*p1 = EOS;
+				uS.remblanks(text);
+				strcat(sp, "@");
+				strcat(sp, text);
+				if (text[0] == EOS)
+					sp[0] = EOS;
 			} else if (attsRoot != NULL) {
 				fprintf(stderr, "\r ** Can't match praat tag \"%s\" to CHAT declaration in attributes file.\n", text);
 			} else {
@@ -1634,7 +1653,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	UnicodeToUTF8(templineW, wchars, (unsigned char *)line, (unsigned long *)&UTF8Len, UTTLINELEN);
 	if (UTF8Len == 0 && wchars > 0) {
 		putc('\n', stderr);
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error: Unable to convert the following line:\n");
 		fprintf(stderr, "%s\n", src);
 	}
@@ -1653,7 +1672,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	MacRomanEncoding = CreateTextEncoding( (long)lEncode, lVariant, kTextEncodingDefaultFormat );
 	utf8Encoding = CreateTextEncoding( kTextEncodingUnicodeDefault, kTextEncodingDefaultVariant, kUnicodeUTF8Format );
 	if ((err=TECCreateConverter(&ec, MacRomanEncoding, utf8Encoding)) != noErr) {
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error1: Unable to create a converter.\n");
 		fprintf(stderr, "%s\n", src);
 		freeXML_Elements();
@@ -1664,7 +1683,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	len = strlen(src);
 	if ((err=TECConvertText(ec, (ConstTextPtr)src, len, &ail, (TextPtr)line, UTTLINELEN, &aol)) != noErr) {
 		putc('\n', fpout);
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error2: Unable to convert the following line:\n");
 		fprintf(stderr, "%s\n",src);
 		freeXML_Elements();
@@ -1674,7 +1693,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	err = TECDisposeConverter(ec);
 	if (ail < len) {
 		putc('\n', fpout);
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error3: Converted only %ld out of %ld chars:\n", ail, len);
 		fprintf(stderr, "%s\n", src);
 		freeXML_Elements();
@@ -1765,7 +1784,7 @@ static char getNextLine(char *st, int size, FILE *fp, char isUnicode, char *isNL
 		}
 		templineC1[i] = EOS;
 		templineC1[i+1] = EOS;
-		UnicodeToUTF8((wchar_t *)templineC1, i/2, (unsigned char *)st, NULL, UTTLINELEN);
+		UnicodeToUTF8((unCH *)templineC1, i/2, (unsigned char *)st, NULL, UTTLINELEN);
 		return(!feof(fpin));
 #endif
 	} else {
@@ -1853,6 +1872,8 @@ static void printHeaders(void) {
 	for (i=0; templineC1[i] == ',' || isSpace(templineC1[i]); i++) ;
 	if (templineC1[i] != EOS)
 		printout("@Participants:", templineC1+i, NULL, NULL, TRUE);
+	if (isMultiBullets)
+		fprintf(fpout, "@Options:\tmulti\n");
 	for (p=attsRoot; p != NULL; p=p->nextTag) {
 		if (p->chatName[0] == '*') {
 			strcpy(sp, p->chatName+1);
@@ -2153,8 +2174,6 @@ void call() {		/* this function is self-explanatory */
 		fprintf(fpout, "@Begin\n");
 		fprintf(fpout, "@Languages:\t%s\n", lang);
 		printHeaders();
-		if (isMultiBullets)
-			fprintf(fpout, "@Options:\tmulti\n");
 		p = strrchr(mediaFName, '.');
 		if (p != NULL) {
 			if (uS.mStricmp(p, ".wav") == 0 || uS.mStricmp(p, ".aif") == 0 || uS.mStricmp(p, ".aiff") == 0)

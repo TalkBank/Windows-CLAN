@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -61,6 +61,7 @@ struct HeaderTiers {
 extern struct tier *defheadtier;
 extern char OverWriteFile;
 
+static char isMFA;
 static TORT *timeOrder;
 static ALLTIERS *RootTiers;
 static HEADERS *RootHeaders;
@@ -78,6 +79,7 @@ void init(char f) {
 		onlydata = 1;
 		FilterTier = 0;
 		LocalTierSelect = TRUE;
+		isMFA = FALSE;
 		if (defheadtier->nexttier != NULL)
 			free(defheadtier->nexttier);
 		free(defheadtier);
@@ -96,6 +98,7 @@ void init(char f) {
 void usage() {
 	printf("convert CHAT files to Elan XML files\n");
 	printf("Usage: chat2elan [eS %s] filename(s)\n", mainflgs());
+	puts("+c: The output .eaf file is created for MFA aligner.");
 	puts("+eS: Specify media file name extension.");
 	mainusage(TRUE);
 }
@@ -114,6 +117,10 @@ void getflag(char *f, char *f1, int *i) {
 
 	f++;
 	switch(*f++) {
+		case 'c':
+			isMFA = TRUE;
+			no_arg_option(f);
+			break;
 		case 'e':
 			if (f[0] != '.')
 				uS.str2FNType(mediaExt, 0L, ".");
@@ -259,7 +266,7 @@ static void addTierAnnotation(const char *name, char whatLingType, long antCnt, 
 	} else {
 		for (t=RootTiers; 1; t=t->nextTier) {
 		    if (strcmp(t->name, name) == 0 && strcmp(t->typeRef, typeRef) == 0) {
-			    if (Beg < t->lastTime)
+			    if (Beg < t->lastTime && t->lastTime > -1)
 			    	Beg = t->lastTime;
 			    if (End <= Beg) {
 			    	if (len < 5)
@@ -330,40 +337,42 @@ static void addTierAnnotation(const char *name, char whatLingType, long antCnt, 
 	}
 }
 
-static void makeAnotation(char *an, char *bs, char *es) {
-	long i;
+static void addRefTierAnnotation(const char *name, long antCnt, long spAntCnt, char *st) {
+	char typeRef[16];
+	ALLTIERS *t;
 
-	for (; (isSpace(*bs) || *bs == '\n') && bs < es; bs++) ;
-	for (es--; (isSpace(*es) || *es == '\n') && bs <= es; es--) ;
-	es++;
-	i = 0L;
-	for (; bs < es; bs++) {
-		if (*bs == '&') {
-			strcpy(an+i, "&amp;");
-			i = strlen(an);
-		} else if (*bs == '"') {
-			strcpy(an+i, "&quot;");
-			i = strlen(an);
-		} else if (*bs == '\'') {
-			strcpy(an+i, "&apos;");
-			i = strlen(an);
-		} else if (*bs == '<') {
-			strcpy(an+i, "&lt;");
-			i = strlen(an);
-		} else if (*bs == '>') {
-			strcpy(an+i, "&gt;");
-			i = strlen(an);
-		} else if (*bs == '\n')
-			an[i++] = ' ';
-		else if (*bs == '\t')
-			an[i++] = ' ';
-		else if (*bs >= 0 && *bs < 32) {
-			sprintf(an+i,"{0x%x}", *bs);
-			i = strlen(an);
-		} else
-			an[i++] = *bs;
+	if (name[0] == '*')
+		strcpy(typeRef, "orthography");
+	else {
+		strcpy(typeRef, name);
 	}
-	an[i] = EOS;
+
+	if (RootTiers == NULL) {
+		if ((RootTiers=NEW(ALLTIERS)) == NULL) out_of_mem();
+		t = RootTiers;
+	} else {
+		for (t=RootTiers; 1; t=t->nextTier) {
+			if (strcmp(t->name, name) == 0 && strcmp(t->typeRef, typeRef) == 0) {
+				t->whatLingType = 0;
+				t->lastTime = -1;
+				t->annotation = addAnnotation(t->annotation, antCnt, spAntCnt, 0L, 0L, st);
+				return;
+			}
+			if (t->nextTier == NULL)
+				break;
+		}
+		if ((t->nextTier=NEW(ALLTIERS)) == NULL)
+			out_of_mem();
+		t = t->nextTier;
+	}
+
+	t->nextTier = NULL;
+	t->isPrinted = FALSE;
+	strcpy(t->name, name);
+	strcpy(t->typeRef, typeRef);
+	t->whatLingType = 0;
+	t->lastTime = -1;
+	t->annotation = addAnnotation(NULL, antCnt, spAntCnt, 0L, 0L, st);
 }
 
 static void addHeaders(char *name, char *line) {
@@ -372,7 +381,7 @@ static void addHeaders(char *name, char *line) {
 
 	bs = line;
 	es = line + strlen(line);
-	makeAnotation(templineC, bs, es);
+	textToXML(templineC, bs, es);
 
 	if (RootHeaders == NULL) {
 		if ((RootHeaders=NEW(HEADERS)) == NULL) out_of_mem();
@@ -399,6 +408,8 @@ static void PrintAnnotations(ALLTIERS *trs, char *s) {
 		fprintf(fpout, "<TIER TIER_ID=\"%s\" PARTICIPANT=\"%s\" LINGUISTIC_TYPE_REF=\"dependency\" DEFAULT_LOCALE=\"us\" PARENT_REF=\"%s\">\n", trs->name+1, s+1, s+1);
 	else if (trs->name[0] == '%' && trs->whatLingType == 1)
 		fprintf(fpout, "<TIER TIER_ID=\"%s\" PARTICIPANT=\"%s\" LINGUISTIC_TYPE_REF=\"included_in\" DEFAULT_LOCALE=\"us\" PARENT_REF=\"%s\">\n", trs->name+1, s+1, s+1);
+	else if (isMFA && trs->name[0] == '@')
+		fprintf(fpout, "<TIER TIER_ID=\"%s\" PARTICIPANT=\"%s\" LINGUISTIC_TYPE_REF=\"no_constraint\" DEFAULT_LOCALE=\"us\">\n", trs->name, s+1);
 	else
 		fprintf(fpout, "<TIER TIER_ID=\"%s\" PARTICIPANT=\"%s\" LINGUISTIC_TYPE_REF=\"no_constraint\" DEFAULT_LOCALE=\"us\">\n", trs->name+1, s+1);
 
@@ -453,7 +464,10 @@ static void PrintTiers(char *fontName) {
 		strcpy(spName, maintrs->name+1);
 		PrintAnnotations(maintrs, maintrs->name);
 		for (trs=RootTiers; trs != NULL; trs=trs->nextTier) {
-			if (trs->isPrinted == TRUE || trs->name[0] == '*' || trs->name[0] == '@')
+			if (trs->isPrinted == TRUE)
+				continue;
+			else if (isMFA && trs->name[0] == '@') {
+			} else if (trs->name[0] == '*' || trs->name[0] == '@')
 				continue;
 			s = strrchr(trs->name, '@');
 			if (trs->name[0] == '%') {
@@ -477,10 +491,47 @@ static void PrintTiers(char *fontName) {
 	}
 }
 
+static char isSpecialCode(char *spName, char *st, long spAntCnt, long *antCnt) {
+	int  i, ci, bi, ei;
+	char name[512], isCodeFound;
+
+	isCodeFound = FALSE;
+	bi = 0;
+	while (st[bi] != EOS) {
+		if (strncmp(st+bi, "[%%", 3) == 0) {
+			for (ei=bi; st[ei] != ']' && st[ei] != EOS; ei++) ;
+			if (st[ei] == ']') {
+				i = 0;
+				for (ci=bi+3; !isSpace(st[ci]) && st[ci] != ':' && st[ci] != EOS; ci++) {
+					name[i++] = st[ci];
+				}
+				name[i] = EOS;
+				if (name[0] != EOS) {
+					strcat(name, "@");
+					strcat(name, spName);
+				}
+				for (; isSpace(st[ci]) || st[ci] == ':'; ci++) ;
+				i = 0;
+				for (; st[ci] != ']' && st[ci] != EOS; ci++) {
+					templineC1[i++] = st[ci];
+				}
+				templineC1[i] = EOS;
+				isCodeFound = TRUE;
+				*antCnt = *antCnt + 1L;
+				strcpy(st+bi, st+ei+1);
+				addRefTierAnnotation(name, *antCnt, spAntCnt, templineC1);
+			} else
+				bi = ei;
+		} else
+			bi++;
+	}
+	return(isCodeFound);
+}
+
 void call() {
-	long		Beg, End, BegSp, EndSp, t;
+	long		Beg, End, BegSp = 0L, EndSp = 0L, t;
 	long		bulletsCnt, numTiers;
-	long		antCnt, spAntCnt;
+	long		antCnt, cAntCnt, spAntCnt = 0L;
 	FNType		mediaFName[FNSize], errfile[FNSize], *s;
 	char		name[20], spName[20], fontName[256];
 	char		*bs, *es;
@@ -521,12 +572,14 @@ void call() {
 				}
 				continue;
 			} else {
-				if (strcmp(utterance->speaker, "@End")) {
-					fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
-					fprintf(stderr, "It is illegal to have Header Tiers '@' inside the transcript\n");
-					if (errFp != NULL) {
-						fprintf(errFp,"*** File \"%s\": line %ld.\n", oldfname, lineno);
-						fprintf(errFp, "It is illegal to have Header Tiers '@' inside the transcript\n");
+				if (!isMFA) {
+					if (strcmp(utterance->speaker, "@End")) {
+						fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
+						fprintf(stderr, "It is illegal to have Header Tiers '@' inside the transcript\n");
+						if (errFp != NULL) {
+							fprintf(errFp,"*** File \"%s\": line %ld.\n", oldfname, lineno);
+							fprintf(errFp, "It is illegal to have Header Tiers '@' inside the transcript\n");
+						}
 					}
 				}
 			}
@@ -552,7 +605,7 @@ void call() {
 				if (mediaRes) {
 					if (Beg == 1L)
 						Beg = 0L;
-					makeAnotation(templineC, bs, es);
+					textToXML(templineC, bs, es);
 					if (templineC[0] != EOS) {
 						antCnt++;
 						if (utterance->speaker[0] == '*') {
@@ -572,7 +625,12 @@ void call() {
 							else
 								whatLingType = 2;
 						}
-						addTierAnnotation(name, whatLingType, antCnt, spAntCnt, &Beg, &End, templineC, TRUE, BegSp, EndSp);
+						cAntCnt = antCnt;
+						if (isSpecialCode(spName, templineC, cAntCnt, &antCnt)) {
+							addTierAnnotation(name, whatLingType, cAntCnt, spAntCnt, &Beg, &End, templineC, TRUE, BegSp, EndSp);
+						} else {
+							addTierAnnotation(name, whatLingType, antCnt, spAntCnt, &Beg, &End, templineC, TRUE, BegSp, EndSp);
+						}
 						if (utterance->speaker[0] == '*') {
 							if (BegSp == 0L)
 								BegSp = Beg;
@@ -608,10 +666,13 @@ void call() {
 				fprintf(errFp,"%s:\t%s\n", utterance->speaker, utterance->line);
 			}
 		}
-		makeAnotation(templineC, bs, es);
+		textToXML(templineC, bs, es);
 		if (templineC[0] != EOS) {
 			antCnt++;
-			if (utterance->speaker[0] == '*') {
+			if (isMFA && utterance->speaker[0] == '@') {
+				whatLingType = 0;
+				strcpy(name, utterance->speaker);
+			} else if (utterance->speaker[0] == '*') {
 				whatLingType = 1;
 				spAntCnt = antCnt;
 				strcpy(name, utterance->speaker);
@@ -626,7 +687,12 @@ void call() {
 				strcat(name, "@");
 				strcat(name, spName);
 			}
-			addTierAnnotation(name, whatLingType, antCnt, spAntCnt, &BegSp, &EndSp, templineC, FALSE, BegSp, EndSp);
+			cAntCnt = antCnt;
+			if (isSpecialCode(spName, templineC, cAntCnt, &antCnt)) {
+				addTierAnnotation(name, whatLingType, cAntCnt, spAntCnt, &BegSp, &EndSp, templineC, FALSE, BegSp, EndSp);
+			} else {
+				addTierAnnotation(name, whatLingType, antCnt, spAntCnt, &BegSp, &EndSp, templineC, FALSE, BegSp, EndSp);
+			}
 		}
 	}
 
@@ -659,6 +725,8 @@ void call() {
 		*s = EOS;
 	fprintf(fpout, "        <MEDIA_DESCRIPTOR MEDIA_URL=\"file:///%s\" MIME_TYPE=\"video/quicktime\"/>\n", 	mediaFName);
 
+	fprintf(fpout, "        <PROPERTY NAME=\"lastUsedAnnotationId\">%ld</PROPERTY>\n", antCnt);
+
 	for (hdrs=RootHeaders; hdrs != NULL; hdrs=hdrs->nextTier) {
 		fprintf(fpout, "        <PROPERTY NAME=\"%s\">\n", hdrs->name);
 		fprintf(fpout, "            %s\n", hdrs->line);
@@ -680,15 +748,15 @@ void call() {
 
 	PrintTiers(fontName);
 
-	fprintf(fpout, "    <LINGUISTIC_TYPE LINGUISTIC_TYPE_ID=\"orthography\"	TIME_ALIGNABLE=\"true\"	GRAPHIC_REFERENCES=\"false\"/>\n");
-	fprintf(fpout, "    <LINGUISTIC_TYPE LINGUISTIC_TYPE_ID=\"no_constraint\"	TIME_ALIGNABLE=\"true\"	GRAPHIC_REFERENCES=\"false\"/>\n");
-	fprintf(fpout, "    <LINGUISTIC_TYPE LINGUISTIC_TYPE_ID=\"included_in\"	TIME_ALIGNABLE=\"true\"	GRAPHIC_REFERENCES=\"false\" CONSTRAINTS=\"Included_In\"/>\n");
-	fprintf(fpout, "    <LINGUISTIC_TYPE LINGUISTIC_TYPE_ID=\"dependency\"	TIME_ALIGNABLE=\"false\"	GRAPHIC_REFERENCES=\"false\" CONSTRAINTS=\"Symbolic_Association\"/>\n");
+	fprintf(fpout, "    <LINGUISTIC_TYPE LINGUISTIC_TYPE_ID=\"orthography\"/>\n");
+	fprintf(fpout, "    <LINGUISTIC_TYPE LINGUISTIC_TYPE_ID=\"no_constraint\"/>\n");
+	fprintf(fpout, "    <LINGUISTIC_TYPE LINGUISTIC_TYPE_ID=\"included_in\" CONSTRAINTS=\"Included_In\"/>\n");
+	fprintf(fpout, "    <LINGUISTIC_TYPE LINGUISTIC_TYPE_ID=\"dependency\" CONSTRAINTS=\"Symbolic_Association\"/>\n");
 	fprintf(fpout, "    <LOCALE LANGUAGE_CODE=\"us\" COUNTRY_CODE=\"EN\"/>\n");
-	fprintf(fpout, "    <CONSTRAINT STEREOTYPE=\"Time_Subdivision\"	DESCRIPTION=\"Time subdivision of parent annotation&apos;s time interval, no time gaps allowed within this interval\"/>\n");
-	fprintf(fpout, "    <CONSTRAINT STEREOTYPE=\"Symbolic_Subdivision\"	DESCRIPTION=\"Symbolic subdivision of a parent annotation. Annotations refering to the same parent are ordered\"/>\n");
 	fprintf(fpout, "    <CONSTRAINT STEREOTYPE=\"Symbolic_Association\"	DESCRIPTION=\"1-1 association with a parent annotation\"/>\n");
 	fprintf(fpout, "    <CONSTRAINT STEREOTYPE=\"Included_In\" DESCRIPTION=\"Time alignable annotations within the parent annotation&apos;s time interval, gaps are allowed\"/>\n");
+//	fprintf(fpout, "    <CONSTRAINT STEREOTYPE=\"Time_Subdivision\"	DESCRIPTION=\"Time subdivision of parent annotation&apos;s time interval, no time gaps allowed within this interval\"/>\n");
+//	fprintf(fpout, "    <CONSTRAINT STEREOTYPE=\"Symbolic_Subdivision\"	DESCRIPTION=\"Symbolic subdivision of a parent annotation. Annotations refering to the same parent are ordered\"/>\n");
 	fprintf(fpout, "</ANNOTATION_DOCUMENT>\n");
 
 	if (errFp != NULL)

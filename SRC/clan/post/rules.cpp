@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -86,6 +86,8 @@ char* insert_rule( mortag* MT1, ambmortag* AMT1, mortag* MT2, ambmortag* AMT2 )
 
 	// add rules for unknown words if cl2 has a class that can be an unknown word
 	char *t2 = mortag_to_string(rmt2) ;
+	if (t2 == 0)
+		return 0;
 	char *p = strchr( t2, '-' );
 	if ( p ) *p = '\0';
 	for ( i=0; i<number_of_multclass(_words_classnames_default_); i++ ) {

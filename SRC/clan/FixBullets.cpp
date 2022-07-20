@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -28,22 +28,23 @@
 #define CHAT_MODE 3
 
 #if defined(UNX)
-#define SP_LIST struct speakers
+#define SPLIST struct speakers
 #endif
 
-SP_LIST {
+SPLIST {
 	char *sp;
 	long endTime;
-	SP_LIST *nextsp;
+	SPLIST *nextsp;
 } ;
 
 #define CHATTIERS struct ChatTiers
 CHATTIERS {
-	char *sp;
-	AttTYPE *attSp;
-	char *line;
-	AttTYPE *attLine;
-	CHATTIERS *nextTier;
+	long ln;
+    char *sp;
+    AttTYPE *attSp;
+    char *line;
+    AttTYPE *attLine;
+    CHATTIERS *nextTier;
 } ;
 
 extern struct tier *defheadtier;
@@ -64,10 +65,10 @@ static long cur_MOVEnd = 0L;
 static AttTYPE attLine[UTTLINELEN+1];
 static AttTYPE atts[UTTLINELEN+1];
 static CHATTIERS *tiersRoot;
-static SP_LIST *headsp;
+static SPLIST *headsp;
 
-static SP_LIST *fixBull_clean_speaker(SP_LIST *p) {
-	SP_LIST *t;
+static SPLIST *fixBull_clean_speaker(SPLIST *p) {
+	SPLIST *t;
 
 	while (p != NULL) {
 		t = p;
@@ -114,7 +115,8 @@ void usage() {
 	printf("and inserts an @Media header.\n");
 	printf("Usage: fixbullets [b o %s] filename(s)\n", mainflgs());
 	puts("+b : merge multiple bulets per line into one bullets per tier");
-    puts("+oN: time offset value N (+o+800 means add 800, +o-800 means subtract)");
+	puts("+oN: time offset value N (+o800 means add 800)");
+	puts("-oN: time offset value N (-o800 means subtract 800)");
 	mainusage(TRUE);
 }
 
@@ -139,7 +141,10 @@ void getflag(char *f, char *f1, int *i) {
 		case 'n':
 			break;
 		case 'o':
-			offset = atol(getfarg(f,f1,i));
+			if (*(f-2) == '+')
+				offset = atol(getfarg(f,f1,i));
+			else
+				offset = 0 - atol(getfarg(f,f1,i));
 			break;
 		default:
 			maingetflag(f-2,f1,i);
@@ -187,7 +192,7 @@ static long nextTierBegin(CHATTIERS *tier, long SNDEnd) {
 }
 
 static char fixBull_setLastTime(char *s, long t) {
-	SP_LIST *tp;
+	SPLIST *tp;
 
 	if (*s == '%' || *s == '@')
 		return(FALSE);
@@ -201,7 +206,7 @@ static char fixBull_setLastTime(char *s, long t) {
 }
 
 static long fixBull_getLatTime(char *s) {
-	SP_LIST *tp;
+	SPLIST *tp;
 
 	if (*s == '%' || *s == '@')
 		return(-2L);
@@ -214,12 +219,12 @@ static long fixBull_getLatTime(char *s) {
 }
 
 static void fixBull_addsp(char *s) {
-	SP_LIST *tp;
+	SPLIST *tp;
 
 	if (*s != '*')
 		return;
 	if (headsp == NULL) {
-		headsp = NEW(SP_LIST);
+		headsp = NEW(SPLIST);
 		tp = headsp;
 	} else {
 		for (tp=headsp; 1; tp=tp->nextsp) {
@@ -227,7 +232,7 @@ static void fixBull_addsp(char *s) {
 				return;
 			}
 			if (tp->nextsp == NULL) {
-				tp->nextsp = NEW(SP_LIST);
+				tp->nextsp = NEW(SPLIST);
 				tp = tp->nextsp;
 				break;
 			}
@@ -251,7 +256,7 @@ static void fixBull_addsp(char *s) {
 	tp->endTime = 0L;
 }
 
-static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts) {
+static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts, long ln) {
 	long i, len, lenNew;
 	long tDiff;
 	char isNameChanged;
@@ -438,6 +443,7 @@ static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts) {
 			sprintf(word, "%c%ld_%ld%c", HIDEN_C, cur_SNDBeg, cur_SNDEnd, HIDEN_C);
 
 		if (lastFname[0] != EOS && uS.mStricmp(lastFname, cur_SNDFname) != 0) {
+			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, ln);
 			fprintf(stderr, "ONLY one media file can be used in one transcript data file.\n");
 			tiersRoot = freeTiers(tiersRoot);
 			headsp = fixBull_clean_speaker(headsp);
@@ -448,6 +454,16 @@ static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts) {
 			if (tier_SNDBeg == -1)
 				tier_SNDBeg = cur_SNDBeg;
 			tier_SNDEnd = cur_SNDEnd;
+		}
+	} else if (word[0] == HIDEN_C && uS.mStrnicmp(word+1, SOUNDTIER, strlen(SOUNDTIER)) == 0) {
+		fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, ln);
+		fprintf(stderr, "Possibly corrupt bullet.\n");
+		if (lastFname[0] != EOS && uS.mStricmp(lastFname, cur_MOVFname) != 0) {
+			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, ln);
+			fprintf(stderr, "ONLY one media file can be used in one transcript data file.\n");
+			tiersRoot = freeTiers(tiersRoot);
+			headsp = fixBull_clean_speaker(headsp);
+			cutt_exit(0);
 		}
 	}
 
@@ -538,6 +554,7 @@ static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts) {
 			sprintf(word, "%c%ld_%ld%c", HIDEN_C, cur_MOVBeg, cur_MOVEnd, HIDEN_C);
 		fixBull_setLastTime(tier->sp, cur_MOVEnd);
 		if (lastFname[0] != EOS && uS.mStricmp(lastFname, cur_MOVFname) != 0) {
+			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, ln);
 			fprintf(stderr, "ONLY one media file can be used in one transcript data file.\n");
 			tiersRoot = freeTiers(tiersRoot);
 			headsp = fixBull_clean_speaker(headsp);
@@ -547,6 +564,16 @@ static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts) {
 			if (tier_MOVBeg == -1)
 				tier_MOVBeg = cur_MOVBeg;
 			tier_MOVEnd = cur_MOVEnd;
+		}
+	} else if (word[0] == HIDEN_C && uS.mStrnicmp(word+1, REMOVEMOVIETAG, strlen(REMOVEMOVIETAG)) == 0) {
+		fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, ln);
+		fprintf(stderr, "Possibly corrupt bullet.\n");
+		if (lastFname[0] != EOS && uS.mStricmp(lastFname, cur_MOVFname) != 0) {
+			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, ln);
+			fprintf(stderr, "ONLY one media file can be used in one transcript data file.\n");
+			tiersRoot = freeTiers(tiersRoot);
+			headsp = fixBull_clean_speaker(headsp);
+			cutt_exit(0);
 		}
 	}
 }
@@ -599,7 +626,7 @@ void call() {
 	char isIDsfound, isBulletsFound, isCheckMedia;
 	FNType tMediaFName[FILENAME_MAX];
 	long i, ni, j;
-	CHATTIERS *tier;
+	CHATTIERS *tier = NULL;
 
 	isIDsfound = 0;
 	isCheckMedia = TRUE;
@@ -627,7 +654,7 @@ void call() {
 		if (tiersRoot == NULL) {
 			tier = NEW(CHATTIERS);
 			tiersRoot = tier;
-		} else {
+		} else if (tier != NULL) {
 			tier->nextTier = NEW(CHATTIERS);
 			tier = tier->nextTier;
 		}
@@ -642,6 +669,7 @@ void call() {
 		tier->attSp = NULL;
 		tier->line = NULL;
 		tier->attLine = NULL;
+		tier->ln = lineno;
 		i = strlen(utterance->speaker);
 		if ((tier->sp=(char *)malloc(i+1)) == NULL) {
 			fputs("ERROR: Out of memory.\n",stderr);
@@ -708,7 +736,7 @@ void call() {
 				atts[j] = tier->attLine[i];
 				spareTier2[j+1] = EOS;
 				if (tier->line[i] == HIDEN_C) {
-					checkBulletsConsist(tier, spareTier2, atts);
+					checkBulletsConsist(tier, spareTier2, atts, tier->ln);
 					if (!isMergeBullets) {
 						att_cp(ni, spareTier1, spareTier2, attLine, atts);
 						ni = strlen(spareTier1);

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -155,7 +155,7 @@ int process_a_word( int size, int count, char** word_corpus_array, TAG* tag_corp
 	char nt[24];
 	char ctn[256];
 	int n_record;
-	long* record;
+	long32* record;
 
 	tag_to_classname( tag_corpus_array[count], nt );
 #ifdef DEBUG_PRINT_brilltagger
@@ -208,19 +208,18 @@ msg ("process rule : <%s>\n", text_of_rule );
 #endif
 	/* analyse the rule */
 	char*	word_to_check;
-        char    when[MAXWORDLEN],
-		curwd[MAXWORDLEN],
-		word[MAXWORDLEN],
-		nextw1[MAXWORDLEN],
-		nextw2[MAXWORDLEN],
-		prevw1[MAXWORDLEN],
-		prevw2[MAXWORDLEN];
-        TAG     old, nouv,
-		tag, lft, rght,
-                prev1, prev2, next1,
-                next2, curtag;
-
-        char    atempstr2[256];
+	char    when[MAXWORDLEN],
+	curwd[MAXWORDLEN],
+	word[MAXWORDLEN],
+	nextw1[MAXWORDLEN],
+	nextw2[MAXWORDLEN],
+	prevw1[MAXWORDLEN],
+	prevw2[MAXWORDLEN];
+	TAG     old, nouv,
+			tag, lft, rght,
+			prev1, prev2, next1,
+			next2, curtag;
+	char    atempstr2[256];
 
 	const int TOCHECK = 0;
 	const int OLD = 1;
@@ -232,6 +231,14 @@ msg ("process rule : <%s>\n", text_of_rule );
 	// decomposes a RULE.
 
 	char* split_ptr[12];
+
+	tag = 0L;
+	lft = 0L;
+	rght = 0L;
+	prev1 = 0L;
+	prev2 = 0L;
+	next1 = 0L;
+	next2 = 0L;
 	split_with( text_of_rule, split_ptr, " \t", 12 );
         word_to_check = split_ptr[TOCHECK];
         old = classname_to_tag(split_ptr[OLD]);
@@ -495,19 +502,18 @@ int process_a_rule_along_the_text( char* text_of_rule, char** word_corpus_array,
 
 	/* analyse the rule */
 	char*	word_to_check;
-        char    when[MAXWORDLEN],
-		curwd[MAXWORDLEN],
-		word[MAXWORDLEN],
-		nextw1[MAXWORDLEN],
-		nextw2[MAXWORDLEN],
-		prevw1[MAXWORDLEN],
-		prevw2[MAXWORDLEN];
-        TAG     old, nouv,
-		tag, lft, rght,
-                prev1, prev2, next1,
-                next2, curtag;
-
-        char    atempstr2[256];
+	char    when[MAXWORDLEN],
+			curwd[MAXWORDLEN],
+			word[MAXWORDLEN],
+			nextw1[MAXWORDLEN],
+			nextw2[MAXWORDLEN],
+			prevw1[MAXWORDLEN],
+			prevw2[MAXWORDLEN];
+	TAG     old, nouv,
+			tag, lft, rght,
+			prev1, prev2, next1,
+			next2, curtag;
+	char    atempstr2[256];
 
 	const int TOCHECK = 0;
 	const int OLD = 1;
@@ -519,6 +525,15 @@ int process_a_rule_along_the_text( char* text_of_rule, char** word_corpus_array,
 	// decomposes a RULE.
 
 	char* split_ptr[12];
+
+	tag = 0L;
+	lft = 0L;
+	rght = 0L;
+	prev1 = 0L;
+	prev2 = 0L;
+	next1 = 0L;
+	next2 = 0L;
+
 	split_with( text_of_rule, split_ptr, " \t", 12 );
         word_to_check = split_ptr[TOCHECK];
         old = classname_to_tag(split_ptr[OLD]);

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -29,6 +29,8 @@ struct tnode		/* binary uniq_tree for word and count */
 };
 
 static char uniq_sort = 0;
+static long uniq_total;				/* total number of words */
+static long uniq_diff;
 static struct tnode *uniq_root;
 
 void usage()	{		/* print proper usage and exit */
@@ -39,10 +41,16 @@ void usage()	{		/* print proper usage and exit */
 }
 
 void init(char f) {
-	if(f)
+	if(f) {
+		uniq_total = 0L;
+		uniq_diff = 0L;
 		chatmode = 0;
-    if (f || !combinput)
+	}
+	if (f || !combinput) {
+		uniq_total = 0L;
+		uniq_diff = 0L;
 		uniq_root = NULL;
+	}
 }
 
 static void uniq_overflow(void) {
@@ -69,9 +77,12 @@ static void uniq_remove_endspace(char *line) {
     register int i;
 
     i = strlen(line) - 1;
-    if (line[i] == '\n' && i >= 0) line[i] = EOS;
-    else fputs("Line too long  : end ignored.\n", stderr);
-    for (i--; (line[i] == ' ' || line[i] == '\t') && i >= 0; i--) ;
+	if (line[i] == '\n' && i >= 0) {
+		line[i] = EOS;
+		i--;
+	} else if (i >= UTTLINELEN-1)
+		fputs("Line too long  : end ignored.\n", stderr);
+    for (; (line[i] == ' ' || line[i] == '\t') && i >= 0; i--) ;
     line[++i] = EOS;
 }
 
@@ -79,7 +90,8 @@ static void uniq_remove_startspace(char *line) {
     char *beg;
 
     for (beg=line; *line == ' ' || *line == '\t'; line++);
-    if (beg != line) strcpy(beg, line);
+    if (beg != line)
+		strcpy(beg, line);
 }
 
 static struct tnode *uniq_stree(struct tnode *p, struct tnode *m) {
@@ -120,7 +132,8 @@ static void uniq_treeprint(struct tnode *p, FILE *fp) {
     if (p != NULL) {
 		uniq_treeprint(p->left, fp);
 		do {
-		    if (!onlydata) fprintf(fp, "%5d  ", p->count);
+		    if (!onlydata)
+				fprintf(fp, "%5d  ", p->count);
 		    fprintf(fpout,"%s\n", p->word);
 		    if (p->right == NULL) break;
 		    if (p->right->left != NULL) {
@@ -144,8 +157,12 @@ static void uniq_treesort(struct tnode *p, FILE *fpout) {
 }
 
 static void pr_result() {
-    if (uniq_sort) uniq_treesort(uniq_root, fpout);
-    else uniq_treeprint(uniq_root, fpout);
+    if (uniq_sort)
+		uniq_treesort(uniq_root, fpout);
+    else
+		uniq_treeprint(uniq_root, fpout);
+	if (!onlydata)
+		fprintf(fpout, "Unique number: %ld    Total number: %ld\n", uniq_diff, uniq_total);
 }
 
 static struct tnode *uniq_tree(struct tnode *p, char *w) {
@@ -153,6 +170,7 @@ static struct tnode *uniq_tree(struct tnode *p, char *w) {
     struct tnode *t = p;
 
     if (p == NULL) {
+		uniq_diff++;
 		p = uniq_talloc();
 		p->word = uniq_strsave(w);
 		p->count = 1;
@@ -188,7 +206,11 @@ void call() {
 		    if (!nomap)
 		    	uS.lowercasestr(uttline, &dFnt, MBF);
 		    if (exclude(uttline)) {
-				uniq_root = uniq_tree(uniq_root,uttline);
+				uS.remFrontAndBackBlanks(uttline);
+				if (uttline[0] != EOS) {
+					uniq_total++;
+					uniq_root = uniq_tree(uniq_root,uttline);
+				}
 		    }
 		}
     }
@@ -202,6 +224,8 @@ void getflag(char *f, char *f1, int *i) {
     switch(*f++) {
 	case 'o':
 		uniq_sort = 1;
+		break;
+	case 'y':
 		break;
 	default:
 		maingetflag(f-2,f1,i);

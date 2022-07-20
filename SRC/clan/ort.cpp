@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -109,7 +109,7 @@ static void addToTable(char *nc, int cnt, char *oc, char *line) {
 static void readCodesTable(void) {
 	FILE *fp;
 	int i, cnt;
-	char orgC[126], *tOrgC, *oc, *line;
+	char orgC[126], *tOrgC = NULL, *oc = NULL, *line = NULL;
 
 #ifndef UNX
 	if (WD_Not_Eq_OD)
@@ -128,7 +128,7 @@ static void readCodesTable(void) {
 	cnt = 0;
 	orgC[0] = EOS;
     while (fgets_cr(templineC, UTTLINELEN, fp)) {
-    	if (templineC[0] == '@')
+    	if (templineC[0] == '#')
     		continue;
 
     	for (i=0; templineC[i] != ',' && templineC[i]; i++) ;
@@ -166,7 +166,8 @@ static void readCodesTable(void) {
 			freeRC();
 			cutt_exit(0);
 		}
-		addToTable(orgC, cnt, oc, line);
+		if (line != NULL)
+			addToTable(orgC, cnt, oc, line);
     }
 	fclose(fp);
 /*

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -9,6 +9,7 @@
 #include "cu.h"
 #ifdef _WIN32 
 	#include "stdafx.h"
+	#include "w95_QTReplace.h"
 #endif
 
 #if !defined(UNX)
@@ -34,10 +35,40 @@ struct SilenceList {
 	SILENCE *next;
 } ;
 
-static char mediaFName[FILENAME_MAX+2];
+static char mediaFName[FILENAME_MAX+2], SOption;
 static SILENCE *TimesList;
 
 /* *********************************************************** */
+
+static SILENCE *free_SilenceList(SILENCE *p) {
+	SILENCE *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->next;
+		free(t);
+	}
+	return(NULL);
+}
+
+static void freeAllMemory(char isQuit, sndInfo *tempSound) {
+	TimesList = free_SilenceList(TimesList);
+	if (tempSound->isMP3 == TRUE) {
+		tempSound->isMP3 = FALSE;
+#ifdef _MAC_CODE // NO QT
+		if (tempSound->mp3.hSys7SoundData)
+			DisposeHandle(tempSound->mp3.hSys7SoundData);
+#ifndef _COCOA_APP
+		tempSound->mp3.theSoundMedia = NULL;
+#endif
+		tempSound->mp3.hSys7SoundData = NULL;
+#endif
+	} else if (tempSound->SoundFPtr != NULL)
+		fclose(tempSound->SoundFPtr);
+	tempSound->SoundFPtr = NULL;
+	if (isQuit)
+		cutt_exit(0);
+}
 
 void init(char f) {
 	if (f) {
@@ -65,6 +96,16 @@ void init(char f) {
 		maininitwords();
 		mor_initwords();
 		FilterTier = 1;
+		SOption = FALSE;
+	} else {
+		if (!SOption) {
+			sndInfo tempSound;
+
+			fprintf(stderr, "\nPlease specify a keyword you want silenced with +s option.\n\n");
+			tempSound.isMP3 = FALSE;
+			tempSound.SoundFPtr = NULL;
+			freeAllMemory(TRUE, &tempSound);
+		}
 	}
 }
 
@@ -86,36 +127,12 @@ void getflag(char *f, char *f1, int *i) {
 
 	f++;
 	switch(*f++) {
+		case 's':
+			SOption = TRUE;
 		default:
 			maingetflag(f-2,f1,i);
 			break;
 	}
-}
-
-static SILENCE *free_SilenceList(SILENCE *p) {
-	SILENCE *t;
-
-	while (p != NULL) {
-		t = p;
-		p = p->next;
-		free(t);
-	}
-	return(NULL);
-}
-
-static void freeAllMemory(char isQuit, sndInfo *tempSound) {
-	TimesList = free_SilenceList(TimesList);
-	if (tempSound->isMP3 == TRUE) {
-		tempSound->isMP3 = FALSE;
-		if (tempSound->mp3.hSys7SoundData)
-			DisposeHandle(tempSound->mp3.hSys7SoundData);
-		tempSound->mp3.theSoundMedia = NULL;
-		tempSound->mp3.hSys7SoundData = NULL;
-	} else if (tempSound->SoundFPtr != NULL)
-		fclose(tempSound->SoundFPtr);
-	tempSound->SoundFPtr = NULL;
-	if (isQuit)
-		cutt_exit(0);
 }
 
 static SILENCE *AddToSilenceList(SILENCE *root, long mBeg, long mEnd, sndInfo *tempSound) {
@@ -353,9 +370,10 @@ void call() {
 				fclose(tempSound.SoundFPtr);
 			tempSound.SoundFPtr = NULL;
 			tempSound.isMP3 = FALSE;
+			tempSound.errMess = "";
 			templineC[0] = EOS;
 			if (!findSoundFileInWd(&tempSound, templineC)) {
-				fprintf(stderr, "\nError: Can't locate media file \"%s\"\n", mediaFName);
+				fprintf(stderr, "\nError: Can't locate audio file \"%s\"\n", mediaFName);
 				if (tempSound.errMess[0] != EOS)
 					fprintf(stderr, "%s\n", tempSound.errMess);
 				fprintf(stderr, "\n", mediaFName);
@@ -363,10 +381,14 @@ void call() {
 				return;
 			} else if (tempSound.isMP3 == TRUE) {
 				tempSound.isMP3 = FALSE;
+#ifdef _MAC_CODE // NO QT lxs-mp3
 				if (tempSound.mp3.hSys7SoundData)
 					DisposeHandle(tempSound.mp3.hSys7SoundData);
+#ifndef _COCOA_APP
 				tempSound.mp3.theSoundMedia = NULL;
+#endif
 				tempSound.mp3.hSys7SoundData = NULL;
+#endif
 				fprintf(stderr, "\nError: Can't work with MP3 media file\n\n");
 				freeAllMemory(FALSE, &tempSound);
 				return;

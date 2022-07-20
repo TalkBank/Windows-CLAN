@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -18,6 +18,7 @@ int post_file
 #ifdef POSTCODE
 
 extern long option_flags[];
+extern char isRecursive;
 
 #else
 
@@ -30,7 +31,7 @@ extern long option_flags[];
 #if defined(UNX)
 
 #ifndef EOS			/* End Of String marker			 */
-    #define EOS '\0'
+	#define EOS '\0'
 #endif
 
 #endif
@@ -50,7 +51,7 @@ inline int isspace(char c) { return strchr(WhiteSpaces,c)?1:0; }
 
 FILE *posErrFp;
 const char *posErrType;
-long spLineno;
+long32 spLineno;
 char posT[UTTLINELEN], morT[UTTLINELEN], trnT[UTTLINELEN], spT[UTTLINELEN];
 
 static void removeAllExtra(char *tT) {
@@ -74,8 +75,8 @@ static void removeAllExtra(char *tT) {
 		*(tT-1) = '\n';
 }
 
-static long lineCnt(char *s) {
-	long ln = 0L;
+static long32 lineCnt(char *s) {
+	long32 ln = 0L;
 
 	for (; *s; s++) {
 		if (*s == '\n')
@@ -98,7 +99,7 @@ static int mystrcmp(char *s1, char *s2) {
 	return(*s1 != *s2);
 }
 
-static void doCompar(FNType *fname, long ln) {
+static void doCompar(FNType *fname, long32 ln) {
 	if (*posT == '\0' || *trnT == '\0')
 		return;
 	removeAllExtra(posT);
@@ -125,11 +126,25 @@ static void doCompar(FNType *fname, long ln) {
 	}
 }
 
-static void convertToMORAndPrint(FILE *out, struct SimpleTier *convMorT, char *mor) {
+static void removeExtraSpaceFromMor(char *st) {
 	int i;
-	char item[BUFSIZ], isItemAmbig;
-	struct SimpleTier *sItem, *elem;
 
+	for (i=0; st[i] != EOS; ) {
+		if (st[i]==' ' || st[i]=='\t' || (st[i]=='<' && (i==0 || st[i-1]==' ' || st[i-1]=='\t'))) {
+			i++;
+			while (st[i] == ' ' || st[i] == '\t')
+				strcpy(st+i, st+i+1);
+		} else
+			i++;
+	}
+}
+
+static void convertToMORAndPrint(FILE *out, struct SimpleTier *convMorT, char *mor) {
+	int  i, len;
+	char item[BUFSIZ];
+	struct SimpleTier *elem;
+
+	removeExtraSpaceFromMor(mor);
 	for (i=0; mor[i] != ':' && mor[i] != EOS; i++) ;
 	if (mor[i] == EOS) {
 		mor[0] = EOS;
@@ -142,12 +157,9 @@ static void convertToMORAndPrint(FILE *out, struct SimpleTier *convMorT, char *m
 	}
 	strcpy(mor, mor+i);
 	strcpy(templineC, mor);
-	isItemAmbig = FALSE;
 	templineC1[0] = EOS;
-	templineC2[0] = EOS;
-	sItem = convMorT;
 	i = 0;
-	while ((i=getNextMorItem(templineC, item, i))) {
+	while ((i=getNextMorItem(templineC, item, NULL, i))) {
 		if (convMorT == NULL) {
 			fprintf(stderr, "*** POST INTERNAL ERROR 1\n");
 //			fprintf(out, "*** POST INTERNAL ERROR 1\n");
@@ -158,18 +170,27 @@ static void convertToMORAndPrint(FILE *out, struct SimpleTier *convMorT, char *m
 #else
 		remFrontAndBackBlanks(item);
 #endif
-		if (convMorT->isClitic == FALSE) {
-			isItemAmbig = FALSE;
-			sItem = convMorT;
-		}
-		if (strchr(item, '^') != NULL)
-			isItemAmbig = TRUE;
-		else {
+		if (strchr(item, '^') != NULL) {
+			if (templineC1[0] != EOS)
+				strcat(templineC1, " ");
+			strcat(templineC1, convMorT->org);
+		} else {
 			for (elem=convMorT; elem != NULL; elem=elem->nextChoice) {
 				if (strcmp(item, elem->sw) == 0) {
-					if (templineC1[0] != EOS)
+					len = strlen(templineC1);
+					if (elem->isCliticChr == '$') {
+						if (templineC1[0] != EOS && templineC1[len-1] != '$')
+							strcat(templineC1, " ");
+						strcat(templineC1, elem->ow);
+						strcat(templineC1, "$");
+					} else if (elem->isCliticChr == '~') {
 						strcat(templineC1, "~");
-					strcat(templineC1, elem->ow);
+						strcat(templineC1, elem->ow);
+					} else {
+						if (templineC1[0] != EOS && templineC1[len-1] != '$')
+							strcat(templineC1, " ");
+						strcat(templineC1, elem->ow);
+					}
 					break;
 				}
 			}
@@ -179,22 +200,22 @@ static void convertToMORAndPrint(FILE *out, struct SimpleTier *convMorT, char *m
 				for (elem=convMorT; elem != NULL; elem=elem->nextChoice) {
 					fprintf(stderr, "    \"%s\" for \'%s\"\n", elem->sw, elem->ow);
 				}
-				if (templineC1[0] != EOS)
+				if (convMorT->isCliticChr == '$') {
+					strcat(templineC1, item);
+					strcat(templineC1, "$");
+				} else if (convMorT->isCliticChr == '~') {
 					strcat(templineC1, "~");
-				strcat(templineC1, item);
-//				convMorT == NULL;				
+					strcat(templineC1, item);
+				} else {
+					len = strlen(templineC1);
+					if (templineC1[0] != EOS && templineC1[len-1] != '$')
+						strcat(templineC1, " ");
+					strcat(templineC1, item);
+				}
+//				convMorT == NULL;
 //				fprintf(out, "*** POST INTERNAL ERROR 2\n");
 //				break;
 			}
-		}
-		if (convMorT->nextW == NULL || convMorT->nextW->isClitic == FALSE) {
-			if (templineC2[0] != EOS)
-				strcat(templineC2, " ");
-			if (isItemAmbig)
-				strcat(templineC2, sItem->org);
-			else
-				strcat(templineC2, templineC1);
-			templineC1[0] = EOS;
 		}
 		convMorT = convMorT->nextW;
 	}
@@ -202,20 +223,20 @@ static void convertToMORAndPrint(FILE *out, struct SimpleTier *convMorT, char *m
 		fprintf(stderr, "*** POST INTERNAL ERROR 2\n");
 //		fprintf(out, "*** POST INTERNAL ERROR 2\n");
 	}	
-	printclean(out, "%mor:", templineC2);
-	printclean(out, "%xcnl:", mor);
+	printclean(out, "%mor:", templineC1);
+	printclean(out, "%cnl:", mor);
 }
 
 int post_file(FNType* inputname, int style, int style_unkwords, int brill, FNType* outfilename, int filter_out, int linelimit, char* argv[], int argc, int internal_mor, int priority_freq_local )
 {
 	int res;
 	FNType fno[FNSize];
-	long postLineno = 0L, tSpLineno;
-	char isConnlError;
+	long32 postLineno = 0L, tSpLineno;
+	char isConllError;
 	struct SimpleTier *convMorT = NULL;
 	FILE* out = stdout;
 
-	isConnlError = FALSE;
+	isConllError = FALSE;
 	res = strcmp(outfilename, "con");
 //	res = uS.FNTypecmp(outfilename, "con", 0L);  // CHK
 	if ( res ) {	// if not output to console.
@@ -279,7 +300,7 @@ int post_file(FNType* inputname, int style, int style_unkwords, int brill, FNTyp
 	}
 	posErrFp = NULL;
 
-	int n, y, ok_t_option; 
+	int n, y, ok_t_option = 0;
 	char* T;
 	spT[0] = '\0';
 	posT[0] = '\0';
@@ -310,9 +331,9 @@ int post_file(FNType* inputname, int style, int style_unkwords, int brill, FNTyp
 				int jmpret = setjmp( mark );
 				if( jmpret == 0 ) {
 					convMorT = NULL;
-					if (isConnlSpecified() && style == 0) {
-						convMorT = convertTier(T, inputname, &isConnlError);
-						if (isConnlError)
+					if (isConllSpecified() && style == 0) {
+						convMorT = convertTier(T, inputname, &isConllError);
+						if (isConllError)
 							return 0;
 					}
 					strcpy(morT, T);
@@ -344,14 +365,14 @@ int post_file(FNType* inputname, int style, int style_unkwords, int brill, FNTyp
 				int jmpret = setjmp( mark );
 				if( jmpret == 0 ) {
 					convMorT = NULL;
-					if (isConnlSpecified() && style == 0) {
-						convMorT = convertTier(T, inputname, &isConnlError);
-						if (isConnlError)
+					if (isConllSpecified() && style == 0) {
+						convMorT = convertTier(T, inputname, &isConllError);
+						if (isConllError)
 							return 0;
 					}
 					strcpy(morT, T);
 #ifdef debug_0
-					msg ( "T=%s", T );
+	msg ( "T=%s", T );
 #endif
 					post_analyzemorline( T, style, style_unkwords, brill, out, filter_out, linelimit, priority_freq_local);
 					if (style == 0) {
@@ -467,15 +488,19 @@ ignore_t_option:
 			unlink(inputname);
 			rename_each_file(fno, inputname, FALSE);
 		}
+#else
+		unlink(inputname);
+		rename(fno, inputname);
 #endif
 	}
 #ifdef POSTCODE
 	if ((option_flags[CLAN_PROG_NUM] & FR_OPTION) && replaceFile) {
-		msg( "Output file <%s>\n", inputname );
+// lxs 2019-03-15 if (!isRecursive)
+			msg( "Output file <%s>\n", inputname );
 	} else
 		msg( "Output file <%s>\n", fno );
 #else
-	msg( "Output file <%s>\n", fno );
+	msg( "Output file <%s>\n", inputname );
 #endif
 	return 1;
 }
@@ -503,8 +528,11 @@ static int get_ambtags_of_MOR( char** W, int nW, char** &words, AMBTAG* &ambs, a
 	for ( i=0; i<nW; i++ ) {
 
 		char *tmp_s = dynalloc(strlen(W[i])+1);
-		strcpy( tmp_s, W[i] );
 
+		if (W[i][0] == '0' && strchr(W[i], '^') != NULL)//2019-05-01
+			strcpy( tmp_s, W[i]+1 );
+		else
+			strcpy( tmp_s, W[i] );
 		make_ambmortag( tmp_s, &AMT[i] );
 #ifdef debug_7
 	msg ( "(%s) (", W[i] );
@@ -530,7 +558,11 @@ static int get_ambtags_of_MOR( char** W, int nW, char** &words, AMBTAG* &ambs, a
 		} else {
 			ambmortag tmp;
 			char *tmp_s = dynalloc(strlen(W[i])+1);
-			strcpy( tmp_s, W[i] );
+			
+			if (W[i][0] == '0' && strchr(W[i], '^') != NULL)//2019-05-01
+				strcpy( tmp_s, W[i]+1 );
+			else
+				strcpy( tmp_s, W[i] );
 			make_ambmortag( tmp_s, &tmp );
 
 #ifdef debug_7
@@ -588,7 +620,8 @@ static int make_mortag_analyzed(char* str, mortag* mt)
 
 	// then find prefixes.
 	char* pref[32];
-	int np = split_with(mt->MT, pref, MorTagComplementsPrefixes, 32 ); // note if np==1, then value of maintag is still valid
+//	int np = split_with(mt->MT, pref, MorTagComplementsPrefixes, 32 ); // note if np==1, then value of maintag is still valid
+	int np = split_Prefixes(mt->MT, pref, 32 ); // note if np==1, then value of maintag is still valid
 
 	if (ns==0&&np==1) return 1; // no prefixes and suffixes
 
@@ -634,7 +667,7 @@ static void tag_to_classname_filtered_monocat(TAG T, ambmortag* amt, char* s, in
 {
 	int i, in;
 
-	if (!amt) {
+	if (!amt) { // lxs
 		tag_to_classname(T,s);
 		return;
 	}
@@ -778,6 +811,8 @@ static void tag_to_classname_filtered_multicat(TAG T, ambmortag* amt, char* s, i
 	int l = strlen(temp);
 	for (int i=0;i<amt->nA;i++) {
 		char* a = mortag_to_string(&amt->A[i]);
+		if (a == 0)
+			return;
 		if ( !strncmp( temp, a, l ) && a[ l ] == '|' ) {
 			// copy without the +
 			// strcpy( s, &a[l+2] );
@@ -790,11 +825,22 @@ static void tag_to_classname_filtered_multicat(TAG T, ambmortag* amt, char* s, i
 				f++;
 			}
 			*t = '\0';
+			if (amt->A[i].translation) {
+				strcat(s, "=");
+				strcat(s, amt->A[i].translation);
+			}
 			return;
 		}
 	}
 	// ?? should not happen, do something to clean up
 	tag_to_classname_filtered_monocat( T, amt, s, filter_out);
+}
+
+static void post_shiftright(char *st, int num) {
+	register int i;
+
+	for (i=strlen(st); i >= 0; i--)
+		st[i+num] = st[i];
 }
 
 // finds the closest mortags (in an ambmortag) from a normal tag.
@@ -809,11 +855,12 @@ static void tag_to_classname_filtered(TAG T, ambmortag* amt, char* s, int filter
 		tag_to_classname_filtered_monocat( T, amt, s, filter_out);
 }
 
-static void display_tag_internal(int i, int* annotation, ambmortag* AMT, char** MW, AMBTAG* R, int filtered, int filter_out, char* tT, 
+static void display_tag_internal(int i, int lastMW, int* annotation, ambmortag* AMT, char** MW, AMBTAG* R, int filtered, int filter_out, char* tT,
 	int& p, char &sq, int style, int style_unkwords, FILE *out)
 {
-	char s[MaxSzTag];
+	char s[MaxSzTag+2];
 
+	s[0] = EOS;
 	if (annotation[i]&AnaNote_unknownword ) /*( !strcmp( "?", AMT[i].A[0].MT ) && strchr( MW[i], '|' ) )*/ {
 		if (style_unkwords==1) {
 			tag_to_classname(R[i][1],s);
@@ -830,11 +877,19 @@ static void display_tag_internal(int i, int* annotation, ambmortag* AMT, char** 
 			tag_to_classname_filtered(R[i][1],&AMT[i],s,filter_out);
 		else
 			tag_to_classname(R[i][1],s);
+		if (MW[i][0] == '0' && strchr(MW[i], '^') != NULL) {//2019-05-01
+			post_shiftright(s, 1);
+			s[0] = '0';
+		}
 	}
 
 #ifdef debug_9
 		msg("------$%s$\n", s );
 #endif
+	// lxs 2019-01-08
+	if (i == lastMW && (strcmp(MW[i], ".") == 0 || strcmp(MW[i], "!") == 0 || strcmp(MW[i], "?") == 0) && strcmp(MW[i], s))
+		strcpy(s, MW[i]);
+	// lxs 2019-01-08
 
 	if (strchr(s, '['))
 		sq = 1;
@@ -853,6 +908,10 @@ static void display_tag_internal(int i, int* annotation, ambmortag* AMT, char** 
 					tag_to_classname_filtered(R[i][j],&AMT[i],s,filter_out);
 				else
 					tag_to_classname(R[i][j],s);
+				if (MW[i][0] == '0' && strchr(MW[i], '^') != NULL) {//2019-05-01
+					post_shiftright(s, 1);
+					s[0] = '0';
+				}
 				msgfile( out, "%c%s", Separator1, s );
 				sprintf(tT+strlen(tT), "%c%s", Separator1, s );
 				spLineno += lineCnt(s);
@@ -882,6 +941,8 @@ static void display_lastresults( FILE* out, int style, int style_unkwords, int l
 	char sq, first_on_line;
 	// display best analyze only.
 	char mh[6];
+	int lastMW;
+
 	if (style == 4)
 		strcpy(mh,"%nob:");
 	else if (style == 0 || style >= 5)
@@ -904,15 +965,16 @@ static void display_lastresults( FILE* out, int style, int style_unkwords, int l
 	int nowrap = 0;
 
 	sq = 0;
-	first_on_line = '\001';
-	for (i=1,p=1; i<(added_a_punctuation?nMW-1:nMW); i++ ) {
+	first_on_line = TRUE;
+	lastMW = (added_a_punctuation ? nMW-1 : nMW);
+	for (i=1,p=1; i < lastMW; i++) {
 		if (p>linelimit && !sq && nowrap==0) {
 			p = 0;
 			if (style != 0)
 				msgfile( out, "\n\t" );
 			strcat(tT, "\n\t");
 			spLineno++;
-			first_on_line = '\001';
+			first_on_line = TRUE;
 		}
 		nowrap = 0;
 
@@ -924,14 +986,14 @@ static void display_lastresults( FILE* out, int style, int style_unkwords, int l
 			msg( "%s --- %s\n", temp, temp2 );
 #endif
 
-		if (first_on_line == '\0') {
+		if (first_on_line == FALSE) {
 			if (style != 0)
 				msgfile( out, " " );
 			strcat(tT, " ");
 		} else
-			first_on_line = '\0';
+			first_on_line = FALSE;
 
-		display_tag_internal( i, annotation, AMT, MW, R, filtered, filter_out, tT, p, sq, style, style_unkwords, out);
+		display_tag_internal( i, lastMW-1, annotation, AMT, MW, R, filtered, filter_out, tT, p, sq, style, style_unkwords, out);
 
 		p++;
 	}
@@ -1061,27 +1123,32 @@ static int analyze_mortags ( char** MW, int nMW, int style, int style_unkwords, 
 		msg(" (%d)%d-",ii,R[ii][0]); for (int j=1;j<R[ii][0];j++) msg("%d-", R[ii][j] );
 	} msg("\n");
 #endif
-	if (style==5) {
+	if (style == 5 || style == 6) {
 		// final presentation of debug information (display internal data).
 		msgfile( out, "%%postdbg:\tFinalCategory [AmbiguousTag(Complete)] [ResolvedTag] [BeforeResolution]\n" );
 		for (int i=1; i<(added_a_punctuation?nMW-1:nMW); i++) {	// skip first word.
 			char s[256];
 			tag_to_classname_filtered(R[i][1],&AMT[i],s,filter_out);
-			msgfile( out, "\t%s ", s );
-			msgfile( out, "[" );
+			if (s[0] == '.' || s[0] == '!' || s[0] == '?')
+				continue;
+			msgfile( out, "\t%s \n", s );
+			msgfile( out, "\tAMT[%d]=[", i);
 			print_ambmortag( out, &AMT[i] );
-			msgfile( out, "] [" );
+			msgfile( out, "]\n\tR[%d][1]%d=[", i, R[i][1]);
 			print_ambtag_regular( R[i], out, -1 );
-			msgfile( out, "] [" );
+			msgfile( out, "]\n\tA[%d]=[", i);
 			print_ambtag_regular( A[i], out );
 			char an[256];
-			strcpy( an, "] " );
-			if (annotation[i]&AnaNote_unknownword ) strcat(an, "-unknown-word");
-			if (annotation[i]&AnaNote_norule ) strcat(an, "-no-rule");
-			if (annotation[i]&AnaNote_noresolution ) strcat(an, "-no-resolution");
+			strcpy( an, "]\n" );
+			if (annotation[i]&AnaNote_unknownword )
+				strcat(an, "\t-unknown-word\n");
+			if (annotation[i]&AnaNote_norule )
+				strcat(an, "\t-no-rule\n");
+			if (annotation[i]&AnaNote_noresolution )
+				strcat(an, "\t-no-resolution\n");
 			msgfile( out, "%s\n", an );
 		}
-		msgfile( out, "\n" );
+//		msgfile( out, "\n" );
 	}
 	if (style==2 || style==3) {
 		display_lastresults( out, style, style_unkwords, linelimit, annotation, AMT, MW, nMW, R, filter_out, spLineno, added_a_punctuation, 1, morCodeInfo );

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -66,8 +66,8 @@ static CHAIN_CLAUSES *root_clause;
 
 void usage() {
 	puts("CHAINS .");
-	printf("Usage: chains [cS %s] filename(s)\n", mainflgs());
-	puts("+cS: look for unit marker S");
+	printf("Usage: chains [cS dN %s] filename(s)\n", mainflgs());
+	puts("+cS: look for clause marker S or markers listed in file @S");
 	puts("+d : changes zeroes to spaces in output");
 	puts("+d1: same as +d, plus displays every input line in output");
 	mainusage(TRUE);
@@ -155,13 +155,13 @@ static void ReadCodesOrder() {
 	FILE *fp;
 	char code[256];
 	register int lp;
-	CHAIN_CODES *tcode;
+	CHAIN_CODES *tcode = NULL;
 	FNType mFileName[FNSize];
 
 	if ((fp=OpenGenLib(CODES_ORDER_FILE,"r",TRUE,TRUE,mFileName)) == NULL)
 		return;
 	while (fgets_cr(code, 255, fp)) {
-		if (uS.isUTF8(code) || uS.partcmp(code, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(code) || uS.isInvisibleHeader(code))
 			continue;
 		lp = strlen(code) - 1;
 		if (code[lp] == '\n')
@@ -171,7 +171,7 @@ static void ReadCodesOrder() {
 		if (root_code == NULL) {
 			tcode = chains_create_code(code);
 			root_code = tcode;
-		} else {
+		} else if (tcode != NULL) {
 			tcode->nextcode = chains_create_code(code);
 			tcode = tcode->nextcode;
 		}
@@ -425,17 +425,15 @@ static void chains_pr_result(void) {
 	CHAIN_CODES *tc;
 	CHAIN_SPEAKERS *tsp;
 	unsigned int tutt_line;
-	unsigned int lno;
+	unsigned int lno = 0;
 	unsigned int tlno;
 
 
-#ifdef _UNICODE
 	if (stout) {
 		strcpy(fontName, "CAfont:13:7\n");
 		cutt_SetNewFont(fontName, EOS);
 	} else
 		fprintf(fpout,"%s	CAfont:13:7\n", FONTHEADER);
-#endif
 
 	if (root_sp != NULL) {
 		fprintf(fpout,"Speaker markers:  %d=%s", ++cnt, root_sp->sp);
@@ -451,7 +449,7 @@ static void chains_pr_result(void) {
 			if (tc->fn == FALSE) {
 				tc = tc->nextcode;
 				if (tc == NULL)
-				break;
+					break;
 			} else {
 				cnt_items++;
 				tc->utt = tc->root_utt;
@@ -498,6 +496,8 @@ static void chains_pr_result(void) {
 						fprintf(fpout," %s", tc->utt->st+1);
 					}
 					/*		    if (chains_isany(tc->nextcode)) */
+					if (strlen(tc->code) > 7)
+						putc('\t', fpout);
 					putc('\t', fpout);
 					tc->cur++;
 					if (tc->utt->st != NULL) {
@@ -515,12 +515,13 @@ static void chains_pr_result(void) {
 					if (chains_onlydata) {
 						cnt = TRUE;
 						fprintf(fpout," ");
-						putc('\t', fpout);
 					} else if (cnt_items != 1) {
 						cnt = TRUE;
 						fprintf(fpout,"0");
-						putc('\t', fpout);
 					}
+					if (strlen(tc->code) > 7)
+						putc('\t', fpout);
+					putc('\t', fpout);
 					/*		    if (chains_isany(tc->nextcode)) */
 					if (!tc->chain_break) {
 						tc->chain_break = TRUE;
@@ -537,12 +538,13 @@ static void chains_pr_result(void) {
 				if (chains_onlydata) {
 					cnt = TRUE;
 					fprintf(fpout," ");
-					putc('\t', fpout);
 				} else if (cnt_items != 1) {
 					cnt = TRUE;
 					fprintf(fpout,"0");
-					putc('\t', fpout);
 				}
+				if (strlen(tc->code) > 7)
+					putc('\t', fpout);
+				putc('\t', fpout);
 				/*		if (chains_isany(tc->nextcode)) */
 				if (!tc->chain_break) {
 					tc->chain_break = TRUE;
@@ -972,8 +974,8 @@ void call() {
 	register int j;
 	int speaker;
 	unsigned int l_offset;
-	unsigned int flineno;
-	unsigned int slineno;
+	unsigned int flineno = 0;
+	unsigned int slineno = 0;
 	int utt_offset;
 	char temp_buf[SPEAKERLEN];
 
@@ -1074,7 +1076,7 @@ static void AddClauseFromFile(FNType *fname) {
 		chains_exit(0);
 	}
 	while (fgets_cr(wd, 255, fp)) {
-		if (uS.isUTF8(wd) || uS.partcmp(wd, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(wd) || uS.isInvisibleHeader(wd))
 			continue;
 		AddClause(wd);
 	}
@@ -1093,7 +1095,7 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 		case 'c':
 			if (!*f) {
-				fprintf(stderr,"Specify unit delemeters after +c option.\n");
+				fprintf(stderr,"Specify clause delemeters after +c option.\n");
 				chains_exit(0);
 			}
 			if (*f == '@') {

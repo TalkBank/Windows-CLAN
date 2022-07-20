@@ -1,9 +1,7 @@
 #include "ced.h"
 #include "c_clan.h"
 #ifdef _WIN32 
-	#include "resource.h"
 	#include "CedDlgs.h"
-	#include "MSUtil.h"
 #endif
 #ifdef _MAC_CODE
 	#include <cstdarg>
@@ -17,7 +15,7 @@ static char temp_print_str[UTTLINELEN+4];
 
 static int print_str_cnt = 0;
 static char print_str[UTTLINELEN+4];
-static wchar_t uPrint_str[UTTLINELEN*4];
+static unCH uPrint_str[UTTLINELEN*4];
 static unCH input_str[UTTLINELEN+6];
 
 
@@ -59,6 +57,7 @@ repeatAdding:
 	}
 }
 
+/*
 char *my_gets(char *st) {
 	*st = EOS;
 	if (isKillProgram)
@@ -85,6 +84,7 @@ char *my_gets(char *st) {
 #endif
 	return(st);
 }
+*/
 
 int my_getc(FILE *fp) {
 	int c;
@@ -118,7 +118,9 @@ int my_getc(FILE *fp) {
 					input_str[c] = '\n';
 #else
 				StdInWindow = global_df->fileName;
+#ifndef _COCOA_APP
 				DoCharStdInput(input_str);
+#endif
 				StdInWindow = NULL;
 				StdInErrMessage = NULL;
 				StdDoneMessage  = NULL;
@@ -144,13 +146,11 @@ int my_getc(FILE *fp) {
 }
 
 void my_flush_chr(void) {
-#ifdef _UNICODE
 	if (print_str_cnt > 0) {
 		UTF8ToUnicode((unsigned char *)print_str, print_str_cnt, uPrint_str, NULL, UTTLINELEN*4);
 		print_str_cnt = 0;
 		OutputToScreen(uPrint_str);
 	}
-#endif
 }
 
 int my_feof(FILE *fp) {

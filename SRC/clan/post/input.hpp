@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -37,39 +37,39 @@ struct SimpleTier {
 	char *org;
 	char *ow;
 	char *sw;
-	char isClitic;
+	char isCliticChr;
 	struct SimpleTier *nextChoice;
 	struct SimpleTier *nextW;
 } ;
 
-struct ConnlTable {
+struct ConllTable {
 	char *from;
 	char *to;
-	struct ConnlTable *next;
+	struct ConllTable *next;
 } ;
 
-extern int  getNextMorItem(char *line, char *oItem, int i);
-extern char isConnlSpecified(void);
+extern int  getNextMorItem(char *line, char *oItem, int *morI, int i);
+extern char isConllSpecified(void);
 extern void printclean(FILE *out, const char *sp, char *line);
-extern void init_connl(void);
-extern void freeConnl(void);
-extern void readConnlFile(FNType *dbname);
+extern void init_conll(void);
+extern void freeConll(void);
+extern void readConllFile(FNType *dbname);
 extern void freeConvertTier(struct SimpleTier *p);
-extern SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError);
+extern SimpleTier *convertTier(char *T, FNType* fn, char *isConllError);
 
 #endif
 
 #if defined(UNX)
 
 #ifndef NEW
-    #define NEW(type) ((type *)malloc((size_t) sizeof(type)))
+	#define NEW(type) ((type *)malloc((size_t) sizeof(type)))
 #endif /* NEW */
 
 #ifndef TRUE
-    #define TRUE  1
+	#define TRUE  1
 #endif
 #ifndef FALSE
-    #define FALSE 0
+	#define FALSE 0
 #endif
 #define isSpace(c)	 ((c) == (char)' ' || (c) == (char)'\t')
 
@@ -89,14 +89,14 @@ extern void remFrontAndBackBlanks(char *st);
 */
 int	init_input( FNType* filename, const char* type );	// return 1 if OK, 0 if not
 int	get_input( int ID, char** &data );		// return number of words (or lines).
-int	get_tier(int ID, char* &tier, int &typeoftier, long &ln); // return nb. of chars.
+int	get_tier(int ID, char* &tier, int &typeoftier, long32 &ln); // return nb. of chars.
 void	close_input( int ID );
 
 /* get_input returns a full sentence or utterance, with a max size of 500.
    END of SENTENCE is '.', '?', '!'.
    for CLAN format (and MOR) end of tier is considered as end of sentence.
 
-   If the sentence is too long, ';', ':', and ',' are also considered as end of sentence.
+   If the sentence is too long32, ';', ':', and ',' are also considered as end of sentence.
 */
 
 /*

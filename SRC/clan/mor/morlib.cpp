@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -53,7 +53,7 @@ legal_char(char c) {
 void
 mor_mem_error(int code, const STRING *message) {
 //  extern FEAT_PTR *feat_codes;
-	CleanUpAll();
+	CleanUpAll(TRUE);
 	CloseFiles();
 /* lxs 24-04-97
 	for (i=0; i<feat_node_ctr; i++) {
@@ -83,7 +83,7 @@ mem_usage()
 	fprintf(stderr, " allocated %d records for value tables\n",val_node_ctr);
 }
 
-static void removeSpaces(char *line) {
+static void removeMorTierSpaces(char *line) {
 	int i;
 
 	for (i=0; line[i] != EOS && line[i] != '\n'; i++) {
@@ -143,10 +143,10 @@ readline:
 		} else
 			return(EOF);
 	} else {    /* process line */
-		removeSpaces(inln);
+		removeMorTierSpaces(inln);
 		/* strip blank lines and comment lines */
 		for (s=inln; *s == ' ' || *s == '\n' || *s == '\t'; s++) ;
-		if (uS.isUTF8(inln) || uS.partcmp(inln,FONTHEADER,0,0) || uS.partcmp(inln,CKEYWORDHEADER,0,0))
+		if (uS.isUTF8(inln) || uS.isInvisibleHeader(inln))
 			goto readline;
 		(*lines_read)++;
 		if (*s == EOS || *s == COMMENT_CHAR)
@@ -182,7 +182,7 @@ readline:
 			/* skip remaining lines in statement, if any, return -2 */
 			fprintf(stderr, "\nCrules line is too long:\n");
 			fprintf(stderr, "%s\n", line);
-			CleanUpAll();
+			CleanUpAll(TRUE);
 			CloseFiles();
 			cutt_exit(0);
 			return(0);
@@ -668,7 +668,7 @@ static char isSingleChar(STRING *st) {
 static char isMatchedChar(STRING *st1, STRING *st2) {
 	if (*st1 == *st2) {
 //		if (dFnt.isUTF) {
-			short res1, res2;
+			short res1 = 0, res2 = 0;
 
 			st1++;
 			st2++;
@@ -739,9 +739,16 @@ test_pattern(STRING *cur_text, STRING *pat, STRING **stack_ptr) {
 		/* not in list- add & increment next_match */
 		if (stack_tmp == next_match) {
 			if (next_match == &match_stack[MAX_MATCHES-1]) {
+/* NLD nld
+				int i;
+				fprintf(stderr, "cur_text=%s; pat=%s;\n", cur_text, pat);
+				for (i=0; i < MAX_MATCHES; i++)
+					fprintf(stderr, "match_stack[%d]=%s;\n", i, match_stack[i]);
+*/
 				fprintf(stderr, "\nprogram error: pattern match subsystem stack overflow\n");
-				fprintf(stderr,"exiting\n");
-				cutt_exit(1);
+				CleanUpAll(TRUE);
+				CloseFiles();
+				cutt_exit(0);
 			} else
 				*next_match++ = cur_text;
 		}
@@ -1123,11 +1130,11 @@ BOOL gen_word(STRING *pat, STRING *word) {
 				index = *(seg_mid+1) - '0';
 			if (seg_mid != NULL && seg_mid < seg_end && var_tab[index].var_index > -1) {
 				AddToWordIndex(word, pat_p, seg_mid, var_tab[index].var_index);
-			} else if (var_tab[index].var_inst)  /* pattern expands to something */
+			} else if (TRUE /*var_tab[index].var_inst*/)  /* pattern expands to something */
 				strcat(word,var_tab[index].var_inst);
 			else {
 				fprintf(stderr,"gen word: *** error *** pattern not instantiated\n");
-				CleanUpAll();
+				CleanUpAll(TRUE);
 				CloseFiles();
 				cutt_exit(0);
 			}
@@ -1153,64 +1160,62 @@ BOOL gen_word(STRING *pat, STRING *word) {
 /* for var_names */
 BOOL
 expand_pat(STRING *in_pat, STRING *out_pat) {
-  extern VAR_REC *var_tab;
-  char *var_beg, *var_end;
-  char var_name[MAX_VARNAME];
-  char delim_beg[3];
-  int i, outlen;
+	extern VAR_REC *var_tab;
+	char *var_beg, *var_end;
+	char var_name[MAX_VARNAME];
+	char delim_beg[3];
+	int i, outlen;
 
-  *out_pat = EOS;
-  outlen = 0;
+	*out_pat = EOS;
+	outlen = 0;
 
-  while (*in_pat != EOS){
-    /* '$' marks variable, get var name */
-    if (*in_pat == '$' || *in_pat == '<') {
-      char vm = *in_pat;
-      if (*++in_pat == '('){ /* long var_name */
-	var_beg = in_pat;
-	if ((var_end = strchr(var_beg,')')) != NULL){
-	  strncpy(var_name,var_beg,var_end-var_beg+1);
-	  var_name[var_end-var_beg+1] = EOS;
-	} else { ERROR_MOR("expand_var: bad variable name", FAIL, in_pat); }
-	in_pat = ++var_end;
-      }
-      else{
-	*var_name = *in_pat++;
-	var_name[1] = EOS;
-      }
-      /* got name, now match in in table */
-      for (i = 0; i < MAX_NUMVAR; i++) {
-	if (var_tab[i].var_name == NULL)
-	  break;
-	if (strcmp(var_name,var_tab[i].var_name) == 0)
-	  break;
-      }
-      if ((i < MAX_NUMVAR) && (var_tab[i].var_name != NULL)){
-	/* make sure we've got enough space */
-	if ((outlen + strlen(var_tab[i].var_pat)) < MAX_PATLEN) {
-	  outlen = outlen + strlen(var_tab[i].var_pat);
-	  if (vm == '<') delim_beg[0] = '<';
-	  else delim_beg[0] = '\\';
-	  delim_beg[1] = (char)(i+'0');
-	  delim_beg[2] = EOS;
-	  strcat(out_pat,delim_beg);
-	  strcat(out_pat,var_tab[i].var_pat);
-	  if (*in_pat != '<') strcat(out_pat,"\\");
-	}
-	else {ERROR_MOR("expand_pat: pattern expansion too big",FAIL,"");}
-      }
-      else {ERROR_MOR("expand_pat: variable not defined",FAIL,var_name);}
-    }
-    else{  /* copy it on over */
-      while ((*in_pat != '$') && (*in_pat != '<') && (*in_pat != EOS)){
-	outlen = strlen(out_pat);
-	out_pat[outlen] = *in_pat;
-	out_pat[outlen+1] = EOS;
-	in_pat++;
-      }
-    }
-  } /* end_while */
-  return(SUCCEED);
+	while (*in_pat != EOS){
+		/* '$' marks variable, get var name */
+		if (*in_pat == '$' || *in_pat == '<') {
+			char vm = *in_pat;
+			if (*++in_pat == '('){ /* long var_name */
+				var_beg = in_pat;
+				if ((var_end = strchr(var_beg,')')) != NULL){
+					strncpy(var_name,var_beg,var_end-var_beg+1);
+					var_name[var_end-var_beg+1] = EOS;
+				} else { ERROR_MOR("expand_var: bad variable name", FAIL, in_pat); }
+				in_pat = ++var_end;
+			}
+			else{
+				*var_name = *in_pat++;
+				var_name[1] = EOS;
+			}
+			/* got name, now match in in table */
+			for (i = 0; i < MAX_NUMVAR; i++) {
+				if (strcmp(var_name,var_tab[i].var_name) == 0)
+					break;
+			}
+			if (i < MAX_NUMVAR){
+				/* make sure we've got enough space */
+				if ((outlen + strlen(var_tab[i].var_pat)) < MAX_PATLEN) {
+					outlen = outlen + strlen(var_tab[i].var_pat);
+					if (vm == '<') delim_beg[0] = '<';
+					else delim_beg[0] = '\\';
+					delim_beg[1] = (char)(i+'0');
+					delim_beg[2] = EOS;
+					strcat(out_pat,delim_beg);
+					strcat(out_pat,var_tab[i].var_pat);
+					if (*in_pat != '<') strcat(out_pat,"\\");
+				}
+				else {ERROR_MOR("expand_pat: pattern expansion too big",FAIL,"");}
+			}
+			else {ERROR_MOR("expand_pat: variable not defined",FAIL,var_name);}
+		}
+		else{  /* copy it on over */
+			while ((*in_pat != '$') && (*in_pat != '<') && (*in_pat != EOS)){
+				outlen = strlen(out_pat);
+				out_pat[outlen] = *in_pat;
+				out_pat[outlen+1] = EOS;
+				in_pat++;
+			}
+		}
+	} /* end_while */
+	return(SUCCEED);
 }
 
 /* store_pat -  takes variable name */
@@ -1218,22 +1223,22 @@ expand_pat(STRING *in_pat, STRING *out_pat) {
 /* enters string (assume string doesn't contain any variables itself) */
 BOOL
 store_pat(STRING *var_name, STRING *var_pat) {
-  extern VAR_REC *var_tab;
-  int i;
+	extern VAR_REC *var_tab;
+	int i;
 
-  for (i = 0; i < MAX_NUMVAR; i++){
-    if (strcmp(var_tab[i].var_name,"") == 0)
-      break;
-    if (strcmp(var_name,var_tab[i].var_name) == 0)
-      break;
-  }
-  if (i < MAX_NUMVAR){
-    strcpy(var_tab[i].var_name,var_name);
-    strcpy(var_tab[i].var_pat,var_pat);
-    return(SUCCEED);
-  }
-  else
-    {ERROR_MOR("store_pat: variable table overflow",FAIL,"");}
+	for (i = 0; i < MAX_NUMVAR; i++){
+		if (strcmp(var_tab[i].var_name,"") == 0)
+			break;
+		if (strcmp(var_name,var_tab[i].var_name) == 0)
+			break;
+	}
+	if (i < MAX_NUMVAR){
+		strcpy(var_tab[i].var_name,var_name);
+		strcpy(var_tab[i].var_pat,var_pat);
+		return(SUCCEED);
+	}
+	else
+	{ERROR_MOR("store_pat: variable table overflow",FAIL,"");}
 }
 
 /* ************************************************************************** */
@@ -1371,7 +1376,7 @@ BOOL fs_comp(STRING *big_fs, FEATTYPE *c_fs  /* compressed fs */) {
 	int feat_stack[20];
 	int tmp_cnt = 0;
 	FEATTYPE *tmp_p;
-	int feat_code, val_code;
+	int feat_code = 0, val_code;
 	int i;
 	int num_vals = 0;
 //	extern FEAT_PTR *feat_codes;
@@ -1665,7 +1670,7 @@ BOOL
 fs_decomp(FEATTYPE *c_fs, STRING *big_fs) {
 	FEATTYPE *c_ptr,  *s_beg;
 	extern FEAT_PTR *feat_codes;
-	FEAT_PTR feat_tmp;
+	FEAT_PTR feat_tmp = NULL;
 	STRING *name_tmp;
 	int STATE = 0;  /* keeps track of parse */
 	int depth = 0;
@@ -1872,9 +1877,13 @@ match_atom(FEATTYPE *cat, FEATTYPE *fvp) {
   while (*c_ptr != EOS){
     if (val_code == *c_ptr)
       return(SUCCEED);
-    else
-      if (*(++c_ptr) != EOS)
-        ++c_ptr;
+    else {
+      c_ptr++;
+      if (*c_ptr == (FEATTYPE)'f')
+		break;
+      if (*c_ptr != EOS)
+        c_ptr++;
+    }
   }
   return(FAIL);  /* if we got this far, no match */
 }
@@ -2055,50 +2064,50 @@ remove_fvp(FEATTYPE *cat, FEATTYPE *fvp) {
 // TO UNDO REMOVE ANYTHING WITH    isPathSpecified
 BOOL
 match_fvp(FEATTYPE *cat_1, FEATTYPE *cat_2, FEATTYPE *path) {
-  int found, matched, tot;
-  char isPathSpecified; // 2012-07 2012-07-21 MATCHCAT
-  FEATTYPE fvp[MAXCAT];
-  FEATTYPE *cat_ptr;
+	int found, matched, tot;
+	char isPathSpecified; // 2012-07 2012-07-21 MATCHCAT
+	FEATTYPE fvp[MAXCAT];
+	FEATTYPE *cat_ptr;
 
-  if (path == NULL || path[0] == 0 || path[1] == 0) // 2012-07 2012-07-21 MATCHCAT
-	  isPathSpecified = FALSE; // 2012-07 2012-07-21 MATCHCAT
-  else // 2012-07 2012-07-21 MATCHCAT
-	  isPathSpecified = TRUE; // 2012-07 2012-07-21 MATCHCAT
-  found = 0;
-  matched = 0;
-  cat_ptr = cat_1;
-  while ((cat_ptr = retrieve_fvp(fvp,path,cat_ptr)) != NULL) {
+	if (path == NULL || path[0] == 0 || path[1] == 0) // 2012-07 2012-07-21 MATCHCAT
+		isPathSpecified = FALSE; // 2012-07 2012-07-21 MATCHCAT
+	else // 2012-07 2012-07-21 MATCHCAT
+		isPathSpecified = TRUE; // 2012-07 2012-07-21 MATCHCAT
+	found = 0;
+	matched = 0;
+	cat_ptr = cat_1;
+	while ((cat_ptr = retrieve_fvp(fvp,path,cat_ptr)) != NULL) {
 /*
 strcpy(templineC, "fvp=");
 fs_decomp(fvp,templineC+strlen(templineC));
 strcat(templineC, "; cat_1=");
 fs_decomp(cat_2,templineC+strlen(templineC));
 */
-	found++;
-    if (check_fvp(cat_2,fvp) == SUCCEED)
-    	matched++;
-  }
-  if (matched != found || (found == 0 && isPathSpecified)) // 2012-07 2012-07-21 MATCHCAT
-  	return(FAIL);
-  tot = found;
-  found = 0;  
-  matched = 0;
-  cat_ptr = cat_2;
-  while ((cat_ptr = retrieve_fvp(fvp,path,cat_ptr)) != NULL) {
+		found++;
+		if (check_fvp(cat_2,fvp) == SUCCEED)
+			matched++;
+	}
+	if (matched != found || (found == 0 && isPathSpecified)) // 2012-07 2012-07-21 MATCHCAT
+		return(FAIL);
+	tot = found;
+	found = 0;  
+	matched = 0;
+	cat_ptr = cat_2;
+	while ((cat_ptr = retrieve_fvp(fvp,path,cat_ptr)) != NULL) {
 /*
 strcpy(templineC, "fvp=");
 fs_decomp(fvp,templineC+strlen(templineC));
 strcat(templineC, "; cat_2=");
 fs_decomp(cat_2,templineC+strlen(templineC));
 */
-	found++;
-    if (check_fvp(cat_1,fvp) == SUCCEED)
-    	matched++;
-  }
-  if (matched != found || found != tot || (found == 0 && isPathSpecified)) // 2012-07 2012-07-21 MATCHCAT
-  	return(FAIL);
-  else
-  	return(SUCCEED);
+		found++;
+		if (check_fvp(cat_1,fvp) == SUCCEED)
+			matched++;
+	}
+	if (matched != found || found != tot || (found == 0 && isPathSpecified)) // 2012-07 2012-07-21 MATCHCAT
+		return(FAIL);
+	else
+		return(SUCCEED);
 }
 /*
 void getError_fvp(char *word_tmp, FEATTYPE *data, FEATTYPE *StartCatt) {
@@ -2135,7 +2144,6 @@ void Error_fvp(FEATTYPE *data, FEATTYPE *NextCatRule, STRING *item,
 	char fs_tmp[MAXCAT];
 	char word_tmp[MAX_WORD];
 	int fvp_type;
-	extern int DEBUG_CLAN;
 	extern char debugName[];
 
 	if (NextCatRule == NULL) {
@@ -2154,8 +2162,6 @@ void Error_fvp(FEATTYPE *data, FEATTYPE *NextCatRule, STRING *item,
 	if (*word_tmp == '{') strcpy(word_tmp, word_tmp+1);
 	fvp_type = strlen(word_tmp) - 1;
 	if (word_tmp[fvp_type] == '}') word_tmp[fvp_type] = EOS;
-	if (DEBUG_CLAN & 4)
-		fprintf(debug_fp, "Failed: Missing \"%s\" in the \"next cat:\" list below for item \"%s\" following word \"%s\".\n",word_tmp,item,s_surf);
 	fprintf(stderr, "Failed: Missing \"%s\" in the \"next cat:\" list below for item \"%s\" following word \"%s\".\n",word_tmp,item,s_surf);
 	if (debug_fp != stdout) {
 		fprintf(stderr, "For further explanation, please see this error message in file \"%s\"\n", debugName);
@@ -2167,10 +2173,10 @@ void Error_fvp(FEATTYPE *data, FEATTYPE *NextCatRule, STRING *item,
 			fprintf(stderr," start cat: %s\n",fs_tmp);
 		} else {
 			int i;
-			fprintf(debug_fp," start cat: ");
+			fprintf(stderr," start cat: ");
 			for (i=0; s_cat[i] != 0; i++)
-				fprintf(debug_fp,"%c",(char)s_cat[i]);
-			fprintf(debug_fp,"\n");
+				fprintf(stderr,"%c",(char)s_cat[i]);
+			fprintf(stderr,"\n");
 		}
 		fprintf(stderr," current parse: %s\n",s_parse);
 		fprintf(stderr," next: %s\n", item);
@@ -2179,26 +2185,26 @@ void Error_fvp(FEATTYPE *data, FEATTYPE *NextCatRule, STRING *item,
 			fprintf(stderr," next cat: %s\n",fs_tmp);
 		} else {
 			int i;
-			fprintf(debug_fp," next cat: ");
+			fprintf(stderr," next cat: ");
 			for (i=0; n_cat[i] != 0; i++)
-				fprintf(debug_fp,"%c",(char)n_cat[i]);
-			fprintf(debug_fp,"\n");
+				fprintf(stderr,"%c",(char)n_cat[i]);
+			fprintf(stderr,"\n");
 		}
 		fprintf(stderr," next stem: %s\n",n_stem);
-		fprintf(debug_fp,"trying rule %s ... \n",cur_rule->name);
-		fprintf(debug_fp," trying clause/ if-then %d\n",clause_ctr);
+		fprintf(stderr,"trying rule %s ... \n",cur_rule->name);
+		fprintf(stderr," trying clause/ if-then %d\n",clause_ctr);
 		decode_op_code(cur_op->op_type,word_tmp);
-		fprintf(debug_fp,"  operation = %s",word_tmp);
+		fprintf(stderr,"  operation = %s",word_tmp);
 		if (cur_op->data != NULL) {
 			fs_decomp(cur_op->data,word_tmp);
 			if (word_tmp[0] == EOS)
-				fprintf(debug_fp,"\n");
+				fprintf(stderr,"\n");
 			else
-				fprintf(debug_fp," %s\n",word_tmp);
+				fprintf(stderr," %s\n",word_tmp);
 		} else
-			fprintf(debug_fp,"\n");
+			fprintf(stderr,"\n");
 		fs_decomp(r_cat,word_tmp);
-		fprintf(debug_fp,"   current result cat = %s\n\n",word_tmp);
+		fprintf(stderr,"   current result cat = %s\n\n",word_tmp);
 	}
 }
 

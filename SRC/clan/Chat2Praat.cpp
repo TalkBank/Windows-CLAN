@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -477,7 +477,7 @@ static ALLTIERS *addTierAnnotation(ALLTIERS *root, FNType *mediaFName, const cha
 	return(root);
 }
 
-static void makeAnotation(char *an, int bs, int es) {
+static void textToPraatXML(char *an, int bs, int es) {
 	long i;
 	AttTYPE lastType;
 
@@ -589,8 +589,10 @@ static int tiersCount(void) {
 	num = 0;
 	for (trs=RootTiers; trs != NULL; trs=trs->nextTier)
 		num++;
-	for (trs=RootHeaders; trs != NULL; trs=trs->nextTier)
-		num++;
+	for (trs=RootHeaders; trs != NULL; trs=trs->nextTier) {
+		if (strcmp(trs->name, "aud@MEDIA") != 0)
+			num++;
+	}
 	return(num);
 }
 
@@ -631,6 +633,8 @@ static void PrintTiers(void) {
 	}
 
 	for (trs=RootHeaders; trs != NULL; trs=trs->nextTier) {
+		if (strcmp(trs->name, "aud@MEDIA") == 0)
+			continue;
 		s = strrchr(trs->name, '@');
 		if (s == NULL)
 			s = trs->name;
@@ -863,7 +867,7 @@ void call() {
 				if (mediaRes) {
 					if (strrchr(mediaFName, '.') == NULL && mediaFName[0] != EOS)
 						strcat(mediaFName, mediaExt);
-					makeAnotation(templineC, bs, es);
+					textToPraatXML(templineC, bs, es);
 					if (templineC[0] != EOS) {
 						if (utterance->speaker[0] == '*')
 							isBulletFound = TRUE;
@@ -898,7 +902,7 @@ void call() {
 				fprintf(errFp, "Missing bullet.\n");
 			}
 		}
-		makeAnotation(templineC, bs, es);
+		textToPraatXML(templineC, bs, es);
 		if (templineC[0] != EOS) {
 			if (!isMediaHeaderFound)
 				mediaFName[0] = EOS;
@@ -912,9 +916,15 @@ void call() {
 	}
 
 	if (bulletsCnt <= 0L) {
-		fprintf(stderr, "\n\n    NO BULLETS FOUND IN THE FILE\n\n\n");
-		if (errFp != NULL)
-			fprintf(errFp, "\n\n    NO BULLETS FOUND IN THE FILE\n");
+		if (isMediaHeaderFound == FALSE) {
+			fprintf(stderr, "\n\n   @Media: HEADER WITH MEDIA FILE NAME WAS NOT FOUND\n\n\n");
+			if (errFp != NULL)
+				fprintf(errFp, "\n\n    @Media: HEADER WITH MEDIA FILE NAME WAS NOT FOUND\n");
+		} else {
+			fprintf(stderr, "\n\n    NO BULLETS FOUND IN THE FILE\n\n\n");
+			if (errFp != NULL)
+				fprintf(errFp, "\n\n    NO BULLETS FOUND IN THE FILE\n");
+		}
 	} else {
 		if (bulletsCnt != numTiers)
 			fprintf(stderr, "\n\n");

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -24,18 +24,6 @@
 #define IS_WIN_MODE FALSE
 #define CHAT_MODE 4
 
-/*
-#if defined(_MAC_CODE) && defined(PLUGINPROJ)
-ClanProgInfo gToolInfo = {
-	_main,
-	usage,
-	getflag,
-	init,
-	call,
-	NULL
-};
-#endif // _MAC_CODE
-*/
 #define AtU(s,i) (s[i] == '@' && (s[i+1] == 'u' || s[i+1] == 'U'))
 
 #define UMAC 1
@@ -65,6 +53,7 @@ static char lEncodeSet;
 static char isUnibet;
 static char isCUsed;
 static char isLIPP;
+static char isUTFFound;
 static short lEncode;
 static unsigned long isErrFound;
 static unsigned short Convs[256][2];
@@ -160,7 +149,8 @@ static void readConvFile(void) {
 	}
 	fprintf(stderr, "    Using Unicode table file: %s.\n", mFileName);
 	while (fgets_cr(templineC, UTTLINELEN, fdic) != NULL) {
-		if (uS.partwcmp(templineC, "UniNum	"))
+		if (uS.isUTF8(templineC) || templineC[0] == '#' || uS.isInvisibleHeader(templineC) ||
+			strncmp(templineC, SPECIALTEXTFILESTR, SPECIALTEXTFILESTRLEN) == 0 || uS.partwcmp(templineC, "UniNum	"))
 			continue;
 		if (templineC[0] == (char)0xFF || templineC[0] == (char)0xFE) {
 			fprintf(stderr, "*** ERROR: File \"%s\" must not be in a Unicode-UTF16 format.\n", dicname);
@@ -227,7 +217,11 @@ static void readConvFile(void) {
 			} else {
 				if (templineC[i] != '\t' && templineC[i] != '\n' && templineC[i])
 					col[j] = templineC[i++];
-				if (templineC[i] != '\t' && templineC[i] != '\n' && templineC[i])
+				if (templineC[i] == '0' && templineC[i+1] == 'x') {
+					i += 2;
+					sscanf(templineC+i, "%lx", &hex);
+					col[j] = (unsigned char)hex;
+				} else if (templineC[i] != '\t' && templineC[i] != '\n' && templineC[i])
 					col[j] = templineC[i++];
 			}
 		}
@@ -279,6 +273,7 @@ void init(char f) {
 		isUnibet = FALSE;
 		isCUsed = FALSE;
 		isLIPP = FALSE;
+		isUTFFound = FALSE;
 		lEncodeSet = 0;
 #ifdef _MAC_CODE
 		lVariant = kTextEncodingDefaultVariant;
@@ -325,7 +320,7 @@ void usage() {
 	printf("Usage: cp2utf [cN d oS %s] filename(s)\n",mainflgs());
 //	puts("+b : add BOM symbol to the output files");
 	puts("+cN: specify column number (3-7) (default: 4, IPATimes)");
-	puts("+d : convert ONLY tiers specified with +t option");
+	printf("+d : convert ONLY tiers specified with +t option. It overrides %s Header exception\n", UTF8HEADER);
 	puts("+d1: remove bullets from data file");
 	puts("+d2: convert CHAT file to .txt file to help applications recognize UTF-8 encoding");
 #ifdef UNX
@@ -347,7 +342,9 @@ void usage() {
 */
 #endif
 	mainusage(FALSE);
-	puts("\nExample: IPATimes: cp2utf -c4 +t%pho: *.cha");
+	puts("\nExample:");
+	puts("\tunibet_word@u: cp2utf +t@u *.cha");
+	puts("\tIPATimes: cp2utf -c4 +t%pho: *.cha");
 	puts("\tSAMPA:  cp2utf -c5 +t%pho: *.cha");
 	puts("\tLIPP:   cp2utf -c6 *.lip\n");
 	cutt_exit(0);
@@ -357,6 +354,7 @@ void usage() {
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	char tisUTFData;
 
+	isUTFFound = FALSE;
 	root_err_chars = NULL;
 	isWinMode = IS_WIN_MODE;
 	chatmode = CHAT_MODE;
@@ -368,6 +366,20 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	bmain(argc,argv,NULL);
 	isUTFData = tisUTFData;
 	root_err_chars = cp2utf_free_errors(root_err_chars, TRUE);
+	if (isUTFFound) {
+#ifdef UNX
+		printf("\nFOUND DATA FILES WITH %s HEADER. THOSE FILES WERE NOT CONVERTED.\n", UTF8HEADER);
+#else
+		printf("\n%c%cFOUND DATA FILES WITH %s HEADER. THOSE FILES WERE NOT CONVERTED.%c%c\n", ATTMARKER, error_start, UTF8HEADER, ATTMARKER, error_end);
+#endif
+		if (convCol == 1 || convCol == 2) {
+#ifdef UNX
+			printf("IF YOU WANT TO OVERRIDE THE %s HEADER EXCEPTION, THEN ADD \"+d\" OPTION.\n", UTF8HEADER);
+#else
+			printf("%c%cIF YOU WANT TO OVERRIDE THE %s HEADER EXCEPTION, THEN ADD \"+d\" OPTION.%c%c\n", ATTMARKER, error_start, UTF8HEADER, ATTMARKER, error_end);
+#endif
+		}
+	}
 }
 		
 void getflag(char *f, char *f1, int *i) {
@@ -867,7 +879,7 @@ static void UnibetToUTF8(unsigned char *lpszText, AttTYPE *att) {
 				}
 
 				wchars /= 2;
-				UnicodeToUTF8((LPWSTR)templineC3, wchars, (TextPtr)templineC+lout, (unsigned long *)&aol, UTTLINELEN-lout);
+				UnicodeToUTF8((LPWSTR)templineC3, wchars, (unsigned char *)templineC + lout, (unsigned long *)&aol, UTTLINELEN - lout);
 				if (aol == 0) {
 					putc('\n', stderr);
 					fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
@@ -1235,7 +1247,7 @@ static void IPAToUTF8(unsigned char *line) {
 			}
 		}
 	}
-	UnicodeToUTF8((wchar_t *)templineC, wchars/2, (unsigned char *)templineC4, (unsigned long *)&j, UTTLINELEN);
+	UnicodeToUTF8((unCH *)templineC, wchars/2, (unsigned char *)templineC4, (unsigned long *)&j, UTTLINELEN);
 	if (j == 0 && wchars > 0) {
 		putc('\n', stderr);
 		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
@@ -1363,7 +1375,7 @@ static void UnibetToUTF8(unsigned char *lpszText, AttTYPE *att) {
 					}
 				}
 
-				UnicodeToUTF8((wchar_t *)templineC3, wchars/2, (TextPtr)templineC+lout, &aol, UTTLINELEN-lout);
+				UnicodeToUTF8((unCH *)templineC3, wchars/2, (unsigned char *)templineC+lout, &aol, UTTLINELEN-lout);
 				if (aol == 0) {
 					putc('\n', stderr);
 					fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
@@ -1422,8 +1434,9 @@ static void UnibetToUTF8(unsigned char *lpszText, AttTYPE *att) {
 #define BlankCode			0
 #define MainBufferSize		5000
 #define DataLineTypeSize	2400
-#define FileID				"LIPP14"
-#define OldFileID			"LIPP10"
+#define LIPP30				"LIPP30"
+#define LIPP14				"LIPP14"
+#define LIPP10				"LIPP10"
 
 /*
 struct DataType {
@@ -1452,19 +1465,20 @@ typedef struct DataLineType {
 } DataLineType;
 
 
-static long addToLIPPUnicodeOutput(wchar_t *line, long pos, char c, wchar_t *s) {
+static long addToLIPPUnicodeOutput(unCH *line, long pos, unsigned char c, unCH *s) {
 	long i;
 
 	if (s == NULL) {
 		line[pos++] = c;
 	} else {
-		for (i=0; s[i] != EOS; i++)
+		for (i=0; s[i] != EOS; i++) {
 			line[pos++] = s[i];
+		}
 	}
 	return(pos);
 }
 
-static wchar_t *ST_Lipp(int Value, wchar_t *tw) {
+static unCH *ST_Lipp(int Value, unCH *tw) {
 	long wchars;
 
 	wchars = 0L;
@@ -1499,12 +1513,11 @@ static void ReadLIPPDocument(void) {
     unsigned char Buffer[DataLineTypeSize*2];
     unsigned char MainBuffer[MainBufferSize];
     short MainBufferPointer;
-    short ReadSize;
-	wchar_t tw[128];
+    short ReadSize = MainBufferSize;
+	unCH tw[128];
     long Size;
     short i, j, k, Pos;
     char TempID[7];
-    Boolean New, Old;
 	long wchars;
 
 	T = (unsigned char *)&D;
@@ -1524,21 +1537,22 @@ static void ReadLIPPDocument(void) {
 	TempID[6] = EOS;
 	Size = Size - 6;
 
-	New = true;
-	Old = true;
-	if (strcmp(TempID, OldFileID))
-		Old = false;
-	if (strcmp(TempID, FileID))
-		New = false;
-	if (New) {
+	if (strcmp(TempID, LIPP10) == 0) {
+	} else if (strcmp(TempID, LIPP14) == 0) {
 		Size = Size - 200;
 		if (fread(templineC, 1, 200, fpin) != 200) {
 			fprintf(stderr, "Error reading data file(2): %s\n", oldfname);
 			return;
 		}
-	}
-	if (!(Old || New)) {
+	} else if (strcmp(TempID, LIPP30) == 0) {
+		Size = Size - 2430; // 2400, 2430, 2435
+		if (fread(templineC, 1, 2430, fpin) != 2430) {
+			fprintf(stderr, "Error reading data file(2.5): %s\n", oldfname);
+			return;
+		}
+	} else {
 		fprintf(stderr, "Error reading data file(3): %s\n", oldfname);
+		fprintf(stderr, "LIPP format \"%s\" is not supported\n", TempID);
 		return;
 	}
 	wchars = 0;
@@ -1584,8 +1598,7 @@ static void ReadLIPPDocument(void) {
 				MainBufferPointer = MainBufferPointer - 1;
 			}
 			if (i > 0) {
-				if ((Buffer[i-1] == BlankCode && Buffer[i] == BlankCode) ||
-					(Size == 0 && MainBufferPointer == 0))
+				if ((Buffer[i-1] == BlankCode && Buffer[i] == BlankCode) || (Size == 0 && MainBufferPointer == 0))
 					break;
 			}
 			i++;
@@ -1620,7 +1633,14 @@ static void ReadLIPPDocument(void) {
 				wchars = addToLIPPUnicodeOutput(templineW, wchars, ' ', NULL);
 		}
 		templineW[wchars] = EOS;
-		UnicodeToUTF8((wchar_t *)templineW, wchars, (unsigned char *)templineC, NULL, UTTLINELEN);
+		UnicodeToUTF8(templineW, wchars, (unsigned char *)templineC, NULL, UTTLINELEN);
+
+		for (j=0; isSpace(templineC[j]); j++) ;
+		if (isalpha(templineC[j]) && isdigit(templineC[j+1]))
+			j++;
+		if (j > 0)
+			strcpy(templineC, templineC+j);
+
 		for (i=0; templineC[i] != EOS; i++) {
 			putc(templineC[i], fpout);
 		}
@@ -1643,7 +1663,7 @@ static void ReadLIPPDocument(void) {
 //		wchars = addToLIPPUnicodeOutput(templineW, wchars, '#', NULL);
 //		wchars = addToLIPPUnicodeOutput(templineW, wchars, ' ', NULL);
 		templineW[wchars] = EOS;
-		UnicodeToUTF8((wchar_t *)templineW, wchars, (unsigned char *)templineC, NULL, UTTLINELEN);
+		UnicodeToUTF8(templineW, wchars, (unsigned char *)templineC, NULL, UTTLINELEN);
 		for (i=0; templineC[i] != EOS; i++) {
 			putc(templineC[i], fpout);
 		}
@@ -1666,7 +1686,7 @@ static void ReadLIPPDocument(void) {
 //		wchars = addToLIPPUnicodeOutput(templineW, wchars, '#', NULL);
 //		wchars = addToLIPPUnicodeOutput(templineW, wchars, ' ', NULL);
 		templineW[wchars] = EOS;
-		UnicodeToUTF8((wchar_t *)templineW, wchars, (unsigned char *)templineC, NULL, UTTLINELEN);
+		UnicodeToUTF8(templineW, wchars, (unsigned char *)templineC, NULL, UTTLINELEN);
 		for (i=0; templineC[i] != EOS; i++) {
 			putc(templineC[i], fpout);
 		}
@@ -1674,7 +1694,7 @@ static void ReadLIPPDocument(void) {
 		wchars = 0;
 	}
 	templineW[wchars] = EOS;
-	UnicodeToUTF8((wchar_t *)templineW, wchars, (unsigned char *)templineC, NULL, UTTLINELEN);
+	UnicodeToUTF8(templineW, wchars, (unsigned char *)templineC, NULL, UTTLINELEN);
 	for (i=0; templineC[i] != EOS; i++) {
 		if (templineC[i] == '\n') {
 			putc('\n', fpout);
@@ -1686,7 +1706,7 @@ static void ReadLIPPDocument(void) {
 
 static char isCAFile(FNType *fname) {
 	register int j;
-	wchar_t ext[3];
+	unCH ext[3];
 	
 	j = strlen(fname) - 1;
 	for (; j >= 0 && fname[j] != '.'; j--) ;
@@ -1704,7 +1724,7 @@ static char isCAFile(FNType *fname) {
 }
 
 void call() {
-	char  tStout;
+	char  tStout, isCRFound;
 	long  i, j;
 	short isIPA, isCA;
 	FNType *s;
@@ -1753,7 +1773,7 @@ void call() {
 			rewind(fpin);
 	}
 
-	if (isLIPP) {
+	if (isLIPP && lEncodeSet != UTF16) {
 		fclose(fpin);
 		if ((fpin=fopen(oldfname, "rb")) == NULL) {
 			fprintf(stderr,"Can't open file %s.\n",oldfname);
@@ -1769,7 +1789,7 @@ void call() {
 			fputc(0xbf, fpout); // BOM UTF8
 		}
 		while (fgets_cr(templineC, UTTLINELEN, fpin)) {
-			if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+			if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 				continue;
 			if (templineC[0] == (char)0xef && templineC[0] == (char)0xbb && templineC[0] == (char)0xbf)
 				strcpy(templineC, templineC+3);
@@ -1850,7 +1870,7 @@ void call() {
 			if (i > UTTLINELEN-10) {
 				templineC[i] = EOS;
 				templineC[i+1] = EOS;
-				UnicodeToUTF8((wchar_t *)templineC, i/2, (unsigned char *)templineC4, NULL, UTTLINELEN);
+				UnicodeToUTF8((unCH *)templineC, i/2, (unsigned char *)templineC4, NULL, UTTLINELEN);
 				fputs(templineC4, fpout);
 				i = 0;
 			}
@@ -1858,7 +1878,7 @@ void call() {
 		if (i > 0) {
 			templineC[i] = EOS;
 			templineC[i+1] = EOS;
-			UnicodeToUTF8((wchar_t *)templineC, i/2, (unsigned char *)templineC4, NULL, UTTLINELEN);
+			UnicodeToUTF8((unCH *)templineC, i/2, (unsigned char *)templineC4, NULL, UTTLINELEN);
 			fputs(templineC4, fpout);
 		}
 		return;
@@ -1870,6 +1890,10 @@ void call() {
 	tStout = stout;
 	stout = TRUE;
 	while (getwholeutter()) {
+		if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
+			if (strchr(utterance->line, '\n') == NULL)
+				strcat(utterance->line, "\n");
+		}
 		stout = tStout;
 		if (dFnt.isUTF && !isUnibet && !isOnlyTier) {
 			int c;
@@ -1879,6 +1903,7 @@ void call() {
 			while ((c=getc(fpin)) != EOF) {
 				putc(c, fpout);
 			}
+			isUTFFound = TRUE;
 			return;
 		}
 		if (lEncodeSet)
@@ -1934,9 +1959,16 @@ void call() {
 		} else if ((isCUsed && chatmode == 0) || isIPA || (isCUsed && chatmode && checktier(utterance->speaker) && (!nomain || utterance->speaker[0] != '*'))) {
 			IPAToUTF8((unsigned char *)utterance->line);
 		} else if (isOnlyTier) {
+			isCRFound = FALSE;
 			for (i=0L; utterance->line[i] != EOS; i++) {
 				putc(utterance->line[i], fpout);
+				if (utterance->line[i] == '\n')
+					isCRFound = TRUE;
+				else
+					isCRFound = FALSE;
 			}
+			if (!isCRFound)
+				putc('\n', fpout);
 		} else {
 			AsciiToUnicodeToUTF8(utterance->line);
 		}

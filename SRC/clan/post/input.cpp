@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -17,16 +17,16 @@
 #define sizeOfLine 1024
 
 char rightSpTier = 0;
-char isReportConnlError = FALSE;
+char isReportConllError = FALSE;
 
-static struct ConnlTable *connlRoot = NULL;
+static struct ConllTable *conllRoot = NULL;
 
 #if defined(UNX)
 
 #include <ctype.h>
 
 #ifndef EOS			/* End Of String marker			 */
-    #define EOS '\0'
+	#define EOS '\0'
 #endif
 #define SPEAKERLEN 1024		 /* max len of the code part of the turn */
 #define UTTLINELEN 18000L		 /* max len of the line part of the turn */
@@ -51,7 +51,8 @@ void remFrontAndBackBlanks(char *st) {
 	if (i > 0)
 		strcpy(st, st+i);
 	i = strlen(st) - 1;
-	while (i >= 0 && (isSpace(st[i]) || st[i] == '\n' || st[i] == '\r' || st[i] == '\b')) i--;
+	while (i >= 0 && (isSpace(st[i]) || st[i] == '\n' || st[i] == '\r'))
+		i--;
 	st[i+1] = EOS;
 }
 
@@ -101,20 +102,20 @@ static void extractSpeaker(char *post_sp, char *tier) {
 // #define _strnicmp mStrnicmp
 
 int mStrnicmp(const char *st1, const char *st2, size_t len) {
-	for (; _toupper(*st1) == _toupper(*st2) && *st2 != '\0' && len > 0L; st1++, st2++, len--) ;
-	if ((*st1 == '\0' && *st2 == '\0') || len <= 0L)
+	for (; _toupper((unsigned char)*st1) == _toupper((unsigned char)*st2) && *st2 != '\0' && len > 0L; st1++, st2++, len--) ;
+	if ((*st1 == EOS && *st2 == EOS) || len <= 0L)
 		return(0);
-	else if (_toupper(*st1) > _toupper(*st2))
+	else if (_toupper((unsigned char)*st1) > _toupper((unsigned char)*st2))
 		return(1);
 	else
 		return(-1);	
 }
 
 int mStricmp(const char *st1, const char *st2) {
-	for (; _toupper(*st1) == _toupper(*st2) && *st2 != '\0'; st1++, st2++) ;
-	if (*st1 == '\0' && *st2 == '\0')
+	for (; _toupper((unsigned char)*st1) == _toupper((unsigned char)*st2) && *st2 != EOS; st1++, st2++) ;
+	if (*st1 == EOS && *st2 == EOS)
 		return(0);
-	else if (_toupper(*st1) > _toupper(*st2))
+	else if (_toupper((unsigned char)*st1) > _toupper((unsigned char)*st2))
 		return(1);
 	else
 		return(-1);	
@@ -289,7 +290,7 @@ f2:
 
 static char isUTF8(char *str) {
 	if (str[0] == (char)0xef && str[1] == (char)0xbb && str[2] == (char)0xbf && 
-		  str[3] == '@' && str[4] == 'U' && str[5] == 'T' && str[6] == 'F' && str[7] == '8')
+		str[3] == '@' && str[4] == 'U' && str[5] == 'T' && str[6] == 'F' && str[7] == '8')
 		return(TRUE);
 	else if (str[0] == '@' && str[1] == 'U' && str[2] == 'T' && str[3] == 'F' && str[4] == '8')
 		return(TRUE);
@@ -323,8 +324,8 @@ static int partcmp(char *st1, const char *st2, char pat_match, char isCaseSenc) 
 
 #endif
 
-static struct ConnlTable *freeConnlList(struct ConnlTable *p) {
-	struct ConnlTable *t;
+static struct ConllTable *freeConllList(struct ConllTable *p) {
+	struct ConllTable *t;
 	
 	while (p) {
 		t = p;
@@ -338,15 +339,15 @@ static struct ConnlTable *freeConnlList(struct ConnlTable *p) {
 	return(NULL);
 }
 
-static struct ConnlTable *addToConnl(struct ConnlTable *root, char *from, char *to) {
-	struct ConnlTable *t;
+static struct ConllTable *addToConll(struct ConllTable *root, char *from, char *to) {
+	struct ConllTable *t;
 	
 	if (root == NULL) {
-		root = NEW(struct ConnlTable);
+		root = NEW(struct ConllTable);
 		t = root;
 	} else {
 		for (t=root; t->next != NULL; t=t->next) ;
-		t->next = NEW(struct ConnlTable);
+		t->next = NEW(struct ConllTable);
 		t = t->next;
 	}
 	if (t == NULL) {
@@ -364,28 +365,28 @@ static struct ConnlTable *addToConnl(struct ConnlTable *root, char *from, char *
 	return(root);
 }
 
-void freeConnl(void) {
-	connlRoot = freeConnlList(connlRoot);
+void freeConll(void) {
+	conllRoot = freeConllList(conllRoot);
 }
 
-char isConnlSpecified(void) {
-	if (connlRoot != NULL)
+char isConllSpecified(void) {
+	if (conllRoot != NULL)
 		return(TRUE);
 	else
 		return(FALSE);
 }
 
-void readConnlFile(FNType *dbname) {
+void readConllFile(FNType *dbname) {
 	char *to;
 	FILE *fp;
-	FNType connlFN[128];
+	FNType conllFN[128];
 	FNType mFileName[FNSize];
 
-	connlRoot = NULL;
+	conllRoot = NULL;
 #ifdef POSTCODE
-	strcpy(connlFN, "connl.cut");
-	if ((fp=OpenMorLib(connlFN, "r", TRUE, FALSE, mFileName)) == NULL) {
-		fprintf(stderr, "\rNOT Using connl file\n\n");
+	strcpy(conllFN, "conll.cut");
+	if ((fp=OpenMorLib(conllFN, "r", TRUE, FALSE, mFileName)) == NULL) {
+		fprintf(stderr, "    NOT Using conll file\n");
 		return;
 	}
 #else
@@ -393,30 +394,31 @@ void readConnlFile(FNType *dbname) {
 	to = strrchr(mFileName, '/');
 	if (to != NULL) {
 		*(to+1) = EOS;
-		strcat(mFileName, "connl.cut");
+		strcat(mFileName, "conll.cut");
 	} else {
 		to = strrchr(mFileName, '\\');
 		if (to != NULL) {
 			*(to+1) = EOS;
-			strcat(mFileName, "connl.cut");
+			strcat(mFileName, "conll.cut");
 		} else {
-			fprintf(stderr, "\rNOT Using connl file\n\n");
+			fprintf(stderr, "    NOT Using conll file\n");
 			return;
 		}
 	}
 	if ((fp=fopen(mFileName, "r")) == NULL) {
-		fprintf(stderr, "\rNOT Using connl file: %s\n\n", mFileName);
+		fprintf(stderr, "    NOT Using conll file: %s\n", mFileName);
 		return;
 	}
 #endif
-	fprintf(stderr, "\rUsing connl file:      %s.\n\n", mFileName);
+	fprintf(stderr, "    Using conll file:      %s.\n", mFileName);
 	while (fgets(templineC, UTTLINELEN, fp)) {
 #ifdef POSTCODE
 		uS.remFrontAndBackBlanks(templineC);
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC,"@Font:",0,0) || uS.partcmp(templineC,"@Color words:",0,0))
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 #else
 		remFrontAndBackBlanks(templineC);
-		if (isUTF8(templineC) || partcmp(templineC,"@Font:",0,0) || partcmp(templineC,"@Color words:",0,0))
+		if (isUTF8(templineC) || partcmp(templineC,FONTHEADER,0,0) || partcmp(templineC,WINDOWSINFO,0,0) ||
+			partcmp(templineC,CKEYWORDHEADER,0,0))
 #endif
 			continue;
 		if (templineC[0] == '%' || templineC[0] == '#' || templineC[0] == EOS)
@@ -426,16 +428,16 @@ void readConnlFile(FNType *dbname) {
 			*to = EOS;
 			for (to++; isSpace(*to); to++) ;
 			if (*to != EOS) {
-				connlRoot = addToConnl(connlRoot, templineC, to);
+				conllRoot = addToConll(conllRoot, templineC, to);
 			}
 		}
 	}
 	fclose(fp);
 }
 
-void init_connl(void) {
-	isReportConnlError = TRUE;
-	connlRoot = NULL;
+void init_conll(void) {
+	isReportConllError = TRUE;
+	conllRoot = NULL;
 }
 
 void freeConvertTier(struct SimpleTier *p) {
@@ -454,14 +456,14 @@ void freeConvertTier(struct SimpleTier *p) {
 	free(p);
 }
 
-static void getConnlTranslation(char *elem, char *trans, FNType* fn, char *oItem) {
+static void getConllTranslation(char *elem, char *trans, FNType* fn, char *oItem) {
 	char *s;
-	struct ConnlTable *p;
+	struct ConllTable *p;
 
 	if (strchr(elem, '|') ==  NULL)
 		strcpy(trans, elem);
 	else {
-		for (p=connlRoot; p != NULL; p=p->next) {
+		for (p=conllRoot; p != NULL; p=p->next) {
 #ifdef POSTCODE
 			if (uS.patmat(elem, p->from))
 #else
@@ -470,7 +472,7 @@ static void getConnlTranslation(char *elem, char *trans, FNType* fn, char *oItem
 										  {
 				strcpy(trans, p->to);
 				if (strcmp(p->from, "*") == 0) {
-					if (isReportConnlError) {
+					if (isReportConllError) {
 						fprintf(stderr, "*** ERROR 1: In file \"%s\"\n", fn);
 						fprintf(stderr, "  in item:    %s\n", oItem);
 						fprintf(stderr, "  Can't find conversion for: %s\n", elem);
@@ -486,7 +488,7 @@ static void getConnlTranslation(char *elem, char *trans, FNType* fn, char *oItem
 		s = strchr(trans, '|');
 		if (s != NULL)
 			*s = EOS;
-		if (isReportConnlError) {
+		if (isReportConllError) {
 			fprintf(stderr, "*** ERROR 1: In file \"%s\"\n", fn);
 			fprintf(stderr, "  in item:    %s\n", oItem);
 			fprintf(stderr, "  Can't find conversion for: %s\n", elem);
@@ -505,7 +507,7 @@ static void initElem(struct SimpleTier *t, char *elem, char isClitic, FNType* fn
 	t->org = NULL;
 	t->ow = NULL;
 	t->sw = NULL;
-	t->isClitic = isClitic;
+	t->isCliticChr = isClitic;
 	if (isClitic)
 		t->org = NULL;
 	else {
@@ -523,16 +525,16 @@ static void initElem(struct SimpleTier *t, char *elem, char isClitic, FNType* fn
 		strcpy(elem, s+1);
 		s = elem;
 	}
-	getConnlTranslation(elem, trans, fn, oItem);
+	getConllTranslation(elem, trans, fn, oItem);
 	if ((t->sw=(char *)malloc(strlen(trans)+1)) == NULL) {
 		out_of_mem();
 	}
 	strcpy(t->sw, trans);
 }
 
-SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError) {
+SimpleTier *convertTier(char *T, FNType* fn, char *isConllError) {
 	int i, tierNameEnd, c, cCnt, maxcCnt;
-	char oItem[BUFSIZ], item[BUFSIZ], *si, *sc, *alt, *clt;
+	char oItem[BUFSIZ], item[BUFSIZ], *si, *sc, *alt, *clt, isClitic, b, e;
 	struct SimpleTier *convMorT, *t, *sItem, *tc;
 
 	for (tierNameEnd=0; T[tierNameEnd] != ':' && T[tierNameEnd] != EOS; tierNameEnd++) ;
@@ -544,7 +546,7 @@ SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError) {
 	convMorT = NULL;
 	strcpy(templineC, T+tierNameEnd);
 	i = 0;
-	while ((i=getNextMorItem(templineC, oItem, i))) {
+	while ((i=getNextMorItem(templineC, oItem, NULL, i))) {
 #ifdef POSTCODE
 		uS.remFrontAndBackBlanks(oItem);
 #else
@@ -561,27 +563,35 @@ SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError) {
 					*alt = EOS;
 				cCnt = 0;
 				sc = si;
-				do {
-					clt = strchr(sc, '~');
-					if (clt != NULL)
+				b = '\0';
+				while (1) {
+					for (clt=sc; *clt != EOS && *clt != '$' && *clt != '~'; clt++) ;
+					e = *clt;
+					if (e != EOS)
 						*clt = EOS;
+					if (b == '~')
+						isClitic = '~';
+					else if (e == '$')
+						isClitic = '$';
+					else
+						isClitic = '\0';
 					if (convMorT == NULL) {
 						convMorT = NEW(struct SimpleTier);
-						initElem(convMorT, sc, FALSE, fn, templineC, oItem);
+						initElem(convMorT, sc, isClitic, fn, templineC, oItem);
 						t = convMorT;
 					} else {
 						if (sItem == NULL) {
 							for (t=convMorT; t->nextW != NULL; t=t->nextW) ;
 							t->nextW = NEW(struct SimpleTier);
 							t = t->nextW;
-							initElem(t, sc, FALSE, fn, templineC, oItem);
+							initElem(t, sc, isClitic, fn, templineC, oItem);
 						} else {
 							if (si != item && cCnt > maxcCnt) {
 								fprintf(stderr, "*** ERROR 2: In file \"%s\"\n", fn);
 								fprintf(stderr, "on line:    %s", templineC);
 								fprintf(stderr, "in item:    %s\n", oItem);
 								fprintf(stderr, "Some alternatives have more clitic elements than others\n");
-								*isConnlError = TRUE;
+								*isConllError = TRUE;
 								freeConvertTier(convMorT);
 								return(NULL);
 							}
@@ -594,13 +604,13 @@ SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError) {
 							if (si == item) {
 								t->nextW = NEW(struct SimpleTier);
 								t = t->nextW;
-								initElem(t, sc, (char)(sc != si), fn, templineC, oItem);
+								initElem(t, sc, isClitic, fn, templineC, oItem);
 							} else if (c > 0) {
 								fprintf(stderr, "*** ERROR 2: In file \"%s\"\n", fn);
 								fprintf(stderr, "on line:    %s", templineC);
 								fprintf(stderr, "in item:    %s\n", oItem);
 								fprintf(stderr, "Some alternatives have more clitic elements than others\n");
-								*isConnlError = TRUE;
+								*isConllError = TRUE;
 								freeConvertTier(convMorT);
 								return(NULL);
 							} else {
@@ -612,7 +622,7 @@ SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError) {
 								if (uS.mStricmp(sc, t->ow) != 0) {
 									t->nextChoice = NEW(struct SimpleTier);
 									t = t->nextChoice;
-									initElem(t, sc, (char)(sc != si), fn, templineC, oItem);
+									initElem(t, sc, isClitic, fn, templineC, oItem);
 								}
 #else
 								for (; t->nextChoice != NULL; t=t->nextChoice) {
@@ -622,7 +632,7 @@ SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError) {
 								if (mStricmp(sc, t->ow) != 0) {
 									t->nextChoice = NEW(struct SimpleTier);
 									t = t->nextChoice;
-									initElem(t, sc, (char)(sc != si), fn, templineC, oItem);
+									initElem(t, sc, isClitic, fn, templineC, oItem);
 								}
 #endif
 							}
@@ -631,11 +641,13 @@ SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError) {
 					}
 					if (sItem == NULL)
 						sItem = t;
-					if (clt != NULL) {
+					if (e != EOS) {
+						b = e;
 						sc = clt + 1;
 						cCnt++;
-					}
-				} while (clt != NULL) ;
+					} else
+						break;
+				}
 				if (si == item)
 					maxcCnt = cCnt;
 				else if (maxcCnt != cCnt) {
@@ -643,7 +655,7 @@ SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError) {
 					fprintf(stderr, "on line:    %s", templineC);
 					fprintf(stderr, "in item:    %s\n", oItem);
 					fprintf(stderr, "Some alternatives have more clitic elements than others\n");
-					*isConnlError = TRUE;
+					*isConllError = TRUE;
 					freeConvertTier(convMorT);
 					return(NULL);
 				}
@@ -659,7 +671,7 @@ SimpleTier *convertTier(char *T, FNType* fn, char *isConnlError) {
 //							fprintf(stderr, "on line:    %s", templineC);
 							fprintf(stderr, "in item:    %s\n", oItem);
 							fprintf(stderr, "Both %%mor items \"%s\" and \"%s\" result in \"%s\"\n", tc->ow, tct->ow, tc->sw);
-//							*isConnlError = TRUE;
+//							*isConllError = TRUE;
 //							freeConvertTier(convMorT);
 //							return(NULL);
 						}
@@ -708,8 +720,8 @@ static char isBreakChar(char c) {
 void printclean(FILE *out, const char *spO, char *line) {
 	int  i, j, TabSize;
 	char sp[SPEAKERLEN];
-	long colnum;
-	long splen = 0;
+	long32 colnum;
+	long32 splen = 0;
 	char *pos, *tpos, *s, first = TRUE, sb = FALSE, isLineSpace;
 
 	TabSize = 8;
@@ -802,7 +814,7 @@ void printclean(FILE *out, const char *spO, char *line) {
 	putc('\n',out);
 }
 
-int getNextMorItem(char *line, char *oItem, int i) {
+int getNextMorItem(char *line, char *oItem, int *morI, int i) {
 	char *word;
 
 	word = oItem;
@@ -811,7 +823,9 @@ int getNextMorItem(char *line, char *oItem, int i) {
 	while ((*word=line[i]) != EOS && isBreakChar(line[i]))
 		i++;
 	if (*word == EOS)
-		return(0);	
+		return(0);
+	if (morI != NULL)
+		*morI = i - 1;
 	while ((*++word=line[++i]) != EOS && line[i] != EOS && !isBreakChar(line[i])) {
 	}
 	*word = EOS;
@@ -819,10 +833,11 @@ int getNextMorItem(char *line, char *oItem, int i) {
 }
 
 #define nbIOs	12	/* max number of files */
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=mac68k 
 #endif
-
+*/
 struct inputObject {
 	FILE* in;
 	int   fmt;
@@ -830,10 +845,11 @@ struct inputObject {
 	char  linebuffer[sizeOfLine];
 } IOs[nbIOs];
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=reset 
 #endif
-
+*/
 int	init_input( FNType* filename, const char* type )	// return 1 if OK, 0 if not
 {
 	int fmt;
@@ -994,7 +1010,9 @@ int get_type_of_tier( char* tier, char* name )
 				return TTwrd;
 			if ( !_strnicmp( &tier[1], "pos", 3 ) )
 				return TTpos;
-			if ( !_strnicmp( &tier[1], "xcnl", 3 ) )
+			if ( !_strnicmp( &tier[1], "cnl", 3 ) )
+				return TTcnl;
+			if ( !_strnicmp( &tier[1], "xcnl", 4 ) )
 				return TTcnl;
 			return TTdependant;
 		case '*':
@@ -1015,8 +1033,6 @@ int get_type_of_tier( char* tier, char* name )
 
 #ifdef POSTCODE
 //2011-01-13
-extern int isExcludePostcode(char *str);
-
 static char isRightPostCode(char *tier) {
 	int i, j, k, res;
 	char code[SPEAKERLEN];
@@ -1037,6 +1053,7 @@ static char isRightPostCode(char *tier) {
 					code[k++] = tier[j++];
 			}
 			code[k] = EOS;
+			uS.lowercasestr(code, &dFnt, MBF);
 			res = isExcludePostcode(code);
 			if (res == 4 && (PostCodeMode == 'i' || PostCodeMode == 'I'))
 				return(TRUE);
@@ -1052,7 +1069,7 @@ static char isRightPostCode(char *tier) {
 #endif
 
 // get a tier in a CHAT file. returns number of characters read. 0 if end of file.
-int get_tier(int ID, char* &tier, int &typeoftier, long &ln)
+int get_tier(int ID, char* &tier, int &typeoftier, long32 &ln)
 {
 	if ( !IOs[ID].in ) return 0;
 	
@@ -1083,7 +1100,7 @@ int get_tier(int ID, char* &tier, int &typeoftier, long &ln)
 						typeoftier = TTgeneral;
 					else
 #endif
-					typeoftier = get_type_of_tier( tier );
+						typeoftier = get_type_of_tier( tier );
 				}
 				return n;
 			}
@@ -1094,7 +1111,14 @@ int get_tier(int ID, char* &tier, int &typeoftier, long &ln)
 #endif
 
 // printf( "[%d][%c] {{{%s}}}\n", IOs[ID].linebuffer[0], IOs[ID].linebuffer[0], IOs[ID].linebuffer );
-				ln++;
+#ifdef POSTCODE
+				if (!uS.isInvisibleHeader(IOs[ID].linebuffer) && !uS.isUTF8(IOs[ID].linebuffer))
+#else
+				if (!partcmp(IOs[ID].linebuffer, PIDHEADER, FALSE, TRUE) && !partcmp(IOs[ID].linebuffer, CKEYWORDHEADER, FALSE, TRUE) &&
+					!partcmp(IOs[ID].linebuffer, WINDOWSINFO, FALSE, TRUE) && !partcmp(IOs[ID].linebuffer, FONTHEADER, FALSE, TRUE) &&
+					!isUTF8(IOs[ID].linebuffer))
+#endif
+					ln++;
 
 				if ( IOs[ID].linebuffer[0] == '@' || IOs[ID].linebuffer[0] == '*' || IOs[ID].linebuffer[0] == '%' ) {
 #ifdef POSTCODE
@@ -1109,7 +1133,7 @@ int get_tier(int ID, char* &tier, int &typeoftier, long &ln)
 						typeoftier = TTgeneral;
 					else
 #endif
-					typeoftier = get_type_of_tier( tier );
+						typeoftier = get_type_of_tier( tier );
 					return n;
 				}
 				strcat( tier, (char*)IOs[ID].linebuffer );
@@ -1128,7 +1152,7 @@ int get_tier(int ID, char* &tier, int &typeoftier, long &ln)
 					typeoftier = TTgeneral;
 				else
 #endif
-				typeoftier = get_type_of_tier( tier );
+					typeoftier = get_type_of_tier( tier );
 			}
 			IOs[ID].linebuffer[0] = '\0';
 			return n;

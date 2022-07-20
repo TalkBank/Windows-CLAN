@@ -21,7 +21,9 @@ static void CopyVarState(UNDO *p) {
 	global_df->UndoList->row_win2 = p->row_win2;
 	global_df->UndoList->col_win2 = p->col_win2;
 	global_df->UndoList->col_chr2 = p->col_chr2;
-	global_df->UndoList->lineno = p->lineno;
+	global_df->UndoList->lineno   = p->lineno;
+	global_df->UndoList->wLineno  = p->wLineno;
+
 	global_df->UndoList->ShowParags = p->ShowParags;
 }
 
@@ -41,7 +43,7 @@ void SaveVarUndoState(UNDO *p) {
 	p->CursorCodeArr	= global_df->CursorCodeArr;
 	p->EditorMode	= global_df->EditorMode;
 	p->LeftCol		= global_df->LeftCol;
-	p->top_win_pos	= global_df->lineno - global_df->row_win;
+	p->top_win_pos	= global_df->wLineno - global_df->row_win;
 	p->row_win		= global_df->row_win;
 	p->col_win		= global_df->col_win;
 	p->col_chr		= global_df->col_chr;
@@ -49,6 +51,7 @@ void SaveVarUndoState(UNDO *p) {
 	p->col_win2		= global_df->col_win2;
 	p->col_chr2		= global_df->col_chr2;
 	p->lineno		= global_df->lineno;
+	p->wLineno		= global_df->wLineno;
 	p->ShowParags	= global_df->ShowParags;
 	p->key			= MOVERPT;
 	p->str			= NULL;
@@ -86,6 +89,7 @@ void ResetVarStatus(UNDO *p) {
 	global_df->ShowParags		= p->ShowParags;
 	global_df->LeftCol			= p->LeftCol;
 	global_df->lineno			= p->lineno;
+	global_df->wLineno			= p->wLineno;
 	i = p->top_win_pos;
 	for (global_df->top_win=global_df->head_text; i> 0L && !AtBotEnd(global_df->top_win,global_df->tail_text,FALSE); i--) {
 		global_df->top_win = ToNextRow(global_df->top_win, FALSE);
@@ -145,6 +149,8 @@ static void ResetCurStatus() {
 	global_df->EditorMode		= global_df->UndoList->EditorMode;
 	global_df->LeftCol			= global_df->UndoList->LeftCol;
 	global_df->lineno			= global_df->UndoList->lineno;
+	global_df->wLineno			= global_df->UndoList->wLineno;
+
 	i = global_df->UndoList->top_win_pos;
 	for (global_df->top_win=global_df->head_text; i> 0L && !AtBotEnd(global_df->top_win,global_df->tail_text,FALSE); i--) {
 		global_df->top_win = ToNextRow(global_df->top_win, FALSE);
@@ -585,7 +591,7 @@ void SaveUndoState(char isDummy) {
 	p->CursorCodeArr= global_df->CursorCodeArr;
 	p->EditorMode	= global_df->EditorMode;
 	p->LeftCol		= global_df->LeftCol;
-	p->top_win_pos	= global_df->lineno - global_df->row_win;
+	p->top_win_pos	= global_df->wLineno - global_df->row_win;
 	p->row_win		= global_df->row_win;
 	p->col_win		= global_df->col_win;
 	p->col_chr		= global_df->col_chr;
@@ -593,6 +599,7 @@ void SaveUndoState(char isDummy) {
 	p->col_win2		= global_df->col_win2;
 	p->col_chr2		= global_df->col_chr2;
 	p->lineno		= global_df->lineno;
+	p->wLineno		= global_df->wLineno;
 	p->ShowParags	= global_df->ShowParags;
 	p->key			= MOVEKEY;
 	p->str			= NULL;

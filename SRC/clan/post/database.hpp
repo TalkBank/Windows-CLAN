@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -167,7 +167,7 @@ extern int _rules_hashdic_ ;
 extern int _words_classnames_default_ [];
 extern const char *_words_classnames_def_noms_ [];
 
-long tags_number();
+long32 tags_number();
 
 int open_rules_dic( const char* words_filename, int readonly=0 );
 void add_rules_dic(AMBTAG at, int atsz, TAG v);
@@ -207,7 +207,7 @@ void list_localword(FILE* out);
 // R is allocated by analyze_algorithm until freed by the dynalloc procedure.
 int analyze_algorithm( AMBTAG* A, int n, AMBTAG* &R, int* annotation, int style=0, FILE* out=(FILE*)0 ); //, int* taglocalwords );
 
-void local_abort ( long size, const char* funname );	// general ABORT function
+void local_abort ( long32 size, const char* funname );	// general ABORT function
 
 // Brill's Rules
 // style for Brill's rules training
@@ -248,8 +248,8 @@ int open_brillrule_dic( const char* filename, int readonly=0 );
 void list_brillrule(FILE* out, int style);
 int add_brillrule( char* word, char* tag, char* rule, int at_number=0 );
 int add_brillrule_at_number( int num, char* word, char* tag, char* rule );
-long* get_brillrule(const char* word, char* tag, char* ctn, int& _nrec);
-char* get_next_brillrule(char* ctn, int& _nrec, long* _rec);
+long32* get_brillrule(const char* word, char* tag, char* ctn, int& _nrec);
+char* get_next_brillrule(char* ctn, int& _nrec, long32* _rec);
 char* get_brillrule_by_number( int i, char* ctn );
 int suppress_brillrule( char* word, char* tag, char* bad_rule, int full=1 );
 int suppress_brillrule_by_number( int n, int full=1 );

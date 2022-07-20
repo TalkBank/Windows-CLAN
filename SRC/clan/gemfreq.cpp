@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -43,8 +43,8 @@ static char gemfreq_wholeTier;
 static char gemfreq_includeNested;
 static char gemfreq_group;
 static char gemfreq_FTime;
-static char gemfreq_WdMode = '\0'; /* 'i' - means to include ml_WdHead words, else exclude */
-static IEWORDS *gemfreq_WdHead;	/* contains words to included/excluded					*/
+static char gemfreq_WdMode = '\0'; /* 'i' - means to include ml_WdHead words, else exclude	*/
+static IEWORDS *gemfreq_WdHead;	/* contains words to included/excluded gem keywords			*/
 
 void usage() {
 	puts("GEMFREQ creates a frequency word count of a each gem data");
@@ -62,7 +62,7 @@ void usage() {
 void init(char first) {
 	if (first) {
 		isSort = FALSE;
-		gemfreq_WdMode = FALSE;
+		gemfreq_WdMode = '\0';
 		gemfreq_WdHead = NULL;
 		gemfreq_FTime = TRUE;
 		gemfreq_n_option = FALSE;
@@ -101,15 +101,23 @@ void init(char first) {
 				else
 					i++;
 			}
-			maketierchoice(gemfreq_BBS,'+',FALSE);
-			if (!gemfreq_n_option)
-				maketierchoice(gemfreq_CBS,'+',FALSE);
-			if (isMorSearchListGiven() && chatmode)
+			if (gemfreq_WdHead != NULL) {
+				maketierchoice(gemfreq_BBS,'+',FALSE);
+				if (!gemfreq_n_option)
+					maketierchoice(gemfreq_CBS,'+',FALSE);
+			}
+			if (isMORSearch() && chatmode) {
 				maketierchoice("%mor",'+',FALSE);
+				nomain = TRUE;
+			}
+			if (isGRASearch() && chatmode) {
+				maketierchoice("%gra",'+',FALSE);
+				nomain = TRUE;
+			}
 		}
 		if (gemfreq_SpecWords == 0) {
 			IEWORDS *tmp;
-			for (tmp=wdptr; tmp != NULL; tmp=tmp->nextword)
+			for (tmp=gemfreq_WdHead; tmp != NULL; tmp=tmp->nextword)
 				gemfreq_SpecWords++;
 		}
 	}
@@ -225,16 +233,9 @@ static void gemfreq_mkwdlist(char opt, char ch, FNType *fname) {
 		SetNewVol(od_dir);
 #endif
 	while (fgets_cr(wd+1, 511, efp)) {
-		if (uS.isUTF8(wd+1) || uS.partcmp(wd+1, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(wd+1) || uS.isInvisibleHeader(wd+1))
 			continue;
-		if (wd[1] == '[' && wd[2] == '+') {
-			wd[1] = '<';
-			wd[strlen(wd)-1] = '>';
-		}
-		if (wd[1] == '<')
-			addword(opt, ch, wd);
-		else
-			gemfreq_addwd(opt, ch, wd);
+		gemfreq_addwd(opt, ch, wd);
 	}
 	fclose(efp);
 }
@@ -266,7 +267,7 @@ void getflag(char *f, char *f1, int *i) {
 				else
 					gemfreq_wholeTier = 1;
 				break;
-		case 'w':
+		case 's':
 				if (*f) {
 					if (*(f-2) == '+') {
 						if (*f == '@') {
@@ -275,17 +276,7 @@ void getflag(char *f, char *f1, int *i) {
 						} else {
 							if (*f == '\\' && *(f+1) == '@')
 								f++;
-							if (*f == '[' && *(f+1) == '+') {
-								*f = '<';
-								f[strlen(f)-1] = '>';
-							}
-							if (*f == '<')
-								addword('o','i',getfarg(f,f1,i));
-							else {
-								if (*f == '[')
-									FilterTier = 0;
-								gemfreq_addwd('o','i',getfarg(f,f1,i));
-							}
+							gemfreq_addwd('o','i',getfarg(f,f1,i));
 						}
 					} else {
 						if (*f == '@') {
@@ -294,24 +285,16 @@ void getflag(char *f, char *f1, int *i) {
 						} else {
 							if (*f == '\\' && *(f+1) == '@')
 								f++;
-							if (*f == '[' && *(f+1) == '+') {
-								*f = '<';
-								f[strlen(f)-1] = '>';
-							}
-							if (*f == '<')
-								addword('o','e',getfarg(f,f1,i));
-							else {
-								if (*f == '[')
-									FilterTier = 0;
-								gemfreq_addwd('o','e',getfarg(f,f1,i));
-							}
+							gemfreq_addwd('o','e',getfarg(f,f1,i));
 						}
 					}
 				} else {
-					fprintf(stderr,"Invalid argument for option: %s\n", f-2);
+					fprintf(stderr,"Missing argument for option: %s\n", f-2);
 					cutt_exit(0);
 				}
 				break;
+		case 'w':
+				*(f-1) = 's';
 		default:
 			maingetflag(f-2,f1,i);
 			break;
@@ -474,14 +457,15 @@ static int gemfreq_RightText(char *gem_word) {
 	int i = 0;
 	int found = 0;
 
-	filterwords(utterance->speaker,uttline,exclude);
-	if (WordMode == '\0')
+	if (gemfreq_WdMode == '\0')
 		return(TRUE);
 
-	while ((i=getword(utterance->speaker, uttline, gem_word, NULL, i)))
-		found++;
+	while ((i=getword(utterance->speaker, uttline, gem_word, NULL, i))) {
+		if (gemfreq_excludewd(gem_word))
+			found++;
+	}
 
-	if (WordMode == 'i' || WordMode == 'I') 
+	if (gemfreq_WdMode == 'i' || gemfreq_WdMode == 'I')
 		return((gemfreq_group == FALSE && found) || (gemfreq_SpecWords == found));
 	else 
 		return((gemfreq_group == TRUE && gemfreq_SpecWords > found) || (found == 0));
@@ -688,12 +672,14 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			}
 		}
 		if (*utterance->speaker != '@' && isOutputGem) {
+			filterwords(utterance->speaker,uttline,exclude);
+			gemfreq_GemLocal = NULL;
 			if (isFullLine(uttline)) {
 				if (*utterance->speaker != '*' || !nomain)
 					gemfreq_GemLocal = FindGemItem(templineC2);
 				else
 					continue;
-			} else if ((i=isPostCodeFound(utterance)) == 0) {
+			} else if ((i=isPostCodeFound(utterance->speaker, utterance->line)) == 0) {
 				if (*utterance->speaker != '*' || !nomain)
 					gemfreq_GemLocal = FindGemItem(templineC2);
 				else
@@ -712,21 +698,19 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					strcpy(uttline,utterance->line);
 				filterwords(utterance->speaker,uttline,excludedef);
 			}
-
-			if (gemfreq_wholeTier) {
-				if (isFullLine(uttline)) {
-					uS.remblanks(utterance->line);
-					cleanUpTier(utterance->line);
-					if (gemfreq_wholeTier == 2)
-						gemfreq_GemLocal->root = gemfreq_tree(gemfreq_GemLocal->root, utterance->line);
-					else
-						gemfreq_GemLocal->root = gemfreq_tree(gemfreq_GemLocal->root, uttline);
-				}
-			} else {
-				i = 0;
-				while ((i=getword(utterance->speaker, uttline, word, NULL, i))) {
-					if (gemfreq_excludewd(word)) {
-						uS.remblanks(word);
+			if (gemfreq_GemLocal != NULL) {
+				if (gemfreq_wholeTier) {
+					if (isFullLine(uttline)) {
+						uS.remblanks(utterance->line);
+						cleanUpTier(utterance->line);
+						if (gemfreq_wholeTier == 2)
+							gemfreq_GemLocal->root = gemfreq_tree(gemfreq_GemLocal->root, utterance->line);
+						else
+							gemfreq_GemLocal->root = gemfreq_tree(gemfreq_GemLocal->root, uttline);
+					}
+				} else {
+					i = 0;
+					while ((i=getword(utterance->speaker, uttline, word, NULL, i))) {
 						gemfreq_GemLocal->root = gemfreq_tree(gemfreq_GemLocal->root, word);
 					}
 				}

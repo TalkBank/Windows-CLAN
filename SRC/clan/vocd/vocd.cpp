@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -21,6 +21,7 @@
 
 #include "cu.h"
 #include <math.h>
+#include "c_curses.h"
 #if !defined(_MAC_CODE)
 #include <sys/types.h>
 #endif
@@ -62,6 +63,7 @@ static char **token_seq;
 static char vocd_isCombineSpeakers;
 static char vocd_FTime;
 static char vocd_isPrintIDHeader;
+static char vocd_isDefaultMOR;
 static char isSpeakerSpecified;
 static char numer_directives[CMD_LINE_MAX];
 static char *numer_s_options[NUMSOPTIONS];
@@ -69,7 +71,7 @@ static char denom_directives[CMD_LINE_MAX];
 static char *denom_s_options[NUMSOPTIONS];
 static long d_flags;
 
-char isDoVocdAnalises;
+char isDoVocdAnalises, vocd_show_warnings;
 char VOCD_TYPE_D;		// flag for type-type-d ratio
 VOCDSPs *speakers;
 VOCDSPs *denom_speakers;
@@ -77,43 +79,53 @@ VOCDSPs *denom_speakers;
 #ifndef KIDEVAL_LIB
 void usage() {
     puts("VOCD computes the lexical diversity index");
-    printf("Usage : vocd [c dN gCS DCN R E oN %s] filename(s)\n",mainflgs());
+#ifdef UNX
+	printf("VOCD NOW WORKS ON \"%%mor:\" TIER AND PERFORMS LEMMA-BASED ANALYSIS BY DEFAULT.\n");
+	printf("THIS MEANS ALSO THAT YOU SHOULD USE THE +sm FACILITY FOR SEARCH STRING SPECIFICATION.\n");
+	printf("TO OVERRIDE DEFAULT LEMMA-BASED ANALYSIS ON \"%%mor:\" TIER PLEASE USE \"+o\" OPTION.\n");
+#else
+	printf("%c%cVOCD NOW WORKS ON \"%%mor:\" TIER AND PERFORMS LEMMA-BASED ANALYSIS BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cTHIS MEANS ALSO THAT YOU SHOULD USE THE +sm FACILITY FOR SEARCH STRING SPECIFICATION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cTO OVERRIDE LEMMA-BASED ANALYSIS ON \"%%mor:\" TIER PLEASE USE \"+o\" OPTION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
+    printf("Usage : vocd [b0 b1 bCN c dN gCS oN %s] filename(s)\n",mainflgs());
+	puts("+b0 : D_optimum - use split half; even.");
+	puts("+b1 : D_optimum - use split half; odd.");
+	puts("+bsN: D_optimum - size N of starting sample (default  35)");
+	puts("+blN: D_optimum - size N of largest sample  (default  50)");
+	puts("+biN: D_optimum - size N of increments      (default   1)");
+	puts("+bnN: D_optimum - the N number of samples   (default 100)");
+	puts("+br:  D_optimum - use random sampling with replacement (default: no replacement)");
+	puts("+be:  D_optimum - use sequential sampling");
 	puts("+c :  find capitalized words only");
 	puts("+d :  outputs utterances and type-token information");
 	puts("+d1:  outputs only VOCD results summary on one line");
 	puts("+d2:  outputs only type/token information");
 	puts("+d3:  outputs only type/token information in SPREADSHEET format");
-	// READING
 	puts("+gnS: compute \"limiting type-type ratio\" S=NUMERATOR +s directives");
 	puts("-gnS: compute \"limiting type-type ratio\" S=NUMERATOR -s directives");
 	puts("+gdS: compute \"limiting type-type ratio\" S=DENOMINATOR +s directives");
 	puts("-gdS: compute \"limiting type-type ratio\" S=DENOMINATOR -s directives");
-	// READING
-	puts("+DS0: D_optimum - use split half; even.");
-	puts("+DS1: D_optimum - use split half; odd.");
-	// READING
-	puts("+DfN: D_optimum - size N of starting sample (default  35)");
-	puts("+DtN: D_optimum - size N of largest sample  (default  50)");
-	puts("+DiN: D_optimum - size N of increments      (default   1)");
-	puts("+DsN: D_optimum - the N number of samples   (default 100)");
-	puts("-R :  D_optimum - use random sampling with replacement (default: no replacement)");
-	puts("-E :  D_optimum - use sequential sampling");
-	// READING
+	puts("+o:  override default lemma-based analysis");
 	puts("+o3: combine selected speakers from each file into one results list");
 	mainusage(FALSE);
 	puts("Examples:");
-	puts("lemma-based analysis");
-	puts("    vocd +t%mor –t* +s\"*|*-%%\" +s\"*|*&%%\" +f filename.cha");
-//	puts("    vocd +t%mor –t* +s@r-*,o-% +f filename.cha");
+	puts("lemma-based analysis is performed by default");
 	puts("limiting relative diversity (LRD), compare verb and noun stems diversity");
-	puts("    vocd +t*CHI +t\"%mor\" -t* +gn\"v|*-%%\" +gd\"n|*-%%\" +f filename.cha");
-	puts("    vocd +t*CHI +t\"%mor\" -t* +gn@\"r*,|v,o%\" +gd@\"r*,|n,o%\" filename.cha");
-	puts("    vocd +t*CHI +t\"%mor\" -t* +gn@\"r*,|v,o%\" +gd@\"r*,|n,o%\" +r4 filename.cha");
-	puts("segments words into their component morphemes");
-	puts("    vocd +t*CHI +p\"-#~&+\" +f filename.cha");
+	puts("    vocd +t*CHI +gn\"m|v.;*,o%%\" +gd\"m|n,;*,o%%\" filename.cha");
+	puts("    vocd +t*CHI +gn\"m|v.;*,o%%\" +gd\"m|n,;*,o%%\" +r4 filename.cha");
+#ifdef UNX
+	printf("VOCD NOW WORKS ON \"%%mor:\" TIER AND PERFORMS LEMMA-BASED ANALYSIS BY DEFAULT.\n");
+	printf("THIS MEANS ALSO THAT YOU SHOULD USE THE +sm FACILITY FOR SEARCH STRING SPECIFICATION.\n");
+	printf("TO OVERRIDE DEFAULT LEMMA-BASED ANALYSIS ON \"%%mor:\" TIER PLEASE USE \"+o\" OPTION.\n");
+#else
+	printf("%c%cVOCD NOW WORKS ON \"%%mor:\" TIER AND PERFORMS LEMMA-BASED ANALYSIS BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cTHIS MEANS ALSO THAT YOU SHOULD USE THE +sm FACILITY FOR SEARCH STRING SPECIFICATION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cTO OVERRIDE LEMMA-BASED ANALYSIS ON \"%%mor:\" TIER PLEASE USE \"+o\" OPTION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
 	cutt_exit(0);
 }
-#endif
+#endif // KIDEVAL_LIB
 
 static void default_excludes(void) {
 	addword('\0','\0',"+xx");
@@ -137,6 +149,7 @@ void init_vocd(char first) {
 	int i;
 
 	if (first) {
+		vocd_show_warnings = FALSE;
 		isDoVocdAnalises = FALSE;
 		vocd_isCombineSpeakers = FALSE;
 		speakers = NULL;
@@ -158,6 +171,7 @@ void init_vocd(char first) {
 			numer_s_options[i] = NULL;
 			denom_s_options[i] = NULL;
 		}
+		vocd_isDefaultMOR = FALSE;
 	} else {
 		if (token_seq)
 			free (token_seq);
@@ -181,13 +195,15 @@ void init(char first) {
 		isSpeakerSpecified = FALSE;
 		onlydata = 0;
 		init_vocd(first);
+		vocd_isDefaultMOR = TRUE;
+		vocd_show_warnings = TRUE;
 	} else {
 		if (vocd_FTime) {
 			vocd_FTime = FALSE;
 			if (IDField == NULL && SPRole == NULL && !isSpeakerSpecified && vocd_isCombineSpeakers) {
 				isSpeakerSpecified = TRUE;
 				strcpy(ts, "*");
-				if (speaker_add_speaker(&speakers, ts, NULL, FALSE, TRUE) == NULL) { // add default speaker
+				if (speaker_add_speaker(&speakers, ts, NULL, NULL, FALSE, TRUE) == NULL) { // add default speaker
 					fprintf(stderr,"cannot add speaker to list\n");
 					speakers = speaker_free_up_speakers(speakers, TRUE);
 					if (VOCD_TYPE_D)
@@ -196,7 +212,7 @@ void init(char first) {
 				}
 				if (VOCD_TYPE_D) {
 					strcpy(ts, "*");
-					if (speaker_add_speaker(&denom_speakers, ts, NULL, FALSE, TRUE) == NULL) { // add default speaker
+					if (speaker_add_speaker(&denom_speakers, ts, NULL, NULL, FALSE, TRUE) == NULL) { // add default speaker
 						fprintf(stderr,"cannot add speaker to list\n");
 						speakers = speaker_free_up_speakers(speakers, TRUE);
 						denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
@@ -210,6 +226,15 @@ void init(char first) {
 				AddCEXExtension = ".xls";
 				vocd_isPrintIDHeader = TRUE;
 			}
+			if (vocd_isDefaultMOR) {
+				strcpy(ts, "m;*,o%");
+				ts[0] = '\002';
+				addword('s','i',ts);
+			}
+			if ((isMORSearch() || isMultiMorSearch) && chatmode) {
+				nomain = TRUE;
+				maketierchoice("%mor",'+',FALSE);
+			}
 		}
 		if (!combinput || onlydata == 4) {
 			init_vocd(first);
@@ -219,14 +244,69 @@ void init(char first) {
 
 void getflag(char *f, char *f1, int *i) {
 	int  j;
-//	char sp[SPEAKERLEN];
 
 	f++;
 	switch(*f++) {
+		case 'b':
+			if (*f == '0') {
+				SPLIT_HALF_EVEN = 1;
+				SPLIT_HALF_ODD  = 0;
+				if (*(f+1) != EOS) {
+					fprintf(stderr,"Option \"%s\" does not allow anything after +b0.\n", f-2);
+					speakers = speaker_free_up_speakers(speakers, TRUE);
+					if (VOCD_TYPE_D)
+						denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
+					cutt_exit(0);
+				}
+			} else if (*f == '1') {
+				SPLIT_HALF_EVEN = 0;
+				SPLIT_HALF_ODD  = 1;
+				if (*(f+1) != EOS) {
+					fprintf(stderr,"Option \"%s\" does not allow anything after +b1.\n", f-2);
+					speakers = speaker_free_up_speakers(speakers, TRUE);
+					if (VOCD_TYPE_D)
+						denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
+					cutt_exit(0);
+				}
+			} else if (*f == 's') {
+				D_from = atoi(f+1);
+			} else if (*f == 'l') {
+				D_to = atoi(f+1);
+			} else if (*f == 'i') {
+				D_inc = atoi(f+1);
+			} else if (*f == 'n') {
+				D_samples = atoi(f+1);
+			} else if (*f == 'r') {
+				d_flags &= ~NOREPLACEMENT;
+				if (*(f+1) != EOS) {
+					fprintf(stderr,"Option \"%s\" does not allow anything after +br.\n", f-2);
+					speakers = speaker_free_up_speakers(speakers, TRUE);
+					if (VOCD_TYPE_D)
+						denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
+					cutt_exit(0);
+				}
+			} else if (*f == 'e') {
+				SEQUENTIAL_SAMPLING = 1;
+				if (*(f+1) != EOS) {
+					fprintf(stderr,"Option \"%s\" does not allow anything after +be.\n", f-2);
+					speakers = speaker_free_up_speakers(speakers, TRUE);
+					if (VOCD_TYPE_D)
+						denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
+					cutt_exit(0);
+				}
+			} else {
+				fprintf(stderr,"The only +b's allowed are 0, 1, s, l, i, n, r, e.\n");
+				speakers = speaker_free_up_speakers(speakers, TRUE);
+				if (VOCD_TYPE_D)
+					denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
+				cutt_exit(0);
+			}
+			break;
 		case 'c':
 			CAPITALISATION = 1;
 			nomap = TRUE;
 			no_arg_option(f);
+			vocd_isDefaultMOR = FALSE;
 			break;
 		case 'd':
 			onlydata = atoi(getfarg(f,f1,i))+1;
@@ -240,45 +320,8 @@ void getflag(char *f, char *f1, int *i) {
 			if (onlydata == 4)
 				OverWriteFile = TRUE;
 			break;
-		case 'D':
-			if (*f == 'f') {
-				D_from = atoi(f+1);
-			} else if (*f == 't') {
-				D_to = atoi(f+1);
-			} else if (*f == 'i') {
-				D_inc = atoi(f+1);
-			} else if (*f == 's') {
-				D_samples = atoi(f+1);
-			} else if (*f == 'S') {  // split half
-				f++;
-				if (*f == '0') {
-					SPLIT_HALF_EVEN = 1;
-					SPLIT_HALF_ODD  = 0;
-				} else if (*f == '1') {
-					SPLIT_HALF_EVEN = 0;
-					SPLIT_HALF_ODD  = 1;
-				} else {
-					fprintf(stderr,"The only +D's allowed are f, t, i, s, S0, S1.\n");
-					speakers = speaker_free_up_speakers(speakers, TRUE);
-					if (VOCD_TYPE_D)
-						denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
-					cutt_exit(0);
-				}
-			} else {
-				fprintf(stderr,"The only +D's allowed are f, t, i, s, S0, S1.\n");
-				speakers = speaker_free_up_speakers(speakers, TRUE);
-				if (VOCD_TYPE_D)
-					denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
-				cutt_exit(0);
-			}
-			break;
-		case 'E':
-			SEQUENTIAL_SAMPLING = 1;
-			break;
-		case 'R':
-			d_flags &= ~NOREPLACEMENT;
-			break;
 		case 'g':
+			vocd_isDefaultMOR = FALSE;
 			if (*f == 'n') {
 				for (j=0; j < NUMSOPTIONS && numer_s_options[j] != NULL; j++) ;
 				if (j == NUMSOPTIONS) {
@@ -326,10 +369,15 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			break;
 		case 'o':
-			if (*f == '3') {
+			if (*f == EOS) {
+				vocd_isDefaultMOR = FALSE;
+			} else if (*f == '3') {
 				vocd_isCombineSpeakers = TRUE;
 			} else {
 				fprintf(stderr,"Invalid argument for option: %s\n", f-2);
+				speakers = speaker_free_up_speakers(speakers, TRUE);
+				if (VOCD_TYPE_D)
+					denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
 				cutt_exit(0);
 			}
 			break;
@@ -357,6 +405,8 @@ void getflag(char *f, char *f1, int *i) {
 				maingetflag(f-2,f1,i);
 			break;
 		case 's':
+			if (*f != '[')
+				vocd_isDefaultMOR = FALSE;
 			if (VOCD_TYPE_D) {
 				for (j=0; j < NUMSOPTIONS && numer_s_options[j] != NULL; j++) ;
 				if (j == NUMSOPTIONS) {
@@ -379,9 +429,16 @@ void getflag(char *f, char *f1, int *i) {
 			} else
 				maingetflag(f-2,f1,i);
 			break;
+		case 't':
+			if (*f == '%') {
+				vocd_isDefaultMOR = FALSE;
+			}
+			maingetflag(f-2,f1,i);
+			break;
 /*
 		case 't':
 			if (*(f-2) == '+' && *f != '%' && *f != '@' && *f != '#') {
+				char sp[SPEAKERLEN];
 				if (vocd_isCombineSpeakers) {
 					if (*f == '*')
 						strcpy(sp, f);
@@ -413,7 +470,7 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 	}
 }
-#endif
+#endif // KIDEVAL_LIB
 /*
  * int generate_d_optimum  (VOCDSPs *speakers, FNType *input_fname, double *d_optimum);
  *
@@ -441,17 +498,20 @@ static int generate_d_optimum (VOCDSP *speaker, FNType *input_fname, double *d_o
 //		Spk_pt = Spk_pt->next;
 //	}
 	if (utterance_count==0) {
-		fprintf(stderr,"\n*** File \"%s\": Speaker: \"%s\"\n", input_fname, speaker->code);
-		fprintf(stderr,"vocd: WARNING: Utterances count for this speaker = 0\n\n");
+		if (vocd_show_warnings) {
+			fprintf(stderr,"\n*** File \"%s\": Speaker: \"%s\"\n", input_fname, speaker->code);
+			fprintf(stderr,"vocd: WARNING: Utterances count for this speaker = 0\n\n");
+		}
 		if (ofp != NULL && onlydata == 4) {
 			if (!SEQUENTIAL_SAMPLING || d_flags & RANDOM_TTR)
 				t = MAX_TRIALS;
 			else
 				t = 1;
-			if (speaker->IDs != NULL)
-				fprintf(ofp,"%s", speaker->IDs);
+			if (speaker->fname != NULL)
+				outputStringForExcel(ofp, speaker->fname, 1);
 			else {
 				char *f;
+// ".xls"
 				strcpy(FileName2, oldfname);
 				f = strrchr(FileName2, PATHDELIMCHR);
 				if (f != NULL) {
@@ -461,14 +521,19 @@ static int generate_d_optimum (VOCDSP *speaker, FNType *input_fname, double *d_o
 				f = strchr(FileName2, '.');
 				if (f != NULL)
 					*f = EOS;
-				if (!combinput || onlydata == 4)
-					fprintf(ofp,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", FileName2, speaker->code);
+				if (!combinput)
+					fprintf(ofp,"%s,", FileName2);
 				else
-					fprintf(ofp,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", POOLED_FNAME, speaker->code);
+					fprintf(ofp,"%s,", POOLED_FNAME);
 			}
-			fprintf(ofp,".\t.\t.\t");
+			if (speaker->IDs != NULL)
+				outputIDForExcel(ofp, speaker->IDs, 1);
+			else {
+				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,", speaker->code);
+			}
+			fprintf(ofp,".,.,.,");
 			for (i=0;i<t;i++) {
-				fprintf(ofp,".\t");
+				fprintf(ofp,".,");
 			}
 			fprintf(ofp,".\n");
 		}
@@ -511,6 +576,8 @@ static int generate_d_optimum (VOCDSP *speaker, FNType *input_fname, double *d_o
 				n = 0;
 			else if (SPLIT_HALF_ODD)
 				n = 1;
+			else
+				n = 0;
 			
 			no_split_tokens = tkns_in_seq/2 + (tkns_in_seq%2)*n;
 			
@@ -657,7 +724,7 @@ static void vocd_pr_result(void) {
 	}
 }
 
-static void vocd_outputIDInfo(char *s, char *IDs) {
+static void vocd_createIDInfo(char *s, char *fname, char *IDs) {
 	int  i, cnt;
 	char isBlank, *f;
 
@@ -672,40 +739,16 @@ static void vocd_outputIDInfo(char *s, char *IDs) {
 	f = strchr(FileName1, '.');
 	if (f != NULL)
 		*f = EOS;
-	strcpy(IDs, FileName1);
-	strcat(IDs, "\t");
-	i = strlen(IDs);
+	strcpy(fname, FileName1);
+	i = 0;
 	for (; *s != EOS; s++) {
-		if (*s == '|') {
-			if (isBlank && i < SPEAKERLEN)
-				IDs[i++] = '.';
-			if (i < SPEAKERLEN)
-				IDs[i++] = '\t';
-			isBlank = TRUE;
-			cnt++;
-		} else if (isSpace(*s)) {
-			if (isBlank && i < SPEAKERLEN) {
-				IDs[i++] = '.';
-				isBlank = FALSE;
-			} else if (i < SPEAKERLEN)
-				IDs[i++] = *s;
-		} else {
-			isBlank = FALSE;
-			if (i < SPEAKERLEN)
-				IDs[i++] = *s;
-		}
-	}
-	if (cnt < 10) {
-		if (i < SPEAKERLEN)
-			IDs[i++] = '.';
-		if (i < SPEAKERLEN)
-			IDs[i++] = '\t';
+		IDs[i++] = *s;
 	}
 	IDs[i] = EOS;
 }
 
-void clean_speakers(VOCDSPs *Spk_pt) {
-	if (Spk_pt == NULL)
+void clean_speakers(VOCDSPs *Spk_pt, char isSubstitute) {
+	if (Spk_pt == NULL && isSubstitute)
 		Spk_pt = speakers;
 	while (Spk_pt!=NULL) {
 		Line *lpt, *tmp_line;
@@ -725,24 +768,25 @@ void clean_speakers(VOCDSPs *Spk_pt) {
 void call() {
 	int i, t;
 	char ts[256];
-	VOCDSP  *current_speaker;
+	VOCDSP  *current_speaker = NULL;
 	long tlineno = 0;
 
 	if (vocd_isPrintIDHeader) {
 		vocd_isPrintIDHeader = FALSE;
-		fprintf(fpout,"File\tLanguage\tCorpus\tCode\tAge\tSex\tGroup\tSES\tRole\tEducation\tCustom_field\t");
-		fprintf(fpout,"Types\tTokens\tTTR\t");
+		fprintf(fpout, "%c%c%c", 0xef, 0xbb, 0xbf); // BOM UTF8
+		fprintf(fpout,"File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field,");
+		fprintf(fpout,"Types,Tokens,TTR,");
 		if (!SEQUENTIAL_SAMPLING || d_flags & RANDOM_TTR)
 			t = MAX_TRIALS;
 		else
 			t = 1;
 		for (i=0;i<t;i++) {
-			fprintf(fpout,"D_optimum_values %d\t", i+1);
+			fprintf(fpout,"D_optimum_values %d,", i+1);
 		}
 		fprintf(fpout,"D_optimum_average\n");
 	}
 	if (!combinput || onlydata == 4) {
-		clean_speakers(speakers);
+		clean_speakers(speakers, FALSE);
 	}
 	if (VOCD_TYPE_D) {
 		clean_s_option();
@@ -757,6 +801,8 @@ void call() {
 			} else
 				maingetflag(numer_s_options[i],ts,&t);
 		}
+		if (isMORSearch() && chatmode)
+			maketierchoice("%mor",'+',FALSE);
 	}
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
@@ -771,8 +817,8 @@ void call() {
 			if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
 				if (isIDSpeakerSpecified(utterance->line, templineC, TRUE)) {
 					uS.remblanks(utterance->line);
-					vocd_outputIDInfo(utterance->line, templineC1);
-					if (speaker_add_speaker(&speakers, templineC, templineC1, !isSpeakerSpecified, FALSE) == NULL) {
+					vocd_createIDInfo(utterance->line, templineC1, templineC2);
+					if (speaker_add_speaker(&speakers, templineC, templineC1, templineC2, !isSpeakerSpecified, FALSE) == NULL) {
 						fprintf(stderr,"cannot add speaker to list\n");
 						speakers = speaker_free_up_speakers(speakers, TRUE);
 						if (VOCD_TYPE_D)
@@ -787,7 +833,7 @@ void call() {
 			current_speaker = NULL;
 			if (checktier(utterance->speaker)) {
 				isDoVocdAnalises = TRUE;
-				if ((current_speaker=speaker_add_speaker(&speakers, utterance->speaker, NULL, !isSpeakerSpecified, TRUE)) == NULL) {
+				if ((current_speaker=speaker_add_speaker(&speakers, utterance->speaker, NULL, NULL, !isSpeakerSpecified, TRUE)) == NULL) {
 					fprintf(stderr,"cannot add speaker to list\n");
 					speakers = speaker_free_up_speakers(speakers, TRUE);
 					if (VOCD_TYPE_D)
@@ -845,9 +891,11 @@ void call() {
 				maingetflag(spareTier1,ts,&t);
 			} else
 				maingetflag(denom_s_options[i],ts,&t);
+			if (isMORSearch() && chatmode)
+				maketierchoice("%mor",'+',FALSE);
 		}
 		if (!combinput || onlydata == 4) {
-			clean_speakers(denom_speakers);
+			clean_speakers(denom_speakers, FALSE);
 		}
 		tlineno = 0;
 		currentatt = 0;
@@ -862,7 +910,7 @@ void call() {
 			if (*utterance->speaker == '*') {
 				current_speaker = NULL;
 				if (checktier(utterance->speaker)) {
-					if ((current_speaker=speaker_add_speaker(&denom_speakers, utterance->speaker, NULL, !isSpeakerSpecified, TRUE)) == NULL) {
+					if ((current_speaker=speaker_add_speaker(&denom_speakers, utterance->speaker, NULL, NULL, !isSpeakerSpecified, TRUE)) == NULL) {
 						fprintf(stderr,"cannot add speaker to list\n");
 						speakers = speaker_free_up_speakers(speakers, TRUE);
 						denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
@@ -937,4 +985,4 @@ CLAN_MAIN_RETURN main(int argc, char *argv[])
 	}	
 	bmain(argc,argv,vocd_pr_result);
 }
-#endif
+#endif // KIDEVAL_LIB

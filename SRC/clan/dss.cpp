@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -31,7 +31,6 @@
 
 #define POINTS_NAME_TAG "#Points:"
 #define POINTS_FORM "%-3s|"
-#define POINTS_N 20
 #define POINTS_S 40
 #define POINTNAME_LEN 20
 #define RULE  struct rule_s
@@ -68,8 +67,8 @@ DSS_MACH {
 	DSS_NMN *nextmac;
 } ;
 
-extern char morTierName[];
 extern char OverWriteFile;
+extern char outputOnlyData;
 extern struct tier *defheadtier;
 extern struct tier *headtier;
 
@@ -82,6 +81,8 @@ static char dss_ftime;
 static char PointsNames[POINTS_N][POINTNAME_LEN+2];
 static char debug_level;
 static char isDSSpostcode, isDSSEpostcode;
+static char isFirstCall;
+static int  IsOutputSpreadsheet, spNum;
 static int  TotalsAcrossPoints[POINTS_N], TotalsTotal;
 static int  PointsCnt;
 static int  dss_firstmatch;
@@ -95,22 +96,23 @@ static DSSSP dss_sp_head;
 
 int  DSS_UTTLIM;
 char dss_lang;
+char isDssFileSpecified;
 const char *rulesfile;
 FILE *debug_dss_fp;
 
 #ifndef KIDEVAL_LIB
 void usage() {
-	printf("Usage: dss [a bS cN dS lC tS %s] filename(s)\n",mainflgs());
+	printf("Usage: dss [a cN dS lS %s] filename(s)\n",mainflgs());
 	printf("+aN: debug dss rules level N (1-3).\n");
-	printf("+bS: use to specify all child's tier names.\n");
 	printf("+cN: analyse N complete unique utterances. (default: 50 utterances)\n");
-	printf("+dS: specify dss rules file name. (no default)\n");
+	printf("+d : outputs in SPREADSHEET format\n");
+	printf("+d1: outputs in SPREADSHEET format one TOTAL line per file\n");
+	printf("+dF: specify dss rules file name. (no default)\n");
 //	printf("+i : interactively generates dss table\n");
-	printf("+lC: specify data language (e-English, j-Japanese)\n");
+	printf("+lS: specify data language (eng - English, jpn - Japanese)\n");
 #ifdef UNX
 	printf("+LF: specify full path F of the lib folder\n");
 #endif
-	printf("+tS: specify name for morphological data tier (default is %%mor:).\n");
 	mainusage(TRUE);
 }
 #endif // KIDEVAL_LIB
@@ -125,6 +127,8 @@ static void freeUtts(DSSSP *p) {
 		}
 	}
 	p->uttnum = 0;
+	free(p->utts);
+	p->utts = NULL;
 }
 
 void dss_freeSpeakers(void) {
@@ -147,14 +151,13 @@ void dss_freeSpeakers(void) {
 }
 
 void freeLastDSSUtt(DSSSP *p) {
-	int k;
-
-	k = p->uttnum;
-	if (p->utts[k] != NULL) {
-		free(p->utts[k]);
-		p->utts[k] = NULL;
+	if (p->uttnum > 0) {
+		p->uttnum--;
+		if (p->utts[p->uttnum] != NULL) {
+			free(p->utts[p->uttnum]);
+			p->utts[p->uttnum] = NULL;
+		}
 	}
-	p->uttnum--;
 }
 
 static void dss_freeall(DSS_MACH *rootmac) {
@@ -487,8 +490,10 @@ static int dss_makemach(char *exp, int pos, DSS_NMN *mac, char mneg) {
 				dss_err("Illegal element found.",exp+pos);
 			else if (!uS.isRightChar(exp, pos, '(', &dFnt, C_MBF) && !uS.isRightChar(exp, pos, '!', &dFnt, C_MBF))
 				pos = dss_storepat(tt,exp,pos);
-		} else if (uS.isRightChar(exp, pos, '\n', &dFnt, C_MBF)) pos++;
-		else pos = dss_storepat(tt,exp,pos);
+		} else if (uS.isRightChar(exp, pos, '\n', &dFnt, C_MBF))
+			pos++;
+		else
+			pos = dss_storepat(tt,exp,pos);
 	}
 	return(pos);
 }
@@ -1090,16 +1095,37 @@ static void MakeRules() {
 	FILE  *fp;
 	FNType mFileName[FNSize];
 
-	if ((fp=OpenGenLib(rulesfile,"r",TRUE,TRUE,mFileName)) == NULL) {
-		fprintf(stderr, "Can't open either one of the dss rules files:\n\t\"%s\", \"%s\"\n", rulesfile, mFileName);
-		dss_mferr = 1;
-		return;
+	strcpy(mFileName, lib_dir);
+#if !defined(CLAN_SRV)
+	addFilename2Path(mFileName, "dss");
+#endif
+	addFilename2Path(mFileName, rulesfile);
+	if ((fp=fopen(mFileName,"r")) == NULL) {
+		if (!isDssFileSpecified) {
+			fprintf(stderr, "Can't open dss rules file: \"%s\"\n", mFileName);
+			fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+			dss_mferr = 1;
+			return;
+		} else {
+			strcpy(templineC, wd_dir);
+			addFilename2Path(templineC, rulesfile);
+			if ((fp=fopen(templineC,"r")) == NULL) {
+				fprintf(stderr, "Can't open either one of the dss rules files:\n\t\"%s\"\n\t\"%s\"\n", templineC, mFileName);
+				fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+				dss_mferr = 1;
+				return;
+			} else {
+				strcpy(mFileName, templineC);
+			}
+		}
 	}
+#if !defined(CLAN_SRV)
 	fprintf(stderr, "    Using dss rules file: %s\n", mFileName);
+#endif
 	isFoundPointsNames = FALSE;
 	tr = NULL;
 	while (fgets_cr(dss_expression, BUFSIZ, fp)) {
-		if (uS.isUTF8(dss_expression) || uS.partcmp(dss_expression, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(dss_expression) || uS.isInvisibleHeader(dss_expression))
 			continue;
 		if (uS.mStrnicmp(dss_expression, POINTS_NAME_TAG, strlen(POINTS_NAME_TAG)) == 0) {
 			isFoundPointsNames = parsePointsNames(dss_expression);
@@ -1111,7 +1137,8 @@ static void MakeRules() {
 		if (dss_expression[s] == '#')
 			dss_expression[s] = EOS;
 		for (s=0; dss_expression[s]== ' ' || dss_expression[s]== '\t'; s++) ;
-		for (l=s; dss_expression[l] != ':' && dss_expression[l]; l++) ;
+		for (l=s; dss_expression[l] != ':' && dss_expression[l]; l++)
+			;
     	if (uS.isUTF8(dss_expression))
     		continue;
 		if (dss_expression[l] == EOS || dss_expression[l] == '\n')
@@ -1189,7 +1216,7 @@ static void MakeRules() {
 	if (!isFoundPointsNames) {
 		strcpy(PointsNames[0], "IP ");
 		strcpy(PointsNames[1], "PP ");
-		strcpy(PointsNames[2], "PV ");
+		strcpy(PointsNames[2], "MV ");
 		strcpy(PointsNames[3], "SV ");
 		strcpy(PointsNames[4], "NG ");
 		strcpy(PointsNames[5], "CNJ");
@@ -1204,12 +1231,17 @@ char init_dss(char first) {
 	int i;
 
 	if (first) {
+		dss_mferr = 0;
 		GTotalNum = (float)0.0;
 		GGrandTotal = (float)0.0;
 		rulesfile = NULL;
+		IsOutputSpreadsheet = 0;
+		spNum = 0;
+		isFirstCall = TRUE;
 		isDSSpostcode = TRUE;
 		isDSSEpostcode = TRUE;
 		DSSAutoMode = TRUE;
+		isDssFileSpecified = FALSE;
 		root_rules = NULL;
 		dss_lang = '\0';
 		debug_level = 0;
@@ -1244,10 +1276,10 @@ char init_dss(char first) {
 		if (dss_lang == '\0' || rulesfile == NULL) {
 			if (CLAN_PROG_NUM == DSS) {
 				fprintf(stderr, "Please specify data language with \"+l\" option.\n");
-				fprintf(stderr, "  e - English, j - Japanese\n");
+				fprintf(stderr, "  eng - English, jpn - Japanese\n");
 			} else {
 				fprintf(stderr, "Please specify data language inside \"language script file\".\n");
-				fprintf(stderr, "  e - English, j - Japanese, 0 - do not compute DSS\n");
+				fprintf(stderr, "  eng - English, jpn - Japanese, 0 - do not compute DSS\n");
 			}
 			return(FALSE);
 		}
@@ -1265,11 +1297,15 @@ char init_dss(char first) {
 void init(char first) {
 	register int i;
 	NewFontInfo finfo;
+	struct tier *nt;
 
 	if (first) {
 // defined in "mmaininit" and "globinit" - nomap = TRUE;
 		stout = FALSE;
 		FilterTier = 1;
+		IsOutputSpreadsheet = 0;
+		spNum = 0;
+		isFirstCall = TRUE;
 		dss_ftime = TRUE;
 		LocalTierSelect = TRUE;
 		OverWriteFile = TRUE;
@@ -1293,12 +1329,16 @@ void init(char first) {
 		if (!init_dss(first)) {
 			out_of_mem();
 		}
-		strcpy(morTierName, "%mor:");
+		strcpy(fDepTierName, "%mor:");
 		DSSAutoMode = TRUE;
 	} else if (dss_ftime) {
 		dss_ftime = FALSE;
-		if (headtier == NULL) {
-			fprintf(stderr, "Please specify child's tier name with \"+b\" option.\n");
+		for (nt=headtier; nt != NULL; nt=nt->nexttier) {
+			if (nt->tcode[0] == '*')
+				break;
+		}
+		if (nt == NULL) {
+			fprintf(stderr, "Please specify at least one speaker tier name with \"+t\" option.\n");
 			cutt_exit(0);
 		}
 		for (i=0; GlobalPunctuation[i]; ) {
@@ -1310,17 +1350,26 @@ void init(char first) {
 		}
 		if (!init_dss(first))
 			cutt_exit(0);
-		maketierchoice(morTierName,'+',FALSE);
+		maketierchoice(fDepTierName,'+',FALSE);
 		if (!DSSAutoMode) {
+			finfo.fontName[0] = EOS;
 			SetDefaultCAFinfo(&finfo);
-			selectChoosenFont(&finfo, TRUE);
+			selectChoosenFont(&finfo, TRUE, TRUE);
+		}
+		if (IsOutputSpreadsheet == 1 || IsOutputSpreadsheet == 2) {
+			outputOnlyData = TRUE;
+			combinput = TRUE;
+			OverWriteFile = TRUE;
+			AddCEXExtension = ".xls";
 		}
 	}
 }
 #endif // KIDEVAL_LIB
 
 static void dss_pr_result(void) {
-	if (GTotalNum && !DSSAutoMode) {
+	if (IsOutputSpreadsheet == 1 || IsOutputSpreadsheet == 2) {
+		excelFooter(fpout);
+	} else if (GTotalNum && !DSSAutoMode) {
 		GTotalNum = GGrandTotal / GTotalNum;
 		fprintf(fpout, "\nOverall developmental sentence score: %5.2f\n",GTotalNum);
 	}
@@ -1331,7 +1380,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	isWinMode = IS_WIN_MODE;
 	CLAN_PROG_NUM = DSS;
 	chatmode = CHAT_MODE;
-	OnlydataLimit = 0;
+	OnlydataLimit = 1;
 	UttlineEqUtterance = FALSE;
 	debug_dss_fp = stdout;
 	bmain(argc,argv,dss_pr_result);
@@ -1342,7 +1391,8 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 			fclose(tfp);
 			tfp = NULL;
 		}
-		dss_freeSpeakers();
+		if (IsOutputSpreadsheet != 1 && IsOutputSpreadsheet != 2)
+			dss_freeSpeakers();
 	}
 	dss_cleanSearchMem();
 }
@@ -1456,10 +1506,11 @@ static void PrintRow(char points[POINTS_N][POINTS_S], char *line, float total, c
 	register int col;
 	register int rpos;
 	register int pointsNameLen;
-	char ftime = TRUE;
+	char ftime = TRUE, isBulletFound;
 	int done = FALSE;
 	int l_index = 0, index[POINTS_N];
-	
+
+//fprintf(fpout, "%s\n", uttline); // 2021-09-26
 	while (!done) {
 		if (l_index && line[l_index]) {
 			col = 4;
@@ -1467,11 +1518,13 @@ static void PrintRow(char points[POINTS_N][POINTS_S], char *line, float total, c
 		} else
 			col = 0;
 		rpos = l_index;
+		isBulletFound = FALSE;
 		for (; col < 39 && line[rpos]; rpos++) {
 			if (line[rpos] == HIDEN_C) {
-				for (rpos++; line[rpos] != HIDEN_C; rpos++) ;
+				isBulletFound = !isBulletFound;
 			}
-			col++;
+			if (!isBulletFound && (UTF8_IS_SINGLE((unsigned char)line[rpos]) || UTF8_IS_LEAD((unsigned char)line[rpos])))
+				col++;
 		}
 		if (line[rpos]) {
 			for (; isalnum((unsigned char)line[rpos]) && rpos >= l_index; rpos--)
@@ -1489,7 +1542,7 @@ static void PrintRow(char points[POINTS_N][POINTS_S], char *line, float total, c
 		for (; col < 39; col++)
 			putc(' ', fp);
 		putc('|', fp);
-		
+
 		done = TRUE;
 		for (i=0; i < PointsCnt; i++) {
 			pointsNameLen = strlen(PointsNames[i]);
@@ -1627,12 +1680,13 @@ static char HandleNoAnswer(char points[POINTS_N][POINTS_S], char *line) {
 	} while (1) ;
 }
 
-float PrintOutDSSTable(char *line, char isOutput) {
+float PrintOutDSSTable(char *line, int spNum, int spRowNum, char isOutput) {
 	register int i;
 	register int index;
-	float total, num;
+	float total, num, totalPerCell;
 	char *s, ans;
 	char points[POINTS_N][POINTS_S];
+	char sFName[FILENAME_MAX];
 
 	for (i=0; i < PointsCnt; i++)
 		points[i][0] = EOS;
@@ -1641,9 +1695,9 @@ float PrintOutDSSTable(char *line, char isOutput) {
 			i = (int)(*s - 'A');
 			if (i >= PointsCnt) {
 				if (isdigit(*(s+1))) {
-					fprintf(stderr, "ERROR: Illegal code letter: '%c'.\n", *s);
+					fprintf(stderr, "DSS: ERROR: Illegal code letter: '%c'.\n", *s);
 					if (debug_dss_fp != stdout)
-						fclose(debug_dss_fp);
+							fclose(debug_dss_fp);
 					dss_freeSpeakers();
 					dss_cleanSearchMem();
 					cutt_exit(0);
@@ -1653,8 +1707,8 @@ float PrintOutDSSTable(char *line, char isOutput) {
 				}
 			}
 			index = strlen(points[i]);
-			if (index >= POINTS_S) {
-				fprintf(stderr, "ERROR: Too many codes.\n");
+			if (index >= POINTS_S-1) {
+				fprintf(stderr, "DSS: ERROR: Too many codes.\n");
 				if (debug_dss_fp != stdout)
 					fclose(debug_dss_fp);
 				dss_freeSpeakers();
@@ -1670,7 +1724,7 @@ float PrintOutDSSTable(char *line, char isOutput) {
 			s++;
 	}
 
-	total = (float)0.0;
+	total = 0.0;
 	if (DSSAutoMode) {
 		if (dss_lang == 'e') {
 			ans = 'p';
@@ -1693,66 +1747,89 @@ float PrintOutDSSTable(char *line, char isOutput) {
 	}
 	if (ans == 'p' || ans == 'P')
 		total++;
+
+	if (IsOutputSpreadsheet == 1) {
+		excelRow(fpout, ExcelRowStart);
+		s = strrchr(oldfname, PATHDELIMCHR);
+		if (s == NULL)
+			s = oldfname;
+		else
+			s++;
+		strcpy(sFName, s);
+		s = strrchr(sFName, '.');
+		if (s != NULL)
+			*s = EOS;
+		excelStrCell(fpout, sFName);
+		totalPerCell = (float)spNum;
+		excelNumCell(fpout, "%.0f", totalPerCell);
+		totalPerCell = (float)spRowNum;
+		excelNumCell(fpout, "%.0f", totalPerCell);
+	}
 	for (i=0; i < PointsCnt; i++) {
+		totalPerCell = 0.0;
 		for (s=points[i]; *s; s++) {
 			if (isdigit(*s)) {
 				num = atoi(s);
 				total += (float)num;
+				totalPerCell += (float)num;
 				TotalsAcrossPoints[i] = TotalsAcrossPoints[i] + num;
 			}
 		}
+		if (isOutput && IsOutputSpreadsheet == 1) {
+			excelNumCell(fpout, "%.0f", totalPerCell);
+		}
 	}
 	if (isOutput) {
-		PrintRow(points, line, total, ans, fpout);
+		if (IsOutputSpreadsheet == 1) {
+			totalPerCell = ((ans == 'p' || ans == 'P') ? 1.0000 : 0.0000);
+			excelNumCell(fpout, "%.0f", totalPerCell);
+			totalPerCell = (float)total;
+			excelNumCell(fpout, "%.0f", totalPerCell);
+			excelRow(fpout, ExcelRowEnd);
+		} else if (IsOutputSpreadsheet == 2) {
+		} else {
+			PrintRow(points, line, total, ans, fpout);
+		}
 	}
 	return(total);
 }
 
 int PassedDSSMorTests(char *osp, char *mor, char *dss) {
 	int  i, j, pos;
-	char isSubtest, *s, *sp, *dssS, *dssV, triples[5];
+	char isSubtest, *dssS, *dssV, triples[5];
 
 /*
 	printf("osp=%s", osp);
 	printf("mor=%s\n", mor);
 	printf("dss=%s\n", dss);
-	if passes subject test lxs
+    if passes subject test lxs
 */
 
-	if (isDSSpostcode || isDSSEpostcode) {
-		for (sp=osp; *sp; sp++) {
-			if (*sp == '[' && *(sp+1) == '+') {
-				for (s=sp+2; isSpace(*s); s++) ;
-				if ((*s     == 'd' || *s     == 'D') && 
-					(*(s+1) == 's' || *(s+1) == 'S') && 
-					(*(s+2) == 's' || *(s+2) == 'S') && 
-					*(s+3)  == ']' && isDSSpostcode) {
-					if (debug_level > 0) {
-						fprintf(debug_dss_fp, "[+ dss] postcode found, test SUCCEEDED\n");
-					}
-					return(TRUE);
-				}
-				if ((*s     == 'd' || *s     == 'D') && 
-					(*(s+1) == 's' || *(s+1) == 'S') && 
-					(*(s+2) == 's' || *(s+2) == 'S') && 
-					(*(s+3) == 'e' || *(s+3) == 'E') && 
-					*(s+4)  == ']' && isDSSEpostcode) {
-					if (debug_level > 0) {
-						fprintf(debug_dss_fp, "[+ dsse] postcode found, test FAILED\n");
-					}
-					return(FALSE);
-				}
+	if (isDSSpostcode) {
+		if (isPostCodeOnUtt(osp, "[+ dss]")) {
+			if (debug_level > 0) {
+				fprintf(debug_dss_fp, "[+ dss] postcode found, test SUCCEEDED\n");
 			}
+			return(TRUE);
+		}
+	}
+	if (isDSSEpostcode) {
+		if (isPostCodeOnUtt(osp, "[+ dsse]")) {
+			if (debug_level > 0) {
+				fprintf(debug_dss_fp, "[+ dsse] postcode found, test FAILED\n");
+			}
+			return(FALSE);
 		}
 	}
 	if (dss_lang == 'e') {
+		j = 0;
 		for (pos=0; osp[pos]; pos++) {
 			i = 0;
 			if (pos == 0 || uS.isskip(osp,pos-1,&dFnt,MBF)) {
 				for (j=pos; osp[j] == 'x' || osp[j] == 'X' ||
-					   osp[j] == 'y' || osp[j] == 'Y' ||
-					   osp[j] == 'w' || osp[j] == 'W' || 
-					   osp[j] == '(' || osp[j] == ')'; j++) {
+					 osp[j] == 'y' || osp[j] == 'Y' ||
+					 osp[j] == 'w' || osp[j] == 'W' || 
+					 osp[j] == '(' || osp[j] == ')'; j++) {
 					if (osp[j] != '(' && osp[j] != ')')
 						triples[i++] = osp[j];
 				}
@@ -1860,6 +1937,37 @@ static void PrintTotalRow(FILE *fp) {
 	putc('\n', fp);
 }
 
+static void PrintTotalSpRow(FILE *fp, float TotalUtts, DSSSP *tsp) {
+	int  i;
+	char *s, sFName[FILENAME_MAX];
+	float tf;
+	
+	excelRow(fpout, ExcelRowStart);
+	s = strrchr(oldfname, PATHDELIMCHR);
+	if (s == NULL)
+		s = oldfname;
+	else
+		s++;
+	strcpy(sFName, s);
+	excelStrCell(fpout, sFName);
+	if (tsp->ID) {
+		excelOutputID(fpout, tsp->ID);
+	} else {
+		excelCommasStrCell(fpout, ".,.");
+		excelStrCell(fpout, tsp->sp);
+		excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.,.,.,.");
+	}
+	excelNumCell(fpout, "%.0f", TotalUtts);
+	excelNumCell(fpout, "%.2f", tsp->TotalNum);
+	for (i=0; i < PointsCnt; i++) {
+		tf = (float)TotalsAcrossPoints[i];
+		excelNumCell(fpout, "%.0f", tf);
+	}
+//	excelNumCell(fpout, "%.0f", 0.0);
+	excelNumCell(fpout, "%.0f", tsp->GrandTotal);
+	excelRow(fpout, ExcelRowEnd);
+}
+
 char make_DSS_tier(char *mor_tier) {
 	register int k;
 	
@@ -1940,7 +2048,7 @@ DSSSP *dss_FindSpeaker(char *sp, char *ID) {
 		tsp = tsp->next_sp;
 	}
 	if (tsp == NULL)
-		return(NULL);
+		out_of_mem();
 	strncpy(tsp->sp, sp, DSSSPLEN);
 	tsp->sp[DSSSPLEN] = EOS;
 	if (ID == NULL)
@@ -1950,8 +2058,14 @@ DSSSP *dss_FindSpeaker(char *sp, char *ID) {
 			return(NULL);
 		strcpy(tsp->ID, ID);
 	}
-	for (i=0; i < NUMBEROFUTT; i++) {
+	tsp->utts = (char **)malloc((DSS_UTTLIM+1)*sizeof(char *));
+	if (tsp->utts == NULL)
+		out_of_mem();
+	for (i=0; i < DSS_UTTLIM; i++) {
 		tsp->utts[i] = NULL;
+	}
+	for (i=0; i < PointsCnt; i++) {
+		tsp->TotalsPoints[i] = 0;
 	}
 	tsp->uttnum = 0;
 	tsp->TotalNum = 0.0;
@@ -1963,12 +2077,14 @@ DSSSP *dss_FindSpeaker(char *sp, char *ID) {
 #ifndef KIDEVAL_LIB
 void call() {
 	unsigned int ln = 0;
-	int  k;
+	int  k, spRowNum;
+	char isCRFound;
 	char DSSFound = FALSE;
 	char lRightspeaker;
 	char delay = '\0';
 	char tspr[SPEAKERLEN];
-	DSSSP *tsp;
+	float TotalUtts;
+	DSSSP *tsp, *lastTsp;
 	FNType tfname[FNSize];
 	FILE *tf;
 
@@ -2001,23 +2117,53 @@ void call() {
 			fclose(debug_dss_fp);
 		cutt_exit(0);
 	}
-	parsfname(oldfname, tfname, ".dss");
-	if ((tfp=openwfile(oldfname,tfname,tfp)) == NULL) {
-		fprintf(stderr,"WARNING: Can't open dss file %s.\n", tfname);
+	if (IsOutputSpreadsheet == 1 || IsOutputSpreadsheet == 2) {
+		spNum++;
+		spRowNum = 0;
+		tfp = NULL;
+		if (isFirstCall) {
+			isFirstCall = FALSE;
+			if (IsOutputSpreadsheet == 1) {
+				excelHeader(fpout, newfname, 60);
+				excelRow(fpout, ExcelRowStart);
+				excelStrCell(fpout,"File");
+				excelCommasStrCell(fpout,"ID,Sentence");
+				for (k=0; k < PointsCnt; k++)
+					excelStrCell(fpout,PointsNames[k]);
+				excelCommasStrCell(fpout,"S,Total");
+				excelRow(fpout, ExcelRowEnd);
+			} else if (IsOutputSpreadsheet == 2) {
+				excelHeader(fpout, newfname, 75);
+				excelRow(fpout, ExcelRowStart);
+				excelStrCell(fpout,"File");
+				excelCommasStrCell(fpout, "Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field");
+				excelCommasStrCell(fpout, "DSS_Utts,DSS");
+				for (k=0; k < PointsCnt; k++)
+					excelStrCell(fpout,PointsNames[k]);
+//				excelCommasStrCell(fpout,"S");
+				excelCommasStrCell(fpout,"Total");
+				excelRow(fpout, ExcelRowEnd);
+			}
+		}
+	} else {
+		parsfname(oldfname, tfname, ".dss");
+		if ((tfp=openwfile(oldfname,tfname,tfp)) == NULL) {
+			fprintf(stderr,"WARNING: Can't create dss file %s.\n", tfname);
+		}
+		for (tsp=&dss_sp_head; tsp->next_sp != NULL; tsp=tsp->next_sp) {
+			tsp->TotalNum = 0.0;
+			tsp->GrandTotal = 0.0;
+		}
+		if (dss_lang != 'j')
+			fprintf(fpout, "%s	CAfont:13:7\n", FONTHEADER);
+		fprintf(fpout, "\nDevelopmental Sentence Analysis\n\n");
+		fprintf(fpout, "           Sentence                    |");
+		for (k=0; k < PointsCnt; k++)
+			fprintf(fpout, "%s|", PointsNames[k]);
+		fprintf(fpout, "S|TOT|\n");
 	}
-	for (tsp=&dss_sp_head; tsp->next_sp != NULL; tsp=tsp->next_sp) {
-		tsp->TotalNum = 0.0;
-		tsp->GrandTotal = 0.0;
-	}
-#ifdef _UNICODE
-	fprintf(fpout, "%s	CAfont:13:7\n", FONTHEADER);
-#endif
-	fprintf(fpout, "\nDevelopmental Sentence Analysis\n\n");
-	fprintf(fpout, "           Sentence                    |");
-	for (k=0; k < PointsCnt; k++)
-		fprintf(fpout, "%s|", PointsNames[k]);
-	fprintf(fpout, "S|TOT|\n");
 	tsp = NULL;
+	lastTsp = NULL;
 	lRightspeaker = FALSE;
 	spareTier1[0] = EOS;
 	currentatt = 0;
@@ -2054,8 +2200,14 @@ void call() {
 		if (*utterance->speaker == '@') {
 			if (tfp) {
 				fputs(utterance->speaker,tfp);
-				for (k=0; utterance->line[k]; k++)
+				isCRFound = FALSE;
+				for (k=0; utterance->line[k]; k++) {
+					if (utterance->line[k] == '\n')
+						isCRFound = TRUE;
 					putc(utterance->line[k],tfp);
+				}
+				if (!isCRFound)
+					putc('\n',tfp);
 			}
 			if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
 				if (isIDSpeakerSpecified(utterance->line, templineC2, TRUE)) {
@@ -2078,6 +2230,10 @@ void call() {
 				delay = '\001';
 			if (delay != '\001') {
 				continue;
+			}
+			if (lastTsp != NULL) {
+				freeLastDSSUtt(lastTsp);
+				lastTsp = NULL;
 			}
 			strcpy(templineC2, utterance->speaker);
 			tsp = dss_FindSpeaker(templineC2, NULL);
@@ -2109,22 +2265,26 @@ void call() {
 					strcpy(tspr, utterance->speaker);
 					strcpy(spareTier1, uttline);
 					strcpy(spareTier2, utterance->line);
+					lastTsp = tsp;
 				} else {
 					spareTier1[0] = EOS;
 					lRightspeaker = FALSE;
 				}
 			}
-		} else if (tsp != NULL && uS.partcmp(utterance->speaker,morTierName,FALSE,FALSE)) {
+		} else if (tsp != NULL && fDepTierName[0]!=EOS && uS.partcmp(utterance->speaker,fDepTierName,FALSE,FALSE)) {
+/* 2020-08-09
 			for (k=0; uttline[k] != EOS; k++) {
-				if (uttline[k] == '~')
+				if (uttline[k] == '~' || uttline[k] == '$')
 					uttline[k] = ' ';
-			}								
+			}
+*/
 			DSSFound = TRUE;
 			if (!make_DSS_tier(uttline)) {
 				dss_freeSpeakers();
 				dss_cleanSearchMem();
 				cutt_exit(0);
 			}
+			lastTsp = NULL;
 			if (PassedDSSMorTests(spareTier2,uttline,templineC3)) {
 				tsp->TotalNum = tsp->TotalNum + 1;
 				for (k=0; spareTier2[k] != EOS; k++) {
@@ -2135,14 +2295,21 @@ void call() {
 				spareTier2[++k] = EOS;
 				strcpy(templineC4, spareTier2);
 				changeBullet(templineC4, NULL);
-				tsp->GrandTotal = tsp->GrandTotal + PrintOutDSSTable(templineC4, TRUE);
+				spRowNum++;
+				tsp->GrandTotal = tsp->GrandTotal + PrintOutDSSTable(templineC4, spNum, spRowNum, TRUE);
+				if (IsOutputSpreadsheet == 2) {
+					int i;
+					for (i=0; i < PointsCnt; i++) {
+						tsp->TotalsPoints[i] = TotalsAcrossPoints[i];
+					}
+				}
 				if (tfp) {
 					tf = fpout;
 					fpout = tfp;
 					printout(tspr,spareTier2,NULL,NULL,TRUE);
 					printout(utterance->speaker,uttline,NULL,NULL,TRUE);
 					if (*templineC3)
-						printout("%dss:",templineC3,NULL,NULL,TRUE);
+						printout("%xdss:",templineC3,NULL,NULL,TRUE);
 					fpout = tf;
 				}
 			} else {
@@ -2152,25 +2319,44 @@ void call() {
 	}
 	if (!stout)
 		fprintf(stderr,"\n");
-	PrintTotalRow(fpout);
+	if (IsOutputSpreadsheet != 1 && IsOutputSpreadsheet != 2)
+		PrintTotalRow(fpout);
 	for (tsp=&dss_sp_head; tsp != NULL; tsp=tsp->next_sp) {
+		TotalUtts = tsp->TotalNum;
 		if (tsp->TotalNum) {
+			if (tsp->TotalNum < DSS_UTTLIM) {
+				if (IsOutputSpreadsheet == 1 || IsOutputSpreadsheet == 2) {
+					if (DSS_UTTLIM == 50)
+						fprintf(stderr, "WARNING: DSS requires 50 complete sentences and this transcript only has %.0f.\n", tsp->TotalNum);
+					else
+						fprintf(stderr, "WARNING: You asked for %d complete sentences and this transcript only has %.0f.\n", DSS_UTTLIM, tsp->TotalNum);
+				} else {
+					if (DSS_UTTLIM == 50)
+						fprintf(fpout, "WARNING: DSS requires 50 complete sentences and this transcript only has %.0f.\n", tsp->TotalNum);
+					else
+						fprintf(fpout, "WARNING: You asked for %d complete sentences and this transcript only has %.0f.\n", DSS_UTTLIM, tsp->TotalNum);
+				}
+			}
 			GTotalNum += tsp->TotalNum;
 			GGrandTotal += tsp->GrandTotal;
 			tsp->TotalNum = tsp->GrandTotal / tsp->TotalNum;
-			fprintf(fpout, "\nDevelopmental sentence score: %5.2f\n",tsp->TotalNum);
-			if (tsp->uttnum < DSS_UTTLIM) {
-				if (DSS_UTTLIM == 50)
-					fprintf(fpout, "WARNING: DSS requires 50 complete sentences and this transcript only has %d.\n", tsp->uttnum);
-				else
-					fprintf(fpout, "WARNING: You asked for %d complete sentences and this transcript only has %d.\n", DSS_UTTLIM, tsp->uttnum);
-			}
+			if (IsOutputSpreadsheet == 2)
+				PrintTotalSpRow(fpout, TotalUtts, tsp);
+			else if (IsOutputSpreadsheet != 1)
+				fprintf(fpout, "\nDevelopmental sentence score: %5.2f\n",tsp->TotalNum);
 		} else {
-			fprintf(fpout, "\nDevelopmental sentence score: N/A\n");
-			if (DSS_UTTLIM == 50)
-				fprintf(fpout, "WARNING: DSS requires 50 complete sentences and this transcript only has %d.\n", tsp->uttnum);
-			else
-				fprintf(fpout, "WARNING: You asked for %d complete sentences and this transcript only has %d.\n", DSS_UTTLIM, tsp->uttnum);
+			if (IsOutputSpreadsheet == 1 || IsOutputSpreadsheet == 2) {
+				if (DSS_UTTLIM == 50)
+					fprintf(stderr, "WARNING: DSS requires 50 complete sentences and this transcript only has %.0f.\n", tsp->TotalNum);
+				else
+					fprintf(stderr, "WARNING: You asked for %d complete sentences and this transcript only has %.0f.\n", DSS_UTTLIM, tsp->TotalNum);
+			} else {
+				fprintf(fpout, "\nDevelopmental sentence score: NA\n");
+				if (DSS_UTTLIM == 50)
+					fprintf(fpout, "WARNING: DSS requires 50 complete sentences and this transcript only has %.0f.\n", tsp->TotalNum);
+				else
+					fprintf(fpout, "WARNING: You asked for %d complete sentences and this transcript only has %.0f.\n", DSS_UTTLIM, tsp->TotalNum);
+			}
 		}
 	}
 	if (!combinput) {
@@ -2178,6 +2364,8 @@ void call() {
 			fclose(tfp);
 			tfp = NULL;
 		}
+		dss_freeSpeakers();
+	} else 	if (IsOutputSpreadsheet == 1 || IsOutputSpreadsheet == 2) {
 		dss_freeSpeakers();
 	}
 	if (!DSSFound) {
@@ -2197,27 +2385,19 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			debug_level = atoi(f);
 			break;
-		case 'b':
-			if (!*f) {
-				fprintf(stderr,"String expected after %s option.\n", f-2);
-				cutt_exit(0);
-			}
-			maketierchoice(f, '+', FALSE);
-			break;
-		case 'c': 
+		case 'c':
 			if ((DSS_UTTLIM=atoi(f)) <= 0)
 				DSS_UTTLIM = 50;
-			if (DSS_UTTLIM >= NUMBEROFUTT) {
-				fprintf(stderr,"+c: Legal range is 1 - %d.\n", NUMBEROFUTT-1);
-				cutt_exit(0);
-			}
 			break;
 		case 'd': 
 			if (*f == EOS) {
-			   fputs("Please specify dss rules file name with +d option.\n",stderr);
-			   cutt_exit(0);
+				IsOutputSpreadsheet = 1;
+			} else if (*f == '1') {
+				IsOutputSpreadsheet = 2;
+			} else {
+				rulesfile = getfarg(f,f1,i);
+				isDssFileSpecified = TRUE;
 			}
-			rulesfile = getfarg(f,f1,i);
 			break;
 		case 'e':
 			DSSAutoMode = TRUE;
@@ -2242,7 +2422,7 @@ void getflag(char *f, char *f1, int *i) {
 					rulesfile = DSSJPRULES;
 			} else {
 				fprintf(stderr, "This language is not supported: %s.\n", f);
-				fprintf(stderr, "Choose: e - English, j - Japanese\n");
+				fprintf(stderr, "Choose: eng - English, jpn - Japanese\n");
 				cutt_exit(0);
 			}
 			break;
@@ -2256,12 +2436,12 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 #endif
 		case 't':
-			if (*f == EOS || *f != '%') {
-				fputs("Please specify name for morphological data tier with +tS option.\n",stderr);
-				cutt_exit(0);
+			if (*f == '%') {
+				strcpy(fDepTierName, f);
+				break;
+			} else if (*f == '@') {
+				break;
 			}
-			strcpy(morTierName, getfarg(f,f1,i));
-			break;
 		case 's':
 			s = f;
 			if (*s == '+' || *s == '~')
@@ -2274,11 +2454,6 @@ void getflag(char *f, char *f1, int *i) {
 						(*(s+1) == 's' || *(s+1) == 'S') && 
 						(*(s+2) == 's' || *(s+2) == 'S') && 
 						(*(s+3) == ']' || *(s+3) == '>' )) {
-/*
-						if (*(f-2) == '+')
-							isDSSpostcode = TRUE;
-						else
-*/
 						isDSSpostcode = FALSE;
 						break;
 					}
@@ -2287,12 +2462,7 @@ void getflag(char *f, char *f1, int *i) {
 						(*(s+2) == 's' || *(s+2) == 'S') && 
 						(*(s+3) == 'e' || *(s+3) == 'E') && 
 						(*(s+4) == ']' || *(s+4) == '>' )) {
-//						if (*(f-2) == '+')
 						isDSSEpostcode = FALSE;
-/*
-						else
-							isDSSEpostcode = TRUE;
-*/
 						break;
 					}
 				}

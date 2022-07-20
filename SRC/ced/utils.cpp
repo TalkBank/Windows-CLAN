@@ -6,14 +6,12 @@
 #endif
 
 #if defined(_MAC_CODE)
-	extern short ArialUnicodeFOND, SecondDefUniFOND;
 	#define isFontDefaultUni(x, y) ((x == ArialUnicodeFOND/* || x == SecondDefUniFOND*/) && y == defFontSize())
-
-	extern void  SetWinStats(WindowPtr wp);
 #elif defined(_WIN32)
-	#define isFontDefaultUni(x, y) ((strcmp(x, "Arial Unicode MS") == 0/* || strcmp(x, "CAfont"/*UNICODEFONT/*) == 0*/) && y == defFontSize())
+	#define isFontDefaultUni(x, y) ((strcmp(x, "Arial Unicode MS") == 0 || strcmp(x, "Cambria") == 0/* || strcmp(x, "CAfont") == 0*/) && y == defFontSize())
 #else
 #endif /* _WIN32 */
+
 
 struct WriteHelp {
 	FNType *fn;
@@ -170,6 +168,56 @@ rep:
 }
 #endif /* _WIN32 */
 
+static void locateCharInText(myFInfo *fi, ROWS *cRow, long pos, long *aPos, long *skip) {
+	long i;
+	ROWS *tr;
+
+	*aPos = 0L;
+	*skip = 0;
+	for (tr=fi->head_text->next_row; tr != fi->tail_text; tr = tr->next_row) {
+		if (tr == cRow) {
+			for (i=0; tr->line[i] != EOS && i < pos; i++) {
+				if (tr->line[i]!='\n' && !isSpace(tr->line[i]) && tr->line[i]!=NL_C && tr->line[i]!=SNL_C) {
+					*skip = 0;
+					(*aPos)++;
+				} else
+					(*skip)++;
+			}
+			break;
+		}
+		for (i=0; tr->line[i] != EOS; i++) {
+			if (tr->line[i]!='\n' && !isSpace(tr->line[i]) && tr->line[i]!=NL_C && tr->line[i]!=SNL_C) {
+				*skip = 0;
+				(*aPos)++;
+			} else
+				(*skip)++;
+		}
+	}
+}
+
+void getTextCursor(myFInfo *g_df, WindowInfo *wi) {
+	ROWS  *tr;
+
+	if (g_df == NULL)
+		return;
+
+	tr = g_df->row_txt;
+	locateCharInText(g_df, g_df->top_win, 0, &wi->topC, &wi->skipTop);
+	locateCharInText(g_df, tr, g_df->col_chr, &wi->pos1C, &wi->skipP1);
+	if (g_df->row_win2 || g_df->col_win2 != -2L) {
+		wi->pos2C = g_df->row_win2;
+		if (wi->pos2C < 0L) {
+			for (; wi->pos2C && tr->prev_row != g_df->head_text; wi->pos2C++, tr=tr->prev_row) ;
+		} else if (wi->pos2C > 0L) {
+			for (; wi->pos2C && tr->next_row != g_df->tail_text; wi->pos2C--, tr=tr->next_row) ;
+		}
+		locateCharInText(g_df, tr, g_df->col_chr2, &wi->pos2C, &wi->skipP2);
+	} else {
+		wi->pos2C = wi->pos1C;
+		wi->skipP2 = wi->skipP1;
+	}
+}
+
 static int PutLine(unCH *sOrg, FILE *fpout, FNType *fn, char isConvert, char isNoBlankLines) {
 	int i;
 
@@ -251,7 +299,7 @@ static char AddFontInfo(FONTINFO *fontInfo, const char *hd, const char *es) {
 	if (FontName[0] == EOS)
 		return(FALSE);
 	CharSet = my_FontToScript(fontInfo->FName, fontInfo->CharSet);
-	if (CharSet == 1 && strcmp(FontName, "CAfont"/*UNICODEFONT*/) && strcmp(FontName, "Arial Unicode MS") && 
+	if (CharSet == 1 && strcmp(FontName, "CAfont") && strcmp(FontName, "Arial Unicode MS") && 
 						strcmp(FontName, "Ascender Uni Duo")) {
 		if (fontInfo->FSize < 14)
 			strcat(templine3, "Win95:MS Mincho:-15:128");
@@ -265,6 +313,10 @@ static char AddFontInfo(FONTINFO *fontInfo, const char *hd, const char *es) {
 		u_strcpy(templine3+len, FontName, UTTLINELEN-len);
 	}
 #elif defined(_WIN32)
+	float tf;
+	long FSize;
+	extern float scalingSize;
+
 	strcat(templine3, "Win95:");
 	len = strlen(templine3);
 	u_strcpy(templine3+len, fontInfo->FName, UTTLINELEN-len);
@@ -274,7 +326,13 @@ static char AddFontInfo(FONTINFO *fontInfo, const char *hd, const char *es) {
 	uS.sprintf(templine3+strlen(templine3), cl_T("%d"), fontInfo->FSize);
 #endif
 #ifdef _WIN32
-	uS.sprintf(templine3+strlen(templine3), cl_T("%ld"), fontInfo->FSize);
+	if (scalingSize != 1) {
+		tf = (float)fontInfo->FSize;
+		tf = tf / scalingSize;
+		FSize = (long)tf;
+	} else
+		FSize = fontInfo->FSize;
+	uS.sprintf(templine3+strlen(templine3), cl_T("%ld"), FSize);
 #endif
 	strcat(templine3, ":");
 	uS.sprintf(templine3+strlen(templine3), cl_T("%d"), (int)fontInfo->CharSet);
@@ -282,27 +340,57 @@ static char AddFontInfo(FONTINFO *fontInfo, const char *hd, const char *es) {
 	return(TRUE);
 }
 
-static int SaveTopHeaders(FILE *fpout, FNType *fn) {
-	int i;
+static int SaveHeaders(FILE *fpout, FNType *fn) {
+	int   i;
+	char  isWinDimChanged;
+	short top, left, height, width;
+	WindowInfo *wi;
 	COLORTEXTLIST *tCT;
 
 	if (global_df->isUTF && !global_df->dontAskDontTell) {
 		if (!PutLine(cl_T(UTF8HEADER), fpout, fn, FALSE, FALSE))
 			return(0);
 	}
-	if (global_df->RootColorText == NULL)
-		return(1);
-	strcpy(templine3, CKEYWORDHEADER);
-	strcat(templine3, "\t");
-	i = strlen(templine3);
-	for (tCT=global_df->RootColorText; tCT != NULL; tCT=tCT->nextCT) {
-		strcat(templine3+i, tCT->keyWord);
-		i = strlen(templine3);
-		uS.sprintf(templine3+i, cl_T(" %d %d %d %d "), tCT->cWordFlag, tCT->red, tCT->green, tCT->blue);
-		i = strlen(templine3);
+	if (global_df->PIDs != NULL) {
+		strcpy(templine3, PIDHEADER);
+		strcat(templine3, "\t");
+		strcat(templine3, global_df->PIDs);
+		if (!PutLine(templine3, fpout, fn, TRUE, FALSE))
+			return(0);
 	}
-	if (!PutLine(templine3, fpout, fn, TRUE, FALSE))
-		return(0);
+	if (global_df->RootColorText != NULL) {
+		strcpy(templine3, CKEYWORDHEADER);
+		strcat(templine3, "\t");
+		i = strlen(templine3);
+		for (tCT=global_df->RootColorText; tCT != NULL; tCT=tCT->nextCT) {
+			strcat(templine3+i, tCT->keyWord);
+			i = strlen(templine3);
+			uS.sprintf(templine3+i, cl_T(" %d %d %d %d "), tCT->cWordFlag, tCT->red, tCT->green, tCT->blue);
+			i = strlen(templine3);
+		}
+		if (!PutLine(templine3, fpout, fn, TRUE, FALSE))
+			return(0);
+	}
+	getTextCursor(global_df, &global_df->winInfo);
+	wi = &global_df->winInfo;
+	isWinDimChanged = FALSE;
+#ifdef _MAC_CODE
+	GetWindTopLeft(global_df->wind, &left, &top);
+	height = windHeight(global_df->wind);
+	width = windWidth(global_df->wind);
+	if (top != defWinSize.top || left != defWinSize.left || height != defWinSize.height || width != defWinSize.width)
+		isWinDimChanged = TRUE;
+#else // _WIN32
+	top = 0; left  = 0; height = 0; width = 0;
+#endif // _WIN32
+	if (isWinDimChanged || wi->topC != 0L || wi->skipTop != 0L || wi->pos1C != 0L || wi->skipP1 != 0L || wi->pos2C != 0L || wi->skipP2 != 0L) {
+		strcpy(templine3, WINDOWSINFO);
+		strcat(templine3, "\t");
+		uS.sprintf(templine3+strlen(templine3), cl_T("%d_%d_%d_%d_%ld_%ld_%ld_%ld_%ld_%ld"), top, left, height, width,
+				   wi->topC, wi->skipTop, wi->pos1C, wi->skipP1, wi->pos2C, wi->skipP2);
+		if (!PutLine(templine3, fpout, fn, TRUE, FALSE))
+			return(0);
+	}
 	return(1);
 }
 
@@ -480,7 +568,7 @@ static char WriteLinesToFile(ROWS *rt, unCH tierType, void *dataOrg) {
 
 #ifdef _MAC_CODE
 static void SaveFontOfTEXT(unCH *buf, FNType *name) {
-    Handle InfoHand;
+	Handle InfoHand;
 	int   oldResRefNum, i;
 	short ResRefNum;
 	struct MPSR1020 *fontInfo;
@@ -535,12 +623,67 @@ static void SaveFontOfTEXT(unCH *buf, FNType *name) {
 }
 #endif // _MAC_CODE
 
-int SaveToFile(FNType *fn) {
+static char UnwrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), void *data) {
+	long pos, oPos;
+	char isEOSFound;
+	unCH tierType;
+	ROWS *rt, *end, newRow;
+
+	rt = global_df->head_text->next_row;
+	end = global_df->tail_text;
+	ced_line[0] = EOS;
+	newRow.line = ced_line;
+	newRow.att  = tempAtt;
+	copyFontInfo(&newRow.Font, &rt->Font, FALSE);
+	tierType = 0;
+	pos = 0L;
+	isEOSFound = FALSE;
+	while (rt != end) {
+		if (rt->line[0] == '*' || rt->line[0] == '%' || rt->line[0] == '@')
+			tierType = rt->line[0];
+		oPos = 0L;
+		if (rt->line[0] == '\t' && isEOSFound)
+			rt->line[0] = ' ';
+		while (rt->line[oPos] != NL_C && rt->line[oPos] != EOS) {
+			ced_line[pos] = rt->line[oPos];
+			if (rt->att == NULL)
+				tempAtt[pos] = 0;
+			else
+				tempAtt[pos] = rt->att[oPos];
+			pos++;
+			oPos++;
+		}
+		if (rt->line[oPos] == NL_C) {
+			isEOSFound = FALSE;
+			if (pos > 0) {
+				ced_line[pos] = EOS;
+				if (!(*finLine)(&newRow, tierType, data)) {
+					return(FALSE);
+				}
+			}
+			ced_line[0] = EOS;
+			pos = 0L;
+		} else
+			isEOSFound = TRUE;
+		copyFontInfo(&newRow.Font, &rt->Font, FALSE);
+		rt = rt->next_row;
+	}
+	if (pos > 0) {
+		ced_line[pos] = EOS;
+		if (!(*finLine)(&newRow, tierType, data)) {
+			return(FALSE);
+		}
+	}
+	return(TRUE);
+}
+
+int SaveToFile(FNType *fn, char isGiveErrorMessage) {
 	struct WriteHelp data;
 	FONTINFO *fontInfo;
 
 	if ((data.fpout=fopen(fn,"w")) == NULL) {
-		sprintf(global_df->err_message, "+Can't write file %s. Maybe it is opened by another application.", fn); 
+		if (isGiveErrorMessage)
+			sprintf(global_df->err_message, "+Can't write file %s. Maybe it is opened by another application.", fn); 
 		return(0);
 	}
 	if (!mem_error)
@@ -556,7 +699,13 @@ int SaveToFile(FNType *fn) {
 		fprintf(fpout, "%c%c%c", 0xef, 0xbb, 0xbf); // BOM UTF8
 	}
 */
+	if (!SaveHeaders(data.fpout, fn)) {
+		fclose(data.fpout);
+		return(0);
+	}
+
 	if (global_df->ChatMode) {
+/* 2016-03-29 no more @Font header
 		if (!rawTextInput && (!isFontDefaultUni(fontInfo->FName, fontInfo->FSize) || !global_df->isUTF)) {
 			strcpy(templine3, FONTHEADER);
 			if (AddFontInfo(fontInfo, "\t", "")) {
@@ -566,6 +715,7 @@ int SaveToFile(FNType *fn) {
 				}
 			}
 		}
+*/
 	} else if (global_df->SpecialTextFile) {
 		strcpy(templine3, SPECIALTEXTFILESTR);
 		strcat(templine3, "\n");
@@ -582,10 +732,6 @@ int SaveToFile(FNType *fn) {
 			}
 		}
 	}
-	if (!SaveTopHeaders(data.fpout, fn)) {
-		fclose(data.fpout);
-		return(0);
-	}
 
 	data.fn = fn;
 	SetFontName(data.Font, global_df->head_text->next_row->Font.FName);
@@ -594,14 +740,20 @@ int SaveToFile(FNType *fn) {
 	data.isEndFound = FALSE;
 	data.isFontChanged = FALSE;
 
-	if (!Re_WrapLines(WriteLinesToFile, SCREENWIDTH, FALSE, (void *)&data)) {
-		fclose(data.fpout);
-		return(0);
+	if (doReWrap && global_df->ChatMode) {
+		if (!UnwrapLines(WriteLinesToFile, (void *)&data)) {
+			fclose(data.fpout);
+			return(0);
+		}
+	} else {
+		if (!Re_WrapLines(WriteLinesToFile, SCREENWIDTH, FALSE, (void *)&data)) {
+			fclose(data.fpout);
+			return(0);
+		}
 	}
 	fclose(data.fpout);
 
 #ifdef _MAC_CODE
-	setCursorPos(global_df->wind);
 	if (!global_df->ChatMode) {
 		strcpy(templine3, FONTHEADER);
 		if (AddFontInfo(fontInfo, "\t", ""))
@@ -616,13 +768,16 @@ static char isfiledir(FNType *filepath) {
 }
 
 int SaveCurrentFile(int i) {
+	char   dateFound;
+	UInt32 dateValue;
 	FNType new_name[1024], *s;
+	extern char isShowCHECKMessage;
 
 	if (i > -1)
 		RemoveLastUndo();
-    if (global_df == NULL) {
-    	return(38);
-    }
+	if (global_df == NULL) {
+		return(38);
+	}
 #ifdef _MAC_CODE
 	if (isRefEQZero(global_df->fileName)) {
 		clWriteFile(-1);
@@ -639,6 +794,13 @@ int SaveCurrentFile(int i) {
 		return(38);
 	}
 	if (global_df->DataChanged == '\0') {
+		if (getFileDate(global_df->fileName, &dateValue))
+			dateFound = TRUE;
+		else
+			dateFound = FALSE;
+		SaveToFile(global_df->fileName, FALSE);
+		if (dateFound)
+			setFileDate(global_df->fileName, dateValue);
 		strcpy(global_df->err_message, DASHES);
 		return(38);
 	}
@@ -652,7 +814,7 @@ int SaveCurrentFile(int i) {
 			return(38);
 		}
 	}
-	if (!SaveToFile(global_df->fileName)) {
+	if (!SaveToFile(global_df->fileName, TRUE)) {
 		if ((MakeBackupFile || global_df->MakeBackupFile) && !access(new_name,0)) {
 			unlink(global_df->fileName);
 			if (rename(new_name,global_df->fileName)) {
@@ -682,9 +844,6 @@ int SaveCurrentFile(int i) {
 		re_readAliases();
 	}
 	global_df->DataChanged = '\0';
-#ifdef _MAC_CODE
-	SetWinStats(global_df->wind);
-#endif
 	strcpy(new_name,global_df->fileName);
 	uS.str2FNType(new_name, strlen(new_name), ".ckp");
 #if defined(_WIN32)
@@ -697,6 +856,14 @@ int SaveCurrentFile(int i) {
 		}
 	}
 	ResetUndos();
+	if (isShowCHECKMessage) {
+		if (global_df->checkMessCnt == 1) {
+			do_warning("Please remember to run CHECK whenever you save a file", 0);
+		} else if (global_df->checkMessCnt >= 4) {
+			global_df->checkMessCnt = 0;
+		}
+		global_df->checkMessCnt++;
+	}
 	return(38);
 }
 
@@ -719,7 +886,7 @@ void SaveCKPFile(char isask) {
 		strcpy(global_df->err_message, "+Error checkpoint; Change the file name.");
 		return;
 	}
-	if (SaveToFile(new_name)) {
+	if (SaveToFile(new_name, TRUE)) {
 		strcpy(global_df->err_message, "-Checkpoint ... Done!");
 	} else
 		unlink(new_name);
@@ -735,7 +902,7 @@ int clWriteFile(int i) {
 
 	DrawSoundCursor(0);
 #elif defined(_WIN32) // _MAC_CODE
-	char fileName[FILENAME_MAX];
+	char fileName[FNSize];
 #endif
 	if (global_df == NULL)
 		return(22);
@@ -744,35 +911,36 @@ int clWriteFile(int i) {
 		RemoveLastUndo();
 #ifdef _MAC_CODE
 	strcpy(fileName, global_df->fileName);
-  	if (!myNavPutFile(fileName, "Save File", 'TEXT', nil)) { 
+  	if (!myNavPutFile(fileName, "Save File", 'TEXT', NULL)) {
 		strcpy(global_df->err_message, DASHES);
 		return(22);
 	}
 	len = 0;
 #elif defined(_WIN32) // _MAC_CODE
-    OPENFILENAME	ofn;
-	unCH			szFile[FILENAME_MAX], szFileTitle[FILENAME_MAX];
+	OPENFILENAME	ofn;
+	char			fName[FILENAME_MAX];
+	unCH			szFile[FNSize], szFileTitle[FILENAME_MAX];
 	unCH			*szFilter;
 
-	szFilter = _T("All files (*.*)\0*.*\0\0");
-
-    strcpy(szFile, global_df->fileName);
-    ofn.lStructSize = sizeof(OPENFILENAME);
-    ofn.hwndOwner = AfxGetApp()->m_pMainWnd->m_hWnd;//GlobalDC->GetWindow()->m_hWnd;
-    ofn.lpstrFilter = szFilter;
-    ofn.lpstrCustomFilter = NULL;
-    ofn.nMaxCustFilter = 0L;
-    ofn.nFilterIndex = 1;
-    ofn.lpstrFile = szFile;
-    ofn.nMaxFile = sizeof(szFile);
-    ofn.lpstrFileTitle = szFileTitle;
-    ofn.nMaxFileTitle = sizeof(szFileTitle);
-    ofn.lpstrInitialDir = NULL;
-    ofn.lpstrTitle = cl_T("Write File");
-    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY;
-    ofn.nFileOffset = 0;
-    ofn.nFileExtension = 0;
-    ofn.lpstrDefExt = NULL;
+	szFilter = _T("CHAT files (*.cha)\0*.cha\0CUT files (*.cut)\0*.cut\0All files (*.*)\0*.*\0\0");
+//	szFilter = NULL;
+	u_strcpy(szFile, global_df->fileName, FNSize);
+	ofn.lStructSize = sizeof(OPENFILENAME);
+	ofn.hwndOwner = AfxGetApp()->m_pMainWnd->m_hWnd;//GlobalDC->GetWindow()->m_hWnd;
+	ofn.lpstrFilter = szFilter;
+	ofn.lpstrCustomFilter = NULL;
+	ofn.nMaxCustFilter = 0L;
+	ofn.nFilterIndex = 1;
+	ofn.lpstrFile = szFile;
+	ofn.nMaxFile = sizeof(szFile);
+	ofn.lpstrFileTitle = szFileTitle;
+	ofn.nMaxFileTitle = sizeof(szFileTitle);
+	ofn.lpstrInitialDir = NULL;
+	ofn.lpstrTitle = cl_T("Write File");
+	ofn.Flags = OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY;
+	ofn.nFileOffset = 0;
+	ofn.nFileExtension = 0;
+	ofn.lpstrDefExt = NULL;
 
 	DrawCursor(1);
 	if (GetSaveFileName(&ofn) == 0) {
@@ -781,8 +949,27 @@ int clWriteFile(int i) {
 		return(22);
 	}
 	DrawCursor(0);
+	u_strcpy(fileName, szFile, FNSize);
+	len = strlen(fileName);
+	if (ofn.nFilterIndex == 1) {
+		if (uS.mStrnicmp(fileName+len-4, ".cut", 4) == 0) {
+			fileName[len-4] = EOS;
+		}
+		if (uS.mStrnicmp(fileName+len-4, ".cha", 4)) {
+			strcat(fileName, ".cha");
+		}
+	} else if (ofn.nFilterIndex == 2) {
+		if (uS.mStrnicmp(fileName+len-4, ".cha", 4) == 0) {
+			fileName[len-4] = EOS;
+		}
+		if (uS.mStrnicmp(fileName+len-4, ".cut", 4)) {
+			strcat(fileName, ".cut");
+		}
+	}
+	u_strcpy(szFile, fileName, FNSize);
+	extractFileName(fName, fileName);
+	u_strcpy(szFileTitle, fName, FILENAME_MAX);
 	len = 0;
-	u_strcpy(fileName, szFile, FILENAME_MAX);
 #else /* _WIN32 */
 	strcpy(fileName,"Write file: ");
 	len = strlen(fileName);
@@ -793,7 +980,7 @@ int clWriteFile(int i) {
 		return(22);
 	}
 	if (i > -2) {
-		if (!SaveToFile(fileName+len)) {
+		if (!SaveToFile(fileName+len, TRUE)) {
 			unlink(fileName+len);
 			return(22);
 		}
@@ -1100,9 +1287,9 @@ static void removeSpeakerTag(void) {
 	int  cnt;
 	LINE *line;
 
+	cnt = 0;
 	line = global_df->col_txt;
 	if (global_df->head_row_len >= 2L && line != global_df->tail_row && line->c == '*') {
-		cnt = 0;
 		for (; line != global_df->tail_row && line->c != ':'; line=line->next_char) {
 			templine[cnt++] = line->c;
 		}
@@ -1378,7 +1565,7 @@ char init_windows(int com, char refresh, char isJustTextWin) {
 // check file extensions
 char isCHATFile(FNType *fname) {
 	register int i, j, k;
-	wchar_t ext[16];
+	unCH ext[16];
 
 	j = strlen(fname) - 1;
 	for (; j >= 0 && fname[j] != '.'; j--) ;
@@ -1422,29 +1609,30 @@ char isCHATFile(FNType *fname) {
 					ext[k++] = towupper(fname[i]);
 				ext[k] = EOS;
 				if ((ext[0] == 'C' && ext[1] == 'H' && (ext[2] == 'P' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'D' && ext[1] == 'A' && (ext[2] == 'T' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'D' && ext[1] == 'E' && (ext[2] == 'L' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'D' && ext[1] == 'S' && (ext[2] == 'S' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'F' && ext[1] == 'I' && (ext[2] == 'X' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'F' && ext[1] == 'L' && (ext[2] == 'O' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'F' && ext[1] == 'X' && (ext[2] == 'B' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'G' && ext[1] == 'E' && (ext[2] == 'M' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'I' && ext[1] == 'D' && (ext[2] == 'N' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'I' && ext[1] == 'N' && (ext[2] == 'S' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'L' && ext[1] == 'O' && (ext[2] == 'W' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'M' && ext[1] == 'O' && (ext[2] == 'R' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'P' && ext[1] == 'S' && (ext[2] == 'T' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'S' && ext[1] == 'T' && (ext[2] == 'R' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'T' && ext[1] == 'M' && (ext[2] == 'P' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'T' && ext[1] == 'O' && (ext[2] == 'R' || iswdigit(ext[2]))) ||
-					  (ext[0] == 'U' && ext[1] == 'T' && (ext[2] == 'F' || iswdigit(ext[2]))) ||
-					  !strncmp(ext,"CHIP",4)  || !strncmp(ext,"DATE",4)  || !strncmp(ext,"KWAL",4)  ||
-					  !strncmp(ext,"SYNC",4)  ||
-					  !strncmp(ext,"DELIM",5) || !strncmp(ext,"CHSTR",5) || !strncmp(ext,"INDNT",5) ||
-					  !strncmp(ext,"COMBO",5) || !strncmp(ext,"FIXIT",5) || !strncmp(ext,"TORDR",5) ||
-					  !strncmp(ext,"IPCORE",5) ||
-					  !strncmp(ext,"INSERT",6)|| !strncmp(ext,"LOWCAS",6)|| !strncmp(ext,"FXBLTS",6)||
-					  !strncmp(ext,"CP2UTF",6)|| !strncmp(ext,"MGRASP",6)|| !strncmp(ext,"PMORTM",6)
+					(ext[0] == 'D' && ext[1] == 'A' && (ext[2] == 'T' || iswdigit(ext[2]))) ||
+					(ext[0] == 'D' && ext[1] == 'E' && (ext[2] == 'L' || iswdigit(ext[2]))) ||
+					(ext[0] == 'D' && ext[1] == 'S' && (ext[2] == 'S' || iswdigit(ext[2]))) ||
+					(ext[0] == 'F' && ext[1] == 'I' && (ext[2] == 'X' || iswdigit(ext[2]))) ||
+					(ext[0] == 'F' && ext[1] == 'L' && (ext[2] == 'O' || iswdigit(ext[2]))) ||
+					(ext[0] == 'F' && ext[1] == 'X' && (ext[2] == 'B' || iswdigit(ext[2]))) ||
+					(ext[0] == 'G' && ext[1] == 'E' && (ext[2] == 'M' || iswdigit(ext[2]))) ||
+					(ext[0] == 'I' && ext[1] == 'D' && (ext[2] == 'N' || iswdigit(ext[2]))) ||
+					(ext[0] == 'I' && ext[1] == 'N' && (ext[2] == 'S' || iswdigit(ext[2]))) ||
+					(ext[0] == 'L' && ext[1] == 'O' && (ext[2] == 'W' || iswdigit(ext[2]))) ||
+					(ext[0] == 'M' && ext[1] == 'O' && (ext[2] == 'R' || iswdigit(ext[2]))) ||
+					(ext[0] == 'P' && ext[1] == 'S' && (ext[2] == 'T' || iswdigit(ext[2]))) ||
+					(ext[0] == 'S' && ext[1] == 'T' && (ext[2] == 'R' || iswdigit(ext[2]))) ||
+					(ext[0] == 'T' && ext[1] == 'M' && (ext[2] == 'P' || iswdigit(ext[2]))) ||
+					(ext[0] == 'T' && ext[1] == 'O' && (ext[2] == 'R' || iswdigit(ext[2]))) ||
+					(ext[0] == 'U' && ext[1] == 'T' && (ext[2] == 'F' || iswdigit(ext[2]))) ||
+					!strncmp(ext,"CHIP",4)  || !strncmp(ext,"DATE",4)  || !strncmp(ext,"KWAL",4)  ||
+					!strncmp(ext,"SYNC",4)  ||
+					!strncmp(ext,"DELIM",5) || !strncmp(ext,"CHSTR",5) || !strncmp(ext,"INDNT",5) ||
+					!strncmp(ext,"COMBO",5) || !strncmp(ext,"FIXIT",5) || !strncmp(ext,"TORDR",5) ||
+					!strncmp(ext,"MEDIA",5) ||!strncmp(ext,"IPCORE",5) ||
+					!strncmp(ext,"LOWCAS",6)|| !strncmp(ext,"FXBLTS",6)|| !strncmp(ext,"CP2UTF",6)||
+					!strncmp(ext,"MGRASP",6)|| !strncmp(ext,"PMORTM",6)||
+					!strncmp(ext,"COMB",4)
 				   )
 					return('\002');
 			} else
@@ -1457,8 +1645,8 @@ char isCHATFile(FNType *fname) {
 					ext[k++] = towupper(fname[i]);
 				ext[k] = EOS;
 				if (!strncmp(ext,"KWAL",4)  || !strncmp(ext,"KIDEVAL",3)|| !strncmp(ext,"MLT",3)  || !strncmp(ext,"MLU",3)   ||
-					  !strncmp(ext,"OUT",3)   || !strncmp(ext,"MRTBL",5) || !strncmp(ext,"TIMDUR",6) || !strncmp(ext,"VOCD",4) ||
-					  !strncmp(ext,"WDLEN",5) || !strncmp(ext,"SCRIPT",3))
+					!strncmp(ext,"OUT",3)   || !strncmp(ext,"MRTBL",5) || !strncmp(ext,"TIMDUR",6) || !strncmp(ext,"VOCD",4) ||
+					!strncmp(ext,"WDLEN",5) || !strncmp(ext,"FLUCALC",5) || !strncmp(ext,"SCRIPT",3))
 					return('\005');
 			}
 		}
@@ -1468,7 +1656,7 @@ char isCHATFile(FNType *fname) {
 
 char isCEXFile(FNType *fname) {
 	register int j;
-	wchar_t ext[4];
+	unCH ext[4];
 
 	j = strlen(fname) - 1;
 	for (; j >= 0 && fname[j] != '.'; j--) ;
@@ -1503,14 +1691,12 @@ char SetChatModeOfDatafileExt(FNType *fname, char isJustCheck) {
 }
 // end check file extensions
 
-#ifdef _UNICODE
 unCH BigWBuf[UTTLINELEN+UTTLINELEN];
 
 unCH *cl_T(const char *st) {
 	strcpy(BigWBuf, st);
 	return(BigWBuf);
 }
-#endif
 /*
 char my_isalnum(char c) {
 	return((char)isalnum((int)c))

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -347,7 +347,7 @@ int hashcreate(const char* fn, int s, int type)
 	if (n_descripteurs_h<=0)
 		return -1;
 	n_descripteurs_h--;
-	address va = descripteurs_h[n_descripteurs_h].Create((long)s,type);
+	address va = descripteurs_h[n_descripteurs_h].Create((long32)s,type);
 	WKS.CreateNS( fn, va );
 	return n_descripteurs_h;
 }
@@ -504,7 +504,7 @@ int hashstat(int h, FILE* out)
 	return 1;
 }
 
-long hashsize(int h)
+long32 hashsize(int h)
 {
 	return descripteurs_h[h].ActualSize();
 }

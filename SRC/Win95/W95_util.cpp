@@ -4,12 +4,14 @@
 #include "c_clan.h"
 #include "w95_commands.h"
 
+extern void del_dir(FNType *pathO, char *wd_path);
+
 static long  NumberOfReads = 0L;
 static WPARAM lastKey;
 
 short winEncod;
 
-long UnicodeToUTF8(wchar_t *UniStr, unsigned long actualStringLength, unsigned char *UTF8str, unsigned long *actualUT8Len, unsigned long MaxLen) {
+long UnicodeToUTF8(const unCH *UniStr, unsigned long actualStringLength, unsigned char *UTF8str, unsigned long *actualUT8Len, unsigned long MaxLen) {
 	long uchars=WideCharToMultiByte(CP_UTF8,0,UniStr,actualStringLength,NULL,0,NULL,NULL);
 	if (uchars > MaxLen) {
 		if (actualUT8Len != NULL)
@@ -24,7 +26,7 @@ long UnicodeToUTF8(wchar_t *UniStr, unsigned long actualStringLength, unsigned c
 	return(0L);
 }
 
-long UTF8ToUnicode(unsigned char *UTF8str, unsigned long actualUT8Len, wchar_t *UniStr, unsigned long *actualUnicodeLength, unsigned long MaxLen) {
+long UTF8ToUnicode(unsigned char *UTF8str, unsigned long actualUT8Len, unCH *UniStr, unsigned long *actualUnicodeLength, unsigned long MaxLen) {
 	long wchars=MultiByteToWideChar(CP_UTF8,0,(const char*)UTF8str,actualUT8Len,NULL,0);
 	if (wchars > MaxLen) {
 		if (actualUnicodeLength != NULL)
@@ -46,7 +48,7 @@ long UTF8ToUnicode(unsigned char *UTF8str, unsigned long actualUT8Len, wchar_t *
 	return(errnum);
 }
 
-long UnicodeToANSI(wchar_t *UniStr, unsigned long actualStringLength, unsigned char *ANSIstr, unsigned long *actualANSILen, unsigned long MaxLen, short script) {
+long UnicodeToANSI(unCH *UniStr, unsigned long actualStringLength, unsigned char *ANSIstr, unsigned long *actualANSILen, unsigned long MaxLen, short script) {
 	long uchars=WideCharToMultiByte(script,0,UniStr,actualStringLength,NULL,0,NULL,NULL);
 	if (uchars > MaxLen) {
 		if (actualANSILen != NULL)
@@ -61,7 +63,7 @@ long UnicodeToANSI(wchar_t *UniStr, unsigned long actualStringLength, unsigned c
 	return(0L);
 }
 
-long ANSIToUnicode(unsigned char *ANSIstr, unsigned long actualANSILen, wchar_t *UniStr, unsigned long *actualStringLength, unsigned long MaxLen, short script) {
+long ANSIToUnicode(unsigned char *ANSIstr, unsigned long actualANSILen, unCH *UniStr, unsigned long *actualStringLength, unsigned long MaxLen, short script) {
 	unsigned long wchars=MultiByteToWideChar(script,0,(const char*)ANSIstr,actualANSILen,NULL,0);
 	if (wchars > MaxLen) {
 		if (actualStringLength != NULL)
@@ -128,6 +130,62 @@ long ANSIToUTF8(unsigned char *ANSIstr, unsigned long actualANSILen, unsigned ch
 	return(errnum);
 }
 
+
+/////////////////////////////////////////////////////////////////////////////
+// DEL DIR BEG
+static void recursive_rm(unCH *path) {
+	int  res;
+	int  dPos;
+	BOOL notDone;
+	unCH tpath[FNSize];
+	CFileFind fileFind, dirFind;
+	CString fname;
+
+	dPos = strlen(path);
+	res = _wchdir(path);
+	if (res)
+		return;
+
+	notDone = fileFind.FindFile(_T("*.*"), 0);
+	while (notDone) {
+		notDone = fileFind.FindNextFile();
+		if (fileFind.IsDirectory())
+			continue;
+		fname = fileFind.GetFileName();
+		res = _wremove(fname);
+	}
+	fileFind.Close();
+
+	notDone = dirFind.FindFile(cl_T("*.*"), 0);
+	while (notDone) {
+		notDone = dirFind.FindNextFile();
+		if (!dirFind.IsDirectory())
+			continue;
+		fname = dirFind.GetFileName();
+		if (!strcmp(fname, ".") || !strcmp(fname, ".."))
+			continue;
+		strcat(path, fname);
+		strcat(path, PATHDELIMSTR);
+		recursive_rm(path);
+		strcpy(tpath, path);
+		path[dPos] = EOS;
+		res = _wchdir(path);
+		res = _wrmdir(tpath);
+	}
+	dirFind.Close();
+}
+
+void del_dir(FNType *pathO, char *wd_path) {
+	int res;
+	unCH path[FNSize];
+
+	u_strcpy(path, pathO, FNSize);
+	recursive_rm(path);
+	SetNewVol(wd_path);
+	res = _wrmdir(path);
+}
+// DEL DIR END
+
 void do_warning(const char *str, int delay) {
 	if (GlobalDC)
 		DrawCursor(1);
@@ -147,7 +205,7 @@ void ProgExit(const char *err) {
 char getFileDate(FNType *fn, UInt32 *date) {
 	CTime rt;
 	CFileFind fileFind;
-	wchar_t wDirPathName[FNSize];
+	unCH wDirPathName[FNSize];
 
 	u_strcpy(wDirPathName, fn, FNSize);
 	if (fileFind.FindFile(wDirPathName, 0)) {
@@ -286,10 +344,12 @@ short my_wCharacterByteType(short *org, short pos, short encod) {
 }
 
 void SysEventCheck(long reps) {
+	myFInfo *tglobal_df;
 	MSG msg;
 
     if (NumberOfReads < GetTickCount()) {
 		NumberOfReads = GetTickCount() + reps;
+		tglobal_df = global_df;
 		if (PeekMessage(&msg,AfxGetApp()->m_pMainWnd->m_hWnd,0,0,PM_REMOVE)) {
 			switch(msg.message) { 
 				case WM_KEYDOWN:
@@ -300,6 +360,7 @@ void SysEventCheck(long reps) {
 					break;
 			} 
 		}	
+		global_df = tglobal_df;
     }
 }
 /*
@@ -345,7 +406,7 @@ char *sendMessage(char *mess) {
 	return("This function is not working yet");
 }
 
-void AdjustName(wchar_t *toSt, wchar_t *fromSt, int WinLim) {
+void AdjustName(unCH *toSt, unCH *fromSt, int WinLim) {
 	int i, j, len;
 
 	if (strlen(fromSt) <= WinLim)

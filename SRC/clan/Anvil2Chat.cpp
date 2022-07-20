@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -11,10 +11,11 @@
 #endif
 #include "cu.h"
 #include "cutt-xml.h"
+/* // NO QT
 #ifdef _WIN32
 	#include <TextUtils.h>
 #endif
-
+*/
 #if !defined(UNX)
 #define _main anvil2chat_main
 #define call anvil2chat_call
@@ -243,10 +244,10 @@ static void rd_AnvilAtts_f(const char *fname, char isFatalError) {
 	}
 	ln = 0L;
 	while (fgets_cr(templineC, 255, fp)) {
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 			continue;
 		ln++;
-		if (templineC[0] == ';')
+		if (templineC[0] == '#')
 			continue;
 		uS.remblanks(templineC);
 		if (templineC[0] == EOS)
@@ -1046,7 +1047,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	UnicodeToUTF8(templineW, wchars, (unsigned char *)line, (unsigned long *)&UTF8Len, UTTLINELEN);
 	if (UTF8Len == 0 && wchars > 0) {
 		putc('\n', stderr);
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error: Unable to convert the following line:\n");
 		fprintf(stderr, "%s\n", src);
 	}
@@ -1065,7 +1066,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	MacRomanEncoding = CreateTextEncoding( (long)lEncode, lVariant, kTextEncodingDefaultFormat );
 	utf8Encoding = CreateTextEncoding( kTextEncodingUnicodeDefault, kTextEncodingDefaultVariant, kUnicodeUTF8Format );
 	if ((err=TECCreateConverter(&ec, MacRomanEncoding, utf8Encoding)) != noErr) {
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error1: Unable to create a converter.\n");
 		fprintf(stderr, "%s\n", src);
 		freeXML_Elements();
@@ -1076,7 +1077,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	len = strlen(src);
 	if ((err=TECConvertText(ec, (ConstTextPtr)src, len, &ail, (TextPtr)line, UTTLINELEN, &aol)) != noErr) {
 		putc('\n', fpout);
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error2: Unable to convert the following line:\n");
 		fprintf(stderr, "%s\n",src);
 		freeXML_Elements();
@@ -1086,7 +1087,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	err = TECDisposeConverter(ec);
 	if (ail < len) {
 		putc('\n', fpout);
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error3: Converted only %ld out of %ld chars:\n", ail, len);
 		fprintf(stderr, "%s\n", src);
 		freeXML_Elements();
@@ -1211,21 +1212,10 @@ static void convertAnvilTag2Chat(char *chatName, char *tag, char *refSp, const c
 	}
 }
 
-static void remSpaces(char *s) {
-/*
-	while (*s != EOS) {
-		if (*s == '\t' || *s == ' ')
-			strcpy(s, s+1);
-		else
-			s++;
-	}
-*/
-}
-
 static void sortAnvilSpAndDepTiers(void) {
 	int  lStackIndex;
 	Attributes *att;
-	Element *nt, *tnt, *firstTier;
+	Element *nt, *tnt, *firstTier = NULL;
 
 	if (CurrentElem == NULL)
 		return;
@@ -1247,9 +1237,9 @@ static void sortAnvilSpAndDepTiers(void) {
 		} else if (!strcmp(nt->name, "track") && lStackIndex == 1) {
 			for (att=nt->atts; att != NULL; att=att->next) {
 				if (!strcmp(att->name, "name")) {
-					remSpaces(att->value);
+//					remSpaces(att->value);
 					convertAnvilTag2Chat(templineC1, att->value, NULL, "Dep. tier");
-					if (templineC1[0] == '*' && firstTier->data != nt) {
+					if (firstTier != NULL && templineC1[0] == '*' && firstTier->data != nt) {
 						tnt->next = nt->next;
 						nt->next = firstTier->data;
 						firstTier->data = nt;
@@ -1281,7 +1271,7 @@ static char getAnvilAttribute(Element *cElem, UTTER *utt) {
 			if (utt->speaker[0] != '*') {
 				for (att=cElem->atts; att != NULL; att=att->next) {
 					if (!strcmp(att->name, "name")) {
-						remSpaces(att->value);
+//						remSpaces(att->value);
 						convertAnvilTag2Chat(templineC1, att->value, NULL, "code");
 						strncat(utt->line, templineC1, len);
 						utt->line[UTTLINELEN-1] = EOS;
@@ -1417,7 +1407,7 @@ static char getNextAnvilTier(UTTER *utt, long *beg, long *end, char *refSp, long
 				utt->speaker[0] = EOS;
 				for (att=CurrentElem->atts; att != NULL; att=att->next) {
 					if (!strcmp(att->name, "name")) {
-						remSpaces(att->value);
+//						remSpaces(att->value);
 						convertAnvilTag2Chat(utt->speaker, att->value, refSp, "Dep. tier");
 						break;
 					}

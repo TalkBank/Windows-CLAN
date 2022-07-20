@@ -1,11 +1,12 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
 
 #define CHAT_MODE 3
 #include "cu.h"
+#include "check.h"
 
 #if !defined(UNX)
 #define _main chstring_main
@@ -21,21 +22,22 @@
 #define DICNAME "changes.cut"
 #define PERIOD 50
 
-extern char cutt_isCAFound;
+//2015-03-30 extern char cutt_isCAFound;
 extern char cutt_isBlobFound;
 extern struct tier *defheadtier;
 extern char OverWriteFile;
 
 static FNType dicname[256];
 static char tab,
-	 wildcard,
-	 lineonly,
-	 NO_CHANGE,
-	 headeronly,
-	 DispChanges,
-	 wordOriented,
-	 isSearchForBullets;
+	wildcard,
+	lineonly,
+	NO_CHANGE,
+	headeronly,
+	DispChanges,
+	stringOriented,
+	isSearchForBullets;
 static char chstring_FirstTime;
+static char chstring_isCoreLex;
 
 static struct words {
 	char *word;
@@ -107,12 +109,12 @@ static void readdict(void) {
 	FILE *fdic;
 	char chrs, word[BUFSIZ], first = TRUE, term;
 	int index = 0, l = 1;
-	struct words *nextone;
+	struct words *nextone = NULL;
 	FNType mFileName[FNSize];
 
 	if (dicname[0] == EOS) {
 		uS.str2FNType(dicname, 0L, DICNAME);
-		if (tab && access(dicname,0) != 0)
+		if ((tab || chstring_isCoreLex) && access(dicname,0) != 0)
 			return;
 	}
 	if ((fdic=OpenGenLib(dicname,"r",TRUE,TRUE,mFileName)) == NULL) {
@@ -134,7 +136,7 @@ static void readdict(void) {
 				if (DispChanges)
 					fprintf(stderr,"From string \"%s\" to string ",nextone->word);
 				first = FALSE;
-			} else {
+			} else if (nextone != NULL) {
 				nextone->toword = (char *)malloc(strlen(word)+1);
 				if (nextone->toword == NULL)
 					chstring_overflow();
@@ -177,8 +179,9 @@ void init(char f) {
 		lineonly = FALSE;
 		NO_CHANGE = FALSE;
 		DispChanges = TRUE;
-		wordOriented = TRUE;
+		stringOriented = 0;
 		chstring_FirstTime = TRUE;
+		chstring_isCoreLex = FALSE;
 		headeronly = FALSE;
 		OverWriteFile = TRUE;
 		FilterTier = 0;
@@ -207,11 +210,13 @@ void usage() {
 	puts("+l : work ONLY on codes to the left of the colon in CHAT format");
 	puts("+lx: do not show the list of changes specified with +s or +c option");
 	puts("+q : clean up tiers. (add tabs after colons and remove blank spaces)");
+	puts("+q1: clean up tiers for CORELEX command");
 #ifdef UNX
 	puts("+LF: specify full path F of the lib folder");
 #endif
 	puts("+sS S: string to change followed by string to change to (\"\\t\"=tab, \"\\n\"=newline)");
 	puts("-w : do string oriented search and replacement");
+//	puts("-w1: do string oriented search and replacement except within \"quoted\" text");
 	puts("+x : interpret *, _ and \\ as literal characters during the search");
 	mainusage(FALSE);
 	puts("Dictionary file format: \"from string\" \" to string\"");
@@ -219,6 +224,8 @@ void usage() {
 	puts("\tchstring +b +t\"*mot\" +t@ +cFileName.cut *.cha");
 	puts("\tchstring +s\"play\" \"work\" *.cha");
 	puts("\tchstring +s\"%mor:\" \"%xmor:\" +t% +l *.cha");
+	puts("  To remove all bullets:");
+	puts("\tchstring +cbullets.cut *.cha");
 	cutt_exit(0);
 }
 
@@ -243,7 +250,7 @@ static void MkSpeaker(char *line, AttTYPE *att) {
 		utterance->speaker[i] = line[i];
 		utterance->attSp[i] = att[i];
 		i++;
-		if (tab) {
+		if (tab || chstring_isCoreLex) {
 		} else if ((utterance->speaker[0] == '*' || utterance->speaker[0] == '%') && line[i] == '\t') {
 			for (; line[i] == '\t'; i++) {
 				utterance->speaker[i] = line[i];
@@ -258,6 +265,91 @@ static void MkSpeaker(char *line, AttTYPE *att) {
 	}
 	utterance->speaker[i] = EOS;
 	att_cp(0, utterance->line, line+i, utterance->attLine, att+i);
+}
+
+static char errorReplace(char *code) {
+	int  i;
+	char sq;
+	
+	sq = 0;
+	for (i=0; code[i] != EOS; i++) {
+		if (code[i] == '[') {
+			sq++;
+			if (sq == 1 && code[i+1] == '*' && code[i+2] == ' ' && code[i+3] == 's')
+				return(TRUE);
+		} else if (code[i] == ']') {
+			if (sq > 0)
+				sq--;
+		} else if (!isSpace(code[i]) && code[i] != '\n' && code[i] != '<' && code[i] != '>' && sq == 0) {
+			break;
+		}
+	}
+	return(FALSE);
+}
+
+static char isRetrace(char *line, AttTYPE *att) {
+	int  i, oab, cab;
+	char sq, ab;
+	
+	sq = 0;
+	ab = 0;
+	cab =0; 
+	for (i=0; line[i] != EOS; i++) {
+		if (line[i] == '<' && sq == 0) {
+			ab++;
+			if (ab == 1)
+				oab = i;
+		} if (line[i] == '>' && sq == 0) {
+			if (ab > 0)
+				ab--;
+			if (ab == 0)
+				cab = i;
+		} else if (line[i] == '[' && line[i+1] == '/' && line[i+2] == '/' && line[i+3] == ']' && ab == 0 && sq == 0) {
+			att_cp(0, line+i, line+i+4, att+i, att+i+4);
+			if (cab > 0) {
+				att_cp(0, line+cab, line+cab+1, att+cab, att+cab+1);
+				att_cp(0, line+oab, line+oab+1, att+oab, att+oab+1);
+			}
+			return(TRUE);
+		} else if (line[i] == '[') {
+			sq++;
+		} else if (line[i] == ']') {
+			if (sq > 0)
+				sq--;
+		} else if (!isSpace(line[i]) && line[i] != '\n' && ab == 0 && sq == 0) {
+			break;
+		}
+	}
+	return(TRUE);
+}
+
+static long FindAndChangeCoreLex(char *line, AttTYPE *att, long isFound) {
+	int i, pos;
+	
+	pos = 0;
+	while (line[pos] != EOS) {
+		if (line[pos] == '_') {
+			line[pos] = ' ';
+			isFound++;
+		} else if (line[pos] == '[' && line[pos+1] == ':' && line[pos+2] == ' ') {
+			if (errorReplace(line+pos)) {
+				for (i=strlen(line); i >= pos+2; i--) {
+					line[i+1] = line[i];
+					att[i+1] = att[i];
+				}
+				line[pos+2] = ':';
+				att[pos+2] = att[pos+1];
+				isFound++;
+			}
+		} else if (line[pos] == '<' || 
+				   (line[pos] == '[' && line[pos+1] == '/' && line[pos+2] == '/' && line[pos+3] == ']')) {
+			if (isRetrace(line+pos, att+pos)) {
+				isFound++;
+			}
+		}
+		pos++;
+	}
+	return(isFound);
 }
 
 static int chstring_found(char *line, int pos, char *pat) {
@@ -297,7 +389,7 @@ rep:
 								break;
 							pos++;
 						}
-					} else if (wordOriented) {
+					} else if (stringOriented == 0) {
 /*
 printf("2.5.0; *pat=%c; *line=%c;\n", *pat, line[pos]);
 */
@@ -361,12 +453,16 @@ printf("3; pat=%s; line=%s;\n", pat+n, line+m);
 				if (line[pos] != *pat) {
 					if (*pat == ' ' && line[pos] != EOS) {
 						if (line[pos] == '\n') {
-							if (wordOriented)
-								break;
-							for (pos++; uS.isskip(line, pos, &dFnt, MBF) && line[pos] != EOS; pos++) ;
-							pos--;
+							if (stringOriented == 0 && isSpace(*pat) && !isSpace(*(pat+1)) && line[pos+1] == '\t') {
+								pos++;
+							} else {
+								if (stringOriented == 0)
+									break;
+								for (pos++; uS.isskip(line, pos, &dFnt, MBF) && line[pos] != EOS; pos++) ;
+								pos--;
+							}
 						} else if (uS.isskip(line, pos, &dFnt, MBF)) {
-							if (wordOriented)
+							if (stringOriented == 0)
 								break;
 						} else
 							break;
@@ -382,12 +478,12 @@ printf("4; pat=%s; line=%s;\n", pat, line+pos);
 				if (line[pos] != *pat) {
 					if (*pat == ' ' && line[pos] != EOS) {
 						if (line[pos] == '\n') {
-							if (wordOriented)
+							if (stringOriented == 0)
 								break;
 							for (pos++; uS.isskip(line, pos, &dFnt, MBF) && line[pos] != EOS; pos++) ;
 							pos--;
 						} else if (uS.isskip(line, pos, &dFnt, MBF)) {
-							if (wordOriented)
+							if (stringOriented == 0)
 								break;
 						} else
 							break;
@@ -397,7 +493,7 @@ printf("4; pat=%s; line=%s;\n", pat, line+pos);
 			}
 		}
 		if (*pat == EOS) {
-			if (wordOriented) {
+			if (stringOriented == 0) {
 				if (uS.isskip(line, pos, &dFnt, MBF) || line[pos] == EOS)
 					return(pos-len);
 				else
@@ -454,8 +550,11 @@ f1:
 					goto f1;
 				}
 			}
-			while (*new_pat != '_' && *new_pat != '*' && *new_pat != EOS)
+			while (*new_pat != '_' && *new_pat != '*' && *new_pat != EOS) {
+				if (*new_pat == '\\')
+					new_pat++;
 				*new_s++ = *new_pat++;
+			}
 			if (*new_pat != EOS) {
 				new_pat++;
 				while (t < end)
@@ -534,6 +633,17 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 			pos++;
 		else
 			pos = lPos;
+	} else if (stringOriented == 2 && line[pos] == '"' && (pos == 0 || line[pos-1] == '\t')) {
+		lPos = pos;
+		pos++;
+		for (; line[pos] != EOS; pos++) {
+			if (line[pos] == '"' && line[pos+1] == ',')
+				break;
+		}
+		if (line[pos] == '"')
+			pos++;
+		else
+			pos = lPos;
 	}
 	if (line[pos] == '\n' || uS.isskip(line, pos, &dFnt, MBF)) {
 		while (nextone != NULL) {
@@ -565,7 +675,7 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 			nextone = nextone->next;
 		}
 	}
-	if (wordOriented) {
+	if (stringOriented == 0) {
 		while (!uS.isskip(line, pos, &dFnt, MBF))
 			pos++;
 		while (uS.isskip(line, pos, &dFnt, MBF))
@@ -584,6 +694,17 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 			pos++;
 		else
 			pos = lPos;
+	} else if (stringOriented == 2 && line[pos] == '"' && (pos == 0 || line[pos-1] == '\t')) {
+		lPos = pos;
+		pos++;
+		for (; line[pos] != EOS; pos++) {
+			if (line[pos] == '"' && line[pos+1] == ',')
+				break;
+		}
+		if (line[pos] == '"')
+			pos++;
+		else
+			pos = lPos;
 	}
 	while (line[pos] != EOS) {
 		nextone = head;
@@ -595,7 +716,7 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 			} else
 				nextone = nextone->next;
 		}
-		if (wordOriented) {
+		if (stringOriented == 0) {
 			while (!uS.isskip(line, pos, &dFnt, MBF))
 				pos++;
 			while (uS.isskip(line, pos, &dFnt, MBF))
@@ -611,6 +732,17 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 					break;
 			}
 			if (line[pos] == HIDEN_C)
+				pos++;
+			else
+				pos = lPos;
+		} else if (stringOriented == 2 && line[pos] == '"' && (pos == 0 || line[pos-1] == '\t')) {
+			lPos = pos;
+			pos++;
+			for (; line[pos] != EOS; pos++) {
+				if (line[pos] == '"' && line[pos+1] == ',')
+					break;
+			}
+			if (line[pos] == '"')
 				pos++;
 			else
 				pos = lPos;
@@ -643,16 +775,12 @@ static void fixCodes(void) {
 }
 
 static char isIDTier(char *sp, char *line) {
-	if (cutt_isCAFound)
-		return(TRUE);
+//2015-03-30 	if (cutt_isCAFound) return(TRUE);
 	for (; *line != EOS; line++) {
 		if (*line == '\n' && isSpeaker(*(line+1)))
 			return(TRUE);
 	}
-	if (uS.mStrnicmp(sp, "@ID:", 4) == 0)
-		return(TRUE);
-	else
-		return(FALSE);
+	return(FALSE);
 }
 
 static void cleanAtts(char *sp, char *line, AttTYPE *attSp, AttTYPE *attLine) {
@@ -687,7 +815,7 @@ static void cleanAtts(char *sp, char *line, AttTYPE *attSp, AttTYPE *attLine) {
 			if (i == 0 || uS.isskip(line,i-1,&dFnt,C_MBF))
 				preCode = TRUE;
 		} else if (uS.IsUtteranceDel(line,i) && !sb) {
-			if (!cutt_isBlobFound)
+			if (!cutt_isBlobFound && !bullet && !uS.isPause(line, i, NULL, NULL))
 				uttFound = TRUE;
 		} else if (isSpace(line[i]) && !sb && !uttFound) {
 			preCode = FALSE;
@@ -702,6 +830,40 @@ static void cleanAtts(char *sp, char *line, AttTYPE *attSp, AttTYPE *attLine) {
 	}
 }
 
+static void checkFixInitialZeroAge(char *line) { // lxs
+	int i, cnt;
+
+	cnt = 0;
+	for (i=0; line[i] != EOS; i++) {
+		if (line[i] == '|') {
+			cnt++;
+			if (cnt == 3) {
+				for (i++; line[i] != EOS && line[i] != '|'; i++) {
+					if (line[i] == ';' && isdigit(line[i+1]) && line[i+2] == '.') {
+						i++;
+						uS.shiftright(line+i, 1);
+						line[i] = '0';
+						for (; line[i] != EOS && line[i] != '|'; i++) {
+							if (line[i] == '.' && isdigit(line[i+1]) && line[i+2] == '|') {
+								i++;
+								uS.shiftright(line+i, 1);
+								line[i] = '0';
+								return;
+							}
+						}
+						return;
+					} else if (line[i] == '.' && isdigit(line[i+1]) && line[i+2] == '|') {
+						i++;
+						uS.shiftright(line+i, 1);
+						line[i] = '0';
+						return;
+					}
+				}
+			}
+		}
+	}
+}
+
 void call() {
 	char RightSpeaker = FALSE;
 	long tlineno = 0L;
@@ -711,12 +873,23 @@ void call() {
 	if (!chatmode) {
 		lineonly = TRUE;
 		tab = FALSE;
+		chstring_isCoreLex = FALSE;
 	}
 	isFound = 0L;
 	if (tab)
 		isFound++;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
+	if (stringOriented == 2) {
+		if (currentchar == (char)0xef) {
+			if (currentchar != EOF)
+				currentchar = (char)getc_cr(fpin, &currentatt);
+			if (currentchar != EOF)
+				currentchar = (char)getc_cr(fpin, &currentatt);
+			if (currentchar != EOF)
+				currentchar = (char)getc_cr(fpin, &currentatt);
+		}
+	}
 	while (getwholeutter()) {
 		if (!stout) {
 			tlineno = tlineno + 1L;
@@ -724,8 +897,8 @@ void call() {
 				fprintf(stderr,"\r%ld ",tlineno);
 		}
 			
-		if (tab) {
-			for (i=strlen(utterance->speaker)-1; isSpace(utterance->speaker[i]); i--) ;
+		if (tab || chstring_isCoreLex) {
+			for (i=strlen(utterance->speaker)-1; i >= 0 && isSpace(utterance->speaker[i]); i--) ;
 			utterance->speaker[i+1] = EOS;
 //			if (utterance->speaker[i] == ':')
 //				strcat(utterance->speaker,"\t");
@@ -733,17 +906,22 @@ void call() {
 				uS.uppercasestr(utterance->speaker+1, &dFnt, MBF);
 			else if (*utterance->speaker == '%')
 				uS.lowercasestr(utterance->speaker+1, &dFnt, MBF);
+			else if (uS.partcmp(utterance->speaker,IDOF,FALSE,FALSE)) {
+				checkFixInitialZeroAge(utterance->line);
+			}
 			cleanAtts(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine);
 			fixCodes();
 		}
-		if (!checktier(utterance->speaker) || (!RightSpeaker && *utterance->speaker == '%') || (*utterance->speaker == '*' && nomain)) {
+		if (!checktier(utterance->speaker) ||
+			(!RightSpeaker && *utterance->speaker == '%') ||
+			(*utterance->speaker == '*' && nomain)) {
 			if (*utterance->speaker == '*') {
 				if (nomain)
 					RightSpeaker = TRUE;
 				else
 					RightSpeaker = FALSE;
 			}
-			if (tab) {
+			if (tab || chstring_isCoreLex) {
 				if (!NO_CHANGE) {
 					uS.remblanks(utterance->line);
 					if (*utterance->line == EOS)
@@ -757,11 +935,13 @@ void call() {
 		} else {
 			if (*utterance->speaker == '*')
 				RightSpeaker = TRUE;
-			if (lineonly)
+			if (chstring_isCoreLex) {
+				isFound = FindAndChangeCoreLex(utterance->line, utterance->attLine, isFound);
+			} else if (lineonly) {
 				isFound = FindAndChange(utterance->line, utterance->attLine, isFound);
-			else if (headeronly)
+			} else if (headeronly) {
 				isFound = FindAndChange(utterance->speaker, utterance->attSp, isFound);
-			else {
+			} else {
 				att_cp(0, utterance->tuttline, utterance->speaker, tempAtt, utterance->attSp);
 				att_cp(strlen(utterance->tuttline), utterance->tuttline, utterance->line, tempAtt, utterance->attLine);
 
@@ -782,27 +962,45 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				j = 0;
 
 			if (NO_CHANGE) {
-				if (tab) {
+				if (tab || chstring_isCoreLex) {
 					i = 0;
-					if (!cutt_isCAFound && !cutt_isBlobFound)
+					if (/*//2015-03-30 !cutt_isCAFound && */!cutt_isBlobFound)
 						for (; isSpace(utterance->line[i]); i++) ;
 					printout(utterance->speaker+j,utterance->line+i,utterance->attSp+j,utterance->attLine+i,FALSE);
 				} else {
-					if (!wordOriented && utterance->line[0] == '\n' && utterance->line[1] == EOS)
+					if (stringOriented != 0 && utterance->line[0] == '\n' && utterance->line[1] == EOS)
 						utterance->line[0] = EOS;
 					printout(utterance->speaker+j,utterance->line,utterance->attSp+j,utterance->attLine,FALSE);
 				}
 			} else {
 				uS.remblanks(utterance->line);
 				i = 0;
-				if (!cutt_isCAFound && !cutt_isBlobFound)
+				if (/*//2015-03-30 !cutt_isCAFound && */!cutt_isBlobFound)
 					for (; isSpace(utterance->line[i]); i++) ;
-				if (utterance->line[i] != EOS)
+				if (!chatmode) {
+					if (utterance->line[i] != EOS) {
+						j = strlen(utterance->line) - 1;
+						if (utterance->line[j] != '\n')
+							fprintf(fpout, "%s\n", utterance->line);
+						else
+							fputs(utterance->line, fpout);
+					} else
+						fprintf(fpout, "\n");
+				} else if (utterance->line[i] != EOS)
 					printout(utterance->speaker+j,utterance->line+i,utterance->attSp+j,utterance->attLine+i,!isIDTier(utterance->speaker+j,utterance->line+i));
 				else if (*(utterance->speaker+j) != '*' && *(utterance->speaker+j) != '%') {
 					uS.remblanks(utterance->speaker+j);
-					if (*(utterance->speaker+j) != EOS)
-						printout(utterance->speaker+j,NULL,utterance->attSp+j,NULL,0);
+					if (*(utterance->speaker+j) != EOS) {
+						i = strlen(utterance->speaker+j) - 1;
+						if (i >= 0) {
+							if (utterance->speaker[j+i] != '\n') {
+								strcpy(utterance->line, "\n");
+								printout(utterance->speaker+j,utterance->line,utterance->attSp+j,NULL,0);
+							} else
+								printout(utterance->speaker+j,NULL,utterance->attSp+j,NULL,0);
+						} else
+							printout(utterance->speaker+j,NULL,utterance->attSp+j,NULL,0);
+					}
 				} else {
 					uS.remblanks(utterance->speaker+j);
 					i = strlen(utterance->speaker+j) - 1;
@@ -888,13 +1086,20 @@ void getflag(char *f, char *f1, int *i) {
 				no_arg_option(f);
 				break;
 		case 'q':
-				if (chatmode)
-					tab = TRUE;
-				else {
+				if (chatmode) {
+					if (*f == EOS) {
+						tab = TRUE;
+					} else if (*f == '1') {
+						chstring_isCoreLex = TRUE;
+					} else {
+						fprintf(stderr,"Only +q or +q1 options are allowed\n");
+						cutt_exit(0);
+					}
+				} else {
 					fprintf(stderr,"+q option is not allowed with TEXT format\n");
 					cutt_exit(0);
 				}
-				no_arg_option(f);
+//				no_arg_option(f);
 				break;
 #ifdef UNX
 		case 'L':
@@ -906,8 +1111,16 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 #endif
 		case 'w':
-				wordOriented = FALSE;
-				no_arg_option(f);
+				if (*f == EOS)
+					stringOriented = 1;
+				else if (*f == '1')
+					stringOriented = 2;
+				else {
+					fprintf(stderr,"Invalid argument for option: %s\n", f-2);
+					fprintf(stderr,"Please choose \"-w\"\n");
+//					fprintf(stderr,"Please choose \"-w\" or \"-w1\"\n");
+					cutt_exit(0);
+				}
 				break;
 		case 'x':
 				wildcard = FALSE;

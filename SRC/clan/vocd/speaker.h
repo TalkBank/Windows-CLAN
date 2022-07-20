@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -17,7 +17,7 @@ extern "C"
 	extern VOCDSPs *speakers;
 	extern VOCDSPs *denom_speakers;
 
-	extern VOCDSP  *speaker_add_speaker       (VOCDSPs ** s, char *name, char *IDs, char isTemp, char isUsed);
+	extern VOCDSP  *speaker_add_speaker       (VOCDSPs ** s, char *name, char *fname, char *IDs, char isTemp, char isUsed);
 //	extern int     speaker_exclude_speaker    (VOCDSPs ** s, char *name, char isTemp);
 	extern int     speaker_add_line           (VOCDSP * speaker, char *pt, long lineno);
 	extern int     speaker_append_to_line     (VOCDSP * speaker, char *pt );
@@ -43,7 +43,7 @@ extern "C"
 
 //	extern VOCDSPs * speaker_copy_speaker     (VOCDSPs *original);
 	extern VOCDSPs * speaker_free_up_speakers (VOCDSPs *p, char isAll);
-	extern void    clean_speakers			  (VOCDSPs *Spk_pt);
+	extern void    clean_speakers			  (VOCDSPs *Spk_pt, char isSubstitute);
 }
 
 #endif

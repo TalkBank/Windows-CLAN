@@ -4,8 +4,8 @@
 
 
 #define MOVEINCREMENT 25
-#define	MIN(x,y)		((x) < (y) ? (x) : (y))
-#define	MAX(x,y)		((x) < (y) ? (y) : (x))
+#define	my_MIN(x,y)		((x) < (y) ? (x) : (y))
+#define	my_MAX(x,y)		((x) < (y) ? (y) : (x))
 
 extern "C"
 {
@@ -43,15 +43,19 @@ extern void setMovieCursor(WindowPtr win);
 extern void setMovieCursorToValue(long tTime, myFInfo *df);
 extern void UpdatePBCDialog(WindowPtr wind);
 extern void freeThumbnails(MovieTNInfo *Picts);
+#ifndef _COCOA_APP
+extern void SaveSoundMovieAsWAVEFile(Movie tMovie, FNType *outFile);
+extern char isMovieStreaming(Movie MvMovie);
+#endif
 extern char isPBCWindowOpen(void);
-extern char SetCurrSoundTier(WindowProcRec *windProc);
+extern char SetCurrSoundTier(WindowProcRec *windProc, char whatMediaType);
 extern char SetWaveTimeValue(WindowProcRec *windProc, long timeBeg, long timeEnd);
 extern short whichActive(WindowPtr win);
 extern MovieInfo *Movie_Open(movInfo *mvRec);
 #endif // _MAC_CODE
 
 #if defined(_WIN32)
-extern char checkPCMSound(MSG* pMsg, char skipOnChar);
+extern char checkPCMSound(MSG* pMsg, char skipOnChar, DWORD tickCount);
 extern char checkPCMPlaybackBuffer(void);
 extern char SetCurrSoundTier(void);
 extern char isTimeCodeZero(DVTimeCode *tc);
@@ -60,6 +64,8 @@ extern void cpStrToTimeCode(char *st, DVTimeCode *tc);
 extern void setTimeCodeToTime(DVTimeCode *dest, UInt8 h, UInt8 m, UInt8 s, UInt8 f);
 extern void setTimeCodeToZero(DVTimeCode *dest);
 extern void stopSoundIfPlaying(void);
+//extern void SaveSoundMovieAsWAVEFile(Movie tMovie, FNType *outFile);
+extern void SaveSoundMovieAsWAVEFile(FNType *inFile, FNType *outFile);
 #endif /* _WIN32 */
 
 extern char  MovieReady;
@@ -96,16 +102,15 @@ extern char FakeSelectWholeTier(char isCAMode);
 extern char GetNewPictFile(FNType *fname);
 extern char GetNewTextFile(FNType *fname);
 extern char findMediaTiers(void);
-extern char isMovieStreaming(Movie MvMovie);
 extern char syncAudioAndVideo(unCH *buf);
 extern char findSoundFileInWd(sndInfo *tSound, char *errMess);
 extern char findMovieFileInWd(movInfo *tMovie);
 extern char mOpenMovieFile(movInfo *tMovie);
 extern char LocateMediaFile(FNType *fname);
 
-extern void CleanMediaName(wchar_t *mediaFileName);
+extern void CleanMediaName(unCH *mediaFileName);
 extern void getFileType(FNType *fn, unsigned long *type);
-extern void CantFindMedia(char *err_message, unCH *fname);
+extern void CantFindMedia(char *err_message, unCH *fname, char isOld);
 extern void checkContinousSndPlayPossition(long CurFP);
 extern void selectNextSpeaker(void);
 extern void SelectMediaFile(void);

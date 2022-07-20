@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -36,7 +36,9 @@ additional files necessary:
 
 	#include <utime.h>
   #if (__dest_os == __mac_os)
+ #ifndef _COCOA_APP
 	#include <csignal>
+ #endif
   #endif
 
 	#ifdef getc
@@ -55,7 +57,7 @@ additional files necessary:
 	#define rewind my_rewind
 	#define feof my_feof
 	#define getc my_getc
-	#define gets my_gets
+//	#define gets my_gets
 	#define fprintf my_fprintf
 	#define printf my_printf
 	#define fputs my_fputs
@@ -91,7 +93,7 @@ additional files necessary:
 	#define rewind my_rewind
 	#define feof my_feof
 	#define getc my_getc
-	#define gets my_gets
+//	#define gets my_gets
 	#define fprintf my_fprintf
 	#define printf my_printf
 	#define fputs my_fputs
@@ -136,83 +138,89 @@ additional files necessary:
 #define sMarkChr 0x0e
 #define fSpaceChr 0x10
 
+#define rplChr '\001'
+#define errChr '\002'
+
 #define MXWDS 50		/* max number of words or Scopes could be
 				   specified to be excluded or included  */
 
-#define MULTIWORDMAX 25
-#define MULTIWORDCONTMAX 1024
-#define IEMWORDS struct IEMWords
-IEMWORDS {
-	char *word_arr[MULTIWORDMAX];
-	char isMatch[MULTIWORDMAX];
-	char context_arr[MULTIWORDMAX][MULTIWORDCONTMAX+2];
-	int  cnt;
-	int  total;
-	IEMWORDS *nextword;
-} ;
-
 #define IEWORDS struct IEWords
 IEWORDS {
-    char *word;
-    IEWORDS *nextword;
+	char *word;
+	IEWORDS *nextword;
 } ;
 
-#define UTTER struct stutterance /* main utterance structure             */
+#define UTTER struct stutterance /* main utterance structure				*/
 UTTER {
-    char speaker[SPEAKERLEN];		/* code descriptor field of the turn	*/
-    AttTYPE attSp[SPEAKERLEN];		/* Attributes assiciated with speaker name	*/
-    char line[UTTLINELEN+1];		/* text field of the turn		*/ // found uttlinelen
-    AttTYPE attLine[UTTLINELEN+1];	/* Attributes assiciated with text*/
-    char tuttline[UTTLINELEN+1];	/* working copy of the text of the turn	*/
-    long uttLen;
-    long tlineno;				/* line number		*/
-    UTTER *nextutt;		/* pointer to the next utterance, if	*/
+	char speaker[SPEAKERLEN];		/* code descriptor field of the turn	*/
+	AttTYPE attSp[SPEAKERLEN];		/* Attributes assiciated with speaker name	*/
+	char line[UTTLINELEN+1];		/* text field of the turn		*/ // found uttlinelen
+	AttTYPE attLine[UTTLINELEN+1];	/* Attributes assiciated with text*/
+	char tuttline[UTTLINELEN+1];	/* working copy of the text of the turn	*/
+	long uttLen;
+	long tlineno;				/* line number		*/
+	UTTER *nextutt;		/* pointer to the next utterance, if	*/
 } ;				/* there is only 1 utterance, i.e. no	*/
 				/* windows, then if points to itself	*/
 struct tier {			/* specifies which tier should be	*/
-    char include;		/* included or exclude from the analyses*/
-    char used;			/* if set this tier was found in the data*/
-    char pat_match;		/* if =1 then PATMAT else PARTCMP match	*/
-    char tcode[SPEAKERLEN];	/* the code descriptor			*/
-    struct tier *nexttier;	/* points to the next tier		*/
+	char include;		/* included or exclude from the analyses*/
+	char used;			/* if set this tier was found in the data*/
+	char pat_match;		/* if =1 then PATMAT else PARTCMP match	*/
+	char tcode[SPEAKERLEN];	/* the code descriptor			*/
+	struct tier *nexttier;	/* points to the next tier		*/
 } ;
 
 struct IDtype {
-    char ID[SPEAKERLEN];
-    char inc;
-    struct IDtype *next_ID;
+	char ID[SPEAKERLEN];
+	char inc;
+	char used;
+	struct IDtype *next_ID;
+} ;
+
+struct IDparts {
+	char *lang;	// @Languages:, @Language of #:
+	char *corp;	// such as: MacWhinney, Bates, Sachs, etc...
+	char *code;	// @Participants: *CHI
+	char *ages;	// @Age of #:
+	char *sex;	// @Sex of #:
+	char *group;// @Group of #:
+	char *SES;	// @Ses of #:
+	char *role;	// @Participants: Target_Child
+	char *edu;	// @Education of #:
+	char *UNQ;	// file name or other unique ID
+} ;
+
+#define NUM_PREF 3
+#define NUM_SUFF 3
+#define NUM_FUSI 4
+#define NUM_ERRS 3
+
+#define IXXS struct Ixes
+struct Ixes {
+	char free_ix_s;
+	char *ix_s;
+	char isIXMatch;
 } ;
 
 #define MORFEATS struct MorFeats
 struct MorFeats {
 	char *type;		char typeID;
-	char free_prefix;
-	char *prefix;	//	char mPrefix;
-	char *pos;		//	char mPos;
-	char *stem;		//	char mStem;
-	char free_suffix0;
-	char *suffix0;	//	char mSuffix0;
-	char free_suffix1;
-	char *suffix1;	//	char mSuffix1;
-	char free_suffix2;
-	char *suffix2;	//	char mSuffix2;
-	char free_fusion0;
-	char *fusion0;	//	char mFusion0;
-	char free_fusion1;
-	char *fusion1;	//	char mFusion1;
-	char free_fusion2;
-	char *fusion2;	//	char mFusion2;
+	IXXS prefix[NUM_PREF];
+	char *pos;
+	char isPosMatch;
+	char *stem;
+	char isStemMatch;
+	IXXS suffix[NUM_SUFF];
+	IXXS fusion[NUM_FUSI];
 	char free_trans;
-	char *trans;	//	char mTrans;
+	char *trans;
+	char isTransMatch;
 	char free_repls;
-	char *repls;	//	char mRepls;
-	char free_error0;
-	char *error0;	//	char mError0;
-	char free_error1;
-	char *error1;	//	char mError1;
-	char free_error2;
-	char *error2;	//	char mError2;
-	MORFEATS *comp;
+	char *repls;
+	char isReplsMatch;
+	IXXS error[NUM_ERRS];	//	char mError;
+	MORFEATS *clitc;
+	MORFEATS *compd;
 } ;
 
 #define MORFEATURESLIST struct MorFeaturesList
@@ -221,14 +229,31 @@ struct MorFeaturesList {
 	char flag;
 	char *pat;
 	char typeID;
+	MORFEATS *featMatched;
 	MORFEATURESLIST *nextFeat;
 } ;
 #define MORWDLST struct MorWordList
 struct MorWordList {
 	char type;
 	char isClitic;
+	char numPref;
+	char numPos;
+	char isWildStem;
+	char numStem;
+	char numSuf;
+	char numFus;
+	char numTran;
+	char numRepl;
+	char numErr;
 	MORFEATURESLIST *rootFeat;
 	MORWDLST *nextMatch;
+} ;
+
+#define GRAWDLST struct GraWordList
+GRAWDLST {
+	char *word;
+	char type;
+	GRAWDLST *nextword;
 } ;
 
 struct mor_link_struct {
@@ -237,16 +262,46 @@ struct mor_link_struct {
 	long lineno;
 } ;
 
+#define MULTIWORDMAX 25
+#define MULTIWORDCONTMAX 1024
+#define MULTIWORDMATMAX 80
+#define IEMWORDS struct IEMWords
+IEMWORDS {
+	char *word_arr[MULTIWORDMAX];
+	MORWDLST *morwords_arr[MULTIWORDMAX];
+	GRAWDLST *grafptr_arr[MULTIWORDMAX];
+	char isMatch[MULTIWORDMAX];
+	char context_arr[MULTIWORDMAX][MULTIWORDCONTMAX+2];
+	char matched_word_arr[MULTIWORDMAX][MULTIWORDMATMAX+2];
+	int  i;
+	int  cnt;
+	int  total;
+	IEMWORDS *nextword;
+} ;
+
+struct aliasesList {
+	char *alias;
+	char *argv0;
+	char *rest;
+	char isPullDownC;
+	char isNeedsArgs;
+	char loc;
+	int  ln;
+	struct aliasesList *next_alias;
+} ;
+typedef struct aliasesList ALIASES_LIST;
+
+
 extern const char *AddCEXExtension;
 extern const char *delSkipedFile;	/* if +t@id="" option used and file didn't match, then delete output file */
 extern char isFileSkipped;	/* TRUE - if +t@id="" option used and file didn't match */
 extern char f_override;		/* if user specified -f option, then = 1 */
 extern char combinput,  /* 1 - merge data from all specified file, dflt 0 */
-		    nomap,		/* 0 - convert all to lower case, dflt 0	  */
-		    nomain,		/* 1 - exclude text from main speaker turns,    0 */
-		    currentchar,/* contains last input character read		  */
-		    stout,		/* 0 - if the output is NOT stdout, dflt 1	  */ 
-		    stin;		/* 1 - if the input is stdin, dflt 0		  */
+			nomap,		/* 0 - convert all to lower case, dflt 0		*/
+			nomain,		/* 1 - exclude text from main speaker turns,	0 */
+			currentchar,/* contains last input character read			*/
+			stout,		/* 0 - if the output is NOT stdout, dflt 1		*/
+			stin;		/* 1 - if the input is stdin, dflt 0			*/
 extern char GlobalPunctuation[];
 extern int  postcodeRes;  /* reflects presence of postcodes 0-if non or 4,5,6-if found */
 extern char rightspeaker; /* 1 - speaker/code turn is selected by the user*/
@@ -260,12 +315,15 @@ extern char WordMode;	/* 'i' - means to include wdptr words, else exclude*/
 extern char *uttline;	/* pointer to a working version of the text line  */
 extern UTTER *utterance;/* contains turn / turn claster information	  */
 extern FILE *fpin,
-	    *fpout;	/* file pointers to input and output streams	  */
+			*fpout;	/* file pointers to input and output streams	  */
 extern FNType *oldfname;
 extern FNType newfname[];
 extern FNType cMediaFileName[];
 
-extern char org_spTier[];
+extern char org_spName[];
+extern char org_spTier[];	/* used by createMorUttline function for compairing speaker to dep tier*/
+extern char fDepTierName[];	/* used by createMorUttline function for compairing two dep tiers*/
+extern char sDepTierName[];	/* used by createMorUttline function for compairing two dep tiers*/
 
 extern char MBF, C_MBF;
 extern char *rootmorf;
@@ -275,22 +333,25 @@ extern char CntWUT, CntFUttLen;
 extern char replaceFile;
 extern char linkMain2Mor;
 extern char linkMain2Sin;
+extern char isCreateFakeMor;
+extern char isMultiMorSearch,
+			isMultiGraSearch;
 extern int  chatmode,
-	    UttlineEqUtterance,
-	    OnlydataLimit;
+			UttlineEqUtterance,
+			OnlydataLimit;
 extern long filterUttLen;
 extern long WUCounter;	/* current word/utterance count number	   */
 extern long lineno,		/* current turn line number (dflt 0)		  */
-	    tlineno,		/* line number within the current turn		  */
-	    deflineno;		/* default line number				  */
+			tlineno,		/* line number within the current turn		  */
+			deflineno;		/* default line number				  */
 
 extern struct mor_link_struct mor_link;
 
 extern MORWDLST *freeMorWords(MORWDLST *p);
-extern MORWDLST *makeMorWordList(MORWDLST *root, char *res, char *wd, char ch);
+extern MORWDLST *makeMorSeachList(MORWDLST *root, char *res, char *wd, char ch);
 
 extern IEWORDS *InsertWord(IEWORDS *,IEWORDS *);
-extern IEMWORDS *InsertMulti(IEMWORDS *mroot, char *st);
+extern IEMWORDS *InsertMulti(IEMWORDS *mroot, char *st, char searchTier);
 extern IEWORDS *freeIEWORDS(IEWORDS *ptr);
 extern IEMWORDS *freeIEMWORDS(IEMWORDS *ptr);
 
@@ -317,7 +378,8 @@ extern int  getmaincode(void);
 extern int  getword(const char *sp, char *cleanLine, char *orgWord, int *wi, int i);
 extern int  Get_File(FNType *filename, int index);
 extern int  Get_Dir(FNType *dirname, int index);
-extern int  isPostCodeFound(UTTER *utt);
+extern int  isPostCodeFound(const char *sp, char *line);
+extern int  isExcludePostcode(char *str);
 extern int  getNextDepTierPair(char *cleanLine, char *morItem, char *spWord, int *wi, int i);
 extern int  ml_isclause(void);
 extern int  ml_UtterClause(char *line, int pos);
@@ -325,16 +387,26 @@ extern int  ml_UtterClause(char *line, int pos);
 extern long DealWithAtts_cutt(char *line, long i, AttTYPE att, AttTYPE oldAtt);
 
 extern float getTimeDuration(char *s);
+extern float getPauseTimeDuration(char *s);
 
+extern char isUttDel(char *s);
+extern char isPostCodeOnUtt(char *line, const char *postcode);
+extern char isAge(char *b, int *agef, int *aget);
 extern char isTierContSymbol(char *line, int i, char isForced);
-extern char isMorSearchListGiven(void);
+extern char isMORSearch(void);
 extern char isMorPatMatchedWord(MORWDLST *pats, char *word);
-extern char isLanguageSearchListGiven(void);
-extern char ParseWordIntoFeatures(char *item, MORFEATS *feats);
-extern char matchToMorFeatures(MORWDLST *pat_feat, MORFEATS *word_feats, char isSkipRestOfCompound, char isClean);
+extern char isMorPat(char *f);
+extern char isMorSearchOption(char *f, char spc, char ch);
+extern char isWordFromMORTier(char *word);
+extern char isWordFromGRATier(char *word);
+extern char isLangSearch(void);
+extern char isGRASearch(void);
+extern char isGraPat(char *f);
+extern char isGRASearchOption(char *f, char spc, char ch);
+extern char ParseWordMorElems(char *item, MORFEATS *feats);
+extern char matchToMorElems(MORWDLST *pat_feat, MORFEATS *word_feats, char skipCompound, char skipClitic, char isClean);
 extern char listtcs(char,char);
 extern char *getfarg(char *, char *, int *);
-extern char CheckIDNumber(char *line, char *copyST);
 extern char isIDSpeakerSpecified(char *IDTier, char *code, char isReportErr);
 extern char *getCurrDirName(char *dir);
 extern char *fgets_cr(char *beg, int size, FILE *fp);
@@ -348,27 +420,32 @@ extern char getMediaTagInfo(char *line, long *Beg, long *End);
 extern char getOLDMediaTagInfo(char *line, const char *tag, FNType *fname, long *Beg, long *End);
 extern char getLanguageCodeAndName(char *code, char isReplace, char *name);
 extern char ReadLangsFile(char isCED);
-extern char isEqual(const char *st, const char *pat);
-extern char isnEqual(const char *st, const char *pat, int len);
-extern char isSuffix(const char *st, MORFEATS *feat);
-extern char isFusion(const char *st, MORFEATS *feat);
+extern char isEqual(const char *pat, const char *st);
+extern char isnEqual(const char *pat, const char *st, int len);
+extern char isEqualIxes(const char *pat, IXXS *ixes, int max);
+extern char isIxesMatchPat(IXXS *ixes, int max, const char *pat);
 extern char isAllv(MORFEATS *feat);
+extern char bmain(int argc, char *argv[], void (*pr_result)(void));
 
 extern void IsSearchR7(char *w);
 extern void IsSearchCA(char *w);
 extern void initLanguages(void);
 extern void freeUpFeats(MORFEATS *p);
+extern void addIxesToSt(char *item, IXXS *ixes, int max, const char *sym, char isAddFront);
+extern void freeUpIxes(IXXS *ixes, int max);
+extern void cleanupGRAWord(char *word);
 extern void cleanupLanguages(void) ;
 extern void cleanUttline(char *line);
-extern void filterMorTier(char *morUtt, char *morLine, char isReplace);
-extern void createMorUttline(char *new_mor_tier, char *spTier, char *mor_tier, char linkMain2Mor);
+extern void processSPTier(char *spTier, char *line);
+extern void filterMorTier(char *morUtt, char *morLine, char isReplace, char linkDepTier2OtherTier);
+extern void createMorUttline(char *new_mor_tier, char *spTier, const char *dcode, char *mor_tier, char isFilterSP, char linkTiers);
 extern void cutt_cleanUpLine(const char *sp, char *ch, AttTYPE *att, int oIndex);
 extern void getMediaName(char *line, FNType *tMediaFileName, long size);
 extern void freeXML_Elements(void);
-extern void bmain(int argc, char *argv[], void (*pr_result)(void));
 extern void printAtts(AttTYPE att, AttTYPE oldAtt, FILE *fp);
 extern void ActualPrint(const char *, AttTYPE *, AttTYPE *, char, char, FILE *);
 extern void printout(const char *, char *, AttTYPE *, AttTYPE *, char);
+extern void printoutline(FILE *fp, char *line);
 extern void printArg(char *argv[], int argc, FILE *fp, char specialCase, FNType *fname);
 extern void freedefwdptr(char *);
 extern void addword(char,char,const char *);
@@ -378,6 +455,7 @@ extern void main_cleanup(void);
 extern void no_arg_option(char *f);
 extern void maininitwords(void);
 extern void mor_initwords(void);
+extern void gra_initwords(void);
 extern void maketierchoice(const char *,char,char);
 extern void CleanUpTempIDSpeakers(void);
 extern void MakeOutTierChoice(char *ts, char inc);
@@ -404,13 +482,45 @@ extern void addToLanguagesTable(char *line, char *sp);
 extern void clean_s_option(void);
 extern void remove_CRs_Tabs(char *line);
 extern void HandleParans(char *s, int beg, int end);
+extern void combineMainDepWords(char *line, char isColor);
+extern void removeBlankPairs(char *line);
 extern void removeMainTierWords(char *line);
 extern void removeDepTierItems(char *line);
 extern void blankoSelectedSpeakers(char *line);
-extern void findWholeWord(int wi, char *word);
-extern void findWholeScope(int wi, char *word);
+extern void findWholeWord(char *line, int wi, char *word);
+extern void findWholeScope(char *line, int wi, char *word);
 extern void cleanupMultiWord(char *st);
-extern void Secs2Str(float tm, char *st);
+extern void Secs2Str(float tm, char *st, char isMsecs);
+extern void RoundSecsStr(float tm, char *st);
+extern void breakIDsIntoFields(struct IDparts *idTier, char *IDs);
+extern void cleanUpIDTier(char *line);
+extern void textToXML(char *an, const char *bs, const char *es);
+
+// Excel Output BEGIN
+enum {
+	ExcelRowStart = 1,
+	ExcelRowEnd,
+	ExcelRowEmpty,
+	ExcelBlkCell,
+	ExcelRedCell
+} ;
+extern void excelTextToXML(char *an, const char *bs, const char *es);
+extern void excelHeader(FILE *fp, char *name, int colSize);
+extern void excelFooter(FILE *fp);
+extern void excelCommasStrCell(FILE *fp, const char *st);
+extern void excelStrCell(FILE *fp, const char *st);
+extern void excelRedStrCell(FILE *fp, const char *st);
+extern void excelNumCell(FILE *fp, const char *format, float num);
+extern void excelLongNumCell(FILE *fp, const char *format, long num);
+extern void excelOutputID(FILE *fp, char *IDtier);
+extern void excelRow(FILE *fp, int type);
+extern void excelHeightRowStart(FILE *fp, int height);
+extern void excelRowOneStrCell(FILE *fp, int isRed, const char *st);
+// Excel Output END
+// OLD commas Excel Output BEGIN
+extern void outputIDForExcel(FILE *fp, char *IDtier, short isComma);
+extern void outputStringForExcel(FILE *fp, const char *st, short isComma);
+// OLD commas Excel Output END
 
 }
 #endif /* CUDEF */

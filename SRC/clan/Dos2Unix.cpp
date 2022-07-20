@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -8,10 +8,11 @@
 
 #include "ced.h"
 #include "cu.h"
+/* // NO QT
 #ifdef _WIN32
 	#include <TextUtils.h>
 #endif
-
+*/
 #if !defined(UNX)
 #define _main d2u_main
 #define call d2u_call

@@ -4,10 +4,13 @@ DD  = ../unix/bin
 OBJ = ../unix/obj
 
 # for Apple Unix AND FreeBSD >= 3.2:
-	CC = g++
-	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wdeprecated-declarations -Wempty-body -m32 -arch i386
-#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -m32 -arch ppc
-#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings
+#	CC = g++
+# for Apple prior to MacOS 11 Big Sur, uncomment next one
+#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wdeprecated-declarations -Wempty-body -arch i386
+# for Apple MacOS 11 Big Sur and later, uncomment next one
+#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wdeprecated-declarations -Wempty-body
+# do not uncomment this line: -m32
+#
 # Debian 'sid' distribution
 #	CC = g++
 # for Linux:
@@ -51,13 +54,13 @@ MEGRASPC = megrasp/megrasp.cpp megrasp/maxent.cpp megrasp/blmvm.cpp
 MEGRASPH = megrasp/ksutil.h megrasp/maxent.h megrasp/blmvm.h
 
 all:	anvil2chat chains chat2anvil chat2ca chat2elan chat2praat chat2xmar check \
-	chip chstring combo combtier compound cooccur  dataclean dates delim dist \
-	dss elan2chat eval fixbullets fixit fixlang flo freq freqmerg freqpos gem gemfreq \
-	gemlist indent insert keymap kideval kwal lines lipp2chat longtier lowcase \
-	makemod maxwd megrasp mlt mlu modrep mor mortable ort phonfreq \
+	chip chstring codes combo combtier compound cooccur  dataclean dates delim dist \
+	dss elan2chat eval fixbullets fixit flo flucalc freq freqpos gem gemfreq \
+	gemlist indent ipsyn keymap kideval kwal lines lena2chat lipp2chat longtier \
+	lowcase makemod maxwd megrasp mlt mlu modrep mor mortable ort play2chat phonfreq \
 	post postlist postmodrules postmortem praat2chat posttrain \
-	quotes rely repeat retrace saltin script spreadsheet textin timedur \
-	tierorder trnfix uniq vocd wdlen 
+	quotes rely repeat retrace salt2chat script srt2chat sugar text2chat timedur \
+	tierorder trnfix uniq vocd wdlen test
 
 anvil2chat:	  	$(DD)/anvil2chat
 chains:	  		$(DD)/chains
@@ -69,6 +72,7 @@ chat2xmar:		$(DD)/chat2xmar
 check:			$(DD)/check
 chip:			$(DD)/chip
 chstring:		$(DD)/chstring
+codes:			$(DD)/codes
 combo:			$(DD)/combo
 compound:		$(DD)/compound
 combtier:		$(DD)/combtier
@@ -81,22 +85,22 @@ dss:			$(DD)/dss
 elan2chat:		$(DD)/elan2chat
 eval:			$(DD)/eval
 fixbullets:		$(DD)/fixbullets
-fixlang:		$(DD)/fixlang
 fixit:			$(DD)/fixit
 flo:			$(DD)/flo
+flucalc:		$(DD)/flucalc
 freq:			$(DD)/freq
-freqmerg:		$(DD)/freqmerg
 freqpos:		$(DD)/freqpos
 gem:			$(DD)/gem
 gemfreq:		$(DD)/gemfreq
 gemlist:		$(DD)/gemlist
 imdi:			$(DD)/imdi
 indent:			$(DD)/indent
-insert:			$(DD)/insert
+ipsyn:			$(DD)/ipsyn
 keymap:			$(DD)/keymap
 kideval:		$(DD)/kideval
 kwal:			$(DD)/kwal
 lines:			$(DD)/lines
+lena2chat:		$(DD)/lena2chat
 lipp2chat:		$(DD)/lipp2chat
 longtier:		$(DD)/longtier
 lowcase:		$(DD)/lowcase
@@ -109,6 +113,7 @@ modrep:			$(DD)/modrep
 mor:			$(DD)/mor
 mortable:		$(DD)/mortable
 ort:			$(DD)/ort
+play2chat:		$(DD)/play2chat
 phonfreq:		$(DD)/phonfreq
 post:			$(DD)/post
 postlist:		$(DD)/postlist
@@ -120,16 +125,19 @@ quotes:			$(DD)/quotes
 rely:			$(DD)/rely
 repeat:			$(DD)/repeat
 retrace:		$(DD)/retrace
-saltin:			$(DD)/saltin
+salt2chat:		$(DD)/salt2chat
 script:			$(DD)/script
-spreadsheet:		$(DD)/spreadsheet
-textin:			$(DD)/textin
+srt2chat:	  	$(DD)/srt2chat
+sugar:			$(DD)/sugar
+text2chat:		$(DD)/text2chat
 timedur:		$(DD)/timedur
 tierorder:		$(DD)/tierorder
 trnfix:			$(DD)/trnfix
 uniq:			$(DD)/uniq
 vocd:			$(DD)/vocd
 wdlen:			$(DD)/wdlen
+
+test:			$(DD)/test
 
 $(OBJ)/c_ver.o: c_ver.cpp
 	$(CC) -c $(CFLAGS) -o $(OBJ)/c_ver.o c_ver.cpp
@@ -177,6 +185,9 @@ $(DD)/chip: chip.cpp chip_utl.cpp chip.h cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut
 $(DD)/chstring: chstring.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) chstring.cpp -o $(DD)/chstring $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
+$(DD)/codes: codes-p.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) codes-p.cpp -o $(DD)/codes $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+
 $(DD)/combo: combo.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) combo.cpp -o $(DD)/combo $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
@@ -213,20 +224,17 @@ $(DD)/eval: eval.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OB
 $(DD)/fixbullets: FixBullets.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) FixBullets.cpp -o $(DD)/fixbullets $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
-$(DD)/fixlang: fixlang.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
-	$(CC) $(CFLAGS) fixlang.cpp -o $(DD)/fixlang $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
-
 $(DD)/fixit: fixit.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) fixit.cpp -o $(DD)/fixit $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
 $(DD)/flo: flo.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) flo.cpp -o $(DD)/flo $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
+$(DD)/flucalc: flucalc.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) flucalc.cpp -o $(DD)/flucalc $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+
 $(DD)/freq: freq.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) freq.cpp -o $(DD)/freq $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
-
-$(DD)/freqmerg: freqmerg.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
-	$(CC) $(CFLAGS) freqmerg.cpp -o $(DD)/freqmerg $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
 $(DD)/freqpos: freqpos.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) freqpos.cpp -o $(DD)/freqpos $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
@@ -246,20 +254,23 @@ $(DD)/imdi: imdi.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OB
 $(DD)/indent: indent.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) indent.cpp -o $(DD)/indent $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
-$(DD)/insert: insert.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
-	$(CC) $(CFLAGS) insert.cpp -o $(DD)/insert $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+$(DD)/ipsyn: ipsyn.cpp ipsyn.h cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) ipsyn.cpp -o $(DD)/ipsyn $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
 $(DD)/keymap: keymap.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) keymap.cpp -o $(DD)/keymap $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
-$(DD)/kideval: kideval.cpp dss.cpp $(VOCD) cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
-	$(CC) -Ivocd -I. $(CFLAGS) -DKIDEVAL_LIB kideval.cpp dss.cpp $(VOCD) -o $(DD)/kideval $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+$(DD)/kideval: kideval.cpp dss.cpp dss.h ipsyn.h $(VOCD) cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) -Ivocd -I. $(CFLAGS) -DKIDEVAL_LIB kideval.cpp dss.cpp ipsyn.cpp $(VOCD) -o $(DD)/kideval $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
 $(DD)/kwal: kwal.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) kwal.cpp -o $(DD)/kwal $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
 $(DD)/lines: lines.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) lines.cpp -o $(DD)/lines $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+
+$(DD)/lena2chat: Lena2Chat.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/cxml.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) Lena2Chat.cpp -o $(DD)/lena2chat $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/cxml.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
 $(DD)/lipp2chat: lippUTF2Chat.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) lippUTF2Chat.cpp -o $(DD)/lipp2chat $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
@@ -297,6 +308,9 @@ $(DD)/mor: $(MORFILES) mor/mor.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(O
 $(DD)/mortable: mortable.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) mortable.cpp -o $(DD)/mortable $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
+$(DD)/play2chat: Play2Chat.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) Play2Chat.cpp -o $(DD)/play2chat $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+
 $(DD)/phonfreq: phonfreq.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) phonfreq.cpp -o $(DD)/phonfreq $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
@@ -330,17 +344,20 @@ $(DD)/repeat: repeat.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o 
 $(DD)/retrace: retrace.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) retrace.cpp -o $(DD)/retrace $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
-$(DD)/saltin: saltin.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
-	$(CC) $(CFLAGS) saltin.cpp -o $(DD)/saltin $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+$(DD)/salt2chat: salt2chat.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) salt2chat.cpp -o $(DD)/salt2chat $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
 $(DD)/script: script.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) script.cpp -o $(DD)/script $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
-$(DD)/spreadsheet: spreadsheet.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
-	$(CC) $(CFLAGS) spreadsheet.cpp -o $(DD)/spreadsheet $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+$(DD)/srt2chat: Srt2Chat.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/cxml.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) Srt2Chat.cpp -o $(DD)/srt2chat $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/cxml.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
-$(DD)/textin: textin.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
-	$(CC) $(CFLAGS) textin.cpp -o $(DD)/textin $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+$(DD)/sugar: sugar.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) sugar.cpp -o $(DD)/sugar $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+
+$(DD)/text2chat: text2chat.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) text2chat.cpp -o $(DD)/text2chat $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
 $(DD)/timedur: timedur.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) timedur.cpp -o $(DD)/timedur $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
@@ -360,6 +377,9 @@ $(DD)/vocd: $(VOCD) cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ
 $(DD)/wdlen: wdlen.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) wdlen.cpp -o $(DD)/wdlen $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
+$(DD)/test: test.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) test.cpp -o $(DD)/test $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+
 clean:
 	-rm -f $(DD)/* $(OBJ)/*
 
@@ -374,6 +394,7 @@ clean:
 	check \
 	chip \
 	chstring \
+	codes \
 	combo \
 	compound \
 	combtier \
@@ -386,22 +407,22 @@ clean:
 	elan2chat \
 	eval \
 	fixbullets \
-	fixlang \
 	fixit \
 	flo \
+	flucalc \
 	freq \
-	freqmerg \
 	freqpos \
 	gem \
 	gemfreq \
 	gemlist \
 	imdi \
 	indent \
-	insert \
+	ipsyn \
 	keymap \
 	kideval \
 	kwal \
 	lines \
+	lena2chat \
 	lipp2chat \
 	longtier \
 	lowcase \
@@ -414,6 +435,7 @@ clean:
 	mor \
 	mortable \
 	ort \
+	play2chat \
 	phonfreq \
 	post \
 	postlist \
@@ -425,13 +447,15 @@ clean:
 	rely \
 	repeat \
 	retrace \
-	saltin \
+	salt2chat \
 	script \
-	spreadsheet\
-	textin \
+	srt2chat \
+	sugar \
+	text2chat \
 	timedur \
 	tierorder \
 	trnfix \
 	uniq \
 	vocd \
-	wdlen
+	wdlen \
+	test

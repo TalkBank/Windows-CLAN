@@ -21,7 +21,7 @@ enum {
 
 static char col1 = INCLUDE, col2 = WORD_B;
 static BOOL sto;
-static wchar_t st21[MORSTLEN+1], st22[MORSTLEN+1], st23[MORSTLEN+1], 
+static unCH st21[MORSTLEN+1], st22[MORSTLEN+1], st23[MORSTLEN+1],
 			st24[MORSTLEN+1], st25[MORSTLEN+1], st26[MORSTLEN+1], st09[MORSTLEN+1];
 static FNType searchFileName[FNSize];
 
@@ -332,7 +332,7 @@ void CClanSearch::OnFile()
 {
     unCH			*szFilter, *t;
 	OPENFILENAME	ofn;
-	wchar_t			wDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 
 	m_File = true;
 	m_Word = false;
@@ -381,7 +381,7 @@ void CClanSearch::OnFileOpen()
 {
     unCH			*szFilter, *t;
 	OPENFILENAME	ofn;
-	wchar_t			wDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 
 	m_File = true;
 	m_Word = false;
@@ -619,7 +619,7 @@ void CClanSearch::OnMor_o()
 	UpdateData(false);
 }
 
-static void removeBrackets(char chr, wchar_t *str) {
+static void removeBrackets(char chr, unCH *str) {
 	int i;
 
 	i = 0;
@@ -638,9 +638,9 @@ static void removeBrackets(char chr, wchar_t *str) {
 	uS.remblanks(str);
 }
 
-static void createWord(BOOL isInclude, char obr, char cbr, char code, wchar_t *toStr, wchar_t *fromStr) {
+static void createWord(BOOL isInclude, char obr, char cbr, char code, unCH *toStr, unCH *fromStr) {
 	int		i;
-	wchar_t *wqt;
+	unCH *wqt;
 
 	if (isInclude) {
 		col1 = INCLUDE;
@@ -674,9 +674,9 @@ static void createWord(BOOL isInclude, char obr, char cbr, char code, wchar_t *t
 		strcat(toStr, "'");
 }
 
-static char createMor(char isFnd, char code, CString fSt, wchar_t *toSt, wchar_t *stn, char n) {
+static char createMor(char isFnd, char code, CString fSt, unCH *toSt, unCH *stn, char n) {
 	int		i;
-	wchar_t	*bg, *eg, div;
+	unCH	*bg, *eg, div;
 
 	strcpy(templineW1, fSt);
 	uS.remFrontAndBackBlanks(templineW1);
@@ -736,10 +736,10 @@ static char createMor(char isFnd, char code, CString fSt, wchar_t *toSt, wchar_t
 	return(isFnd);
 }	
 
-void SearchDialog(wchar_t *str) {
+void SearchDialog(unCH *str) {
 	int	 i;
 	unCH *t;
-	char isFound, isF2, *qt;
+	char isFound, isFound2, *qt;
 	CClanSearch dlg;
 
 	str[0] = EOS;
@@ -896,25 +896,28 @@ void SearchDialog(wchar_t *str) {
 		} else if (dlg.m_Mor) {
 			col2 = MOR_B;
 			for (i=0; i < 4; i++) {
-				isF2 = FALSE;
+				isFound2 = FALSE;
 				if (dlg.m_Include) {
 					col1 = INCLUDE;
-					strcpy(templine2, " +s\"@");
+					strcpy(templine2, " +s\"m");
 				} else if (dlg.m_Exclude) {
 					col1 = EXCLUDE;
-					strcpy(templine2, " -s\"@");
+					strcpy(templine2, " -s\"m");
 				} else
 					break;
-				isF2 = createMor(isF2,'|',dlg.m_Mor_pos_e,templine2,st21,i);
-				isF2 = createMor(isF2,'r',dlg.m_Mor_stem_e,templine2,st22,i);
-				isF2 = createMor(isF2,'#',dlg.m_Mor_pref_e,templine2,st23,i);
-				isF2 = createMor(isF2,'-',dlg.m_Mor_suf_e,templine2,st24,i);
-				isF2 = createMor(isF2,'&',dlg.m_Mor_fus_e,templine2,st25,i);
-				isF2 = createMor(isF2,'=',dlg.m_Mor_tran_e,templine2,st26,i);
+				isFound2 = createMor(isFound2,'|',dlg.m_Mor_pos_e,templine2,st21,i);
+				isFound2 = createMor(isFound2, ';', dlg.m_Mor_stem_e, templine2, st22, i);
+				isFound2 = createMor(isFound2, '#', dlg.m_Mor_pref_e, templine2, st23, i);
+				isFound2 = createMor(isFound2, '-', dlg.m_Mor_suf_e, templine2, st24, i);
+				isFound2 = createMor(isFound2, '&', dlg.m_Mor_fus_e, templine2, st25, i);
+				isFound2 = createMor(isFound2, '=', dlg.m_Mor_tran_e, templine2, st26, i);
 				if (dlg.m_Mor_o)
 					strcat(templine2, ",o%");
-				strcat(templine2, "\"");
-				if (isF2) {
+				if (strchr(templine2+1, ' ') == NULL)
+					strcpy(templine2+3, templine2+4);
+				else
+					strcat(templine2, "\"");
+				if (isFound2) {
 					strcat(str, templine2);
 					isFound = TRUE;
 				}

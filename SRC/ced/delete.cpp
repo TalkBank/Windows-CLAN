@@ -1,8 +1,10 @@
 #include "ced.h"
+#include "my_ctype.h"
+/* // NO QT
 #ifdef _WIN32
 	#include <TextUtils.h>
 #endif
-
+*/
 /* delete begin */
 static char IncreaseKillBuffer(void) {
 	register long i;
@@ -351,9 +353,88 @@ repeat_DeleteNextWord:
 	return(35);
 }
 
+static char collectFullLineAndNextLineWord(unCH *dest) {
+	char isFoundNextWord;
+	long i, j;
+	long colWin;
+	LINE *chr;
+	ROWS *tr;
+
+	colWin = 0L;
+	chr = global_df->head_row->next_char;
+	dest[0] = EOS;
+	i = 0L;
+	if (global_df->tail_row->prev_char != global_df->head_row) {
+		if (global_df->tail_row->prev_char->c == NL_C)
+			return(FALSE);
+	}
+	while (chr != global_df->tail_row && i < UTTLINELEN-1) {
+		if (chr->c == '\t') {
+			j = (((colWin / TabSize) + 1) * TabSize);
+			for (; colWin < j; colWin++) 
+				dest[i++] = ' ';
+		} else if (chr->c == NL_C && global_df->ShowParags != '\001') ;
+		else {
+			colWin++;
+			dest[i++] = chr->c;
+		}
+		chr = chr->next_char;
+	}
+	isFoundNextWord = FALSE;
+	if (global_df->cur_line != global_df->tail_text) {
+		tr = global_df->cur_line->next_row;
+		if (tr != global_df->tail_text) {
+			for (j=0L; isSpace(tr->line[j]) && tr->line[j] != EOS; j++) ;
+			if (tr->line[j] != EOS) {
+				if (i > 0 && !isSpace(dest[i-1]) && i < UTTLINELEN-1)
+					dest[i++] = ' ';
+				while (!isSpace(tr->line[j]) && tr->line[j] != EOS && i < UTTLINELEN-1) {
+					dest[i++] = tr->line[j++];
+					isFoundNextWord = TRUE;
+				}
+			}
+		}
+	}
+	dest[i] = EOS;
+	return(isFoundNextWord);
+}
+
+static void onlyCpHead_rowToCur_line(void) {
+	unCH *s;
+	AttTYPE *s1;
+	LINE *tl;
+	
+	if (global_df->head_row_len >= (int)strlen(global_df->cur_line->line)) {
+		free(global_df->cur_line->line);
+		if (global_df->cur_line->att)
+			free(global_df->cur_line->att);
+		
+		global_df->cur_line->att = NULL;
+		if (global_df->head_row->att) {
+			global_df->cur_line->att = (AttTYPE *)malloc((global_df->head_row_len+1)*sizeof(AttTYPE));
+		}
+		global_df->cur_line->line = (unCH *)malloc((global_df->head_row_len+1) * sizeof(unCH));
+		if (global_df->cur_line->line == NULL) {
+			//			global_df->cur_line->line = "";
+			mem_err(TRUE, global_df);
+		}
+	}
+	s = global_df->cur_line->line;
+	s1 = global_df->cur_line->att;
+	tl = global_df->head_row->next_char;
+	while (tl != global_df->tail_row) {
+		*s++ = tl->c;
+		if (s1 != NULL)
+			*s1++ = tl->att;
+		tl = tl->next_char;
+	}
+	*s = EOS;
+}
+
 int DeletePrevChar(int i) {
 	register char AlreadyChanged;
 	register char DisplayAll = FALSE;
+	ROWS *tr;
 
 	cedDFnt.isUTF = global_df->isUTF;
 	if (global_df->isTempFile == 1 || (global_df->isTempFile && global_df->EditorMode)) {
@@ -389,11 +470,7 @@ repeat_del_prev_char:
 				if (hc)
 					res = 1;
 				else
-#ifdef _UNICODE
 					res = 0;
-#else
-					res = (int)my_CharacterByteType(global_df->row_txt->line, global_df->col_chr-num, &cedDFnt);
-#endif
 			} while (res != 0 && res != -1 && global_df->col_chr-num != 0) ;
 			if (DisplayAll)
 				global_df->UndoList->key = DELTRPT;
@@ -422,9 +499,37 @@ repeat_del_prev_char:
 			global_df->col_win = ComColWin(FALSE, NULL, global_df->col_chr);
 		}
 		if (global_df->redisplay) {
+			if (doReWrap) {
+				if (collectFullLineAndNextLineWord(templine4)) {
+					if (isCallFixLine(0L, global_df->head_row_len, FALSE) == FALSE) {
+						tr = global_df->row_txt->next_row;
+						if (tr->line[0] == '\t') {
+							long len = strlen(global_df->row_txt->line);
+							
+							if (len > 0) {
+								if (isSpace(global_df->row_txt->line[len-1]))
+									strcpy(tr->line, tr->line+1);
+								else
+									tr->line[0] = ' ';
+							}
+						}
+						tl = global_df->col_txt;
+						global_df->col_txt = global_df->tail_row->prev_char;
+						CpCur_lineToHead_row(tr);
+						tr->next_row->prev_row = global_df->row_txt;
+						global_df->row_txt->next_row = tr->next_row;
+						free(tr);
+						global_df->col_txt = tl;
+						onlyCpHead_rowToCur_line();
+						if (global_df->numberOfRows)
+							global_df->numberOfRows--;
+						DisplayAll = TRUE;
+					}
+				}
+			}
 			if (DisplayAll) {
 				if (global_df->ChatMode || global_df->AutoWrap) {
-					if (isCallFixLine(0L, global_df->head_row_len, TRUE) && i != -1) 
+					if (isCallFixLine(0L, global_df->head_row_len, TRUE) && i != -1)
 						FixLine(TRUE);
 				}
 				DisplayTextWindow(NULL, 1);
@@ -432,8 +537,6 @@ repeat_del_prev_char:
 				DisplayTextWindow(global_df->cur_line, 1);
 		}
 	} else if (global_df->cur_line->prev_row != global_df->head_text) {
-		ROWS *tr;
-
 		if (!CMP_VIS_ID(global_df->cur_line->prev_row->flag)) {
 			RemoveLastUndo();
 			strcpy(global_df->err_message, "+Can't delete previous non-selected tier.");
@@ -442,7 +545,9 @@ repeat_del_prev_char:
 
 		tr = global_df->row_txt;
 		global_df->row_txt = global_df->row_txt->prev_row;
-		global_df->lineno--;
+		if (isNL_CFound(global_df->row_txt))
+			global_df->lineno--;
+		global_df->wLineno--;
 		global_df->cur_line = global_df->row_txt;
 		global_df->col_txt = global_df->head_row;
 		CpCur_lineToHead_row(global_df->cur_line);
@@ -470,6 +575,9 @@ repeat_del_prev_char:
 			global_df->UndoList->str[0] = SNL_C;
 			global_df->UndoList->str[1] = EOS;
 		}
+		if (global_df->ChatMode && doReWrap) {
+			FixLine(TRUE);
+		}
 		if (global_df->ChatMode || global_df->AutoWrap) {
 			if (isCallFixLine(0L, global_df->head_row_len, TRUE) && i != -1) 
 				FixLine(TRUE);
@@ -484,6 +592,7 @@ repeat_del_prev_char:
 int DeleteNextChar(int i) {
 	register char AlreadyChanged;
 	register char dc;
+	char isAlreadyDisplayed;
 	LINE *tl;
 
 	cedDFnt.isUTF = global_df->isUTF;
@@ -497,6 +606,7 @@ int DeleteNextChar(int i) {
 		return(32);
     }
 
+	isAlreadyDisplayed = FALSE;
 	dc = 0;
 	AlreadyChanged = (char)(global_df->row_txt != global_df->cur_line);
 	ChangeCurLine();
@@ -520,11 +630,7 @@ repeat_del_next_char:
 				if (hc)
 					res = 1;
 				else
-#ifdef _UNICODE
 					res = 0;
-#else
-					res = (int)my_CharacterByteType(global_df->row_txt->line, global_df->col_chr+num, &cedDFnt);
-#endif
 			} while (res != 0 && res != -1) ;
 			global_df->UndoList->key = DELTKEY;
 			if ((global_df->UndoList->str=(unCH *)malloc((num+1L)*sizeof(unCH))) == NULL)
@@ -542,6 +648,40 @@ repeat_del_next_char:
 			if (dc == NL_C && global_df->ShowParags != '\001') {
 				goto repeat_del_next_char;
 			}
+			if (doReWrap) {
+				ROWS *tr;
+				LINE *tl;
+				
+				if (collectFullLineAndNextLineWord(templine4)) {
+					if (isCallFixLine(0L, global_df->head_row_len, FALSE) == FALSE) {
+						tr = global_df->row_txt->next_row;
+						if (tr->line[0] == '\t') {
+							long len = strlen(global_df->row_txt->line);
+							
+							if (len > 0) {
+								if (isSpace(global_df->row_txt->line[len-1]))
+									strcpy(tr->line, tr->line+1);
+								else
+									tr->line[0] = ' ';
+							}
+						}
+						tl = global_df->col_txt;
+						global_df->col_txt = global_df->tail_row->prev_char;
+						CpCur_lineToHead_row(tr);
+						tr->next_row->prev_row = global_df->row_txt;
+						global_df->row_txt->next_row = tr->next_row;
+						free(tr);
+						global_df->col_txt = tl;
+						onlyCpHead_rowToCur_line();
+						if (global_df->numberOfRows)
+							global_df->numberOfRows--;
+						if (isCallFixLine(0L, global_df->head_row_len, TRUE)) 
+							FixLine(FALSE);
+						DisplayTextWindow(NULL, 1);
+						isAlreadyDisplayed = TRUE;
+					}
+				}
+			}
 		} else {
 			tl = global_df->col_txt->prev_char;
 			tl->next_char = global_df->col_txt->next_char;
@@ -550,7 +690,7 @@ repeat_del_next_char:
 			global_df->col_txt = tl->next_char;
 			global_df->head_row_len--;
 		}
-		if (global_df->redisplay)
+		if (global_df->redisplay && isAlreadyDisplayed == FALSE)
 			DisplayTextWindow(global_df->cur_line, 1);
 	} else if (global_df->cur_line->next_row != global_df->tail_text) {
 		ROWS *tr;
@@ -598,6 +738,7 @@ char DeleteChank(int d) {
 	register long len;
 	register long i;
 	long tn;
+	LINE *tc;
 	ROWS *st;
 
 	if (global_df->isTempFile == 1 || (global_df->isTempFile && global_df->EditorMode)) {
@@ -613,7 +754,8 @@ char DeleteChank(int d) {
 	global_df->KBIndex = -1L;
 	i = (long)global_df->row_win;
 	if (global_df->row_win2 < 0) {
-		global_df->lineno += global_df->row_win2;
+		global_df->lineno  += global_df->row_win2;
+		global_df->wLineno += global_df->row_win2;
 		global_df->row_win2 += global_df->row_win;
 		tn = (long)global_df->row_win;
 		global_df->row_win = global_df->row_win2;
@@ -647,6 +789,20 @@ char DeleteChank(int d) {
 	}
 
 	if (global_df->row_win2 == 0) {
+		if (global_df->col_txt->c == HIDEN_C && global_df->ShowParags != '\002') {
+			if (global_df->col_txt->prev_char != NULL && global_df->col_txt->prev_char != global_df->head_row &&
+				iswdigit(global_df->col_txt->prev_char->c)) {
+				i = 0;
+				for (tc=global_df->col_txt->prev_char; tc != global_df->head_row && tc->c != HIDEN_C; tc=tc->prev_char) {
+					i++;
+				}
+				if (tc != global_df->head_row) {
+					i++;
+					global_df->col_chr -= i;
+					global_df->col_txt = tc;
+				}
+			}
+		}
 		len = (long)(global_df->col_chr2 - global_df->col_chr);
 	} else {
 		st = global_df->row_txt;
@@ -690,8 +846,8 @@ char DeleteChank(int d) {
 		global_df->KBIndex++;
 		if (global_df->col_txt == global_df->tail_row) {
 			if (global_df->KBIndex > 0 &&
-						(global_df->KillBuff[global_df->KBIndex-1] == SNL_C ||
-						 global_df->KillBuff[global_df->KBIndex-1] == NL_C))
+				(global_df->KillBuff[global_df->KBIndex-1] == SNL_C ||
+				 global_df->KillBuff[global_df->KBIndex-1] == NL_C))
 				global_df->KBIndex--;
 			else
 				global_df->KillBuff[global_df->KBIndex] = SNL_C;
@@ -712,6 +868,42 @@ char DeleteChank(int d) {
 			global_df->UndoList->str[i] = EOS;
 		}
 	}
+	
+	if (doReWrap) {
+		ROWS *tr;
+		LINE *tl;
+
+		if (collectFullLineAndNextLineWord(templine4)) {
+			if (isCallFixLine(0L, global_df->head_row_len, FALSE) == FALSE) {
+				tr = global_df->row_txt->next_row;
+				if (tr->line[0] == '\t') {
+					long len = strlen(global_df->row_txt->line);
+					
+					if (len > 0) {
+						if (isSpace(global_df->row_txt->line[len-1]))
+							strcpy(tr->line, tr->line+1);
+						else
+							tr->line[0] = ' ';
+					}
+				}
+				tl = global_df->col_txt;
+				global_df->col_txt = global_df->tail_row->prev_char;
+				CpCur_lineToHead_row(tr);
+				tr->next_row->prev_row = global_df->row_txt;
+				global_df->row_txt->next_row = tr->next_row;
+				free(tr);
+				global_df->col_txt = tl;
+				onlyCpHead_rowToCur_line();
+				if (global_df->numberOfRows)
+					global_df->numberOfRows--;
+				if (global_df->UndoList->key != INSTKEY) {
+					if (isCallFixLine(0L, global_df->head_row_len, TRUE)) 
+						FixLine(FALSE);
+				}
+			}
+		}
+	}
+
 	if (global_df->ChatMode || global_df->AutoWrap) {
 		if (isCallFixLine(0L, global_df->head_row_len, TRUE) && global_df->UndoList->key == INSTKEY) 
 			FixLine(FALSE);

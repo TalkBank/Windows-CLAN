@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -24,10 +24,11 @@
 #define IS_WIN_MODE FALSE
 #include "mul.h" 
 
+extern char R8;
 extern char OverWriteFile;
 extern char Parans;
 
-#define numberOfElements 6
+#define numberOfElements 7
 #define ARLEN 80
 
 #define WDLNGS 0
@@ -36,6 +37,7 @@ extern char Parans;
 #define MORPH 3
 #define TUTTS 4
 #define TWRDS 5
+#define CUTTS 6
 
 #define BOTHTIERS 1
 #define SPONLYTRS 2
@@ -52,36 +54,50 @@ struct wdlen_cnt {
 
 #define W_UTT struct indent_utterance
 W_UTT {
-	char    *sp;
-	char    *line;
+    char    *sp;
+    char    *line;
 	char    *mline;
-	W_UTT *nextUtt;
+	int		ClauseCnt;
+    W_UTT *nextUtt;
+} ;
+
+#define WDLEN_CLAUSES struct clause
+WDLEN_CLAUSES {
+	char *st;
+	int  len;
+	WDLEN_CLAUSES *next_clause;
 } ;
 
 static char wdlen_isXXXFound = FALSE;
 static char wdlen_isYYYFound = FALSE;
-static char whichTier, wdlen_ftime;
+static char whichTier, wdlen_ftime, wdlen_ftime2;
 static WDLENSP *wdlen_head;
+static WDLEN_CLAUSES *wdlen_clause;
 
 void usage() {
 	puts("WDLEN gives length histograms for characters, morphemes, words, utterances and turns.");
 #ifdef UNX
 	printf("WDLEN REQUIRES THE PRESENCE OF THE \"%%mor:\" TIER BY DEFAULT.\n");
+	printf("THIS MEANS ALSO THAT YOU SHOULD USE THE +sm FACILITY FOR SEARCH STRING SPECIFICATION.\n");
 	printf("TO USE ONLY THE MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.\n");
 #else
 	printf("%c%cWDLEN REQUIRES THE PRESENCE OF THE \"%%mor:\" TIER BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cTHIS MEANS ALSO THAT YOU SHOULD USE THE +sm FACILITY FOR SEARCH STRING SPECIFICATION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
 	printf("%c%cTO USE ONLY THE MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
 #endif
-	printf("Usage: wdlen [bS c %s] filename(s)\n",mainflgs());
+	printf("Usage: wdlen [a bS cS %s] filename(s)\n",mainflgs());
+	puts("+a : compute both words and morphemes from dependent tier only");
 	printf("+bS: add all S characters to morpheme delimiters list (default: %s)\n", rootmorf);
 	puts("-bS: remove all S characters from be morphemes list (-b: empty morphemes list)");
-	puts("+c : compute both words and morphemes from dependent tier only");
+	puts("+cS: look for clause marker S or markers listed in file @S");
 	mainusage(FALSE);
 #ifdef UNX
 	printf("WDLEN REQUIRES THE PRESENCE OF THE \"%%mor:\" TIER BY DEFAULT.\n");
+	printf("THIS MEANS ALSO THAT YOU SHOULD USE THE +sm FACILITY FOR SEARCH STRING SPECIFICATION.\n");
 	printf("TO USE ONLY THE MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.\n");
 #else
 	printf("%c%cWDLEN REQUIRES THE PRESENCE OF THE \"%%mor:\" TIER BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cTHIS MEANS ALSO THAT YOU SHOULD USE THE +sm FACILITY FOR SEARCH STRING SPECIFICATION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
 	printf("%c%cTO USE ONLY THE MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
 #endif
 	cutt_exit(0);
@@ -92,8 +108,12 @@ void init(char f) {
 
 	if (f) {
 		Parans = 3;
-		whichTier = SPONLYTRS;
+		if (chatmode)
+			whichTier = BOTHTIERS;
+		else
+			whichTier = SPONLYTRS;
 		wdlen_head = NULL;
+		wdlen_clause = NULL;
 		wdlen_isXXXFound = FALSE;
 		wdlen_isYYYFound = FALSE;
 		addword('\0','\0',"+xxx");
@@ -106,7 +126,6 @@ void init(char f) {
 		addword('\0','\0',"+unk|yyy");
 		addword('\0','\0',"+*|www");
 		addword('\0','\0',"+$*");
-		addword('\0','\0',"+<\">");
 		addword('\0','\0',"+0*");
 		addword('\0','\0',"+&*");
 		addword('\0','\0',"+-*");
@@ -114,15 +133,17 @@ void init(char f) {
 		addword('\0','\0',"+(*.*)");
 		mor_initwords();
 		wdlen_ftime = TRUE;
+		wdlen_ftime2 = TRUE;
 	} else {
 		if (wdlen_ftime) {
 			wdlen_ftime = FALSE;
-			if (chatmode) {
-				whichTier = BOTHTIERS;
+			if (chatmode && whichTier != SPONLYTRS) {
 				maketierchoice("%mor",'+',FALSE);
-				if (isMorSearchListGiven())
+				if (isMORSearch())
 					linkMain2Mor = TRUE;
 			}
+			if (R8)
+				linkMain2Mor = FALSE;
 			for (i=0; GlobalPunctuation[i]; ) {
 				if (GlobalPunctuation[i] == '!' ||
 					GlobalPunctuation[i] == '?' ||
@@ -141,12 +162,72 @@ void init(char f) {
 	}
 }
 
+static WDLENSP *wdlen_free_root(WDLENSP *p) {
+	WDLENSP *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->next_sp;
+		free(t);
+	}
+	return(NULL);
+}
+
+
+static WDLEN_CLAUSES *wdlen_free_clause(WDLEN_CLAUSES *p) {
+	WDLEN_CLAUSES *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->next_clause;
+		if (t->st != NULL)
+			free(t->st);
+		free(t);
+	}
+	return(NULL);
+}
+
+static void wdlen_AddClause(char *s) {
+	WDLEN_CLAUSES *tc;
+
+	if ((tc=NEW(WDLEN_CLAUSES)) == NULL)
+		out_of_mem();
+	if ((tc->st=(char *)malloc(strlen(s)+1)) == NULL)
+		out_of_mem();
+	strcpy(tc->st, s);
+	tc->len = strlen(tc->st);
+	tc->next_clause = wdlen_clause;
+	wdlen_clause = tc;
+}
+
+static void wdlen_AddClauseFromFile(FNType *fname) {
+	FILE *fp;
+	char wd[256];
+	FNType mFileName[FNSize];
+
+	if ((fp=OpenGenLib(fname,"r",TRUE,FALSE,mFileName)) == NULL) {
+		fprintf(stderr, "Can't open either one of the delemeter files:\n\t\"%s\", \"%s\"\n",fname,mFileName);
+		cutt_exit(0);
+	}
+	while (fgets_cr(wd, 255, fp)) {
+		if (uS.isUTF8(wd) || uS.isInvisibleHeader(wd))
+			continue;
+		wdlen_AddClause(wd);
+	}
+	fclose(fp);
+}
+
+
 void getflag(char *f, char *f1, int *i) {
 	int j;
 	char *morf, *t;
 
 	f++;
 	switch(*f++) {
+		case 'a':
+			no_arg_option(f);
+			whichTier = DPONLYTRS;
+			break;
 		case 'b':
 			morf = getfarg(f,f1,i);
 			if (*(f-2) == '-') {
@@ -174,25 +255,34 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			break;
 		case 'c':
-			no_arg_option(f);
-			whichTier = DPONLYTRS;
+			if (!*f) {
+				fprintf(stderr,"Specify clause delemeters after +c option.\n");
+				cutt_exit(0);
+			}
+			if (*f == '@') {
+				f++;
+				wdlen_AddClauseFromFile(f);
+			} else {
+				if (*f == '\\')
+					f++;
+				wdlen_AddClause(f);
+			}
 			break;
 		case 't':
 			if (chatmode) {
 				if (*(f-2) == '+' && *f == '%') {
-					wdlen_ftime = FALSE;
+					wdlen_ftime2 = FALSE;
 					linkMain2Mor = FALSE;
-				}
-				if (*(f-2) == '-' && *f == '%') {
+				} else if (*(f-2) == '-' && *f == '%') {
 					if (!uS.mStricmp(f, "%mor") || !uS.mStricmp(f, "%mor:")) {
-						wdlen_ftime = FALSE;
+						wdlen_ftime2 = FALSE;
 						whichTier = SPONLYTRS;
 						linkMain2Mor = FALSE;
 					}
-				} if (*(f-2) == '-' && !strcmp(f, "*")) {
+				} else if (*(f-2) == '-' && !strcmp(f, "*")) {
 					whichTier = DPONLYTRS;
-				} else
-					maingetflag(f-2,f1,i);
+				}
+				maingetflag(f-2,f1,i);
 			} else {
 				fputs("+/-t option is not allowed with TEXT format\n",stderr);
 				cutt_exit(0);
@@ -223,7 +313,7 @@ void getflag(char *f, char *f1, int *i) {
 				fprintf(stderr,"%s \"%s\" is not allowed.\n", ((*(f-2) == '+') ? "Including" : "Excluding"), f);
 				cutt_exit(0);
 				break;
-			} else if (wdlen_ftime)
+			} else if (wdlen_ftime2)
 				linkMain2Mor = TRUE;
 		case 'd':
 			if (*f == EOS) {
@@ -380,6 +470,65 @@ static void wdlen_pr_result(void) {
 				fprintf(fpout, " %6.3f\n", sum/num);
 			else
 				fprintf(fpout, " %6.3f\n", 0.0);
+		}
+	}
+	if (wdlen_clause != NULL) {
+		fprintf(fpout,"-------\n");
+		if (onlydata == 1)
+			fprintf(fpout,"\nNumber\tof\tutterances\tof\teach\tof\tthese\tlengths\tin\tclauses\n");
+		else
+			fprintf(fpout,"\nNumber of utterances of each of these lengths in clauses\n");
+		lim = computeLimit(CUTTS);
+		if (onlydata == 1)
+			fprintf(fpout,"lengths\t");
+		else
+			fprintf(fpout,"lengths ");
+		for (i=0; i < lim; i++) {
+			if (onlydata == 1)
+				fprintf(fpout,"%d\t", i);
+			else
+				fprintf(fpout," %4d", i);
+		}
+		if (onlydata == 1) {
+			if (lim == ARLEN)
+				fprintf(fpout,"+ Mean\n");
+			else
+				fprintf(fpout,"Mean\n");
+		} else {
+			if (lim == ARLEN)
+				fprintf(fpout,"+  Mean\n");
+			else
+				fprintf(fpout,"   Mean\n");
+		}
+		for (ts=wdlen_head; ts != NULL; ts=ts->next_sp) {
+			sum = 0.0;
+			num = 0.0;
+			if (onlydata == 1)
+				fprintf(fpout,"%s\t", ts->sp);
+			else {
+				strncpy(templineC, ts->sp, 8);
+				templineC[8] = EOS;
+				fprintf(fpout,"%-8s", templineC);
+			}
+			for (i=0; i < lim; i++) {
+				sum += ((double)i * (double)ts->stats[CUTTS][i]);
+				num += (double)ts->stats[CUTTS][i];
+				if (onlydata == 1)
+					fprintf(fpout,"%d\t", ts->stats[CUTTS][i]);
+				else
+					fprintf(fpout," %4d", ts->stats[CUTTS][i]);
+			}
+			if (onlydata == 1) {
+				if (num > 0.0)
+					fprintf(fpout, "%f\n", sum/num);
+				else
+					fprintf(fpout, "%f\n", 0.0);
+			} else {
+				if (num > 0.0)
+					fprintf(fpout, " %6.3f\n", sum/num);
+				else
+					fprintf(fpout, " %6.3f\n", 0.0);
+			}
 		}
 	}
 	if (chatmode) {
@@ -612,11 +761,7 @@ static void wdlen_pr_result(void) {
 				fprintf(fpout, " %6.3f\n", 0.0);
 		}
 	}
-	while (wdlen_head != NULL) {
-		ts = wdlen_head;
-		wdlen_head = wdlen_head->next_sp;
-		free(ts);
-	}
+	wdlen_head = wdlen_free_root(wdlen_head);
 }
 
 static WDLENSP *wdlen_FindSpeaker(const char *sp) {
@@ -669,7 +814,8 @@ static void words_count(char *line, WDLENSP *ts, int *turn_uttCnt, int *turn_wor
 			while (line[c] != EOS && !uS.isskip(line,c,&dFnt,MBF)) {
 				if (!uS.isRightChar(line, c, '+', &dFnt, MBF) && !uS.isRightChar(line, c, '-', &dFnt, MBF) && 
 					!uS.isRightChar(line, c, '#', &dFnt, MBF) && !uS.isRightChar(line, c, '`', &dFnt, MBF) && 
-					!uS.isRightChar(line, c, '~', &dFnt, MBF) && !uS.isRightChar(line, c, '\'', &dFnt, MBF)) {
+					!uS.isRightChar(line, c, '~', &dFnt, MBF) && !uS.isRightChar(line, c, '$', &dFnt, MBF) &&
+					!uS.isRightChar(line, c, '\'', &dFnt, MBF)) {
 					if (uS.isRightChar(line, c, '@', &dFnt, MBF)) {
 						while (line[c] != EOS && !uS.isskip(line,c,&dFnt,MBF))
 							templineC3[i++] = line[c++];
@@ -785,6 +931,12 @@ static WDLENSP *countTiers(WDLENSP *ts, W_UTT *cUT, char *oldSp, int *turn_uttCn
 		ts->stats[MORPH][ts->morphcnt]++;
 	else
 		ts->stats[MORPH][ARLEN-1]++;
+	if (wdlen_clause != NULL) {
+		if (cUT->ClauseCnt < ARLEN)
+			ts->stats[CUTTS][cUT->ClauseCnt]++;
+		else
+			ts->stats[CUTTS][ARLEN-1]++;
+	}
 	return(ts);
 }
 
@@ -794,12 +946,12 @@ static W_UTT *freeUttsCluster(W_UTT *p) {
 	while (p != NULL) {
 		t = p;
 		p = p->nextUtt;
-		if (t->sp)
-			free(t->sp);
-		if (t->line)
-			free(t->line);
-		if (t->mline)
-			free(t->mline);
+    	if (t->sp)
+    		free(t->sp);
+    	if (t->line)
+    		free(t->line);
+    	if (t->mline)
+    		free(t->mline);
 		free(t);
 	}
 	return(NULL);
@@ -829,7 +981,7 @@ static void removeUttDels(char *line) {
 	uS.remFrontAndBackBlanks(line);
 }
 
-static W_UTT *addUttCluster(W_UTT *root, char isAddTier, char *sp, char *line, char *mline) {
+static W_UTT *addUttCluster(W_UTT *root, char isAddTier, char *sp, char *line, char *mline, int ClauseCnt) {
 	char *cLine, *cMLine;
 	W_UTT *p, *lastSp;
 
@@ -837,6 +989,7 @@ static W_UTT *addUttCluster(W_UTT *root, char isAddTier, char *sp, char *line, c
 		if ((root=NEW(W_UTT)) == NULL) {
 			fprintf(stderr,"ERROR: no more core memory available.\n");
 			root = freeUttsCluster(root);
+			wdlen_clause = wdlen_free_clause(wdlen_clause);
 			cutt_exit(0);
 		}
 		p = root;
@@ -858,6 +1011,7 @@ static W_UTT *addUttCluster(W_UTT *root, char isAddTier, char *sp, char *line, c
 				if ((p->line=(char *)malloc(strlen(cLine)+strlen(line)+1)) == NULL) {
 					fprintf(stderr,"ERROR: no more memory available.\n");
 					root = freeUttsCluster(root);
+					wdlen_clause = wdlen_free_clause(wdlen_clause);
 					cutt_exit(0);
 				}
 				strcpy(p->line, cLine);
@@ -866,11 +1020,13 @@ static W_UTT *addUttCluster(W_UTT *root, char isAddTier, char *sp, char *line, c
 				if ((p->mline=(char *)malloc(strlen(cMLine)+strlen(mline)+1)) == NULL) {
 					fprintf(stderr,"ERROR: no more memory available.\n");
 					root = freeUttsCluster(root);
+					wdlen_clause = wdlen_free_clause(wdlen_clause);
 					cutt_exit(0);
 				}
 				strcpy(p->mline, cMLine);
 				strcat(p->mline, " ");
 				strcat(p->mline, mline);
+				p->ClauseCnt = p->ClauseCnt + ClauseCnt;
 				free(cLine);
 				free(cMLine);
 				return(root);
@@ -881,29 +1037,34 @@ static W_UTT *addUttCluster(W_UTT *root, char isAddTier, char *sp, char *line, c
 		if ((p->nextUtt=NEW(W_UTT)) == NULL) {
 			fprintf(stderr,"ERROR: no more core memory available.\n");
 			root = freeUttsCluster(root);
+			wdlen_clause = wdlen_free_clause(wdlen_clause);
 			cutt_exit(0);
 		}
 		p = p->nextUtt;
 	}
-	p->sp      = NULL;
-	p->line    = NULL;
+    p->sp      = NULL;
+    p->line    = NULL;
 	p->mline   = NULL;
-	p->nextUtt = NULL;
+	p->ClauseCnt = ClauseCnt;
+    p->nextUtt = NULL;
 	if ((p->sp=(char *)malloc(strlen(sp)+1)) == NULL) {
 		fprintf(stderr,"ERROR: no more memory available.\n");
 		root = freeUttsCluster(root);
+		wdlen_clause = wdlen_free_clause(wdlen_clause);
 		cutt_exit(0);
 	}
 	strcpy(p->sp, sp);
 	if ((p->line=(char *)malloc(strlen(line)+1)) == NULL) {
 		fprintf(stderr,"ERROR: no more memory available.\n");
 		root = freeUttsCluster(root);
+		wdlen_clause = wdlen_free_clause(wdlen_clause);
 		cutt_exit(0);
 	}
 	strcpy(p->line, line);
 	if ((p->mline=(char *)malloc(strlen(mline)+1)) == NULL) {
 		fprintf(stderr,"ERROR: no more memory available.\n");
 		root = freeUttsCluster(root);
+		wdlen_clause = wdlen_free_clause(wdlen_clause);
 		cutt_exit(0);
 	}
 	strcpy(p->mline, mline);
@@ -938,8 +1099,22 @@ static char isNextTierContinuation(char *line) {
 	return(FALSE);
 }
 
-void call()		{		/* tabulate array of word lengths */
-	int turn_uttCnt, turn_wordCnt;
+static int ClauseCount(char *line) {
+	int i, ClauseCnt;
+	WDLEN_CLAUSES *p;
+
+	ClauseCnt = 0;
+	for (i=0; line[i] != EOS; i++) {
+		for (p=wdlen_clause; p != NULL; p=p->next_clause) {
+			if (strncmp(line+i, p->st, p->len) == 0)
+				ClauseCnt++;
+		}
+	}
+	return(ClauseCnt);
+}
+
+void call()	{		/* tabulate array of word lengths */
+	int turn_uttCnt, turn_wordCnt, ClauseCnt;
 	char isAddTier, isPSDFound;
 	char *spkUtt, *morUtt, oldSp[SPEAKERLEN];
 	WDLENSP *ts;
@@ -950,6 +1125,7 @@ void call()		{		/* tabulate array of word lengths */
 	morUtt = spareTier2;
 	spkUtt[0] = EOS;
 	morUtt[0] = EOS;
+	ClauseCnt = 0;
 	oldSp[0] = EOS;
 	isAddTier = FALSE;
 	isPSDFound = 0;
@@ -967,10 +1143,12 @@ void call()		{		/* tabulate array of word lengths */
 			uS.remFrontAndBackBlanks(morUtt);
 		} else {
 			if (spkUtt[0] != EOS)
-				rootUtt = addUttCluster(rootUtt, isAddTier, oldSp, spkUtt, morUtt);
+				rootUtt = addUttCluster(rootUtt, isAddTier, oldSp, spkUtt, morUtt, ClauseCnt);
 			spkUtt[0] = EOS;
 			morUtt[0] = EOS;
 			if (utterance->speaker[0] == '*' || !chatmode) {
+				if (wdlen_clause != NULL)
+					ClauseCnt = ClauseCount(utterance->line);
 				isAddTier = isTierContinuation(utterance->line, isPSDFound);
 				isPSDFound = isNextTierContinuation(utterance->line);
 				strcpy(oldSp, utterance->speaker);
@@ -982,7 +1160,7 @@ void call()		{		/* tabulate array of word lengths */
 		}
 	}
 	if (spkUtt[0] != EOS)
-		rootUtt = addUttCluster(rootUtt, isAddTier, oldSp, spkUtt, morUtt);
+		rootUtt = addUttCluster(rootUtt, isAddTier, oldSp, spkUtt, morUtt, ClauseCnt);
 	oldSp[0] = EOS;
 	ts = NULL;
 	turn_uttCnt = 0;
@@ -1012,4 +1190,6 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	OnlydataLimit = 1;
 	UttlineEqUtterance = FALSE;
 	bmain(argc,argv,wdlen_pr_result);
+	wdlen_clause = wdlen_free_clause(wdlen_clause);
+	wdlen_head = wdlen_free_root(wdlen_head);
 }

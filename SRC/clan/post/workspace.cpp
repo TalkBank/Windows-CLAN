@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -14,7 +14,7 @@
 #include "storage.hpp"
 #include "workspace.hpp"
 
-void cWorkSpace::Parameters( int memvsfile, long szvmem )
+void cWorkSpace::Parameters( int memvsfile, long32 szvmem )
 {
 	if (szvmem < 100000)  szvmem = 100000;
 	if (szvmem > 256000000) szvmem = 256000000;
@@ -33,7 +33,7 @@ int cWorkSpace::Create(FNType* s)
 	m_vm.m_lversionnumber = low_WSP_VERSION_NUMBER;
 	m_vm.m_hversionnumber = high_WSP_VERSION_NUMBER;
 
-#if UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#if defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 	strcpy(m_vm.m_CreationName, s);
 #else
 	uS.FNType2str(m_vm.m_CreationName, 0L, s);
@@ -48,10 +48,10 @@ int cWorkSpace::Create(FNType* s)
 	// OLD *** vmWrite( &m_vm, 0l, sizeof(cVMWorkSpace) );
 	vmWrite( m_vm.m_sgn, 0L, 2 );
 	vmWriteShort ( m_vm.m_lversionnumber, 2L );
-	vmWriteShort ( m_vm.m_hversionnumber, (long)(2+sizeof(short int)) );
-	vmWrite ( m_vm.m_CreationDate, (long)(2+2*sizeof(short int)), 128 );
-	vmWrite ( m_vm.m_CreationName, (long)(2+2*sizeof(short int)+128), 128 );
-	vmWriteLong ( m_vm.m_FirstElement, (long)(2+2*sizeof(short int)+2*128) );
+	vmWriteShort ( m_vm.m_hversionnumber, (long32)(2+sizeof(short int)) );
+	vmWrite ( m_vm.m_CreationDate, (long32)(2+2*sizeof(short int)), 128 );
+	vmWrite ( m_vm.m_CreationName, (long32)(2+2*sizeof(short int)+128), 128 );
+	vmWriteLong ( m_vm.m_FirstElement, (long32)(2+2*sizeof(short int)+2*128) );
 
 	return 1;
 }
@@ -67,9 +67,9 @@ int cWorkSpace::Open(FNType* s, int RW)
 	// OLD *** vmRead( &m_vm, 0l, sizeof(cVMWorkSpace) );
 	vmRead( m_vm.m_sgn, 0L, 2 );
 	m_vm.m_lversionnumber = vmReadShort ( 2L );
-	m_vm.m_hversionnumber = vmReadShort ( (long)(2+sizeof(short int)) );
-	vmRead ( m_vm.m_CreationDate, (long)(2+2*sizeof(short int)), 128 );
-	vmRead ( m_vm.m_CreationName, (long)(2+2*sizeof(short int)+128), 128 );
+	m_vm.m_hversionnumber = vmReadShort ( (long32)(2+sizeof(short int)) );
+	vmRead ( m_vm.m_CreationDate, (long32)(2+2*sizeof(short int)), 128 );
+	vmRead ( m_vm.m_CreationName, (long32)(2+2*sizeof(short int)+128), 128 );
 
 	if (m_vm.m_sgn[0] != 'W' || m_vm.m_sgn[1] != 'X') {
 		msg( "error: this file is not a POST workspace\n" );
@@ -103,7 +103,7 @@ int cWorkSpace::Open(FNType* s, int RW)
 	}
 
 	/*** read last element of workspace structure ***/
-	m_vm.m_FirstElement = vmReadLong ( (long)(2+2*sizeof(short int)+2*128) );
+	m_vm.m_FirstElement = vmReadLong ( (long32)(2+2*sizeof(short int)+2*128) );
 
 	/*** ***/
 	// msg( "Workspace is %s\n", m_Reversed ? "reversed" : "not reversed" );
@@ -116,10 +116,10 @@ void cWorkSpace::Save()
 	/** write one by one each element of the structure **/
 	vmWrite( m_vm.m_sgn, 0L, 2 );
 	vmWriteShort ( m_vm.m_lversionnumber, 2L );
-	vmWriteShort ( m_vm.m_hversionnumber, (long)(2+sizeof(short int)) );
-	vmWrite ( m_vm.m_CreationDate, (long)(2+2*sizeof(short int)), 128 );
-	vmWrite ( m_vm.m_CreationName, (long)(2+2*sizeof(short int)+128), 128 );
-	vmWriteLong ( m_vm.m_FirstElement, (long)(2+2*sizeof(short int)+2*128) );
+	vmWriteShort ( m_vm.m_hversionnumber, (long32)(2+sizeof(short int)) );
+	vmWrite ( m_vm.m_CreationDate, (long32)(2+2*sizeof(short int)), 128 );
+	vmWrite ( m_vm.m_CreationName, (long32)(2+2*sizeof(short int)+128), 128 );
+	vmWriteLong ( m_vm.m_FirstElement, (long32)(2+2*sizeof(short int)+2*128) );
 	vmSave();
 }
 
@@ -128,10 +128,10 @@ void cWorkSpace::Close()
 	/** write one by one each element of the structure **/
 	vmWrite( m_vm.m_sgn, 0L, 2 );
 	vmWriteShort ( m_vm.m_lversionnumber, 2L );
-	vmWriteShort ( m_vm.m_hversionnumber, (long)(2+sizeof(short int)) );
-	vmWrite ( m_vm.m_CreationDate, (long)(2+2*sizeof(short int)), 128 );
-	vmWrite ( m_vm.m_CreationName, (long)(2+2*sizeof(short int)+128), 128 );
-	vmWriteLong ( m_vm.m_FirstElement, (long)(2+2*sizeof(short int)+2*128) );
+	vmWriteShort ( m_vm.m_hversionnumber, (long32)(2+sizeof(short int)) );
+	vmWrite ( m_vm.m_CreationDate, (long32)(2+2*sizeof(short int)), 128 );
+	vmWrite ( m_vm.m_CreationName, (long32)(2+2*sizeof(short int)+128), 128 );
+	vmWriteLong ( m_vm.m_FirstElement, (long32)(2+2*sizeof(short int)+2*128) );
 	vmClose();
 }
 
@@ -154,12 +154,12 @@ int cWorkSpace::CreateNS(const char* extname, address where)
 	/** write one by one each element of the structure **/
 	// OLD *** vmWrite( &tmp, iadr, sizeof(cSymbolicAddress) );
 	vmWrite( tmp.m_Name, iadr, MaxNameSA );
-	vmWriteLong( tmp.m_VirtualAddress, iadr + (long)(MaxNameSA) );
-	vmWriteLong( tmp.m_NextSA, iadr + (long)(MaxNameSA+sizeof(long)) );
+	vmWriteLong( tmp.m_VirtualAddress, iadr + (long32)(MaxNameSA) );
+	vmWriteLong( tmp.m_NextSA, iadr + (long32)(MaxNameSA+sizeof(long32)) );
 
 	m_vm.m_FirstElement = iadr;
 	/** write last element of the structure **/
-	vmWriteLong ( m_vm.m_FirstElement, (long)(2+2*sizeof(short int)+2*128) );
+	vmWriteLong ( m_vm.m_FirstElement, (long32)(2+2*sizeof(short int)+2*128) );
 	return 1;
 }
 
@@ -171,8 +171,8 @@ address cWorkSpace::OpenNS(const char* extname)
 		/** read one by one each element of the structure **/
 		// OLD *** vmRead( &tmp, iadr, sizeof(cSymbolicAddress) );
 		vmRead( tmp.m_Name, iadr, MaxNameSA );
-		tmp.m_VirtualAddress = vmReadLong( iadr + (long)(MaxNameSA) );
-		tmp.m_NextSA = vmReadLong( iadr + (long)(MaxNameSA+sizeof(long)) );
+		tmp.m_VirtualAddress = vmReadLong( iadr + (long32)(MaxNameSA) );
+		tmp.m_NextSA = vmReadLong( iadr + (long32)(MaxNameSA+sizeof(long32)) );
 		if ( strlen(extname) < MaxNameSA ) {
 			if (!strcmp( tmp.m_Name, extname ))
 				return tmp.m_VirtualAddress;
@@ -193,8 +193,8 @@ void cWorkSpace::ListNS()
 		/** read one by one each element of the structure **/
 		// OLD *** vmRead( &tmp, iadr, sizeof(cSymbolicAddress) );
 		vmRead( tmp.m_Name, iadr, MaxNameSA );
-		tmp.m_VirtualAddress = vmReadLong( iadr + (long)(MaxNameSA) );
-		tmp.m_NextSA = vmReadLong( iadr + (long)(MaxNameSA+sizeof(long)) );
+		tmp.m_VirtualAddress = vmReadLong( iadr + (long32)(MaxNameSA) );
+		tmp.m_NextSA = vmReadLong( iadr + (long32)(MaxNameSA+sizeof(long32)) );
 		fprintf(stderr,"%s %lx %lx\n", tmp.m_Name, tmp.m_VirtualAddress, tmp.m_NextSA);
 		iadr = tmp.m_NextSA;	
 	}

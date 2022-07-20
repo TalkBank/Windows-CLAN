@@ -26,9 +26,9 @@ enum {
 
 struct SelectedTiers {
 	char type;
-	wchar_t name[TIERNAMELEN];
+	unCH name[TIERNAMELEN];
 	char what2do;
-	wchar_t role[TIERNAMELEN+1];
+	unCH role[TIERNAMELEN+1];
 } ;
 
 #define DIAL_SPEAKER_FILED_LEN 30
@@ -45,7 +45,7 @@ struct TiersListS {
 } ;
 
 static struct SelectedTiers STier;
-static wchar_t FilePattern[256+1];
+static unCH FilePattern[256+1];
 static struct TiersListS *spTiersRoot;
 static struct TiersListS *depTiersRoot;
 
@@ -386,7 +386,7 @@ void CClanTiersSelectFile::OnFilePat()
 	EndDialog(IDCANCEL);
 }
 
-int SelectFilesDialog(wchar_t *additions) {
+int SelectFilesDialog(unCH *additions) {
 	int	res;
 	CClanTiersSelectFile dlg;
 
@@ -394,7 +394,9 @@ int SelectFilesDialog(wchar_t *additions) {
 	dlg.m_FilePat = FilePattern;
 	if (dlg.DoModal() == IDOK) {
 		res = FILES_IN;
-		strcpy(additions, cl_T(" @"));
+		if (!isAtOnCommandLineFound(additions)) {
+			strcpy(additions, cl_T(" @"));
+		}
 	} else if (dlg.res == TRUE) {
 		res = FILES_PAT;
 		strcpy(additions, dlg.m_FilePat);
@@ -1462,7 +1464,7 @@ void CClanTiersSelect::makeTiersList(int ProgNum, short pixelLen) {
 		} else {
 			if (!strcmp(cl_argv[i], "@")) {
 				for (j=1; j <= F_numfiles; j++) {
-					get_selected_file(j, FileName1);
+					get_selected_file(j, FileName1, FNSize);
 					getTierNamesFromFile(pixelLen, FileName1);
 				}
 			} else if (cl_argv[i][0] == '@' && cl_argv[i][1] == ':') {
@@ -1495,22 +1497,21 @@ void CClanTiersSelect::makeTiersList(int ProgNum, short pixelLen) {
 }
 
 static char isExcludeHeadFromProg(int ProgNum) {
-	if (ProgNum == FREQMERGE || ProgNum == TEXTIN   || ProgNum == ANVIL2CHAT||
+	if (ProgNum == TEXT2CHAT   || ProgNum == ANVIL2CHAT||
 		ProgNum == COMBTIER  || ProgNum == ELAN2CHAT || ProgNum == LAB2CHAT || ProgNum == LIPP2CHAT ||
-		ProgNum == OLAC_P    || ProgNum == PRAAT2CHAT|| ProgNum == RTFIN    || ProgNum == SALTIN    ||
-		ProgNum == SUBTITLES || ProgNum == UNIQ      || ProgNum == COMPOUND || ProgNum == DOS2UNIX  ||
-		ProgNum == CHECK     || ProgNum == RELY      || ProgNum == CP2UTF   || ProgNum == FIXIT     ||
-		ProgNum == REPEAT    || ProgNum == RETRACE   || ProgNum == MOR_P    || ProgNum == MEGRASP   ||
-		ProgNum == FIXCA) 
+		ProgNum == OLAC_P    || ProgNum == PRAAT2CHAT|| ProgNum == RTF2CHAT || ProgNum == SALT2CHAT ||
+		ProgNum == UNIQ      || ProgNum == COMPOUND || ProgNum == DOS2UNIX  ||
+		ProgNum == CHECK_P   || ProgNum == RELY      || ProgNum == CP2UTF   || ProgNum == FIXIT     ||
+		ProgNum == REPEAT    || ProgNum == RETRACE   || ProgNum == MOR_P    || ProgNum == MEGRASP) 
 		return(FALSE);
 	return(TRUE);
 }
 
 static char isExcludeDepFromProg(int ProgNum) {
 	if (ProgNum == CHAINS || ProgNum == FLO    || ProgNum == KEYMAP || ProgNum == MODREP  ||
-		ProgNum == CHECK  || ProgNum == CP2UTF || ProgNum == IMDI_P || ProgNum == LOWCASE || 
+		ProgNum == CHECK_P|| ProgNum == CP2UTF || ProgNum == CMDI_P || ProgNum == LOWCASE || 
 		ProgNum == RETRACE|| ProgNum == RELY   || ProgNum == FIXIT  || ProgNum == REPEAT  ||
-		ProgNum == RETRACE|| ProgNum == MOR_P  || ProgNum == MEGRASP|| ProgNum == FIXCA) 
+		ProgNum == RETRACE|| ProgNum == MOR_P  || ProgNum == MEGRASP) 
 		return(FALSE);
 	return(TRUE);
 }
@@ -1801,6 +1802,13 @@ BOOL CClanTiersSelect::PreTranslateMessage(MSG* pMsg)
 		if (qt) {
 			StopMovie(qt->theMovie);
 			qt->isPlaying = 0;
+			isPlayRange = false;
+			PBC.walk = 0;
+			PBC.isPC = 0;
+		}
+		if (mpeg) {
+			mpeg->StopMpegMovie();
+			mpeg->isPlaying = 0;
 			isPlayRange = false;
 			PBC.walk = 0;
 			PBC.isPC = 0;

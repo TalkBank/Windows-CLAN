@@ -1,16 +1,13 @@
 #include "ced.h"
 
-#ifdef _UNICODE
-#define DEFFSIZE -13L
+#define DEFFSIZE -14L
 
 static char fontName[256];
 long w95_fontSize = 0L;
 
-// extern LOGFONT m_lfDefFont;
-
 char *defFontName(void) {
 	if (w95_fontSize == 0L) {
-//		if (!strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") || !strcmp(m_lfDefFont.lfFaceName, "CAfont"/*UNICODEFONT*/)) {
+//		if (!strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") || !strcmp(m_lfDefFont.lfFaceName, "Cambria") || !strcmp(m_lfDefFont.lfFaceName, "CAfont")) {
 			w95_fontSize = m_lfDefFont.lfHeight;
 //		} else {
 //			w95_fontSize = DEFFSIZE;
@@ -22,7 +19,7 @@ char *defFontName(void) {
 
 long defFontSize(void) {
 	if (w95_fontSize == 0L) {
-		if (!strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") || !strcmp(m_lfDefFont.lfFaceName, "CAfont"/*UNICODEFONT*/)) {
+		if (!strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") || !strcmp(m_lfDefFont.lfFaceName, "Cambria") || !strcmp(m_lfDefFont.lfFaceName, "CAfont"/*UNICODEFONT*/)) {
 			w95_fontSize = m_lfDefFont.lfHeight;
 		} else {
 			w95_fontSize = DEFFSIZE;
@@ -31,7 +28,6 @@ long defFontSize(void) {
 	}
 	return(w95_fontSize);
 }
-#endif
 
 short GetFontHeight(FONTINFO *fontInfo, NewFontInfo *finfo) {
 	LOGFONT lfFont;
@@ -50,8 +46,12 @@ short GetFontHeight(FONTINFO *fontInfo, NewFontInfo *finfo) {
 	return(CharsWidth.cy + FLINESPACE);	
 }
 
+void InitMyWindows(void) {
+
+}
+
 int getNumberOffset(void) {
-    FONTINFO *font;
+    FONTINFO *font, fi;
 	LOGFONT lfFont;
     int nDigs;
 	CFont l_font;
@@ -61,10 +61,18 @@ int getNumberOffset(void) {
 		return(0);
 	if (GlobalDC == NULL)
 		return(0);
+	if (global_df != NULL) {
+		if (global_df->winWidthOffset != -1)
+			return(global_df->winWidthOffset);
+	}
 
 	font = GetTextFont(global_df);
-	if (font == NULL)
-		return(0);
+	if (font == NULL) {
+		strcpy(fi.FName, dFnt.fontName);
+		fi.CharSet = DEFAULT_CHARSET;
+		fi.FSize = dFnt.fontSize;
+		font = &fi;
+	}
 	SetLogfont(&lfFont, font, NULL);
 	l_font.CreateFontIndirect(&lfFont);
 	CFont* pOldFont = GlobalDC->SelectObject(&l_font);
@@ -79,7 +87,9 @@ int getNumberOffset(void) {
 	CharsWidth = GlobalDC->GetTextExtent(_T("555555555555555555555"), nDigs);
 	GlobalDC->SelectObject(pOldFont);
 	l_font.DeleteObject();
-	return((int)CharsWidth.cx);	
+	if (global_df != NULL)
+		global_df->winWidthOffset = CharsWidth.cx + 10L;
+	return((int)CharsWidth.cx + 10L);
 }
 
 int WindowPageWidth(void) {
@@ -147,7 +157,7 @@ int NumOfRowsOfDefaultWindow(void) {
 	CSize CharsWidth;
 	CWnd*	win;
 	CFont t_font;
-	LOGFONT lf;
+//	LOGFONT lf;
 
 
 	if (GlobalDC == NULL)

@@ -49,7 +49,8 @@ static void COPYDATA(unCH *pt, unCH *src, long *cnt, char *NL_F) {
 }
 
 static void CHECKLINETERM(long *cnt, char NL_F) {
-	if (global_df->ChatMode && !NL_F) {
+	if (doReWrap && global_df->ChatMode) {
+	} else if (global_df->ChatMode && !NL_F) {
 		(*cnt) += 1;
 	} else if (!NL_F) {
 		(*cnt) += 1;
@@ -57,7 +58,8 @@ static void CHECKLINETERM(long *cnt, char NL_F) {
 }
 
 static void LINETERMINATOR(unCH *pt, long *cnt, char NL_F) {
-	if (global_df->ChatMode && !NL_F) {	\
+	if (doReWrap && global_df->ChatMode) {
+	} else if (global_df->ChatMode && !NL_F) {
 		pt[*cnt] = '\n';
 		(*cnt) += 1;
 	} else if (!NL_F) {
@@ -66,7 +68,7 @@ static void LINETERMINATOR(unCH *pt, long *cnt, char NL_F) {
 	}
 }
 
-static unsigned long createLineNumberStr(LPTSTR pt, long cnt, ROWS *st, long lineno) {
+static long createLineNumberStr(LPTSTR pt, long cnt, ROWS *st, unsigned long lineno) {
 	long nDigs, len;
 
 	len = 0;
@@ -91,15 +93,31 @@ static unsigned long createLineNumberStr(LPTSTR pt, long cnt, ROWS *st, long lin
 	return(cnt+len);
 }
 
+static ROWS *copyToNextRow(ROWS *p, unsigned long *lineno) {
+	if (!global_df->ChatMode) {
+		return(p->next_row);
+	} else {
+		while (p != global_df->tail_text) {
+			p = p->next_row;
+			if (CMP_VIS_ID(p->flag))
+				return(p);
+			else
+				(*lineno)++;
+		}
+		return(p);
+	}
+}
+
 char doCopy(void) {
 	LPTSTR  lptstrCopy1, lptstrCopy2; 
 	HGLOBAL hglbCopy1, hglbCopy2;
 	unCH *src;
-	char NL_F;
+	char NL_F, prevNL_F;
     AttTYPE *att, oldAtt;
-	long cnt;
-	long lineno;
+	long cnt, oCnt;
 	long sc, ec, tc;
+	unsigned long len;
+	unsigned long lineno;
 	ROWS *tst, *st, *et;
 
 	if (!GlobalDC->GetWindow()->OpenClipboard())
@@ -108,7 +126,7 @@ char doCopy(void) {
 		EmptyClipboard(); 
 		ChangeCurLineAlways(0);
 		if (global_df->row_win2 == 0) {
-			// for CLAN
+// for CLAN
 			if (global_df->col_win > global_df->col_win2) {
 				sc = global_df->col_chr2;
 				ec = global_df->col_chr;
@@ -150,7 +168,7 @@ char doCopy(void) {
 			GlobalUnlock(hglbCopy1); 
 //			GlobalFree(hglbCopy1);
 
-			// for other APPs
+// for other APPs
 			if (FALSE/*isShowLineNums*/) {
 				lineno = 1L;
 				for (tst=global_df->head_text->next_row; tst != global_df->tail_text; tst=tst->next_row) {
@@ -217,8 +235,8 @@ char doCopy(void) {
 //			GlobalFree(hglbCopy2);
 			CloseClipboard(); 
 		} else {
-			// for CLAN
-			if (global_df->row_win2 < 0L) {
+// for CLAN
+		if (global_df->row_win2 < 0L) {
 				et = global_df->row_txt;
 				for (cnt=global_df->row_win2, st=global_df->row_txt; cnt && !AtTopEnd(st,global_df->head_text,FALSE); 
 								cnt++, st=ToPrevRow(st, FALSE)) ;
@@ -282,31 +300,60 @@ char doCopy(void) {
 			else
 				att = NULL;
 			oldAtt = 0;
-    		for (src=st->line+sc; *src; src++) {
+			prevNL_F = TRUE;
+			if (st != global_df->head_text->next_row && st != global_df->head_text && sc == 0) {
+				len = strlen(st->prev_row->line);
+				if (len > 0) {
+					if (st->prev_row->line[len-1] != NL_C)
+						prevNL_F = FALSE;
+				}
+			}
+			oCnt = cnt;
+			for (src = st->line + sc; *src; src++) {
 				att = HANDLEATT(lptstrCopy1, att, &cnt, &oldAtt);
 				COPYDATA(lptstrCopy1, src, &cnt, &NL_F);
    			}
-   			LINETERMINATOR(lptstrCopy1, &cnt, NL_F);
+			if (prevNL_F == FALSE && global_df->ChatMode && doReWrap) {
+				if (lptstrCopy1[oCnt] == '\t') {
+					lptstrCopy1[oCnt] = ' ';
+				}
+			}
+			prevNL_F = NL_F;
+			LINETERMINATOR(lptstrCopy1, &cnt, NL_F);
 			if (!AtBotEnd(st,et,FALSE)) {
 				do {
 					st = ToNextRow(st, FALSE);
   			  		NL_F = FALSE;
 					att = st->att;
-  			  		for (src=st->line; *src; src++) {
+					oCnt = cnt;
+					for (src = st->line; *src; src++) {
   			  			att = HANDLEATT(lptstrCopy1, att, &cnt, &oldAtt);
   			  			COPYDATA(lptstrCopy1, src, &cnt, &NL_F);
    					}
-   					LINETERMINATOR(lptstrCopy1, &cnt, NL_F);
+					if (prevNL_F == FALSE && global_df->ChatMode && doReWrap) {
+						if (lptstrCopy1[oCnt] == '\t') {
+							lptstrCopy1[oCnt] = ' ';
+						}
+					}
+					prevNL_F = NL_F;
+					LINETERMINATOR(lptstrCopy1, &cnt, NL_F);
 				} while (!AtBotEnd(st,et,FALSE)) ;
 			}
 			st = ToNextRow(st, FALSE);
 			att = st->att;
 			if (ec == strlen(st->line))
  	 			NL_F = FALSE;
-			for (src=st->line, tc = ec; tc && *src; tc--, src++) {
+			oCnt = cnt;
+			for (src = st->line, tc = ec; tc && *src; tc--, src++) {
 				att = HANDLEATT(lptstrCopy1, att, &cnt, &oldAtt);
 				COPYDATA(lptstrCopy1, src, &cnt, &NL_F);
 			}
+			if (prevNL_F == FALSE && global_df->ChatMode && doReWrap) {
+				if (lptstrCopy1[oCnt] == '\t') {
+					lptstrCopy1[oCnt] = ' ';
+				}
+			}
+			prevNL_F = NL_F;
 			if (ec == strlen(st->line)) {
    				LINETERMINATOR(lptstrCopy1, &cnt, NL_F);
    			}
@@ -315,7 +362,7 @@ char doCopy(void) {
 			GlobalUnlock(hglbCopy1); 
 //			GlobalFree(hglbCopy1);
 
-			// for other APPs
+// for other APPs
 			if (global_df->row_win2 < 0L) {
 				et = global_df->row_txt;
 				for (cnt=global_df->row_win2, st=global_df->row_txt; cnt && !AtTopEnd(st,global_df->head_text,FALSE); 
@@ -327,7 +374,7 @@ char doCopy(void) {
 								cnt--, et=ToNextRow(et, FALSE)) ;
 				sc = global_df->col_chr; ec = global_df->col_chr2;
 			}
-			if (isShowLineNums) {
+			if (FALSE/*isShowLineNums*/) {
 				lineno = 1L;
 				for (tst=global_df->head_text->next_row; tst != global_df->tail_text; tst=tst->next_row) {
 					if (tst == st)
@@ -339,7 +386,7 @@ char doCopy(void) {
 			tst = st;
     		cnt = 0L;
     		NL_F = FALSE;
-			if (isShowLineNums)
+			if (FALSE/*isShowLineNums*/)
 				cnt = createLineNumberStr(NULL, cnt, st, lineno);
     		for (src=st->line+sc; *src; src++) {
 				CHECKDATA(src, &cnt, &NL_F);
@@ -349,7 +396,7 @@ char doCopy(void) {
 				do {
 					st = ToNextRow(st, FALSE);
   			  		NL_F = FALSE;
-					if (isShowLineNums)
+					if (FALSE/*isShowLineNums*/)
 						cnt = createLineNumberStr(NULL, cnt, st, lineno);
   			  		for (src=st->line; *src; src++) {
   			  			CHECKDATA(src, &cnt, &NL_F);
@@ -360,7 +407,7 @@ char doCopy(void) {
 			st = ToNextRow(st, FALSE);
 			if (ec == strlen(st->line))
  	 			NL_F = FALSE;
-			if (isShowLineNums)
+			if (FALSE/*isShowLineNums*/)
 				cnt = createLineNumberStr(NULL, cnt, st, lineno);
 			for (src=st->line, tc = ec; tc && *src; tc--, src++) {
 				CHECKDATA(src, &cnt, &NL_F);
@@ -380,11 +427,20 @@ char doCopy(void) {
 			st = tst;
     		cnt = 0L;
     		NL_F = FALSE;
-			if (isShowLineNums) {
+			if (FALSE/*isShowLineNums*/) {
 				cnt = createLineNumberStr(lptstrCopy2, cnt, st, lineno);
 				lineno++;
 			}
-    		for (src=st->line+sc; *src; src++) {
+			prevNL_F = TRUE;
+			if (st != global_df->head_text->next_row && st != global_df->head_text && sc == 0) {
+				len = strlen(st->prev_row->line);
+				if (len > 0) {
+					if (st->prev_row->line[len - 1] != NL_C)
+						prevNL_F = FALSE;
+				}
+			}
+			oCnt = cnt;
+			for (src = st->line + sc; *src; src++) {
 				if (*src == HIDEN_C && global_df->ShowParags != '\002') {
 					src++;
 					if (*src == EOS)
@@ -396,15 +452,23 @@ char doCopy(void) {
 				} else
 					COPYDATA(lptstrCopy2, src, &cnt, &NL_F);
    			}
-   			LINETERMINATOR(lptstrCopy2, &cnt, NL_F);
+			if (prevNL_F == FALSE && global_df->ChatMode && doReWrap) {
+				if (lptstrCopy2[oCnt] == '\t') {
+					lptstrCopy2[oCnt] = ' ';
+				}
+			}
+			prevNL_F = NL_F;
+			LINETERMINATOR(lptstrCopy2, &cnt, NL_F);
 			if (!AtBotEnd(st,et,FALSE)) {
 				do {
-					st = ToNextRow(st, FALSE);
-  			  		NL_F = FALSE;
-					if (isShowLineNums) {
+					NL_F = FALSE;
+					oCnt = cnt;
+					if (FALSE/*isShowLineNums*/) {
+						st = copyToNextRow(st, &lineno);
 						cnt = createLineNumberStr(lptstrCopy2, cnt, st, lineno);
 						lineno++;
-					}
+					} else
+						st = ToNextRow(st, FALSE);
   			  		for (src=st->line; *src; src++) {
 						if (*src == HIDEN_C && global_df->ShowParags != '\002') {
 							src++;
@@ -417,13 +481,23 @@ char doCopy(void) {
 						} else
 	  			  			COPYDATA(lptstrCopy2, src, &cnt, &NL_F);
    					}
-   					LINETERMINATOR(lptstrCopy2, &cnt, NL_F);
+					if (prevNL_F == FALSE && global_df->ChatMode && doReWrap) {
+						if (lptstrCopy2[oCnt] == '\t') {
+							lptstrCopy2[oCnt] = ' ';
+						}
+					}
+					prevNL_F = NL_F;
+					LINETERMINATOR(lptstrCopy2, &cnt, NL_F);
 				} while (!AtBotEnd(st,et,FALSE)) ;
 			}
-			st = ToNextRow(st, FALSE);
+			if (FALSE/*isShowLineNums*/)
+				st = copyToNextRow(st, &lineno);
+			else
+				st = ToNextRow(st, FALSE);
 			if (ec == strlen(st->line))
  	 			NL_F = FALSE;
-			if (isShowLineNums) {
+			oCnt = cnt;
+			if (FALSE/*isShowLineNums*/) {
 				cnt = createLineNumberStr(lptstrCopy2, cnt, st, lineno);
 				lineno++;
 			}
@@ -442,6 +516,12 @@ char doCopy(void) {
 				} else
 					COPYDATA(lptstrCopy2, src, &cnt, &NL_F);
 			}
+			if (prevNL_F == FALSE && global_df->ChatMode && doReWrap) {
+				if (lptstrCopy2[oCnt] == '\t') {
+					lptstrCopy2[oCnt] = ' ';
+				}
+			}
+			prevNL_F = NL_F;
 			if (ec == strlen(st->line)) {
    				LINETERMINATOR(lptstrCopy2, &cnt, NL_F);
    			}
@@ -494,8 +574,10 @@ void doPaste(void) {
 						len = strlen(lptstr);
 						for (s=lptstr; *s; s++) {
 							if (*s == '\n') {
-								if (global_df->ChatMode) *s = SNL_C;
-								else *s = NL_C;
+//								if (global_df->ChatMode)
+//									*s = SNL_C;
+//								else
+									*s = NL_C;
 							}
 						}
 						if (global_df->RdW == global_df->w1) {
@@ -538,8 +620,10 @@ void doPaste(void) {
 							if (*s == 0x2022)
 								*s = HIDEN_C;
 							else if (*s == '\n') {
-								if (global_df->ChatMode) *s = SNL_C;
-								else *s = NL_C;
+//								if (global_df->ChatMode)
+//									*s = SNL_C;
+//								else
+									*s = NL_C;
 							}
 						}
 						if (global_df->RdW == global_df->w1) {

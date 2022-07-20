@@ -33,16 +33,6 @@ extern "C" {
 #if PRAGMA_IMPORT_SUPPORTED
 #pragma import on
 #endif
-/* lxs movie
-struct _extended80 {
-	short exp;
-	short man[4];
-} ;
-typedef _extended80    extended80;
-*/
-typedef unsigned char  UInt8;
-typedef unsigned short UInt16;
-typedef unsigned long  UInt32;
 
 enum {
 	AIFFID						= 'AIFF',

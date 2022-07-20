@@ -34,12 +34,14 @@ public:
 
 // Implementation
 protected:
+	void ResizeSpCharWindow(int cx, int cy);
 
 	// Generated message map functions
 	//{{AFX_MSG(CSpCharsDialog)
 	afx_msg void OnSelchangeClanSpChars();
 	afx_msg void OnDblclkClanSpChars();
 	afx_msg void OnDestroy();
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };

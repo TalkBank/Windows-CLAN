@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -11,6 +11,12 @@
 #include "sysdep.hpp"
 
 #if defined(POSTCODE) || defined(_MAC_CODE)
+#if __LP64__
+	#define long32 int
+#else
+	#define long32 long
+#endif
+
 extern "C"
 {
 #endif
@@ -19,7 +25,7 @@ extern "C"
 extern VOIDP Memory_allocate(size_t);
 extern VOIDP Memory_reallocate(VOIDP, size_t);
 extern NORET Memory_free(VOIDP);
-extern long Memory_unfreed_bytes(NOARGS);
+extern long32 Memory_unfreed_bytes(NOARGS);
 
 #if defined(POSTCODE) || defined(_MAC_CODE)
 }

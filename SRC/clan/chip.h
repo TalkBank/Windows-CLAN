@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -87,6 +87,8 @@ enum classification_enum classify(char speaker[]);
 enum classification_enum utter_class(real_utterance *utter);
 void set_child_speaker(char speaker[]);
 void set_adult_speaker(char speaker[]);
+void output_child_codes(FILE *fp);
+void output_adult_codes(FILE *fp);
 void set_default_speaker(enum classification_enum speaker);
 void chip_exit(const char *err, char isQuit);
 void output_utter( FILE *f, real_utterance *utter);

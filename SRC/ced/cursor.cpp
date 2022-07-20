@@ -1,7 +1,7 @@
 #include "ced.h"
 #ifdef _WIN32 
 #include "CedDlgs.h"
-#include <TextUtils.h>
+// NO QT #include <TextUtils.h>
 #endif
 
 /* cursor movement begin */
@@ -180,7 +180,11 @@ int EndOfLine(int i) {
 int BeginningOfWindow(int i) {
 	while (global_df->row_txt != global_df->top_win) {
 		global_df->row_txt = global_df->row_txt->prev_row;
-		if (CMP_VIS_ID(global_df->row_txt->flag)) global_df->lineno--;
+		if (CMP_VIS_ID(global_df->row_txt->flag)) {
+			if (isNL_CFound(global_df->row_txt))
+				global_df->lineno--;
+			global_df->wLineno--;
+		}
 	}
 	global_df->row_win = 0L;
 	BeginningOfLine(-1);
@@ -193,6 +197,8 @@ int BeginningOfWindow(int i) {
 }
 
 int EndOfWindow(int i) {
+	char isAddLineno;
+
 	while (1) {
 		if (global_df->row_win == (long)(global_df->EdWinSize-1)) break;
 		else if (AtBotEnd(global_df->row_txt, global_df->tail_text, FALSE)) break;
@@ -201,8 +207,14 @@ int EndOfWindow(int i) {
 			if (global_df->row_win2 || global_df->col_win2 != -2) global_df->row_win2 -= 1;
 		}
 #endif
+		if (isNL_CFound(global_df->row_txt))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-		global_df->lineno++;
+		if (isAddLineno)
+			global_df->lineno++;
+		global_df->wLineno++;
 		global_df->row_win++;
 	}
 
@@ -218,7 +230,8 @@ int EndOfWindow(int i) {
 
 int BeginningOfFile(int i) {
 	global_df->row_txt = ToNextRow(global_df->head_text, FALSE);
-	global_df->lineno = 1L;
+	global_df->lineno  = 1L;
+	global_df->wLineno = 1L;
 	global_df->row_win = 0L;
 	global_df->col_win = 0L;
 	global_df->col_chr = 0L;
@@ -243,7 +256,9 @@ int EndOfFile(int i) {
 		PutCursorInWindow(global_df->w1);
 	while (!AtBotEnd(global_df->row_txt, global_df->tail_text, FALSE)) {
 		global_df->row_win++;
-		global_df->lineno++;
+		if (isNL_CFound(global_df->row_txt))
+			global_df->lineno++;
+		global_df->wLineno++;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
 	}
 	if (global_df->row_txt == global_df->cur_line)
@@ -267,7 +282,9 @@ int EndOfFile(int i) {
 int MoveUp(int i) {
 	if (!AtTopEnd(global_df->row_txt, global_df->head_text, FALSE)) {
 		global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-		global_df->lineno--;
+		if (isNL_CFound(global_df->row_txt))
+			global_df->lineno--;
+		global_df->wLineno--;
 		global_df->row_win--;
 
 		if (i != -1 && global_df->isExtend == 1) {
@@ -328,9 +345,17 @@ int MoveUp(int i) {
 }
 
 int MoveDown(int i) {
+	char isAddLineno;
+
 	if (!AtBotEnd(global_df->row_txt, global_df->tail_text, FALSE)) {
+		if (isNL_CFound(global_df->row_txt))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-		global_df->lineno++;
+		if (isAddLineno)
+			global_df->lineno++;
+		global_df->wLineno++;
 		global_df->row_win++;
 
 		if (i != -1 && global_df->isExtend == 1) {
@@ -402,7 +427,9 @@ int MoveLineUp(int i) {
 		global_df->top_win = ToPrevRow(global_df->top_win, FALSE);
 		if (global_df->row_win >= (long)global_df->EdWinSize) {
 			global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-			global_df->lineno--;
+			if (isNL_CFound(global_df->row_txt))
+				global_df->lineno--;
+			global_df->wLineno--;
 			global_df->row_win--;
 			global_df->col_win = 0L;
 			global_df->col_chr = 0L;
@@ -419,6 +446,8 @@ int MoveLineUp(int i) {
 }
 
 int MoveLineDown(int i) {
+	char isAddLineno;
+
 	if (!AtBotEnd(global_df->top_win, global_df->tail_text, FALSE)) {
 		global_df->row_win--;
 		if (!global_df->EditorMode && global_df->CurCode != global_df->RootCodes && global_df->row_win < 0L) {
@@ -429,8 +458,14 @@ int MoveLineDown(int i) {
 		}
 		global_df->top_win = ToNextRow(global_df->top_win, FALSE);
 		if (global_df->row_win < 0L) {
+			if (isNL_CFound(global_df->row_txt))
+				isAddLineno = TRUE;
+			else
+				isAddLineno = FALSE;
 			global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-			global_df->lineno++;
+			if (isAddLineno)
+				global_df->lineno++;
+			global_df->wLineno++;
 			global_df->row_win++;
 			global_df->col_win = 0L;
 			global_df->col_chr = 0L;
@@ -464,7 +499,7 @@ int MoveRightWord(int i) {
 }
 
 int MoveRight(int d) {
-	register short i;
+//	register short i;
 	register long  len;
 
 	cedDFnt.isUTF = global_df->isUTF;
@@ -503,7 +538,7 @@ int MoveRight(int d) {
 		}
 	}
 	len = (long)strlen(global_df->row_txt->line);
-	do {
+//	do {
 		if (global_df->row_txt->line[global_df->col_chr] == NL_C && global_df->ShowParags != '\001' && d > -1) {
 			global_df->col_chr++;
 			global_df->col_win = ComColWin(FALSE, global_df->row_txt->line, global_df->col_chr);
@@ -531,12 +566,8 @@ finMoveRight:
 			return(18);
 		}
 		global_df->col_win = ComColWin(FALSE, global_df->row_txt->line, global_df->col_chr);
-#ifdef _UNICODE
-		break;
-#else
-		i = (int)my_CharacterByteType(global_df->row_txt->line, global_df->col_chr, &cedDFnt);
-#endif
-	} while (i != 0 && i != -1) ;
+//		break;
+//	} while (i != 0 && i != -1) ;
 	if (d > -1) {
 		if (global_df->isExtend == 1) {
 			if (global_df->row_win2 == 0L && global_df->col_win2 == global_df->col_win) {
@@ -636,11 +667,7 @@ finMoveLeft:
 					goto finMoveLeft;
 			}
 			global_df->col_win = ComColWin(FALSE, global_df->row_txt->line, global_df->col_chr);
-#ifdef _UNICODE
 			break;
-#else
-			i = (int)my_CharacterByteType(global_df->row_txt->line, global_df->col_chr, &cedDFnt);
-#endif
 		}
 	} while (i != 0 && i != -1) ;
 	if (d > -1) {
@@ -682,22 +709,92 @@ int CursorsCommand(int i) {
 #endif
 }
 
-void MoveToLine(long num, char refresh) {
+void MoveToSpeaker(long num, char refresh) {
 	int count = -1;
+	char isAddLineno;
 	long ln;
 	ROWS *tr = global_df->head_text->next_row;
 
-	global_df->lineno = 1L;
-	ln = 1L;
+	global_df->lineno  = 1L;
+	global_df->wLineno = 1L;
+	ln = 0L;
+	if (tr->line[0] == '*')
+		ln++;
 	while (tr->next_row != global_df->tail_text && ln < num) {
 		if (tr == global_df->top_win)
 			count = 0;
 		if (count > -1 && CMP_VIS_ID(tr->flag))
 			count++;
+		if (isNL_CFound(tr))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
 		tr = tr->next_row;
-		if (CMP_VIS_ID(tr->flag))
-			global_df->lineno++;
-		ln++;
+		if (CMP_VIS_ID(tr->flag)) {
+			if (isAddLineno)
+				global_df->lineno++;
+			global_df->wLineno++;
+		}
+		if (tr->line[0] == '*')
+			ln++;
+	}
+	if (tr == global_df->top_win)
+		count = 0;
+	if (!CMP_VIS_ID(tr->flag)) {
+		strcpy(global_df->err_message, "-Showing previous selected tier");
+		if (!AtTopEnd(tr, global_df->head_text, FALSE)) {
+			tr = ToPrevRow(tr, FALSE);
+		} else {
+			strcpy(global_df->err_message, "-Showing next selected tier");
+			if (!AtBotEnd(tr, global_df->tail_text, FALSE)) {
+				tr = ToNextRow(tr, FALSE);
+				if (count > -1 && CMP_VIS_ID(tr->flag))
+					count++;
+			} else
+				strcpy(global_df->err_message, "+Can't find any selected tier");
+		}
+	} else
+		strcpy(global_df->err_message, DASHES);
+
+	global_df->col_win = 0L;
+	global_df->col_chr = 0L;
+	global_df->row_txt = tr;
+	if (global_df->row_txt == global_df->cur_line)
+		global_df->col_txt = global_df->head_row->next_char;
+	global_df->row_win = (long)count;
+	if (count < 0 || count >= global_df->EdWinSize) {
+		FindMidWindow();
+		DisplayTextWindow(NULL, refresh);
+	}
+
+	*sp = EOS;
+	GetCurCode();
+	FindRightCode(1);
+}
+
+void MoveToLine(long num, char refresh) {
+	int count = -1;
+	char isAddLineno;
+	ROWS *tr = global_df->head_text->next_row;
+
+	global_df->lineno  = 1L;
+	global_df->wLineno = 1L;
+	while (tr->next_row != global_df->tail_text && global_df->lineno < num) {
+		if (tr == global_df->top_win)
+			count = 0;
+		if (count > -1 && CMP_VIS_ID(tr->flag))
+			count++;
+
+		if (isNL_CFound(tr))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
+		tr = tr->next_row;
+		if (CMP_VIS_ID(tr->flag)) {
+			if (isAddLineno)
+				global_df->lineno++;
+			global_df->wLineno++;
+		}
 	}
 	if (tr == global_df->top_win)
 		count = 0;

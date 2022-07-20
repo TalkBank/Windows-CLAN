@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -7,10 +7,11 @@
 #include "cu.h"
 #include "check.h"
 #include "mllib.h"
+/* // NO QT
 #ifdef _WIN32
 	#include <TextUtils.h>
 #endif
-
+*/
 extern char rightspeaker;
 extern long FromWU, ToWU;
 extern char *Toldsp;
@@ -18,10 +19,12 @@ extern char isLanguageExplicit;
 extern int  IsModUttDel;
 extern struct tier *headtier;
 
+char ml_isSkip;
 char ml_isXXXFound = FALSE;
 char ml_isYYYFound = FALSE;
 char ml_isWWWFound = FALSE;
 char ml_isPlusSUsed = FALSE;
+char isMLUEpostcode = TRUE;
 char ml_WdMode = '\0';	/* 'i' - means to include ml_WdHead words, else exclude	*/
 char ml_spchanged;
 IEWORDS *ml_WdHead = NULL;		/* contains words to included/excluded					*/
@@ -105,7 +108,7 @@ void ml_mkwdlist(char opt, char ch, FNType *fname) {
 		SetNewVol(od_dir);
 #endif
 	while (fgets_cr(wd+1, 511, efp)) {
-		if (uS.isUTF8(wd+1) || uS.partcmp(wd+1, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(wd+1) || uS.isInvisibleHeader(wd+1))
 			continue;
 		ml_addwd(opt,ch,wd);
 	}
@@ -307,6 +310,8 @@ static char ml_excludeUtter(char *line) {
 			}
 		}
 	} else {
+		if (isMLUEpostcode && isPostCodeOnUtt(line, "[+ mlue]"))
+			return(TRUE);
 		for (pos=0; line[pos] != EOS; pos++) {
 			if (mlu_excludeUtter(line, pos, NULL)) { // xxx, yyy, www
 				return(TRUE);
@@ -383,32 +388,32 @@ int ml_getwholeutter() {
 				if (*utterance->speaker == '*')
 					postcodeRes = 0;
 				if (*utterance->speaker == '@') {
-					if (IDField != NULL) {
-						if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
-							IsModUttDel = FALSE;
-							cutt_getline(utterance->speaker, utterance->line, utterance->attLine, 0);
-							skipgetline = 1;
-							getrestline = 0;
-							SetIDTier(utterance->line);
-						}
-					}
 					if (SPRole != NULL) {
 						if (uS.partcmp(utterance->speaker,"@ID:",FALSE, FALSE)) {
 							IsModUttDel = FALSE;
 							cutt_getline(utterance->speaker, utterance->line, utterance->attLine, 0);
-							skipgetline = 1;
+							skipgetline = TRUE;
 							getrestline = 0;
 							SetSPRoleIDs(utterance->line);
 						} else if (uS.partcmp(utterance->speaker,PARTICIPANTS,FALSE,FALSE)) {
 							IsModUttDel = FALSE;
 							cutt_getline(utterance->speaker, utterance->line, utterance->attLine, 0);
-							skipgetline = 1;
+							skipgetline = TRUE;
 							getrestline = 0;
 							SetSPRoleParticipants(utterance->line);
 						}
 					}
-					if (uS.partcmp(utterance->speaker,"@Languages:",FALSE,FALSE) || uS.partcmp(utterance->speaker,"@New Language:",FALSE,FALSE)) {
-						if (isLanguageExplicit) {
+					if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
+						IsModUttDel = FALSE;
+						cutt_getline(utterance->speaker, utterance->line, utterance->attLine, 0);
+						skipgetline = TRUE;
+						getrestline = 0;
+						cleanUpIDTier(utterance->line);
+						if (IDField != NULL) {
+							SetIDTier(utterance->line);
+						}
+					} else if (uS.partcmp(utterance->speaker,"@Languages:",FALSE,FALSE) || uS.partcmp(utterance->speaker,"@New Language:",FALSE,FALSE)) {
+						if (isLanguageExplicit == 1) {
 							IsModUttDel = FALSE;
 							cutt_getline(utterance->speaker, utterance->line, utterance->attLine, 0);
 							skipgetline = TRUE;
@@ -429,14 +434,12 @@ int ml_getwholeutter() {
 						getrestline = 0;
 						getMediaName(utterance->line, cMediaFileName, FILENAME_MAX);
 */
-					} else if (uS.partcmp(utterance->speaker,CKEYWORDHEADER,FALSE,FALSE)) {
-						tlineno--;
 					} else if (uS.isUTF8(utterance->speaker)) {
 						dFnt.isUTF = 1;
 						if (isOrgUnicodeFont(dFnt.orgFType)) {
 							NewFontInfo finfo;
 							SetDefaultUnicodeFinfo(&finfo);
-							selectChoosenFont(&finfo, FALSE);
+							selectChoosenFont(&finfo, FALSE, FALSE);
 						}
 						tlineno--;
 					} else if (uS.partcmp(utterance->speaker,FONTHEADER,FALSE,FALSE)) {
@@ -446,13 +449,15 @@ int ml_getwholeutter() {
 						getrestline = 0;
 						if (cutt_SetNewFont(utterance->line, EOS))
 							tlineno--;
+					} else if (uS.isInvisibleHeader(utterance->speaker)) {
+						tlineno--;
 					}
 					if (uS.partcmp(utterance->speaker, "@ENDTURN", FALSE, FALSE))
 						ml_spchanged = TRUE;
 					if (checktier(utterance->speaker))
 						break;
 					killline(utterance->line, utterance->attLine);
-				} else if (rightspeaker || *utterance->speaker=='*') {
+				} else if (rightspeaker || *utterance->speaker == '*') {
 					if (checktier(utterance->speaker)) {
 						rightspeaker = TRUE;
 						break;
@@ -476,9 +481,11 @@ int ml_getwholeutter() {
 								ml_spchanged = TRUE;
 */
 							if (!ml_excludeUtter(utterance->line)) {
+								ml_isSkip = FALSE;
 								strcpy(Toldsp,utterance->speaker);
 								ml_spchanged = TRUE;
-							}
+							} else
+								ml_isSkip = TRUE;
 						} else
 							killline(utterance->line, utterance->attLine);
 					} else
@@ -486,6 +493,7 @@ int ml_getwholeutter() {
 					if (*utterance->speaker == '*') {
 						if (linkMain2Mor)
 							cutt_cleanUpLine(utterance->speaker, utterance->line, utterance->attLine, 0);
+						strcpy(org_spName, utterance->speaker);
 						strcpy(org_spTier, utterance->line);
 					}
 				} else
@@ -493,8 +501,10 @@ int ml_getwholeutter() {
 			} while (1) ;
 			IsModUttDel = ((*utterance->speaker == '*') && (chatmode < 3));
 			cutt_getline(utterance->speaker, utterance->line, utterance->attLine, 0);
-			if (*utterance->speaker == '*')
+			if (*utterance->speaker == '*') {
+				strcpy(org_spName, utterance->speaker);
 				strcpy(org_spTier, utterance->line);
+			}
 			if (uS.partwcmp(utterance->line, FONTMARKER))
 				cutt_SetNewFont(utterance->line,']');
 			if (*utterance->speaker == '%') {
@@ -503,17 +513,17 @@ int ml_getwholeutter() {
 			if (uttline != utterance->line)
 				strcpy(uttline,utterance->line);
 			if (uS.partcmp(utterance->speaker,"%mor:",FALSE, FALSE)) {
-				if (isMorSearchListGiven() || linkMain2Mor) {
-					createMorUttline(utterance->line, org_spTier, utterance->tuttline, linkMain2Mor);
+				if (isMORSearch() || linkMain2Mor) {
+					createMorUttline(utterance->line, org_spTier, "%mor:", utterance->tuttline, TRUE, linkMain2Mor);
 					strcpy(utterance->tuttline, utterance->line);
-					filterMorTier(uttline, utterance->line, 2);
+					filterMorTier(uttline, utterance->line, 2, linkMain2Mor);
 				} else
-					filterMorTier(uttline, NULL, 0);
+					filterMorTier(uttline, NULL, 0, linkMain2Mor);
 			}
 			filterData(utterance->speaker,uttline);
 			lfilter(uttline);
 			filterMorfs(uttline);
-			postRes = isPostCodeFound(utterance);
+			postRes = isPostCodeFound(utterance->speaker, utterance->line);
 			if (postRes == 5 || postRes == 1) {
 				if (!ml_excludeUtter(utterance->line)) {
 					if (strcmp(Toldsp,utterance->speaker) != 0) {
@@ -531,12 +541,15 @@ int ml_getwholeutter() {
 			} else if (CntWUT || CntFUttLen) {
 				if (CntWUT && ToWU && WUCounter > ToWU)
 					return(FALSE);
-				if (!ml_excludeUtter(utterance->line)) {
+				if (!ml_excludeUtter(utterance->line)) { // xxx, yyy, www
+					if (*utterance->speaker == '*')
+						ml_isSkip = FALSE;
 					if (strcmp(Toldsp,utterance->speaker) != 0) {
 						strcpy(Toldsp,utterance->speaker);
 						ml_spchanged = TRUE;
 					}
-				}
+				} else if (*utterance->speaker == '*')
+					ml_isSkip = TRUE;
 				if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
 					break;
 				}
@@ -545,7 +558,7 @@ int ml_getwholeutter() {
 //					filterwords(utterance->speaker,templineC,exclude);
 				if (FilterTier > 1)
 					filterwords(utterance->speaker,uttline,exclude);
-				if (!ml_excludeUtter(templineC)) { // xxx, yyy, www
+				if (!ml_excludeUtter(templineC) && !ml_isSkip) { // xxx, yyy, www
 					i = strlen(utterance->speaker) - 1;
 					for (; i >= 0 && isSpace(utterance->speaker[i]); i--) ;
 					utterance->speaker[i+1] = EOS;
@@ -576,7 +589,7 @@ int ml_getwholeutter() {
 				strcpy(uttline,utterance->line);
 			filterData("*",uttline);
 			lfilter(uttline);
-			postRes = isPostCodeFound(utterance);
+			postRes = isPostCodeFound(utterance->speaker, utterance->line);
 			if (postRes == 5 || postRes == 1) {
 			} else if (isGWordFound && isEmptyLine(uttline)) {
 			} else if (CntWUT || CntFUttLen) {

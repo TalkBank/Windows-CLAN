@@ -8,12 +8,24 @@
 
 static void clean_roles(ROLESTYPE *p) {
 	ROLESTYPE *t;
-	
+
 	while (p != NULL) {
 		t = p;
 		p = p->nextrole;
 		if (t->role)
 			free(t->role);
+		free(t);
+	}
+}
+
+static void clean_SESs(SESTYPE *p) {
+	SESTYPE *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->nextses;
+		if (t->st)
+			free(t->st);
 		free(t);
 	}
 }
@@ -60,12 +72,12 @@ static ROLESTYPE *addNewRole(ROLESTYPE *rolep, unCH *role) {
 	return(rolep);
 }
 
-static ROLESTYPE *getRoles(ROLESTYPE *rolep) {
+static Boolean getRoles(DEPFDEFS *RolesSes) {
 	int  b, e;
 	char pf;
 	FILE *fp;
 	FNType mDirPathName[FNSize];
-	
+
 	fp = NULL;
 	if (!isRefEQZero(global_df->fileName)) {
 		extractPath(mDirPathName, global_df->fileName);
@@ -88,8 +100,7 @@ static ROLESTYPE *getRoles(ROLESTYPE *rolep) {
 		strcpy(mDirPathName, lib_dir);
 		if (!LocateDir("Please locate library directory with depfile",mDirPathName,false)) {
 			strcpy(global_df->err_message, "+Error: Can't do check without depfile.");
-			clean_roles(rolep);
-			return(NULL);
+			return(false);
 		} else {
 			if (pathcmp(lib_dir, mDirPathName) != 0) {
 				strcpy(lib_dir, mDirPathName);
@@ -112,8 +123,7 @@ static ROLESTYPE *getRoles(ROLESTYPE *rolep) {
 				strcpy(global_df->err_message, "+Error: Can't open depfile \"");
 				uS.FNType2str(global_df->err_message, strlen(global_df->err_message), mDirPathName);
 				strcat(global_df->err_message, "\".");
-				clean_roles(rolep);
-				return(NULL);
+				return(false);
 			}
 		}
 	}
@@ -122,7 +132,7 @@ static ROLESTYPE *getRoles(ROLESTYPE *rolep) {
 	while (fgets_ced(templineC, UTTLINELEN, fp, NULL) != NULL) {
 		if (templineC[0] == '#')
 			continue;
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 			continue;
 		if (!strcmp(templineC,"\n"))
 			continue;
@@ -142,15 +152,15 @@ static ROLESTYPE *getRoles(ROLESTYPE *rolep) {
 			while (templine[b]) {
 				for (e=b; !isSpace(templine[e]) && templine[e] != '\n' && templine[e] != '\r' && templine[e] != EOS; e++) ;
 				if (templine[e] == EOS) {
-					rolep = addNewRole(rolep, templine+b);
-					if (rolep == NULL)
-						return(NULL);
+					RolesSes->rootRoles = addNewRole(RolesSes->rootRoles, templine+b);
+					if (RolesSes->rootRoles == NULL)
+						return(false);
 					b = e;
 				} else {
 					templine[e] = EOS;
-					rolep = addNewRole(rolep, templine+b);
-					if (rolep == NULL)
-						return(NULL);
+					RolesSes->rootRoles = addNewRole(RolesSes->rootRoles, templine+b);
+					if (RolesSes->rootRoles == NULL)
+						return(false);
 					b = e + 1;
 				}
 				for (; isSpace(templine[b]) || templine[b] == '\n' || templine[b] == '\r'; b++) ;
@@ -158,10 +168,114 @@ static ROLESTYPE *getRoles(ROLESTYPE *rolep) {
 		}
 	}
 	fclose(fp);
-	return(rolep);
+	return(true);
 }
 
-IDSTYPE *deleteID(IDSTYPE *rootIDs, int item) {
+static SESTYPE *addNewSES(SESTYPE *SES, unCH *st) {
+	unCH *s;
+	SESTYPE *p, *t;
+
+	if (*st == '<') {
+		st++;
+		s = strrchr(st, '>');
+		if (s != NULL)
+			*s = EOS;
+	} else
+		s = NULL;
+	if ((p=NEW(SESTYPE)) == NULL) {
+		strcpy(global_df->err_message, "+Can't continue: Out of memory.");
+		clean_SESs(SES);
+		if (s != NULL)
+			*s = '>';
+		return(NULL);
+	}
+	if ((p->st=(unCH *)malloc((strlen(st)+1)*sizeof(unCH))) == NULL) {
+		strcpy(global_df->err_message, "+Can't continue: Out of memory.");
+		free(p);
+		clean_SESs(SES);
+		if (s != NULL)
+			*s = '>';
+		return(NULL);
+	}
+	strcpy(p->st, st);
+	p->nextses = NULL;
+	if (SES == NULL) {
+		SES = p;
+	} else {
+		for (t=SES; t->nextses != NULL; t=t->nextses) ;
+		t->nextses = p;
+	}
+	if (s != NULL)
+		*s = '>';
+	return(SES);
+}
+
+static Boolean getSES(DEPFDEFS *RolesSes) {
+	int  b, e;
+	char idf;
+	unCH t;
+	FILE *fp;
+	FNType mDirPathName[FNSize];
+
+	fp = NULL;
+	strcpy(mDirPathName, lib_dir);
+	addFilename2Path(mDirPathName, DEPFILE);
+	fp = fopen(mDirPathName, "r");
+	if (fp == NULL) {
+		strcpy(global_df->err_message, "+Error: Can't open depfile \"");
+		uS.FNType2str(global_df->err_message, strlen(global_df->err_message), mDirPathName);
+		strcat(global_df->err_message, "\".");
+		return(false);
+	}
+	idf = FALSE;
+	last_cr_char = 0;
+	while (fgets_ced(templineC, UTTLINELEN, fp, NULL) != NULL) {
+		if (templineC[0] == '#')
+			continue;
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
+			continue;
+		if (!strcmp(templineC, "\n"))
+			continue;
+		if (uS.partcmp(templineC, IDOF, FALSE, FALSE)) {
+			idf = TRUE;
+			templineC[0] = ' ';
+			for (b = 0; templineC[b] != ':' && templineC[b] != EOS; b++);
+			if (templineC[b] == ':')
+				b++;
+		} else
+			b = 0;
+		if (idf && isSpeaker(templineC[0]))
+			break;
+		if (idf && isSpace(templineC[0])) {
+			u_strcpy(templine, templineC + b, UTTLINELEN);
+			for (b=0; isSpace(templine[b]) || templine[b] == '\n' || templine[b] == '\r'; b++);
+			while (templine[b]) {
+				for (e=b; !isSpace(templine[e]) && templine[e] != '\n' && templine[e] != '\r' && templine[e] != EOS; e++);
+				t = templine[e];
+				templine[e] = EOS;
+				if (templine[b] == '@' && templine[b+1] == 'e') {
+					RolesSes->rootSESe = addNewSES(RolesSes->rootSESe, templine+b+2);
+					if (RolesSes->rootSESe == NULL)
+						return(false);
+				} else if (templine[b] == '@' && templine[b+1] == 's') {
+					RolesSes->rootSESs = addNewSES(RolesSes->rootSESs, templine+b+2);
+					if (RolesSes->rootSESs == NULL)
+						return(false);
+				}
+				templine[e] = t;
+				if (t == EOS)
+					break;
+				else
+					b = e + 1;
+				for (; isSpace(templine[b]) || templine[b] == '\n' || templine[b] == '\r'; b++);
+			}
+		}
+	}
+	fclose(fp);
+	return(true);
+}
+
+IDSTYPE *deleteID(IDSTYPE *rootIDs, UInt16 item) {
 	IDSTYPE *p, *pp;
 	
 	p = rootIDs;
@@ -218,13 +332,9 @@ IDSTYPE *createNewId(IDSTYPE *rootIDs, int item) {
 		p->language[0] = EOS;
 		p->corpus[0] = EOS;
 		strcpy(p->code, code);
-		p->ageAbout = 0;
 		p->age1y = -1;
 		p->age1m = -1;
 		p->age1d = -1;
-		p->age2y = -1;
-		p->age2m = -1;
-		p->age2d = -1;
 		p->sex = 0;
 		p->group[0] = EOS;
 		p->SES[0] = EOS;
@@ -236,13 +346,9 @@ IDSTYPE *createNewId(IDSTYPE *rootIDs, int item) {
 		strcpy(p->language, oldId->language);
 		strcpy(p->corpus, oldId->corpus);
 		strcpy(p->code, code);
-		p->ageAbout = oldId->ageAbout;
 		p->age1y = oldId->age1y;
 		p->age1m = oldId->age1m;
 		p->age1d = oldId->age1d;
-		p->age2y = oldId->age2y;
-		p->age2m = oldId->age2m;
-		p->age2d = oldId->age2d;
 		p->sex = oldId->sex;
 		strcpy(p->group, oldId->group);
 		strcpy(p->SES, oldId->SES);
@@ -327,43 +433,29 @@ static void parseAge(IDSTYPE *p, unCH *age) {
 		return;
 	while (*age != EOS) {
 		for (; isSpace(*age); age++) ;
-		if (*age == '~') {
-			p->ageAbout = TRUE;
-			age++;
-		}
 		for (e=age; *e != ';' && *e != '.' && *e != '-' && *e != EOS; e++) ;
 		if (*e == ';') {
 			*e = EOS;
-			if (p->age1y == -1) p->age1y = atoi(age);
-			else p->age2y = atoi(age);
+			p->age1y = uS.atoi(age);
 			*e = ';';
 			age = e + 1;
 		} else if (*e == '.') {
 			*e = EOS;
-			if (p->age1m == -1) p->age1m = atoi(age);
-			else p->age2m = atoi(age);
+			p->age1m = uS.atoi(age);
 			*e = '.';
 			age = e + 1;
-		} else if (*e == '-') {
-			*e = EOS;
-			if (p->age1d == -1) p->age1d = atoi(age);
-			else p->age2d = atoi(age);
-			*e = ';';
-			age = e + 1;
 		} else if (*e == EOS) {
-			if (p->age1d == -1) p->age1d = atoi(age);
-			else p->age2d = atoi(age);
+			p->age1d = uS.atoi(age);
 			break;
 		} 
 	}
 }
 
-static IDSTYPE *add_to_IDs(IDSTYPE *rootIDs,ROLESTYPE *rr,unCH *lang,unCH *corp,unCH *code,unCH *age,unCH *sex,unCH *group,unCH *SES,unCH *role,unCH *educ,unCH*fu,unCH *spn) {
+static IDSTYPE *add_to_IDs(IDSTYPE *rootIDs, DEPFDEFS *RolesSes, unCH *lang, unCH *corp, unCH *code, unCH *age, unCH *sex, unCH *group, unCH *SES, unCH *role, unCH *educ, unCH*fu, unCH *spn) {
 	IDSTYPE *p;
-	
+
 	if (code == NULL)
 		return(rootIDs);
-	
 	uS.remblanks(code);
 	uS.uppercasestr(code, NULL, 0);
 	if (rootIDs == NULL) {
@@ -373,13 +465,9 @@ static IDSTYPE *add_to_IDs(IDSTYPE *rootIDs,ROLESTYPE *rr,unCH *lang,unCH *corp,
 		p->language[0] = EOS;
 		p->corpus[0] = EOS;
 		p->code[0] = EOS;
-		p->ageAbout = 0;
 		p->age1y = -1;
 		p->age1m = -1;
 		p->age1d = -1;
-		p->age2y = -1;
-		p->age2m = -1;
-		p->age2d = -1;
 		p->sex = 0;
 		p->group[0] = EOS;
 		p->SES[0] = EOS;
@@ -403,13 +491,9 @@ static IDSTYPE *add_to_IDs(IDSTYPE *rootIDs,ROLESTYPE *rr,unCH *lang,unCH *corp,
 			p->language[0] = EOS;
 			p->corpus[0] = EOS;
 			p->code[0] = EOS;
-			p->ageAbout = 0;
 			p->age1y = -1;
 			p->age1m = -1;
 			p->age1d = -1;
-			p->age2y = -1;
-			p->age2m = -1;
-			p->age2d = -1;
 			p->sex = 0;
 			p->group[0] = EOS;
 			p->SES[0] = EOS;
@@ -451,18 +535,39 @@ static IDSTYPE *add_to_IDs(IDSTYPE *rootIDs,ROLESTYPE *rr,unCH *lang,unCH *corp,
 		p->group[IDFIELSSIZE] = EOS;
 	}
 	if (SES != NULL) {
+		SESTYPE *se, *ss;
+
 		uS.remblanks(SES);
-		strncpy(p->SES, SES, IDFIELSSIZE);
-		p->SES[IDFIELSSIZE] = EOS;
-	}
-	if (role != NULL && rr != NULL) {
-		uS.remblanks(role);
-		p->role[0] = EOS;
-		for (; rr != NULL; rr=rr->nextrole) {
-			if (uS.mStricmp(rr->role, role) == 0) {
-				strcpy(p->role, role);
+		p->SES[0] = EOS;
+		for (se=RolesSes->rootSESe; se != NULL; se = se->nextses) {
+			if (isPartOfSES(se->st, SES) == true) {
+				strcat(p->SES, se->st);
 				break;
 			}
+		}
+		for (ss=RolesSes->rootSESs; ss != NULL; ss=ss->nextses) {
+			if (isPartOfSES(ss->st, SES) == true) {
+				if (p->SES[0] != EOS)
+					strcat(p->SES, ",");
+				strcat(p->SES, ss->st);
+				break;
+			}
+		}
+	}
+	if (role != NULL) {
+		ROLESTYPE *rr;
+
+		uS.remblanks(role);
+		p->role[0] = EOS;
+		for (rr=RolesSes->rootRoles; rr != NULL; rr=rr->nextrole) {
+			if (uS.mStricmp(rr->role, role) == 0) {
+				strcpy(p->role, rr->role);
+				break;
+			}
+		}
+		if (rr == NULL && spn == NULL) {
+			strncpy(p->spname, role, IDFIELSSIZE);
+			p->spname[IDFIELSSIZE] = EOS;
 		}
 	}
 	if (educ != NULL) {
@@ -483,7 +588,7 @@ static IDSTYPE *add_to_IDs(IDSTYPE *rootIDs,ROLESTYPE *rr,unCH *lang,unCH *corp,
 	return(rootIDs);
 }
 
-static IDSTYPE *handleParticipants(IDSTYPE *rootIDs, ROLESTYPE *rootRoles, unCH *line) {
+static IDSTYPE *handleParticipants(IDSTYPE *rootIDs, DEPFDEFS *RolesSes, unCH *line) {
 	unCH sp[SPEAKERLEN];
 	unCH *s, *e, t, wc, tchFound;
 	short cnt = 0;
@@ -505,7 +610,7 @@ static IDSTYPE *handleParticipants(IDSTYPE *rootIDs, ROLESTYPE *rootRoles, unCH 
 				t = *e;
 				*e = EOS;
 				if (cnt == 2 || wc == ',') {
-					rootIDs = add_to_IDs(rootIDs, rootRoles, NULL, NULL, sp, NULL, NULL, NULL, NULL, s, NULL, NULL, NULL);
+					rootIDs = add_to_IDs(rootIDs, RolesSes, NULL, NULL, sp, NULL, NULL, NULL, NULL, s, NULL, NULL, NULL);
 					if (rootIDs == NULL)
 						return(NULL);
 				} else if (cnt == 1) {
@@ -535,7 +640,7 @@ static IDSTYPE *handleParticipants(IDSTYPE *rootIDs, ROLESTYPE *rootRoles, unCH 
 				if (cnt != 0) {
 					t = *e;
 					*e = EOS;
-					rootIDs = add_to_IDs(rootIDs, rootRoles, NULL, NULL, sp, NULL, NULL, NULL, NULL, s, NULL, NULL, NULL);
+					rootIDs = add_to_IDs(rootIDs, RolesSes, NULL, NULL, sp, NULL, NULL, NULL, NULL, s, NULL, NULL, NULL);
 					if (rootIDs == NULL)
 						return(NULL);
 					*e = t;
@@ -556,7 +661,7 @@ static IDSTYPE *handleParticipants(IDSTYPE *rootIDs, ROLESTYPE *rootRoles, unCH 
 }
 
 
-static IDSTYPE *handleIDs(IDSTYPE *rootIDs, ROLESTYPE *rootRoles, unCH *languages, unCH *line) {
+static IDSTYPE *handleIDs(IDSTYPE *rootIDs, DEPFDEFS *RolesSes, unCH *languages, unCH *line) {
 	int t, s = 0, e = 0, cnt;
 	unCH sp[SPEAKERLEN];
 	unCH word[SPEAKERLEN], *st;
@@ -637,9 +742,9 @@ static IDSTYPE *handleIDs(IDSTYPE *rootIDs, ROLESTYPE *rootRoles, unCH *language
 		} else if (cnt == 5) {	// group
 			rootIDs = add_to_IDs(rootIDs, NULL, NULL, NULL, sp, NULL, NULL, word, NULL, NULL, NULL, NULL, NULL);
 		} else if (cnt == 6) {	// SES
-			rootIDs = add_to_IDs(rootIDs, NULL, NULL, NULL, sp, NULL, NULL, NULL, word, NULL, NULL, NULL, NULL);
+			rootIDs = add_to_IDs(rootIDs, RolesSes, NULL, NULL, sp, NULL, NULL, NULL, word, NULL, NULL, NULL, NULL);
 		} else if (cnt == 7) {	// role
-			rootIDs = add_to_IDs(rootIDs, rootRoles, NULL, NULL, sp, NULL, NULL, NULL, NULL, word, NULL, NULL, NULL);
+			rootIDs = add_to_IDs(rootIDs, RolesSes, NULL, NULL, sp, NULL, NULL, NULL, NULL, word, NULL, NULL, NULL);
 		} else if (cnt == 8) {	// education
 			rootIDs = add_to_IDs(rootIDs, NULL, NULL, NULL, sp, NULL, NULL, NULL, NULL, NULL, word, NULL, NULL);
 		} else if (cnt == 9) {	// file unique ID
@@ -676,7 +781,7 @@ static void id_AddText(unCH *s, long len) {
 	global_df->col_txt = global_df->col_txt->next_char;
 }
 
-static void replaceSpaceWithUnderline(wchar_t *s) {
+static void replaceSpaceWithUnderline(unCH *s) {
 	for (; *s != EOS; s++) {
 		if (*s == ' ')
 			*s = '_';
@@ -797,34 +902,23 @@ static void updateHeadersInText(IDSTYPE *rootIDs) {
 		strcat(templineW, IDs->code);
 		strcat(templineW, "|");
 		templineW1[0] = EOS;
-		if (IDs->ageAbout)
-			strcat(templineW, "~");
 		if (IDs->age1y != -1) {
 			uS.sprintf(templineW1, cl_T("%d;"), IDs->age1y);
 			strcat(templineW, templineW1);
 		}
 		if (IDs->age1m != -1) {
-			uS.sprintf(templineW1, cl_T("%d."), IDs->age1m);
+			if (IDs->age1m < 10)
+				uS.sprintf(templineW1, cl_T("0%d."), IDs->age1m);
+			else
+				uS.sprintf(templineW1, cl_T("%d."), IDs->age1m);
 			strcat(templineW, templineW1);
 		}
 		if (IDs->age1d != -1) {
-			uS.sprintf(templineW1, cl_T("%d"), IDs->age1d);
+			if (IDs->age1d < 10)
+				uS.sprintf(templineW1, cl_T("0%d"), IDs->age1d);
+			else
+				uS.sprintf(templineW1, cl_T("%d"), IDs->age1d);
 			strcat(templineW, templineW1);
-		}
-		if (IDs->age2y != -1 || IDs->age2m != -1 || IDs->age2d != -1) {
-			strcat(templineW, " - ");
-			if (IDs->age2y != -1) {
-				uS.sprintf(templineW1, cl_T("%d;"), IDs->age2y);
-				strcat(templineW, templineW1);
-			}
-			if (IDs->age2m != -1) {
-				uS.sprintf(templineW1, cl_T("%d."), IDs->age2m);
-				strcat(templineW, templineW1);
-			}
-			if (IDs->age2d != -1) {
-				uS.sprintf(templineW1, cl_T("%d"), IDs->age2d);
-				strcat(templineW, templineW1);
-			}
 		}
 		strcat(templineW, "|");
 		if (IDs->sex == 'm')
@@ -901,7 +995,7 @@ int setIDs(int c) {
 	unCH languages[IDFIELSSIZE+1];
 	ROWS *tt;
 	IDSTYPE *rootIDs, *IDs;
-	ROLESTYPE *rootRoles;
+	DEPFDEFS RolesSes;
 
 	if (global_df == NULL)
 		return(66);
@@ -909,8 +1003,20 @@ int setIDs(int c) {
 		strcpy(global_df->err_message, "+This is read only file. It can not be modified.");
 		return(66);
 	}
-	rootRoles = getRoles(NULL);
-	if (rootRoles == NULL) {
+	RolesSes.rootRoles = NULL;
+	RolesSes.rootSESe = NULL;
+	RolesSes.rootSESs = NULL;
+	if (getRoles(&RolesSes) == false) {
+		clean_roles(RolesSes.rootRoles);
+		clean_SESs(RolesSes.rootSESe);
+		clean_SESs(RolesSes.rootSESs);
+		draw_mid_wm();
+		return(66);
+	}
+	if (getSES(&RolesSes) == false) {
+		clean_roles(RolesSes.rootRoles);
+		clean_SESs(RolesSes.rootSESe);
+		clean_SESs(RolesSes.rootSESs);
 		draw_mid_wm();
 		return(66);
 	}
@@ -927,17 +1033,17 @@ int setIDs(int c) {
 				cleanup_lang(ced_line);
 				add_to_languages(languages, ced_line, FALSE);
 			} else if (uS.partcmp(sp, PARTICIPANTS, FALSE, FALSE)) {
-				rootIDs = handleParticipants(rootIDs, rootRoles, ced_line);
+				rootIDs = handleParticipants(rootIDs, &RolesSes, ced_line);
 				triedProcess = TRUE;
 			} else if (uS.partcmp(sp, IDOF, FALSE, FALSE)) {
-				rootIDs = handleIDs(rootIDs, rootRoles, languages, ced_line);
+				rootIDs = handleIDs(rootIDs, &RolesSes, languages, ced_line);
 				triedProcess = TRUE;
 			} else if (uS.patmat(sp,cl_T("@Language of *"))) {
 /*
 				 cleanup_lang(ced_line);
 				 add_to_languages(languages, ced_line, FALSE);
 				 uS.extractString(templine2, sp, "@Language of ", ':');
-				 rootIDs = add_to_IDs(rootIDs, NULL, ced_line, NULL, templine2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+				 rootIDs = add_to_IDs(rootIDs, NULL, NULL, NULL, ced_line, NULL, templine2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 				 triedProcess = TRUE;
 */
 			} else if (uS.patmat(sp,cl_T(AGEOF))) {
@@ -954,7 +1060,7 @@ int setIDs(int c) {
 				triedProcess = TRUE;
 			} else if (uS.patmat(sp,cl_T(SESOF))) {
 				uS.extractString(templine2, sp, "@Ses of ", ':');
-				rootIDs = add_to_IDs(rootIDs, NULL, NULL, NULL, templine2, NULL, NULL, NULL, ced_line, NULL, NULL, NULL, NULL);
+				rootIDs = add_to_IDs(rootIDs, &RolesSes, NULL, NULL, templine2, NULL, NULL, NULL, ced_line, NULL, NULL, NULL, NULL);
 				triedProcess = TRUE;
 			} else if (uS.patmat(sp,cl_T(EDUCOF))) {
 				uS.extractString(templine2, sp, "@Education of ", ':');
@@ -963,7 +1069,9 @@ int setIDs(int c) {
 			}
 			if (triedProcess && rootIDs == NULL) {
 				strcpy(global_df->err_message, "+Can't continue: Out of memory.");
-				clean_roles(rootRoles);
+				clean_roles(RolesSes.rootRoles);
+				clean_SESs(RolesSes.rootSESe);
+				clean_SESs(RolesSes.rootSESs);
 				draw_mid_wm();
 				return(66);
 			}	
@@ -996,7 +1104,9 @@ int setIDs(int c) {
 		rootIDs = createNewId(rootIDs, 0);
 		if (rootIDs == NULL) {
 			strcpy(global_df->err_message, "+Can't continue: Out of memory.");
-			clean_roles(rootRoles);
+			clean_roles(RolesSes.rootRoles);
+			clean_SESs(RolesSes.rootSESe);
+			clean_SESs(RolesSes.rootSESs);
 			draw_mid_wm();
 			return(66);
 		}
@@ -1006,7 +1116,7 @@ int setIDs(int c) {
 				strcpy(IDs->language, languages);
 		}
 	}
-	if (IDDialog(&rootIDs, rootRoles)) {
+	if (IDDialog(&rootIDs, &RolesSes)) {
 		updateHeadersInText(rootIDs);
 		for (i=0; i < 10; i++)
 			AllocSpeakerNames(cl_T(""), i);
@@ -1016,6 +1126,33 @@ int setIDs(int c) {
 #endif
 	}
 	clean_ids(rootIDs);
-	clean_roles(rootRoles);
-    return(66);
+	clean_roles(RolesSes.rootRoles);
+	clean_SESs(RolesSes.rootSESe);
+	clean_SESs(RolesSes.rootSESs);
+	return(66);
+}
+
+Boolean isPartOfSES(unCH *st, unCH *SES) {
+	int i, s;
+	unCH word[IDFIELSSIZE + 1];
+
+	s = 0;
+	while (1) {
+		i = 0;
+		if (SES[s] == EOS) {
+			word[0] = EOS;
+			break;
+		}
+		while (SES[s] == ',')
+			s++;
+		while ((word[i]=SES[s]) != EOS && word[i] != ',') {
+			i++;
+			s++;
+		}
+		word[i] = EOS;
+		uS.remFrontAndBackBlanks(word);
+		if (strcmp(word, st) == 0)
+			return(true);
+	}
+	return(false);
 }

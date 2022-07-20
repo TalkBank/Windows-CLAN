@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -8,10 +8,10 @@ extern "C"
 {
 /* ******************** mor prototypes ********************** */
 /* *********************************************************** */
-void hello_arrays(void);
-void bye_arrays(void);
-void CleanUpAll(void);
-void CloseFiles(void);
+extern void hello_arrays(void);
+extern void bye_arrays(void);
+extern void CleanUpAll(char all);
+extern void CloseFiles(void);
 /* *******************  arules.c ***************** */
 BOOL
 markPostARules(void);
@@ -75,9 +75,7 @@ check_rulepacks(void);
 void
 analyze_word(STRING *word,FEATTYPE *cat,STRING *parse,STRING *trans,STRING *comp,STRING *rest,RULEPACK_PTR rp,int ind, char doDef);
 void free_lex_lett(LEX_PTR lex, int num);
-void
-concat_word(STRING *s_surf,FEATTYPE *s_cat,STRING *s_parse,STRING *s_trans,STRING *s_comp,
-			STRING *n_surf,FEATTYPE *n_cat,STRING *n_stem,STRING *n_trans,STRING *n_comp,RULEPACK_PTR rp);
+void concat_word(STRING *,STRING *,STRING *,FEATTYPE *,STRING *,STRING *,STRING *,STRING *,FEATTYPE *,STRING *,STRING *,STRING *,RULEPACK_PTR,STRING *,int);
 BOOL
 apply_endrules(STRING *surf, FEATTYPE *cat, STRING *stem);
 CRULE_PTR
@@ -123,7 +121,7 @@ print_drules(DRULE_PTR rulelist);
 void
 delete_entry(TRIE_PTR node, FEATTYPE *entry);
 int
-process_lex_entry(STRING *entry, char isComp);
+process_lex_entry(STRING *entry, char isComp, FNType *mFileName, long ln);
 TRIE_PTR
 m_trie_node(void);
 LETTER_PTR
@@ -139,7 +137,7 @@ delete_word(STRING *word,FEATTYPE *entry);
 ELIST_PTR 
 lookup(STRING *word);
 //25-5-99 long print_trie(TRIE_PTR root);
-void
+ELIST_PTR
 free_entries(ELIST_PTR entry_list);
 void
 free_trie(TRIE_PTR root);

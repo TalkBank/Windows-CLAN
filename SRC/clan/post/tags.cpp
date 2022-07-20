@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -121,7 +121,7 @@ int classname_open()
 	return _class_hashdic_ ;
 }
 
-long tags_number()
+long32 tags_number()
 {
 	return hashsize( _class_hashdic_ );
 }
@@ -313,14 +313,17 @@ void print_bimultclass(int *bm, FILE* out )
 {
 	msgfile( out, " %d /", number_of_multclass(bm) );
 	for ( int j=0; j<number_of_multclass(bm); j++ ) {
-//		msgfile( out, " %d (%d) ", nth_of_multclass(bm,j), nthcount_of_multclass(bm,j) );
-		msgfile( out, " (%d) ", nthcount_of_multclass(bm,j) );
+		if (nth_of_multclass(bm,j)>_nb_class_hashdic_)
+			msgfile( out, " [nth:~, nth_cnt:%d] ", nthcount_of_multclass(bm,j) );
+		else
+			msgfile( out, " [nth:%d, nth_cnt:%d] ", nth_of_multclass(bm,j), nthcount_of_multclass(bm,j) );
+//		msgfile( out, " (%d) ", nthcount_of_multclass(bm,j) );
 		char s1[128];
 		tag_to_classname(first_of_bitag(nth_of_multclass(bm,j)),s1);
 		char s2[128];
 		tag_to_classname(second_of_bitag(nth_of_multclass(bm,j)),s2);
-//		msgfile( out, "[%d-%s,%d-%s] /", first_of_bitag(nth_of_multclass(bm,j)), s1, second_of_bitag(nth_of_multclass(bm,j)), s2 );
-		msgfile( out, "%s,%s /", s1, s2 );
+		msgfile( out, "[1st:%d-%s, 2nd:%d-%s] /", first_of_bitag(nth_of_multclass(bm,j)), s1, second_of_bitag(nth_of_multclass(bm,j)), s2 );
+//		msgfile( out, "%s,%s /", s1, s2 );
 	}
 }
 

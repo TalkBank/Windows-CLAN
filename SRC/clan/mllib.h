@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -21,10 +21,12 @@ extern void SetIDTier(char *line);
 
 extern "C"
 {
+extern char ml_isSkip;
 extern char ml_isXXXFound;
 extern char ml_isYYYFound;
 extern char ml_isWWWFound;
 extern char ml_isPlusSUsed;
+extern char isMLUEpostcode;
 extern char ml_spchanged;
 extern char ml_WdMode;
 extern IEWORDS *ml_WdHead;

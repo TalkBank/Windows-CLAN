@@ -18,177 +18,6 @@
 static char THIS_FILE[] = __FILE__;
 #endif
 
-BOOL HandleCAKeyShortcuts(UINT nChar, BOOL isVK, wchar_t *CAChar, char num) {
-#ifdef _UNICODE // CA CHARS
-	if (num == 1) {
-		if (nChar == VK_UP && isVK) { // up-arrow
-			*CAChar = 0x2191;
-			return(true);
-		} else if (nChar == VK_DOWN && isVK) { // down-arrow
-			*CAChar = 0x2193;
-			return(true);
-		} else if (nChar == '1' && !isVK) { // rise to high
-			*CAChar = 0x21D7;
-			return(true);
-		} else if (nChar == '2' && !isVK) { // rise to mid
-			*CAChar = 0x2197;
-			return(true);
-		} else if (nChar == '3' && !isVK) { // level
-			*CAChar = 0x2192;
-			return(true);
-		} else if (nChar == '4' && !isVK) { // fall to mid
-			*CAChar = 0x2198;
-			return(true);
-		} else if (nChar == '5' && !isVK) { // fall to low
-			*CAChar = 0x21D8;
-			return(true);
-		} else if (nChar == '6' && !isVK) { // unmarked ending
-			*CAChar = 0x221E;
-			return(true);
-		} else if (nChar == '+' && !isVK) { // continuation - wavy triple-line equals sign
-			*CAChar = 0x224B;
-			return(true);
-		} else if (nChar == '.' && !isVK) { // inhalation
-			*CAChar = 0x2219;
-			return(true);
-		} else if (nChar == '=' && !isVK) { // latching
-			*CAChar = 0x2248;
-			return(true);
-		} else if ((nChar == 'u' || nChar == 'U') && !isVK) { // uptake
-			*CAChar = 0x2261;
-			return(true);
-		} else if (isEqChar(nChar, OpSQBKey) && isEqShift(OpSQBKey) && isVK) { // raised [
-			*CAChar = 0x2308;
-			return(true);
-		} else if (isEqChar(nChar, ClSQBKey) && isEqShift(ClSQBKey) && isVK) { // raised ]
-			*CAChar = 0x2309;
-			return(true);
-		} else if (isEqChar(nChar, OpSQBKey) && isVK) { // lowered [
-			*CAChar = 0x230A;
-			return(true);
-		} else if (isEqChar(nChar, ClSQBKey) && isVK) { // lowered ]
-			*CAChar = 0x230B;
-			return(true);
-		} else if (nChar == VK_RIGHT && isEqShift(VK_RIGHT) && isVK) { // faster
-			*CAChar = 0x2206;
-			return(true);
-		} else if (nChar == VK_LEFT && isEqShift(VK_LEFT) && isVK) { // slower
-			*CAChar = 0x2207;
-			return(true);
-		} else if (nChar == '*' && !isVK) { // creaky
-			*CAChar = 0x204E;
-			return(true);
-		} else if ((nChar == '/') && !isVK) { // unsure
-			*CAChar = 0x2047;
-			return(true);
-		} else if (nChar == '0' && !isVK) { // softer
-			*CAChar = 0x00B0;
-			return(true);
-		} else if (nChar == ')' && !isVK) { // louder
-			*CAChar = 0x25C9;
-			return(true);
-		} else if ((nChar == 'd') && !isVK) { // low pitch - low bar
-			*CAChar = 0x2581;
-			return(true);
-		} else if ((nChar == 'h') && !isVK) { // high pitch - high bar
-			*CAChar = 0x2594;
-			return(true);
-		} else if ((nChar == 'l' || nChar == 'L') && !isVK) { // smile voice
-			*CAChar = 0x263A;
-			return(true);
-		} else if ((nChar == 'b') && !isVK) { // breathy-voice
-			*CAChar = 0x264B;
-			return(true);
-		} else if ((nChar == 'w' || nChar == 'W') && !isVK) { // whisper
-			*CAChar = 0x222C;
-			return(true);
-		} else if ((nChar == 'y' || nChar == 'Y') && !isVK) { // yawn
-			*CAChar = 0x03AB;
-			return(true);
-		} else if ((nChar == 's' || nChar == 'S') && !isVK) { // singing
-			*CAChar = 0x222E;
-			return(true);
-		} else if ((nChar == 'p' || nChar == 'P') && !isVK) { // precise
-			*CAChar = 0x00A7;
-			return(true);
-		} else if ((nChar == 'n' || nChar == 'N') && !isVK) { // constriction
-			*CAChar = 0x223E;
-			return(true);
-		} else if ((nChar == 'r' || nChar == 'R') && !isVK) { // pitch reset
-			*CAChar = 0x21BB;
-			return(true);
-		} else if ((nChar == 'c' || nChar == 'C') && !isVK) { // laugh in a word
-			*CAChar = 0x1F29;
-			return(true);
-		}
-	}
-	if (num == 2) {
-		if (nChar == 'h' && !isVK) { // raised h
-			*CAChar = 0x02B0;
-			return(true);
-		} else if (nChar == ',' && !isVK) { // dot diacritic
-			*CAChar = 0x0323;
-			return(true);
-		} else if ((nChar == '<') && !isVK) { // Group start marker - NOT CA
-			*CAChar = 0x2039;
-			return(true);
-		} else if ((nChar == '>') && !isVK) { // Group end marker - NOT CA
-			*CAChar = 0x203A;
-			return(true);
-		} else if ((nChar == 't' || nChar == 'T') && !isVK) { // Tag or sentence final particle; „ - NOT CA
-			*CAChar = 0x201E;
-			return(true);
-		} else if ((nChar == 'v' || nChar == 'V') && !isVK) { // Vocative or summons - NOT CA
-			*CAChar = 0x2021;
-			return(true);
-		} else if ((nChar == '-') && !isVK) { // Stress - NOT CA
-			*CAChar = 0x0304;
-			return(true);
-		} else if ((nChar == 'q') && !isVK) { // Glottal stop - NOT CA
-			*CAChar = 0x0294;
-			return(true);
-		} else if ((nChar == 'Q') && !isVK) { // Hebrew glottal - NOT CA
-			*CAChar = 0x0295;
-			return(true);
-		} else if ((nChar == ';') && !isVK) { // caron - NOT CA
-			*CAChar = 0x030C;
-			return(true);
-		} else if ((nChar == '1') && !isVK){ // raised stroke - NOT CA
-			*CAChar = 0x02C8; // cb 88
-			return(true);
-		} else if ((nChar == '2') && !isVK){ // lowered stroke - NOT CA
-			*CAChar = 0x02CC; // cb 8c
-			return(true);
-		} else if ((nChar == '{') && !isVK){ // sign group start marker - NOT CA
-			*CAChar = 0x3014; // 0xe3 80 94
-			return(true);
-		} else if ((nChar == '}') && !isVK){ // sign group end marker - NOT CA
-			*CAChar = 0x3015; // 0xe3 80 95
-			return(true);
-		} else if ((nChar == 'm') && !isVK) { // %pho missing word - NOT CA
-			*CAChar = 0x2026;
-			return(true);
-		} else if ((nChar == '_') && !isVK) { // Uderline NOT CA
-			*CAChar = 0x0332;
-			return(true);
-		} else if ((nChar == '\'') && !isVK){ // open quote “ - NOT CA
-			*CAChar = 0x201C; // 0xe2 80 9c - NOTCA_OPEN_QUOTE
-			return(true);
-		} else if ((nChar == '"') && !isVK){ // close quote ” - NOT CA
-			*CAChar = 0x201D; // 0xe2 80 a6 - NOTCA_CLOSE_QUOTE
-			return(true);
-		} else if (nChar == '=' && !isVK) { // crossed equal
-			*CAChar = 0x2260; // 0xe2 89 a0 - NOTCA_CROSSED_EQUAL
-			return(true);
-		} else if (nChar == '/' && !isVK) { // left arrow with circle
-			*CAChar = 0x21AB; // // 0xe2 86 ab - NOTCA_LEFT_ARROW_CIRCLE
-			return(true);
-		}
-	}
-#endif
-	return(false);
-}
-
 /////////////////////////////////////////////////////////////////////////////
 // CUpdateCLAN dialog
 
@@ -258,6 +87,7 @@ CCedDlgs::CCedDlgs(CWnd* pParent /*=NULL*/)
 	m_Tier = _T("");
 	m_Mixed_Stereo_Wave = FALSE;
 	m_Update_Clan = FALSE;
+	m_No_CheckMess = FALSE;
 	//}}AFX_DATA_INIT
 }
 
@@ -279,6 +109,7 @@ void CCedDlgs::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_CEDO_DISAMBIG, m_Tier);
 	DDX_Check(pDX, IDC_CEDO_MIXED_STEREO, m_Mixed_Stereo_Wave);
 	DDX_Check(pDX, IDC_CEDO_UPDATE_CLAN, m_Update_Clan);
+	DDX_Check(pDX, IDC_CEDO_NO_CHECK_MESSAGE, m_No_CheckMess);
 	//}}AFX_DATA_MAP
 }
 
@@ -397,7 +228,7 @@ void CCedFindString::OnFindFromFile()
 {
     unCH			*szFilter, *t;
 	OPENFILENAME	ofn;
-	wchar_t			wDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 
 	szFilter = _T("Search File (*.cut)\0*.cut\0All files (*.*)\0*.*\0\0");
     strcpy(searchFName, "");
@@ -659,8 +490,7 @@ void CReplaceString::OnReplaceUseFile()
 {
 	int				s, e;
     unCH			*szFilter, *t;
-	wchar_t			wDirPathName[FNSize];
-	FNType			cDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 	OPENFILENAME	ofn;
 
 	replaceFName[0] = EOS;
@@ -718,7 +548,7 @@ void CReplaceString::OnReplaceFromFile()
 {
 	int				s, e;
     unCH			*szFilter, *t;
-	wchar_t			wDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 	FNType			cDirPathName[FNSize];
 	OPENFILENAME	ofn;
 
@@ -1187,7 +1017,7 @@ BOOL CGetAscii::OnInitDialog()
 int CGetAscii::DoModal() 
 {
 	int res;
-	wchar_t wDirPathName[FNSize];
+	unCH wDirPathName[FNSize];
 
 	// can be constructed with a resource template or InitModalIndirect
 	ASSERT(m_lpszTemplateName != NULL || m_hDialogTemplate != NULL ||
@@ -1383,7 +1213,6 @@ CStdIn::CStdIn(CWnd* pParent /*=NULL*/)
 	//{{AFX_DATA_INIT(CStdIn)
 	m_StdInput = _T("");
 	//}}AFX_DATA_INIT
-	CAKeyShortcuts = 0;
 }
 
 
@@ -1453,36 +1282,12 @@ BOOL CStdIn::PreTranslateMessage(MSG* pMsg)
 void CStdIn::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags) 
 {
 	UpdateData(true);
-/*
-	if (CAKeyShortcuts) {
-		wchar_t CAChar;
-		if (HandleCAKeyShortcuts(nChar, true, &CAChar, CAKeyShortcuts)) {
-			CAKeyShortcuts = 0;
-		}
-		return;
-	} else
-		CAKeyShortcuts = 0;
-
-	if (nChar == VK_F1 && isUseSPCKeyShortcuts)
-		CAKeyShortcuts = 1;
-	else if (nChar == VK_F2 && isUseSPCKeyShortcuts)
-		CAKeyShortcuts = 2;
-*/
 	CDialog::OnKeyDown(nChar, nRepCnt, nFlags);
 }
 
 void CStdIn::OnChar(UINT nChar, UINT nRepCnt, UINT nFlags) 
 {
 	UpdateData(true);
-/*
-	if (CAKeyShortcuts) {
-		wchar_t CAChar;
-		if (HandleCAKeyShortcuts(nChar, false, &CAChar, CAKeyShortcuts)) {
-			return;
-		}
-		CAKeyShortcuts = 0;
-	}
-*/
 	CDialog::OnChar(nChar, nRepCnt, nFlags);
 }
 

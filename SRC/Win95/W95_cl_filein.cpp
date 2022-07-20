@@ -1,6 +1,6 @@
 /*
 	for (i=1; i <= F_numfiles; i++)
-		get_a_file(i, line, nil, FileList);
+		get_a_file(i, line, NULL, FileList, FNSize);
 */
 #include "cu.h"
 #include "ced.h"
@@ -13,6 +13,7 @@ struct f_list {
 } ;
 
 extern char accept_all_flag;
+extern int F_numfiles;
 
 static int  ALLFLAG;
 static int  lastfn;
@@ -21,7 +22,6 @@ static long lastWhen;
 static Boolean dbClick;
 static struct f_list *FileList = NULL;
 
-int  F_numfiles = 0;
 char isAllFile;
 
 void InitFileDialog(void) {
@@ -47,7 +47,7 @@ static struct f_list *CleanupFileList(struct f_list *fl) {
 	return(NULL);
 }
 
-static void get_a_file(int fnum, char *s, Boolean *isDir, struct f_list *fl) {	
+static void get_a_file(int fnum, char *s, Boolean *isDir, struct f_list *fl, int max) {	
 	struct f_list *t;
 
 	*s = EOS;
@@ -56,9 +56,9 @@ static void get_a_file(int fnum, char *s, Boolean *isDir, struct f_list *fl) {
 
 	for (t=fl; t != NULL; fnum--, t=t->nextFile) {
 		if (fnum == 1) {
-			strncpy(s, t->fname, 1024-1);
-			s[1024-1] = EOS;
-			if (isDir != nil)
+			strncpy(s, t->fname, max-1);
+			s[max-1] = EOS;
+			if (isDir != NULL)
 				*isDir = t->isDir;
 			break;
 		}
@@ -132,6 +132,7 @@ static struct f_list *remove_a_file(int fnum, struct f_list *fl, int *fn) {
 				free(t->fname);
 				free(t);
 				(*fn)--;
+				return(fl);
 			}
 			tt = t;
 			t = t->nextFile;
@@ -150,8 +151,8 @@ static int isDuplicate_File(char *fs, struct f_list *fl) {
 	return(FALSE);
 }
 
-void get_selected_file(int fnum, char *s) {
-	get_a_file(fnum, s, nil, FileList);
+void get_selected_file(int fnum, char *s, int max) {
+	get_a_file(fnum, s, NULL, FileList, max);
 }
 
 static void getPath(CWnd *win, unCH *pathU, int max) {
@@ -185,14 +186,14 @@ static UINT APIENTRY OFNHookProcOldStyle(HWND hdlg,UINT uiMsg,WPARAM wParam,LPAR
 	char *s, 
 		 fname[FILENAME_MAX],
 		 path[1024];
-	wchar_t fnameU[FILENAME_MAX],
+	unCH fnameU[FILENAME_MAX],
 			pathU[1024];
 	CWnd tw, *win;
 
 	switch (uiMsg) {
 		case WM_INITDIALOG:
 			for (i=1; i <= F_numfiles; i++) {
-				get_a_file(i, path, nil, FileList);
+				get_a_file(i, path, NULL, FileList, 1024);
 				s = strrchr(path,PATHDELIMCHR);
 				if (!s)
 					s = path;
@@ -219,7 +220,7 @@ static UINT APIENTRY OFNHookProcOldStyle(HWND hdlg,UINT uiMsg,WPARAM wParam,LPAR
 								FileList = add_a_file(path, 0, FileList, &F_numfiles);
 								win->SendDlgItemMessage(IDC_LIST_OF_DATA, LB_RESETCONTENT, 0, 0);
 								for (i=1; i <= F_numfiles; i++) {
-									get_a_file(i, path, nil, FileList);
+									get_a_file(i, path, NULL, FileList, 1024);
 									s = strrchr(path,PATHDELIMCHR);
 									if (!s)
 										s = path;
@@ -240,7 +241,7 @@ static UINT APIENTRY OFNHookProcOldStyle(HWND hdlg,UINT uiMsg,WPARAM wParam,LPAR
 							FileList = remove_a_file(i+1, FileList, &F_numfiles);
 						win->SendDlgItemMessage(IDC_LIST_OF_DATA, LB_RESETCONTENT, 0, 0);
 						for (i=1; i <= F_numfiles; i++) {
-							get_a_file(i, path, nil, FileList);
+							get_a_file(i, path, NULL, FileList, 1024);
 							s = strrchr(path,PATHDELIMCHR);
 							if (!s)
 								s = path;
@@ -331,7 +332,7 @@ return(TRUE);
 							}
 							win->SendDlgItemMessage(IDC_LIST_OF_DATA, LB_RESETCONTENT, 0, 0);
 							for (i=1; i <= F_numfiles; i++) {
-								get_a_file(i, path, nil, FileList);
+								get_a_file(i, path, NULL, FileList, 1024);
 								s = strrchr(path,PATHDELIMCHR);
 								if (!s)
 									s = path;
@@ -368,7 +369,7 @@ return(TRUE);
 		            		if (win) {
 								i = win->SendDlgItemMessage(IDC_LIST_OF_DATA, LB_GETCURSEL, 0, 0);
 								if (i != LB_ERR) {
-									get_a_file(i+1, path, nil, FileList);
+									get_a_file(i+1, path, NULL, FileList, 1024);
 									u_strcpy(pathU, path, 1024);
 									win->SetDlgItemText(IDC_SELECTED_FILENAME, pathU);
 								}	
@@ -382,7 +383,7 @@ return(TRUE);
 									FileList = remove_a_file(i+1, FileList, &F_numfiles);
 								win->SendDlgItemMessage(IDC_LIST_OF_DATA, LB_RESETCONTENT, 0, 0);
 								for (i=1; i <= F_numfiles; i++) {
-									get_a_file(i, path, nil, FileList);
+									get_a_file(i, path, NULL, FileList, 1024);
 									s = strrchr(path,PATHDELIMCHR);
 									if (!s)
 										s = path;
@@ -415,7 +416,7 @@ void myget(void) {
     unCH			szFile[1024];
 	char			tDir[1024];
     unCH			*szFilter;
-	wchar_t			wDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 
 	strcpy(tDir, wd_dir);
 	if (tDir[strlen(tDir)-1] == PATHDELIMCHR)

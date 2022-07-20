@@ -21,7 +21,7 @@ class CClanWindow : public CDialog
 // Construction
 public:
 	CClanWindow(CWnd* pParent = NULL);   // standard constructor
-	wchar_t t_st[FNSize], wd_st[45], od_st[45], lib_st[45], mor_lib_st[45];
+	unCH t_st[FNSize], wd_st[45], od_st[45], lib_st[45], mor_lib_st[45];
 
 // Dialog Data
 	//{{AFX_DATA(CClanWindow)
@@ -60,7 +60,7 @@ protected:
 	void RecallCommand(short type);
 	void HideClanWinIcons(void);
 	void SetClanWinIcons(void);
-	void createPopupProgsMenu(void);
+	void createPopupProgMenu(void);
 
 	// Generated message map functions
 	//{{AFX_MSG(CClanWindow)
@@ -100,7 +100,6 @@ public:
 	CListBox	m_ClanRecallListControl;
 
 protected:
-	BOOL m_isInited;
 	virtual void OnCancel();
 	virtual void OnOK();
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
@@ -121,5 +120,6 @@ protected:
 
 extern CClanWindow *clanDlg;
 extern char isFindFile(int ProgNum);
+extern bool isAtOnCommandLineFound(unCH *s);
 
 #endif // !defined(AFX_W95_COMMANDS_H__F3C36341_3B3C_11D1_8D74_00A02481E866__INCLUDED_)

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -11,9 +11,11 @@
 
 #include "darray.hpp"
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=mac68k 
 #endif
+*/
 
 typedef struct st_Darray {
   unsigned length;
@@ -22,9 +24,11 @@ typedef struct st_Darray {
   unsigned storage_length;
 } Darray_rep;
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=reset 
 #endif
+*/
 
 #define draise(p_to_rep) ((Darray)p_to_rep)
 #define dlower(obj) ((Darray_rep *)obj)

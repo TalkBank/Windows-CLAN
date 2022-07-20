@@ -1716,7 +1716,7 @@ skipSyn:
 		ResetUndos();
 		copyNewToFontInfo(&global_df->row_txt->Font, &dFnt);
 		global_df->attOutputToScreen = 0;
-		if (global_df->lineno == 1) 
+		if (global_df->wLineno == 1) 
 			OutputToScreen(cl_T("> "));
 		_getcwd(nowref, _MAX_PATH);
 		dFnt.isUTF = isUTFData;

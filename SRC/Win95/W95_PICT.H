@@ -6,7 +6,8 @@
 #endif // _MSC_VER > 1000
 // W_Pict.h : header file
 //
-#include <TextUtils.h>
+
+#include <atlimage.h>
 
 /////////////////////////////////////////////////////////////////////////////
 // CPict dialog
@@ -37,13 +38,13 @@ public:
 
 // Implementation
 public:
-	char fname[_MAX_PATH+_MAX_FNAME];
+	CString filename;
 	char setSize;
-	Rect myRect;
-	CGrafPtr cgp;
-	GraphicsImportComponent	gImporter;
+	BOOL m_isFirstPaint, m_isPictureLoadFailed;
+	CImage *myPict;
 
 protected:
+	HICON m_hIcon;
 
 	// Generated message map functions
 	//{{AFX_MSG(CPict)

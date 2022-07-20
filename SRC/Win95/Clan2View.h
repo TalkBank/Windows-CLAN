@@ -29,7 +29,7 @@ protected:
 	char skipOnChar;
 	unsigned char isExtKeyFound; // 1- `, 2- ~, 3- ', 4- ^, 5- @, 6- :, 7- ,, 8- &, 9- /
 								 // 1- `, 2- ~, 4- ', 8- ^, 16- @, 32- :, 64- ,, 128- &
-	char CAKeyShortcuts;
+	char text_isFKeyPressed;
 	UINT whichInput;
 
 // Operations
@@ -74,6 +74,22 @@ protected:
 	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnSelectMediaFile();
+
+	afx_msg void OnGetEnglishGrammar();
+	afx_msg void OnGetCantoneseGrammar();
+	afx_msg void OnGetChineseGrammar();
+	afx_msg void OnGetDanishGrammar();
+	afx_msg void OnGetDutchGrammar();
+	afx_msg void OnGetFrenchGrammar();
+	afx_msg void OnGetGermanGrammar();
+	afx_msg void OnGetHebrewGrammar();
+	afx_msg void OnGetItalianGrammar();
+	afx_msg void OnGetJapaneseGrammar();
+	afx_msg void OnGetSpanishGrammar();
+
+	afx_msg void OnGetEnglishKevalDB();
+	afx_msg void OnGetChineseKevalDB();
+
 	afx_msg void OnFileSave();
 	afx_msg void OnFileSaveAs();
 	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);

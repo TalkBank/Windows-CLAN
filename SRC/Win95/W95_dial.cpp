@@ -43,7 +43,7 @@ int LocateDir(const char *prompt, char *currentDir, char noDefault) {
     unCH			szFile[FILENAME_MAX];
 	char			tDir[FILENAME_MAX];
     unCH			*szFilter;
-	wchar_t			wDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 
 	strcpy(tDir, currentDir);
 	if (tDir[strlen(tDir)-1] == PATHDELIMCHR)

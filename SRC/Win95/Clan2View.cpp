@@ -5,16 +5,14 @@
 #include "c_clan.h"
 #include "search.h"
 #include "MMedia.h"
-#include "mp3.h"
 #include "ids.h"
-#include <TextUtils.h>
 
 #include "Clan2Doc.h"
 #include "Clan2View.h"
 #include "CedDlgs.h"
 #include "W95_commands.h"
-#include "QTDlg.h"
-#include "MpegWindow.h"
+#include "W95_Unzip.h"
+#include "MpegDlg.h"
 #include "FStructViewer.h"
 
 #ifndef __MWERKS__
@@ -32,17 +30,19 @@ static char *bArgv[10];
 static COLORWORDLIST *cColor = NULL;
 extern CWnd *isMouseButtonDn;
 extern char *ced_punctuation;
-extern void stopMovieIfPlaying(void);
-extern void stopMP3SoundIfPlaying(void);
+extern float scalingSize;
+extern FONTINFO cmdFnt;
 
+extern void stopMovieIfPlaying(void);
+
+char tComWinDataChanged;
 CFont m_font;
 CDC* GlobalDC;
 CClan2Doc* GlobalDoc;
 LOGFONT m_lfDefFont;
+static LOGFONT m_lfComDefFont;
 DWORD	walker_pause = 0L;
 
-extern CMpegWindow *MPegDlg;
-extern CQTDlg *MovDlg;
 /////////////////////////////////////////////////////////////////////////////
 // CClan2View
 
@@ -58,6 +58,22 @@ BEGIN_MESSAGE_MAP(CClan2View, CView)
 	ON_WM_KEYDOWN()
 	ON_WM_SIZE()
 	ON_COMMAND(ID_FILE_SELECTMEDIAFILE, OnSelectMediaFile)
+
+	ON_COMMAND(ID_GETMORGRAMMAR_ENGLISH, OnGetEnglishGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_CANTONESE, OnGetCantoneseGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_CHINESE, OnGetChineseGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_DANISH, OnGetDanishGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_DUTCH, OnGetDutchGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_FRENCH, OnGetFrenchGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_GERMAN, OnGetGermanGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_HEBREW, OnGetHebrewGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_ITALIAN, OnGetItalianGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_JAPANESE, OnGetJapaneseGrammar)
+	ON_COMMAND(ID_GETMORGRAMMAR_SPANISH, OnGetSpanishGrammar)
+
+	ON_COMMAND(ID_GETKIDEVALDATABASE_ENGLISH, OnGetEnglishKevalDB)
+	ON_COMMAND(ID_GETKIDEVALDATABASE_CHINESE, OnGetChineseKevalDB)
+	
 	ON_COMMAND(ID_FILE_SAVE, OnFileSave)
 	ON_COMMAND(ID_FILE_SAVE_AS, OnFileSaveAs)
 	ON_WM_VSCROLL()
@@ -113,7 +129,6 @@ BEGIN_MESSAGE_MAP(CClan2View, CView)
 	ON_COMMAND(ID_MODE_EXPEND_BULLETS, OnModeExpendBullets)
 	ON_COMMAND(ID_EDIT_REDO, OnEditRedo)
 	ON_COMMAND(ID_UNDERLINE, OnUnderline)
-	ON_COMMAND(ID_EDIT_REPLACEFIND, OnEditReplacefind)
 	ON_COMMAND(ID_ITALIC, OnItalic)
 	ON_COMMAND(ID_MODE_CAMODE, OnModeCamode)
 	ON_COMMAND(ID_SET_TAB, OnSetTab)
@@ -145,58 +160,87 @@ END_MESSAGE_MAP()
 /////////////////////////////////////////////////////////////////////////////
 // Static initialization/termination
 
-static TCHAR BASED_CODE szSettings[] = _T("Settings");
-static TCHAR BASED_CODE szTabStops[] = _T("TabStops");
-static TCHAR BASED_CODE szFont[] = _T("Font");
-static TCHAR BASED_CODE szPrintFont[] = _T("PrintFont");
-static TCHAR BASED_CODE szHeight[] = _T("Height");
-static TCHAR BASED_CODE szWeight[] = _T("Weight");
-static TCHAR BASED_CODE szItalic[] = _T("Italic");
-static TCHAR BASED_CODE szUnderline[] = _T("Underline");
-static TCHAR BASED_CODE szPitchAndFamily[] = _T("PitchAndFamily");
-static TCHAR BASED_CODE szCharSet[] = _T("CharSet");
-static TCHAR BASED_CODE szFaceName[] = _T("FaceName");
-static TCHAR BASED_CODE szSystem[] = _T("System");
-static TCHAR BASED_CODE szWordWrap[] = _T("WordWrap");
+//static TCHAR szSettings[] = _T("Settings");
+//static TCHAR szTabStops[] = _T("TabStops");
+static TCHAR szFont[] = _T("Font");
+static TCHAR szComandFont[] = _T("CommandFont");
 
-static BOOL GetProfileFont(LPCTSTR szSec, LOGFONT* plf)
-{
+static TCHAR szHeight[] = _T("Height");
+static TCHAR szWeight[] = _T("Weight");
+static TCHAR szItalic[] = _T("Italic");
+static TCHAR szUnderline[] = _T("Underline");
+static TCHAR szPitchAndFamily[] = _T("PitchAndFamily");
+static TCHAR szCharSet[] = _T("CharSet");
+static TCHAR szFaceName[] = _T("FaceName");
+static TCHAR szSystem[] = _T("System");
+//static TCHAR szWordWrap[] = _T("WordWrap");
+
+static BOOL GetProfileFont(LOGFONT* plf, LOGFONT* plCf) {
+	int FNS;
+	CString strFont, strCFont;
+
+//	return(FALSE);  // lxslxslxs
+
 	CWinApp* pApp = AfxGetApp();
-	plf->lfHeight = pApp->GetProfileInt(szSec, szHeight, 0);
-	if (plf->lfHeight != 0)
-	{
-		plf->lfWeight = pApp->GetProfileInt(szSec, szWeight, 0);
-		plf->lfItalic = (BYTE)pApp->GetProfileInt(szSec, szItalic, 0);
-		plf->lfUnderline = (BYTE)pApp->GetProfileInt(szSec, szUnderline, 0);
-		plf->lfPitchAndFamily = (BYTE)pApp->GetProfileInt(szSec, szPitchAndFamily, 0);
-		plf->lfCharSet = (BYTE)pApp->GetProfileInt(szSec, szCharSet, DEFAULT_CHARSET);
-		CString strFont = pApp->GetProfileString(szSec, szFaceName, szSystem);
-		lstrcpyn((TCHAR*)plf->lfFaceName, strFont, sizeof plf->lfFaceName);
-		plf->lfFaceName[sizeof plf->lfFaceName-1] = 0;
-#ifdef _UNICODE
-		if (!strcmp(plf->lfFaceName, dFnt.fontName)) {
-			dFnt.fontSize = plf->lfHeight;
-			WriteCedPreference();
+	plf->lfHeight = pApp->GetProfileInt(szFont, szHeight, 0);
+	if (plf->lfHeight != 0) {
+		plf->lfWeight = pApp->GetProfileInt(szFont, szWeight, 0);
+		plf->lfItalic = (BYTE)pApp->GetProfileInt(szFont, szItalic, 0);
+		plf->lfUnderline = (BYTE)pApp->GetProfileInt(szFont, szUnderline, 0);
+		plf->lfPitchAndFamily = (BYTE)pApp->GetProfileInt(szFont, szPitchAndFamily, 0);
+		plf->lfCharSet = (BYTE)pApp->GetProfileInt(szFont, szCharSet, DEFAULT_CHARSET);
+		strFont = pApp->GetProfileString(szFont, szFaceName, szSystem);
+		FNS = sizeof(plf->lfFaceName);
+		lstrcpyn(plf->lfFaceName, strFont, FNS);
+		plf->lfFaceName[FNS-1] = 0;
+
+		plCf->lfHeight = pApp->GetProfileInt(szComandFont, szHeight, 0);
+		if (plCf->lfHeight != 0) {
+			plCf->lfWeight = pApp->GetProfileInt(szComandFont, szWeight, 0);
+			plCf->lfItalic = (BYTE)pApp->GetProfileInt(szComandFont, szItalic, 0);
+			plCf->lfUnderline = (BYTE)pApp->GetProfileInt(szComandFont, szUnderline, 0);
+			plCf->lfPitchAndFamily = (BYTE)pApp->GetProfileInt(szComandFont, szPitchAndFamily, 0);
+			plCf->lfCharSet = (BYTE)pApp->GetProfileInt(szComandFont, szCharSet, DEFAULT_CHARSET);
+			strCFont = pApp->GetProfileString(szComandFont, szFaceName, szSystem);
+			FNS = sizeof(plCf->lfFaceName);
+			lstrcpyn(plCf->lfFaceName, strCFont, FNS);
+			plCf->lfFaceName[FNS - 1] = 0;
+		} else {
+			plCf->lfHeight = plf->lfHeight;
+			plCf->lfWeight = plf->lfWeight;
+			plCf->lfItalic = plf->lfItalic;
+			plCf->lfUnderline = plf->lfUnderline;
+			plCf->lfPitchAndFamily = plf->lfPitchAndFamily;
+			plCf->lfCharSet = plf->lfCharSet;
+			lstrcpyn(plCf->lfFaceName, strFont, FNS);
+			plCf->lfFaceName[FNS - 1] = 0;
 		}
-#endif
 		return(TRUE);
 	} else
 		return(FALSE);
 }
 
-static void WriteProfileFont(LPCTSTR szSec, const LOGFONT* plf)
+static void WriteProfileFont(const LOGFONT* plf, LOGFONT* plCf)
 {
 	CWinApp* pApp = AfxGetApp();
 
-	if (plf->lfHeight != 0)
-	{
-		pApp->WriteProfileInt(szSec, szHeight, plf->lfHeight);
-		pApp->WriteProfileInt(szSec, szWeight, plf->lfWeight);
-		pApp->WriteProfileInt(szSec, szItalic, plf->lfItalic);
-		pApp->WriteProfileInt(szSec, szUnderline, plf->lfUnderline);
-		pApp->WriteProfileInt(szSec, szPitchAndFamily, plf->lfPitchAndFamily);
-		pApp->WriteProfileInt(szSec, szCharSet, plf->lfCharSet);
-		pApp->WriteProfileString(szSec, szFaceName, (LPCTSTR)plf->lfFaceName);
+	if (plf->lfHeight != 0) {
+		pApp->WriteProfileInt(szFont, szHeight, plf->lfHeight);
+		pApp->WriteProfileInt(szFont, szWeight, plf->lfWeight);
+		pApp->WriteProfileInt(szFont, szItalic, plf->lfItalic);
+		pApp->WriteProfileInt(szFont, szUnderline, plf->lfUnderline);
+		pApp->WriteProfileInt(szFont, szPitchAndFamily, plf->lfPitchAndFamily);
+		pApp->WriteProfileInt(szFont, szCharSet, plf->lfCharSet);
+		pApp->WriteProfileString(szFont, szFaceName, (LPCTSTR)plf->lfFaceName);
+	}
+	if (plCf->lfHeight != 0) {
+		pApp->WriteProfileInt(szComandFont, szHeight, plCf->lfHeight);
+		pApp->WriteProfileInt(szComandFont, szWeight, plCf->lfWeight);
+		pApp->WriteProfileInt(szComandFont, szItalic, plCf->lfItalic);
+		pApp->WriteProfileInt(szComandFont, szUnderline, plCf->lfUnderline);
+		pApp->WriteProfileInt(szComandFont, szPitchAndFamily, plCf->lfPitchAndFamily);
+		pApp->WriteProfileInt(szComandFont, szCharSet, plCf->lfCharSet);
+		pApp->WriteProfileString(szComandFont, szFaceName, (LPCTSTR)plCf->lfFaceName);
 	}
 }
 
@@ -407,8 +451,9 @@ static int CALLBACK EnumFontFamProc(ENUMLOGFONT FAR *font,NEWTEXTMETRIC FAR *t,i
 }
 
 static void testPresenceOfUnicodeFont(CDC* dc) {
-#ifdef _UNICODE
 	extern short ArialUnicodeFOND, SecondDefUniFOND;
+	float tf;
+	long size;
 	CDC* tGlobalDC = GlobalDC;
 
 	LOGFONT lfFont;
@@ -418,8 +463,12 @@ static void testPresenceOfUnicodeFont(CDC* dc) {
 	if (!firstFontTest)
 		return;
 	firstFontTest = FALSE;
-	strcpy(defUniFontName, "Arial Unicode MS"); // lxs font lxslxs
-	defUniFontSize = -13;
+	strcpy(defUniFontName, "Arial Unicode MS"); // lxslxslxs
+	tf = -14;
+	tf = tf * scalingSize;
+	size = (long)tf;
+
+	defUniFontSize = size;
 	memset(&lfFont, 0, sizeof(LOGFONT));
 	lfFont.lfCharSet = (unsigned char)0;
 	lfFont.lfOutPrecision = OUT_TT_PRECIS;
@@ -440,15 +489,35 @@ static void testPresenceOfUnicodeFont(CDC* dc) {
 
 	ArialUnicodeFOND = 1;
 	if (EnumFontFamiliesEx(GlobalDC->GetSafeHdc(),&lfFont,(FONTENUMPROC)EnumFontFamExProc,(LPARAM)&finfo,0) != 0) {
-		u_strcpy(fontNameU, defUniFontName, 256);
-		if (EnumFontFamilies(GlobalDC->GetSafeHdc(),fontNameU,(FONTENUMPROC)EnumFontFamProc,(LPARAM)&finfo) != 0) {
-			ArialUnicodeFOND = 0;
+		strcpy(defUniFontName, "Cambria");
+		memset(&lfFont, 0, sizeof(LOGFONT));
+		lfFont.lfCharSet = (unsigned char)0;
+		lfFont.lfOutPrecision = OUT_TT_PRECIS;
+		lfFont.lfClipPrecision = CLIP_DEFAULT_PRECIS;
+		lfFont.lfQuality = PROOF_QUALITY;
+		lfFont.lfPitchAndFamily = FF_DONTCARE | DEFAULT_PITCH; //FF_SWISS | VARIABLE_PITCH;
+		lfFont.lfHeight = defUniFontSize;
+		u_strcpy(lfFont.lfFaceName, defUniFontName, LF_FACESIZE);
+		lfFont.lfWeight = FW_NORMAL;
+
+		strcpy(finfo.fontName, defUniFontName);
+		finfo.fontSize = defUniFontSize;
+		finfo.fontId = DEFAULT_ID;
+		finfo.fontPref = "Win95:";
+		finfo.orgFType = WINArialUC;
+		finfo.fontType = WINArialUC;
+		finfo.CharSet = 0;
+		if (EnumFontFamiliesEx(GlobalDC->GetSafeHdc(), &lfFont, (FONTENUMPROC)EnumFontFamExProc, (LPARAM)&finfo, 0) != 0) {
+			u_strcpy(fontNameU, defUniFontName, 256);
+			if (EnumFontFamilies(GlobalDC->GetSafeHdc(), fontNameU, (FONTENUMPROC)EnumFontFamProc, (LPARAM)&finfo) != 0) {
+				ArialUnicodeFOND = 0;
+			}
 		}
 	}
 
 	if (ArialUnicodeFOND == 0) {
 		strcpy(defUniFontName, "CAfont"/*UNICODEFONT*/); // lxs font lxslxs
-		defUniFontSize = -13;
+		defUniFontSize = size;
 		memset(&lfFont, 0, sizeof(LOGFONT));
 		lfFont.lfCharSet = (unsigned char)0;
 		lfFont.lfOutPrecision = OUT_TT_PRECIS;
@@ -481,12 +550,12 @@ static void testPresenceOfUnicodeFont(CDC* dc) {
 		lfFont.lfClipPrecision = CLIP_DEFAULT_PRECIS;
 		lfFont.lfQuality = PROOF_QUALITY;
 		lfFont.lfPitchAndFamily = FF_DONTCARE | DEFAULT_PITCH; //FF_SWISS | VARIABLE_PITCH;
-		lfFont.lfHeight = -13;
-		u_strcpy(lfFont.lfFaceName, "CAfont"/*UNICODEFONT*/, LF_FACESIZE);
+		lfFont.lfHeight = size;
+		u_strcpy(lfFont.lfFaceName, "CAfont", LF_FACESIZE);
 		lfFont.lfWeight = FW_NORMAL;
 
-		strcpy(finfo.fontName, "CAfont"/*UNICODEFONT*/);
-		finfo.fontSize = -13;
+		strcpy(finfo.fontName, "CAfont");
+		finfo.fontSize = size;
 		finfo.fontId = DEFAULT_ID;
 		finfo.fontPref = "Win95:";
 		finfo.orgFType = WINCAFont;
@@ -503,15 +572,15 @@ static void testPresenceOfUnicodeFont(CDC* dc) {
 	}
 	GlobalDC = tGlobalDC;
 	if (ArialUnicodeFOND == 0 && SecondDefUniFOND == 0)
-		do_warning("Can't find either \"Arial Unicode MS\" or \"TITUS Cyberbit Basic\" font. Please look on web page \"http://childes.talkbank.org/clan/\" for more information.", 0);
+		do_warning("Can't find either \"Cambria\" or \"TITUS Cyberbit Basic\" font. Please look on web page \"http://talkbank.org/\" for more information.", 0);
 	else {
 		SetDefaultUnicodeFinfo(&finfo);
-
-		if (strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") && strcmp(m_lfDefFont.lfFaceName, "CAfont"/*UNICODEFONT*/))
+		if (strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") && strcmp(m_lfDefFont.lfFaceName, "Cambria") && strcmp(m_lfDefFont.lfFaceName, "CAfont"))
 			SetLogfont(&m_lfDefFont, NULL, &finfo);
-		else if (!strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") && defUniFontName[0] != 'A')
+		else if ((!strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") || !strcmp(m_lfDefFont.lfFaceName, "Cambria")) &&
+			defUniFontName[0] != 'A' && defUniFontName[0] != 'C')
 			SetLogfont(&m_lfDefFont, NULL, &finfo);
-		else if (!strcmp(m_lfDefFont.lfFaceName, "CAfont"/*UNICODEFONT*/) && defUniFontName[0] == 'A')
+		else if (!strcmp(m_lfDefFont.lfFaceName, "CAfont") && defUniFontName[0] == 'A')
 			SetLogfont(&m_lfDefFont, NULL, &finfo);
 
 		m_font.DeleteObject();
@@ -520,84 +589,192 @@ static void testPresenceOfUnicodeFont(CDC* dc) {
 			m_lfDefFont.lfWeight = FW_NORMAL;
 			m_font.CreateFontIndirect(&m_lfDefFont);
 		}
-#ifdef _UNICODE
 		u_strcpy(dFnt.fontName, m_lfDefFont.lfFaceName, 250);
 		dFnt.isUTF = 1;
-#else
-		strcpy(dFnt.fontName, (char *)m_lfDefFont.lfFaceName);
-		dFnt.isUTF = 0;
-#endif
 		dFnt.fontSize = m_lfDefFont.lfHeight;
 		dFnt.orgFType = getFontType(dFnt.fontName, TRUE);
 		dFnt.fontType = dFnt.orgFType;
 		dFnt.CharSet = DEFAULT_CHARSET;
 		dFnt.Encod = my_FontToScript(dFnt.fontName, dFnt.CharSet);
 	}
-#endif	
 }
+
+/*
+static void GetFileVersion(DWORD *major, DWORD *minor) {
+	DWORD               dwSize = 0;
+	BYTE                *pVersionInfo = NULL;
+	VS_FIXEDFILEINFO    *fInfo = NULL;
+	UINT                pLenFileInfo = 0;
+	unCH				inFName[FNSize];
+
+	*major = 0;
+	*minor = 0;
+	u_strcpy(inFName, "kernel32.dll", FNSize);
+	// getting the file version info size 
+	dwSize = GetFileVersionInfoSize(inFName, NULL);
+	if (dwSize == 0) {
+		return;
+	}
+	pVersionInfo = new BYTE[dwSize]; //allocation of space for the verison size
+	if (!GetFileVersionInfo(inFName, 0, dwSize, pVersionInfo))  {
+		delete[] pVersionInfo;
+		return;
+	}
+	if (!VerQueryValue(pVersionInfo, TEXT("\\"), (LPVOID*)&fInfo, &pLenFileInfo)) {
+		delete[] pVersionInfo;
+		return;
+	}
+	*major = (fInfo->dwFileVersionMS >> 16) & 0xffff;
+	*minor = (fInfo->dwFileVersionMS) & 0xffff;
+	sprintf(templineC, "major=%d, minor=%d, %d.%d", *major, *minor, (fInfo->dwFileVersionLS >> 16) & 0xffff, (fInfo->dwFileVersionLS >> 0) & 0xffff);
+	do_warning(templineC, 0);
+	sprintf(templineC, "File Version: %d.%d.%d.%d\n",
+		(fInfo->dwFileVersionLS >> 24) & 0xff,
+		(fInfo->dwFileVersionLS >> 16) & 0xff,
+		(fInfo->dwFileVersionLS >> 8) & 0xff,
+		(fInfo->dwFileVersionLS >> 0) & 0xff
+		);
+	do_warning(templineC, 0);
+	sprintf(templineC, "Product Version: %d.%d.%d.%d\n",
+		(fInfo->dwProductVersionLS >> 24) & 0xff,
+		(fInfo->dwProductVersionLS >> 16) & 0xff,
+		(fInfo->dwProductVersionLS >> 8) & 0xff,
+		(fInfo->dwProductVersionLS >> 0) & 0xff
+		);
+	do_warning(templineC, 0);
+	delete[] pVersionInfo;
+}
+*/
 
 void CClan2View::Initialize()
 {
-	FONTINFO fi;
+	float tf;
+	long size;
+	unCH fontNameU[256];
+	NewFontInfo finfo;
+	HDC     hDC;
+	BOOL	isFontSet;
 
-	firstFontTest = FALSE;
-	if (!GetProfileFont(szFont, &m_lfDefFont)) {
-#ifdef _UNICODE
-		strcpy(fi.FName, "Arial Unicode MS");
-		fi.FSize = -13;
-		fi.CharSet = 0;
-#else
-		strcpy(fi.FName, "Courier");
-		fi.FSize = -13;
-		fi.CharSet = 1;
-#endif
-		SetLogfont(&m_lfDefFont, &fi, NULL);
-		if (m_font.CreateFontIndirect(&m_lfDefFont) != 0) {
-			return;
-		} else {
-			::GetObject(GetStockObject(SYSTEM_FONT), sizeof(LOGFONT), &m_lfDefFont);
-			m_lfDefFont.lfWeight = FW_NORMAL;
+//	GetFileVersion(&major, &minor); {// lxslxslxs
+
+	isFontSet = FALSE;
+	hDC = CreateDC(_T("DISPLAY"), NULL, NULL, NULL);
+	if (GetProfileFont(&m_lfDefFont, &m_lfComDefFont)) {
+		if (hDC != NULL) {
+			u_strcpy(finfo.fontName, m_lfDefFont.lfFaceName, 250);
+			finfo.fontSize = m_lfDefFont.lfHeight;
+			finfo.fontId = DEFAULT_ID;
+			finfo.fontPref = "Win95:";
+			finfo.orgFType = WINArialUC;
+			finfo.fontType = WINArialUC;
+			finfo.CharSet = 0;
+			u_strcpy(fontNameU, finfo.fontName, 256);
+			if (EnumFontFamilies(hDC, fontNameU, (FONTENUMPROC)EnumFontFamProc, (LPARAM)&finfo) == 0) {
+				isFontSet = TRUE;
+				SetLogfont(&m_lfDefFont, NULL, &finfo);
+				firstFontTest = FALSE;
+			}
+			u_strcpy(finfo.fontName, m_lfComDefFont.lfFaceName, 250);
+			finfo.fontSize = m_lfComDefFont.lfHeight;
+			finfo.fontId = DEFAULT_ID;
+			finfo.fontPref = "Win95:";
+			finfo.orgFType = WINArialUC;
+			finfo.fontType = WINArialUC;
+			finfo.CharSet = 0;
+			u_strcpy(fontNameU, finfo.fontName, 256);
+			if (EnumFontFamilies(hDC, fontNameU, (FONTENUMPROC)EnumFontFamProc, (LPARAM)&finfo) == 0) {
+				isFontSet = TRUE;
+				SetLogfont(&m_lfComDefFont, NULL, &finfo);
+			}
 		}
 	}
-#ifdef _UNICODE
+
+	if (!isFontSet) {
+		tf = -14;
+		tf = tf * scalingSize;
+		size = (long)tf;
+
+		if (hDC != NULL) {
+			firstFontTest = FALSE;
+			strcpy(finfo.fontName, "Arial Unicode MS");
+			finfo.fontSize = size;
+			finfo.fontId = DEFAULT_ID;
+			finfo.fontPref = "Win95:";
+			finfo.orgFType = WINArialUC;
+			finfo.fontType = WINArialUC;
+			finfo.CharSet = 0;
+			u_strcpy(fontNameU, finfo.fontName, 256);
+			if (EnumFontFamilies(hDC, fontNameU, (FONTENUMPROC)EnumFontFamProc, (LPARAM)&finfo) != 0) {
+				strcpy(finfo.fontName, "Cambria");
+				u_strcpy(fontNameU, "Cambria", 256);
+				if (EnumFontFamilies(hDC, fontNameU, (FONTENUMPROC)EnumFontFamProc, (LPARAM)&finfo) != 0) {
+					::GetObject(GetStockObject(SYSTEM_FONT), sizeof(LOGFONT), &m_lfDefFont);
+					m_lfDefFont.lfWeight = FW_NORMAL;
+				} else {
+					SetLogfont(&m_lfDefFont, NULL, &finfo);
+					SetLogfont(&m_lfComDefFont, NULL, &finfo);
+				}
+			} else {
+				SetLogfont(&m_lfDefFont, NULL, &finfo);
+				SetLogfont(&m_lfComDefFont, NULL, &finfo);
+			}
+		} else {
+			firstFontTest = FALSE;
+			strcpy(finfo.fontName, "Cambria");
+			finfo.fontSize = size;
+			finfo.fontId = DEFAULT_ID;
+			finfo.fontPref = "Win95:";
+			finfo.orgFType = WINArialUC;
+			finfo.fontType = WINArialUC;
+			finfo.CharSet = 0;
+			SetLogfont(&m_lfDefFont, NULL, &finfo);
+			SetLogfont(&m_lfComDefFont, NULL, &finfo);
+		}
+	}
 	u_strcpy(defUniFontName, m_lfDefFont.lfFaceName, 250);
-#else
-	strcpy(defUniFontName, m_lfDefFont.lfFaceName);
-#endif
 	defUniFontSize = m_lfDefFont.lfHeight;
-#ifdef _UNICODE
-	if (strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") && strcmp(m_lfDefFont.lfFaceName, "CAfont"/*UNICODEFONT*/)) {
+	stickyFontSize = defUniFontSize;
+	if (strcmp(m_lfDefFont.lfFaceName, "Arial Unicode MS") && strcmp(m_lfDefFont.lfFaceName, "Cambria") && strcmp(m_lfDefFont.lfFaceName, "CAfont")) {
 		NewFontInfo finfo;
 
 		SetDefaultUnicodeFinfo(&finfo);
 		SetLogfont(&m_lfDefFont, NULL, &finfo);
+		if (!isFontSet) {
+			SetLogfont(&m_lfComDefFont, NULL, &finfo);
+		}
 		if (m_font.CreateFontIndirect(&m_lfDefFont) != 0) {
 			goto FinInit;
 		} else {
 			::GetObject(GetStockObject(SYSTEM_FONT), sizeof(LOGFONT), &m_lfDefFont);
 			m_lfDefFont.lfWeight = FW_NORMAL;
+			if (!isFontSet) {
+				::GetObject(GetStockObject(SYSTEM_FONT), sizeof(LOGFONT), &m_lfComDefFont);
+				m_lfComDefFont.lfWeight = FW_NORMAL;
+			}
 		}
 	}
-#endif	
+
 	m_font.CreateFontIndirect(&m_lfDefFont);
 FinInit:
-#ifdef _UNICODE
+	if (hDC != NULL)
+		DeleteDC(hDC);
 	u_strcpy(dFnt.fontName, m_lfDefFont.lfFaceName, 250);
 	dFnt.isUTF = 1;
-#else
-	strcpy(dFnt.fontName, (char *)m_lfDefFont.lfFaceName);
-	dFnt.isUTF = 0;
-#endif
 	dFnt.fontSize = m_lfDefFont.lfHeight;
 	dFnt.orgFType = getFontType(dFnt.fontName, TRUE);
 	dFnt.fontType = dFnt.orgFType;
 	dFnt.CharSet = DEFAULT_CHARSET;
 	dFnt.Encod = my_FontToScript(dFnt.fontName, dFnt.CharSet);
+// 2016-03-29
+	u_strcpy(cmdFnt.FName, m_lfComDefFont.lfFaceName, LF_FACESIZE);
+	cmdFnt.FSize = m_lfComDefFont.lfHeight;
+	cmdFnt.CharSet = DEFAULT_CHARSET;
+	cmdFnt.Encod = my_FontToScript(cmdFnt.FName, cmdFnt.CharSet);
 }
 
 void CClan2View::Terminate()
 {
-	WriteProfileFont(szFont, &m_lfDefFont);
+	WriteProfileFont(&m_lfDefFont, &m_lfComDefFont);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -606,7 +783,7 @@ void CClan2View::Terminate()
 CClan2View::CClan2View()
 {
 	isExtKeyFound = 0; 	// 1- `, 2- ~, 3- ', 4- ^, 5- @, 6- :, 7- ,, 8- &, 9- /
-	CAKeyShortcuts = 0;
+	text_isFKeyPressed = 0;
 	skipOnChar = FALSE;
 	whichInput = 0;
 	cursorCnt = 0;
@@ -642,8 +819,8 @@ static webMFile *FindMediaFileName(unCH *line, int *oIndex, char *mvFName, char 
 	int i, orgIndex, index;
 	char *s, isPict;
 	char buf[FILENAME_MAX];
-	wchar_t wFilePathName[FNSize];
-	wchar_t	fname[FNSize];
+	unCH wFilePathName[FNSize];
+	unCH	fname[FNSize];
 	webMFile *p;
 	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
 
@@ -803,9 +980,9 @@ static char *getBatchArgs(char *com) {
 }
 
 static char fixArgs(char *fname, char *com) {
-	register int  i;
-	register int  num;
-	register char qt = 0;
+	int  i, len;
+	int  num;
+	char qt = 0, t;
 
 	for (i=0; com[i] != EOS; i++) {
 		if (com[i] == '\'' /*'*/ || com[i] == '"') {
@@ -822,11 +999,33 @@ static char fixArgs(char *fname, char *com) {
 				return(FALSE);
 			}
 			strcpy(com+i, com+i+2);
-			uS.shiftright(com+i,(int)strlen(bArgv[num]));
-			strncpy(com+i,bArgv[num],strlen(bArgv[num]));
+			len = strlen(bArgv[num]);
+			uS.shiftright(com + i, len);
+			t = com[i+len];
+			strncpy(com + i, bArgv[num], strlen(bArgv[num]));
+			com[i+len] = t;
 			i = i + strlen(bArgv[num]) - 1;
+		} else if (qt == 0 && com[i] == '-' && com[i + 1] == '%' && isdigit(com[i + 2]) && !isdigit(com[i + 3])) {
+			num = atoi(com + i + 2) - 1;
+			if (num < 0 || num > 9) {
+				sprintf(com, "Argument %%%d was not specified with batch file \"%s\".", num + 1, fname);
+				do_warning(com, 0);
+				return(FALSE);
+			}
+			strcpy(com + i, com + i + 3);
+			if (bArgv[num] != NULL) {
+				len = strlen(bArgv[num]);
+				uS.shiftright(com + i, len);
+				t = com[i + len];
+				strncpy(com + i, bArgv[num], strlen(bArgv[num]));
+				com[i + len] = t;
+				i = i + strlen(bArgv[num]) - 1;
+			}
+			else
+				i--;
 		}
 	}
+	uS.remblanks(com);
 	return(TRUE);
 }
 
@@ -847,35 +1046,45 @@ void CClan2View::OnToggleMovieText()
 			strcat(MovieFileName, ".mov");
 			ext = strrchr(MovieFileName,'.');
 		}
-		if (ext != NULL && (strcmp(ext, ".dat") == 0)) {
-			if (MPegDlg != NULL){
-				MPegDlg->SetActiveWindow();
-				pDoc->SetFakeHilight = 1;
-				pDoc->myUpdateAllViews(FALSE);
-			}
-		} else if (ext != NULL && true /*(strcmp(ext, ".mpg") == 0  ||
+		if (ext != NULL && true /*(strcmp(ext, ".mpg") == 0  ||
 								   strcmp(ext, ".mpeg") == 0 ||
 								   strcmp(ext, ".aiff") == 0 ||
 								   strcmp(ext, ".aif") == 0  ||
 								   strcmp(ext, ".avi") == 0  ||
 								   strcmp(ext, ".mov") == 0  ||
 								   strcmp(ext, ".m4v") == 0  ||
+								   strcmp(ext, ".wmv") == 0  ||
 								   strcmp(ext, ".mp4") == 0)*/) {
-			if (MovDlg != NULL){			
+			if (MpegDlg != NULL) {
+				MpegDlg->SetActiveWindow();
+				pDoc->SetFakeHilight = 1;
+				pDoc->myUpdateAllViews(FALSE);
+			}
+/* // NO QT
+			if (MovDlg != NULL) {
 				MovDlg->SetActiveWindow();
 				pDoc->SetFakeHilight = 1;
 				pDoc->myUpdateAllViews(FALSE);
 			}
+*/
 		}
 		global_df = tGlobal_df;
 	}
 }
 
 static void finishWalk(myFInfo *df) {
-	TimeValue pos=0;
+	SInt32 pos = 0;
 
 	if (df != NULL) {
-		pos = (MovDlg->qt)->GetCurTime();
+/* // NO QT
+		if (MovDlg != NULL)
+			pos = (MovDlg->qt)->GetCurTime();
+		else
+*/
+		if (MpegDlg != NULL)
+			pos = (MpegDlg->mpeg)->GetCurTime();
+		else
+			return;
 		if (pos >= df->MvTr.MEnd)
 			df->MvTr.MBeg = df->MvTr.MEnd - 1;
 		else
@@ -896,10 +1105,13 @@ void CClan2View::OnDraw(CDC* pDC)
 	CDC* tGlobalDC;
 	myFInfo	*tGlobal_df;
 	CClan2Doc* pDoc = GetDocument();
+	char commands_win_name[512];
+	extern char ced_version[];
 	extern char DefClan;
 	extern char firstTimeStart;
 	extern char *clanBuf, clanRun, quickTranscribe;
 	extern char *lineNumFname;
+	extern char isSpOverride;
 	extern char DOSdataErr[];
 	extern long lineNumOverride;
 	extern short DOSdata;
@@ -950,6 +1162,8 @@ void CClan2View::OnDraw(CDC* pDC)
 			global_df->CodeWinStart = 0;
 		}
 		init_windows(true, 1, true);
+		if (doReWrap)
+			Re_WrapLines(AddLineToRow, 0L, FALSE, NULL);
 		RefreshAllTextWindows(TRUE);
 		DrawCursor(1);
 		pDoc->RedisplayWindow = FALSE;
@@ -969,7 +1183,8 @@ void CClan2View::OnDraw(CDC* pDC)
 		else
 			id = 1962;
 		isUTF8Header = FALSE;
-		pDoc->FileInfo = InitFileInfo(pDoc->docFName, pDoc->m_RowLimit, NULL, id, &isUTF8Header);
+		pDoc->FileInfo = InitFileInfo(pDoc->docFName, pDoc->m_RowLimit, id, &isUTF8Header);
+		isAjustCursor = TRUE;
 		pDoc->docFName[0] = EOS;
 		global_df = pDoc->FileInfo;
 		if (pDoc->FileInfo == NULL) {
@@ -987,6 +1202,8 @@ void CClan2View::OnDraw(CDC* pDC)
 	    	global_df = tGlobal_df;
 	    	return;
 		}
+		if (id == 1962 && !isRefEQZero(global_df->fileName))
+			setTextCursor(global_df, &global_df->winInfo);
 		if (!global_df->EditorMode && global_df->CurCode != global_df->RootCodes) {
 			if (global_df->ScrollBar != '\002')
 				ControlAllControls(2, 0);
@@ -1043,10 +1260,14 @@ void CClan2View::OnDraw(CDC* pDC)
 				DrawFakeHilight(0);
 				global_df->DrawCur = FALSE;
 				clanDlg = new CClanWindow(AfxGetApp()->m_pMainWnd);
+				strcpy(commands_win_name, "Commands - ");
+				strcat(commands_win_name, ced_version);
+				clanDlg->SetWindowText(cl_T(commands_win_name));
 			}
 		}
 		SetPBCglobal_df(false, 0L);
-	} else if (pDoc->SaveMovieInfo) {
+	}
+	else if (pDoc->SaveMovieInfo) {
 		pDoc->SaveMovieInfo = FALSE;
 		global_df = pDoc->FileInfo;
 		if (global_df && !PlayingContMovie) {
@@ -1061,7 +1282,7 @@ void CClan2View::OnDraw(CDC* pDC)
 			if (global_df->DataChanged)
 				pDoc->SetModifiedFlag(TRUE);
 		}
-	} else if (pDoc->SetFakeHilight == 1 && (MovDlg != NULL || MPegDlg != NULL)) {
+	} else if (pDoc->SetFakeHilight == 1 && (/* // NO QT MovDlg != NULL || */ MpegDlg != NULL)) {
 		pDoc->SetFakeHilight = 0;
 		global_df = pDoc->FileInfo;
 		if (global_df && !PlayingContMovie) {
@@ -1089,7 +1310,8 @@ void CClan2View::OnDraw(CDC* pDC)
 	} else if (pDoc->ChangeCursorInfo != 0L) {
 		global_df = pDoc->FileInfo;
 		if (global_df) {
-  			if (PlayingContMovie == '\003' || pDoc->isTranscribing) {
+			if (MpegDlg != NULL && MpegDlg->mpeg != NULL && MpegDlg->mpeg->isMovieDurationSet != TRUE) {
+			} else if (PlayingContMovie == '\003' || pDoc->isTranscribing) {
 				long CurFP;
 				char res;
 
@@ -1166,64 +1388,126 @@ void CClan2View::OnDraw(CDC* pDC)
 
 		pDoc->DoWalkerController = FALSE;
 		global_df = pDoc->FileInfo;
-		if (global_df && PBC.enable && PBC.isPC && MovDlg && MovDlg->qt) {
-			if (PBC.enable && PBC.isPC && PBC.LoopCnt > MovDlg->MoviePlayLoopCnt) {
-				MovDlg->MoviePlayLoopCnt++;
-				MovDlg->qt->Movie_PreLoad(MovDlg->m_from);
-				MovDlg->m_pos = MovDlg->m_from;
-				MovDlg->Play();
-			} else if (global_df != NULL && PBC.walk && PBC.isPC && PBC.backspace != PBC.step_length) {
-				MovDlg->MoviePlayLoopCnt = 1;
-				if (PBC.backspace > PBC.step_length) {
-					tLong = global_df->MvTr.MBeg - (PBC.backspace - PBC.step_length);
-					if (tLong < 0L) {
-						finishWalk(global_df);
-						goto fin;
-					}
-					global_df->MvTr.MBeg = tLong;
+		if (global_df && PBC.enable && PBC.isPC) {
+/* // NO QT
+			if (MovDlg && MovDlg->qt) {
+				if (PBC.enable && PBC.isPC && PBC.LoopCnt > MovDlg->MoviePlayLoopCnt) {
+					MovDlg->MoviePlayLoopCnt++;
+					MovDlg->qt->Movie_PreLoad(MovDlg->m_from);
+					MovDlg->m_pos = MovDlg->m_from;
+					MovDlg->Play();
+				} else if (global_df != NULL && PBC.walk && PBC.isPC && PBC.backspace != PBC.step_length) {
+					MovDlg->MoviePlayLoopCnt = 1;
+					if (PBC.backspace > PBC.step_length) {
+						tLong = global_df->MvTr.MBeg - (PBC.backspace - PBC.step_length);
+						if (tLong < 0L) {
+							finishWalk(global_df);
+							goto finmov;
+						}
+						global_df->MvTr.MBeg = tLong;
 
-					if (PBC.walk == 2 && global_df->MvTr.MBeg >= sEF) {
-						finishWalk(global_df);
-						goto fin;
-					}
-					if (global_df->MvTr.MBeg >= (MovDlg->qt)->GetQTMovieDuration()) {
-						finishWalk(global_df);
-						goto fin;
-					}
+						if (PBC.walk == 2 && global_df->MvTr.MBeg >= sEF) {
+							finishWalk(global_df);
+							goto finmov;
+						}
+						if (global_df->MvTr.MBeg >= (MovDlg->qt)->GetQTMovieDuration()) {
+							finishWalk(global_df);
+							goto finmov;
+						}
 
-					global_df->MvTr.MEnd = global_df->MvTr.MEnd - (PBC.backspace - PBC.step_length);
-					if (PBC.walk == 2 && global_df->MvTr.MEnd > sEF)
-						global_df->MvTr.MEnd = sEF;
+						global_df->MvTr.MEnd = global_df->MvTr.MEnd - (PBC.backspace - PBC.step_length);
+						if (PBC.walk == 2 && global_df->MvTr.MEnd > sEF)
+							global_df->MvTr.MEnd = sEF;
+					} else {
+						tLong = global_df->MvTr.MBeg + (PBC.step_length - PBC.backspace);
+						if (tLong < 0L) {
+							finishWalk(global_df);
+							goto finmov;
+						}
+						global_df->MvTr.MBeg = tLong;
+
+						if (PBC.walk == 2 && global_df->MvTr.MBeg >= sEF) {
+							finishWalk(global_df);
+							goto finmov;
+						}
+						if (global_df->MvTr.MBeg >= (MovDlg->qt)->GetQTMovieDuration()) {
+							finishWalk(global_df);
+							goto finmov;
+						}
+
+						global_df->MvTr.MEnd = global_df->MvTr.MEnd + (PBC.step_length - PBC.backspace);
+						if (PBC.walk == 2 && global_df->MvTr.MEnd > sEF)
+							global_df->MvTr.MEnd = sEF;
+					}
+					MovDlg->qt->Movie_PreLoad(global_df->MvTr.MBeg);
+					MovDlg->m_from = global_df->MvTr.MBeg;
+					MovDlg->m_pos = MovDlg->m_from;
+					MovDlg->m_to = global_df->MvTr.MEnd;
+					MovDlg->Play();
+finmov:
+					pDoc->DoWalkerController = FALSE;
 				} else {
-					tLong = global_df->MvTr.MBeg + (PBC.step_length - PBC.backspace);
-					if (tLong < 0L) {
-						finishWalk(global_df);
-						goto fin;
-					}
-					global_df->MvTr.MBeg = tLong;
-
-					if (PBC.walk == 2 && global_df->MvTr.MBeg >= sEF) {
-						finishWalk(global_df);
-						goto fin;
-					}
-					if (global_df->MvTr.MBeg >= (MovDlg->qt)->GetQTMovieDuration()) {
-						finishWalk(global_df);
-						goto fin;
-					}
-
-					global_df->MvTr.MEnd = global_df->MvTr.MEnd + (PBC.step_length - PBC.backspace);
-					if (PBC.walk == 2 && global_df->MvTr.MEnd > sEF)
-						global_df->MvTr.MEnd = sEF;
+					finishWalk(global_df);
 				}
-				MovDlg->qt->Movie_PreLoad(global_df->MvTr.MBeg);
-				MovDlg->m_from=global_df->MvTr.MBeg;
-				MovDlg->m_pos = MovDlg->m_from;
-				MovDlg->m_to=global_df->MvTr.MEnd;
-				MovDlg->Play();
-fin:
-				pDoc->DoWalkerController = FALSE;
-			} else {
-				finishWalk(global_df);
+			} else
+*/
+			if (MpegDlg && MpegDlg->mpeg) {
+				if (PBC.enable && PBC.isPC && PBC.LoopCnt > MpegDlg->MoviePlayLoopCnt) {
+					MpegDlg->MoviePlayLoopCnt++;
+					MpegDlg->m_pos = MpegDlg->m_from;
+					MpegDlg->Play();
+				} else if (global_df != NULL && PBC.walk && PBC.isPC && PBC.backspace != PBC.step_length) {
+					MpegDlg->MoviePlayLoopCnt = 1;
+					if (PBC.backspace > PBC.step_length) {
+						tLong = global_df->MvTr.MBeg - (PBC.backspace - PBC.step_length);
+						if (tLong < 0L) {
+							finishWalk(global_df);
+							goto finmpeg;
+						}
+						global_df->MvTr.MBeg = tLong;
+
+						if (PBC.walk == 2 && global_df->MvTr.MBeg >= sEF) {
+							finishWalk(global_df);
+							goto finmpeg;
+						}
+						if (global_df->MvTr.MBeg >= (MpegDlg->mpeg)->GetMpegMovieDuration()) {
+							finishWalk(global_df);
+							goto finmpeg;
+						}
+
+						global_df->MvTr.MEnd = global_df->MvTr.MEnd - (PBC.backspace - PBC.step_length);
+						if (PBC.walk == 2 && global_df->MvTr.MEnd > sEF)
+							global_df->MvTr.MEnd = sEF;
+					} else {
+						tLong = global_df->MvTr.MBeg + (PBC.step_length - PBC.backspace);
+						if (tLong < 0L) {
+							finishWalk(global_df);
+							goto finmpeg;
+						}
+						global_df->MvTr.MBeg = tLong;
+
+						if (PBC.walk == 2 && global_df->MvTr.MBeg >= sEF) {
+							finishWalk(global_df);
+							goto finmpeg;
+						}
+						if (global_df->MvTr.MBeg >= (MpegDlg->mpeg)->GetMpegMovieDuration()) {
+							finishWalk(global_df);
+							goto finmpeg;
+						}
+
+						global_df->MvTr.MEnd = global_df->MvTr.MEnd + (PBC.step_length - PBC.backspace);
+						if (PBC.walk == 2 && global_df->MvTr.MEnd > sEF)
+							global_df->MvTr.MEnd = sEF;
+					}
+					MpegDlg->m_from = global_df->MvTr.MBeg;
+					MpegDlg->m_pos = MpegDlg->m_from;
+					MpegDlg->m_to = global_df->MvTr.MEnd;
+					MpegDlg->Play();
+finmpeg:
+					pDoc->DoWalkerController = FALSE;
+				} else {
+					finishWalk(global_df);
+				}
 			}
 		}
 	} else if (pDoc->isAddFStructComm[0] != EOS) {
@@ -1244,7 +1528,7 @@ skipSyn:
 			}
 			if (pDoc->isAddFStructComm[0] != '\001') {
 				AddText(cl_T(pDoc->isAddFStructComm), '\0',0, (long)strlen(pDoc->isAddFStructComm));
-				if (SaveToFile(global_df->fileName)) {
+				if (SaveToFile(global_df->fileName, TRUE)) {
 					sprintf(global_df->err_message, "-File \"%s\" written.", global_df->fileName); 
 					global_df->DataChanged = '\0';
 					ResetUndos();
@@ -1318,8 +1602,7 @@ skipSyn:
 	    	WINDOW *t;
 
 			DrawCursor(0);
-			if (GetActiveWindow( ) == MovDlg || 
-				GetActiveWindow( ) == MPegDlg) {
+			if (/* // NO QT GetActiveWindow( ) == MovDlg || */ GetActiveWindow( ) == MpegDlg) {
 				DrawFakeHilight(0);
 			}
 			global_df->WinChange = FALSE;
@@ -1346,14 +1629,13 @@ skipSyn:
 //			DrawSoundCursor(2);
 			global_df->TSelectFlag = tc;
 //			global_df->SSelectFlag = ts;
-			if (GetActiveWindow( ) == MovDlg || 
-				GetActiveWindow( ) == MPegDlg) {
+			if (/* // NO QT GetActiveWindow( ) == MovDlg || */ GetActiveWindow( ) == MpegDlg) {
 				DrawSoundCursor(0);
 				DrawFakeHilight(1);
 			}
 			DrawCursor(1);
 		}
-		if (pDoc->SetFakeHilight == 2 && (MovDlg != NULL || MPegDlg != NULL)) {
+		if (pDoc->SetFakeHilight == 2 && (/* // NO QT MovDlg != NULL || */ MpegDlg != NULL)) {
 			pDoc->SetFakeHilight = 0;
 			if (global_df && !PlayingContMovie) {
 				DrawFakeHilight(0);
@@ -1385,7 +1667,11 @@ skipSyn:
 			global_df->row_win2 = 0L;
 			global_df->col_win2 = 0L;
 			global_df->col_chr2 = 0L;
-			MoveToLine(lineNumOverride, 1);
+			if (isSpOverride)
+				MoveToSpeaker(lineNumOverride, 1);
+			else
+				MoveToLine(lineNumOverride, 1);
+			isSpOverride = FALSE;
 			global_df->row_win2 = 1L;
 			global_df->LeaveHighliteOn = TRUE;
 			FinishMainLoop();
@@ -1470,105 +1756,123 @@ skipSyn:
 	}
 
 	if (clanRun && !newlyCreated && global_df && !strcmp(global_df->fileName, "CLAN Output")) {
-		char  tDataChanged;
 		FILE  *fp;
+		char mDirPathName[FNSize];
 		char nowref[_MAX_PATH+1];
 		extern char ClanAutoWrap;
+		extern char isMORXiMode;
 
-		isKillProgram = 0;
-		clanRun = FALSE;
-		global_df->AutoWrap = ClanAutoWrap;
-		if (isUTFData && !dFnt.isUTF) {
-			SetDefaultUnicodeFinfo(&dFnt);
-			dFnt.fontTable = NULL;
-			dFnt.isUTF = 1;
-		}
-		dFnt.charHeight = GetFontHeight(NULL, &dFnt);
-		dFnt.Encod = my_FontToScript(dFnt.fontName, dFnt.CharSet);
-		dFnt.orgEncod = dFnt.Encod;
-		copyNewFontInfo(&oFnt, &dFnt);
-		tDataChanged = global_df->DataChanged;
-		EndOfFile(-1);
-		SetScrollControl();
-		ResetUndos();
-		copyNewToFontInfo(&global_df->row_txt->Font, &dFnt);
-		global_df->attOutputToScreen = 0;
-		if (global_df->lineno == 1) 
-			OutputToScreen(cl_T("> "));
-		my_getcwd(nowref, _MAX_PATH);
-		dFnt.isUTF = isUTFData;
-
-		if (!uS.mStrnicmp(clanBuf, "batch ", 6) || !uS.mStrnicmp(clanBuf, "bat ", 4)) {
-			char *com, *eCom;
-
-			SetNewVol(wd_dir);
-			uS.remFrontAndBackBlanks(clanBuf+1);
-			OutputToScreen(cl_T(clanBuf));
-			for (com=clanBuf; *com != EOS && *com != ' ' && *com != '\t'; com++) ;
-			for (; *com == ' ' || *com == '\t'; com++) ;
-			eCom = com;
-			if (*com != EOS) {
-				for (; *eCom != EOS && *eCom != ' ' && *eCom != '\t'; eCom++) ;
-				if (*eCom != EOS) {
-					*eCom = EOS;
-					eCom++;
-				}
+		if (StdInWindow != NULL && global_df != NULL && !strcmp(StdInWindow, global_df->fileName)) {
+			do_warning(StdDoneMessage, 0);
+		} else {
+			isKillProgram = 0;
+			clanRun = FALSE;
+			if (global_df->RowLimit) {
+				global_df->curRowLimit = global_df->row_txt;
+				global_df->isOutputScrolledOff = FALSE;
 			}
-			if ((fp=fopen(com, "r")) == NULL) {
-				SetNewVol(lib_dir);
-				if ((fp=fopen(com, "r")) == NULL) {
-					sprintf(ced_lineC, "Can't find batch file \"%s\" in either working or library directories", com);
+			global_df->AutoWrap = ClanAutoWrap;
+			if (isUTFData && !dFnt.isUTF) {
+				SetDefaultUnicodeFinfo(&dFnt);
+				dFnt.fontTable = NULL;
+				dFnt.isUTF = 1;
+			}
+			dFnt.charHeight = GetFontHeight(NULL, &dFnt);
+			dFnt.Encod = my_FontToScript(dFnt.fontName, dFnt.CharSet);
+			dFnt.orgEncod = dFnt.Encod;
+			copyNewFontInfo(&oFnt, &dFnt);
+			tComWinDataChanged = global_df->DataChanged;
+			EndOfFile(-1);
+			SetScrollControl();
+			ResetUndos();
+			copyNewToFontInfo(&global_df->row_txt->Font, &dFnt);
+			global_df->attOutputToScreen = 0;
+			if (global_df->wLineno == 1)
+				OutputToScreen(cl_T("> "));
+			my_getcwd(nowref, _MAX_PATH);
+			dFnt.isUTF = isUTFData;
+
+			if (!uS.mStrnicmp(clanBuf, "batch ", 6) || !uS.mStrnicmp(clanBuf, "bat ", 4)) {
+				char *com, *eCom;
+
+				SetNewVol(wd_dir);
+				uS.remFrontAndBackBlanks(clanBuf + 1);
+				OutputToScreen(cl_T(clanBuf));
+				for (com = clanBuf; *com != EOS && *com != ' ' && *com != '\t'; com++);
+				for (; *com == ' ' || *com == '\t'; com++);
+				eCom = com;
+				if (*com != EOS) {
+					for (; *eCom != EOS && *eCom != ' ' && *eCom != '\t'; eCom++);
+					if (*eCom != EOS) {
+						*eCom = EOS;
+						eCom++;
+					}
+				}
+				fp = OpenGenLib(com, "r", TRUE, TRUE, mDirPathName);
+				if (fp == NULL) {
+					sprintf(ced_lineC, "Can't find batch file \"%s\" in either working or library directory: %s", com, mDirPathName);
 					do_warning(ced_lineC, 0);
 				}
-				SetNewVol(wd_dir);
-			}
-			if (fp != NULL) {
-				if ((eCom=getBatchArgs(eCom)) != NULL) {
-					eCom++;
-					while (fgets(eCom, 1024, fp)) {
-						uS.remFrontAndBackBlanks(eCom);
-						if (uS.isUTF8(eCom) || uS.partcmp(eCom,FONTHEADER,FALSE,FALSE) ||
-							eCom[0] == '%' || eCom[0] == '#' || eCom[0] == EOS)
-							continue;
-						if (!fixArgs(com, eCom))
-							break;
-						if (*eCom == EOS ||
-							(toupper(eCom[0]) == 'T' && toupper(eCom[1]) == 'Y') ||
-							(toupper(eCom[0]) == 'P' && toupper(eCom[1]) == 'A')) ;
-						else {
-							OutputToScreen(cl_T("\nBATCH> "));
-							execute(eCom, tDataChanged);
-							if (isKillProgram) {
-								if (isKillProgram != 2)
-									OutputToScreen(cl_T("\n    BATCH FILE ABORTED\n"));
+				else {
+					sprintf(ced_lineC, "\nRunning batch file: %s\n", mDirPathName);
+					UTF8ToUnicode((unsigned char *)ced_lineC, strlen(ced_lineC), templine4, NULL, UTTLINELEN);
+					OutputToScreen(templine4);
+				}
+				if (fp != NULL) {
+					if ((eCom = getBatchArgs(eCom)) != NULL) {
+						eCom++;
+						while (fgets(eCom, 1024, fp)) {
+							uS.remFrontAndBackBlanks(eCom);
+							if (uS.isUTF8(eCom) || uS.partcmp(eCom, FONTHEADER, FALSE, FALSE) ||
+								eCom[0] == '%' || eCom[0] == '#' || eCom[0] == EOS)
+								continue;
+							if (!fixArgs(com, eCom))
 								break;
+							if (*eCom == EOS ||
+								(toupper(eCom[0]) == 'T' && toupper(eCom[1]) == 'Y') ||
+								(toupper(eCom[0]) == 'P' && toupper(eCom[1]) == 'A'));
+							else {
+								OutputToScreen(cl_T("\nBATCH> "));
+								execute(eCom, tComWinDataChanged);
+								if (isKillProgram) {
+									if (isKillProgram != 2)
+										OutputToScreen(cl_T("\n    BATCH FILE ABORTED\n"));
+									break;
+								}
 							}
 						}
 					}
+					fclose(fp);
 				}
-				fclose(fp);
 			}
-		} else
-			execute(clanBuf, tDataChanged);
+			else
+				execute(clanBuf, tComWinDataChanged);
 
-		copyNewFontInfo(&dFnt, &oFnt);
-		if (isKillProgram)
-			isKillProgram = 0;
-		if (global_df != NULL && !strcmp(global_df->fileName, "CLAN Output")) {
-			OutputToScreen(cl_T("\n> "));
-			global_df->DataChanged = tDataChanged;
-			PosAndDispl();
-			SetScrollControl();
+			copyNewFontInfo(&dFnt, &oFnt);
+			if (isKillProgram)
+				isKillProgram = 0;
+			if (global_df != NULL && !strcmp(global_df->fileName, "CLAN Output")) {
+				if (global_df->RowLimit && global_df->isOutputScrolledOff) {
+					fprintf(stderr, "\n%c%c*** PART OF OUTPUT HAS SCROLLED OFF \"CLAN Output\" WINDOW%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+					fprintf(stderr, "%c%c*** YOU CAN INCREASE \"CLAN Output\" WINDOW SIZE IN \"CLAN Options\" MENU%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+					fprintf(stderr, "%c%c*** OR USE +f OPTION WITH THE COMMAND TO SAVE OUTPUT TO THE FILE%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+				}
+				if (!isMORXiMode)
+					OutputToScreen(cl_T("\n> "));
+				global_df->DataChanged = tComWinDataChanged;
+				PosAndDispl();
+				SetScrollControl();
+			}
+			SetNewVol(nowref);
+			clanBuf = NULL;
+			CWnd* win = GlobalDC->GetWindow();
+			if (win == NULL || win == win->GetFocus())
+				DrawCursor(3);
+			GlobalDC = tGlobalDC;
+			global_df = tGlobal_df;
+			//		if (clanDlg != NULL)
+			//			clanDlg->SetActiveWindow();
 		}
-		SetNewVol(nowref);
-		clanBuf = NULL;
-		CWnd* win = GlobalDC->GetWindow();
-		if (win == NULL || win == win->GetFocus())
-			DrawCursor(3);
-		GlobalDC = tGlobalDC;
-		global_df = tGlobal_df;
-//		if (clanDlg != NULL)
-//			clanDlg->SetActiveWindow();
 	} else {
 		GlobalDC = tGlobalDC;
 		global_df = tGlobal_df;
@@ -1707,15 +2011,16 @@ void CClan2View::OnPrint(CDC* pDC, CPrintInfo* pInfo)
 {
 	ROWS	*rt, *t;
 	int		leftPos;
-	long	print_row, len, i, j;
+	long	print_row, len, i;
+	size_t	j;
 	long	fsize = -1;
 	long	newcol, colWin;
-	long	ln;
+	unsigned long	ln;
 	char	isFindFirstPage;
 	AttTYPE	oldState;
 	char	attChanged;
 	char	fontName[LF_FACESIZE];
-	short	FHeight;
+	long	FHeight;
 	int     charSet;
 	unsigned int pageNum;
 	LOGFONT lfFont;
@@ -1909,20 +2214,8 @@ FindFirstPageLoop:
 					if (global_df->isUTF) {
 						unsigned short *puText=NULL;
 						long totalw=0;
-#ifdef _UNICODE
 						puText = ced_line+j;
 						totalw = i-j;
-#else
-						LPVOID hwText;
-						totalw=MultiByteToWideChar(CP_UTF8,0,ced_line+j,i-j,NULL,0);
-						if ((totalw+1) * 2 > TEMPWLEN) {
-							hwText = LocalAlloc(LMEM_MOVEABLE, (totalw+1L)*2);
-							puText = (unsigned short *)LocalLock(hwText);
-						} else
-							puText = (unsigned short *)tempW;
-
-						MultiByteToWideChar(CP_UTF8,0,ced_line+j,i-j,puText,totalw);
-#endif
 						TabbedTextOutW(pDC->m_hDC, leftPos, print_row, puText, totalw,0,NULL,0);
 
 						if (GetTextExtentPointW(pDC->m_hDC,puText,totalw,&wCW) != 0) {
@@ -1931,12 +2224,6 @@ FindFirstPageLoop:
 						} else
 							CW.cx = 0;
 						
-#ifndef _UNICODE
-						if ((totalw+1) * 2 > TEMPWLEN) {
-							LocalUnlock(hwText);
-							LocalFree(hwText);
-						}
-#endif
 					} else {
 						pDC->TabbedTextOut(leftPos,print_row,ced_line+j,i-j,0,NULL,0);
 						CW = pDC->GetTextExtent(ced_line+j, i-j);
@@ -2069,10 +2356,17 @@ void CClan2View::OnActivateView(BOOL bActivate, CView* pActivateView, CView* pDe
 		SetPBCglobal_df(false, 0L);
 		GlobalDC = tGlobalDC;
 		if (/*PlayingContMovie != '\003' && */ PlayingContMovie && !isShowPict) {
-			if (MovDlg != NULL && MovDlg->qt != NULL &&
-				(MovDlg->qt)->isPlaying && !(MovDlg->qt)->IsQTMovieDone()) {
+/* // NO QT
+			if (MovDlg != NULL && MovDlg->qt != NULL && (MovDlg->qt)->isPlaying && !(MovDlg->qt)->IsQTMovieDone()) {
 				StopMovie((MovDlg->qt)->theMovie);
 				(MovDlg->qt)->isPlaying = 0;
+				PlayingContMovie = false;
+				if(pDoc != NULL)
+					pDoc->isTranscribing = false;
+			}
+*/
+			if (MpegDlg != NULL && MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->isPlaying && !(MpegDlg->mpeg)->IsMpegMovieDone()) {
+				(MpegDlg->mpeg)->StopMpegMovie();
 				PlayingContMovie = false;
 				if(pDoc != NULL)
 					pDoc->isTranscribing = false;
@@ -2250,22 +2544,20 @@ void CClan2View::OnChooseDefaultFont()
 	CFontDialog dlg(&lf, CF_SCREENFONTS|CF_INITTOLOGFONTSTRUCT|CF_FORCEFONTEXIST);
 	if (dlg.DoModal() == IDOK) {
 		m_lfDefFont = lf;
-#ifdef _UNICODE
 		extern long w95_fontSize;
 		if (!strcmp(m_lfDefFont.lfFaceName, dFnt.fontName)) {
 			dFnt.fontSize = m_lfDefFont.lfHeight;
 //			WriteCedPreference();
 		}
 		w95_fontSize = 0L;
-#endif
 		u_strcpy(dFnt.fontName, lf.lfFaceName, 256);
 		dFnt.fontSize = lf.lfHeight;
 		dFnt.CharSet = (int)lf.lfCharSet;
 		dFnt.Encod = my_FontToScript(dFnt.fontName, dFnt.CharSet);
 		dFnt.orgEncod = dFnt.Encod;
 		dFnt.orgFType = NOCHANGE;
-		if (!strcmp(dFnt.fontName, "Arial Unicode MS") || !strcmp(dFnt.fontName, "CAfont"/*UNICODEFONT*/))
-			dFnt.isUTF = TRUE;
+		stickyFontSize = dFnt.fontSize;
+		dFnt.isUTF = TRUE;
 		copyNewFontInfo(&oFnt, &dFnt);
 		C_MBF = uS.partwcmp(dFnt.fontName,"Jpn ") || uS.partwcmp(dFnt.fontName,"Chn ");
 		WriteCedPreference();
@@ -2275,34 +2567,28 @@ void CClan2View::OnChooseDefaultFont()
 	}
 }
 
-void CClan2View::OnChooseCommandFont() 
-{
+
+void CClan2View::OnChooseCommandFont() {
 	LOGFONT lf;
-	
-	SetLogfont(&lf, NULL, &dFnt);
-	CFontDialog dlg(&lf, CF_SCREENFONTS|CF_INITTOLOGFONTSTRUCT);
-	if (dlg.DoModal() == IDOK) {
-#ifdef _UNICODE
-		if (!strcmp(lf.lfFaceName, m_lfDefFont.lfFaceName)) {
-			extern long w95_fontSize;
-			m_lfDefFont.lfHeight = lf.lfHeight;
-			w95_fontSize = 0L;
-		}
-#endif
-		u_strcpy(dFnt.fontName, lf.lfFaceName, 256);
-		dFnt.fontSize = lf.lfHeight;
-		dFnt.CharSet = (int)lf.lfCharSet;
-		dFnt.Encod = my_FontToScript(dFnt.fontName, dFnt.CharSet);
-		dFnt.orgEncod = dFnt.Encod;
-		dFnt.orgFType = NOCHANGE;
-		if (!strcmp(dFnt.fontName, "Arial Unicode MS") || !strcmp(dFnt.fontName, "CAfont"/*UNICODEFONT*/))
-			dFnt.isUTF = TRUE;
-		copyNewFontInfo(&oFnt, &dFnt);
-		C_MBF = uS.partwcmp(dFnt.fontName,"Jpn ") || uS.partwcmp(dFnt.fontName,"Chn ");
-		WriteCedPreference();
+	char commands_win_name[512];
+	extern char ced_version[];
+
+	// 2016-03-29
+	SetLogfont(&lf, &cmdFnt, NULL);
+	CFontDialog dlg(&lf, CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT);
+	if (dlg.DoModal() == IDOK) {  // lxslxslxs
+		m_lfComDefFont = lf;
+		u_strcpy(cmdFnt.FName, lf.lfFaceName, LF_FACESIZE);
+		cmdFnt.FSize = lf.lfHeight;
+		cmdFnt.CharSet = (int)lf.lfCharSet;
+		cmdFnt.Encod = my_FontToScript(cmdFnt.FName, cmdFnt.CharSet);
+//		WriteCedPreference();
 		if (clanDlg != NULL) {
 			clanDlg->OnCancel();
 			clanDlg = new CClanWindow(AfxGetApp()->m_pMainWnd);
+			strcpy(commands_win_name, "Commands - ");
+			strcat(commands_win_name, ced_version);
+			clanDlg->SetWindowText(cl_T(commands_win_name));
 		}
 	}
 }
@@ -2313,8 +2599,8 @@ void CClan2View::OnChooseFont() {
 	CDC* tGlobalDC = GlobalDC;
 	CClan2Doc* pDoc = GetDocument();
 	char FName[LF_FACESIZE];
-    short fontHeight;
-    ROWS *rt;
+	short fontHeight;
+	ROWS *rt;
 	FONTINFO fi;
 	extern char clanRun;
 
@@ -2345,23 +2631,33 @@ void CClan2View::OnChooseFont() {
 		SetLogfont(&lf, &rt->Font, NULL);
 	}
 
-	CFontDialog dlg(&lf, CF_SCREENFONTS|CF_INITTOLOGFONTSTRUCT|CF_FORCEFONTEXIST);
-	if (dlg.DoModal() == IDOK) {
+	CFontDialog dlg(&lf, CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_FORCEFONTEXIST);
+	if (dlg.DoModal() == IDOK) {  // lxslxslxs
 		DrawCursor(0);
 		DrawSoundCursor(0);
-		if (!strcmp(global_df->fileName, "CLAN Output")) {
-			u_strcpy(dFnt.fontName, lf.lfFaceName, 256);
-			dFnt.fontSize = lf.lfHeight;
-			dFnt.CharSet = (int)lf.lfCharSet;
-			dFnt.Encod = my_FontToScript(dFnt.fontName, dFnt.CharSet);
-			dFnt.isUTF = global_df->isUTF;
-			dFnt.orgEncod = dFnt.Encod;
-			dFnt.orgFType = NOCHANGE;
-			if (!strcmp(dFnt.fontName, "Arial Unicode MS") || !strcmp(dFnt.fontName, "CAfont"/*UNICODEFONT*/))
-				dFnt.isUTF = TRUE;
-			C_MBF = uS.partwcmp(dFnt.fontName,"Jpn ") || uS.partwcmp(dFnt.fontName,"Chn ");
-			WriteCedPreference();
+
+		m_lfDefFont = lf;
+		extern long w95_fontSize;
+		if (!strcmp(m_lfDefFont.lfFaceName, dFnt.fontName)) {
+			dFnt.fontSize = m_lfDefFont.lfHeight;
+//			WriteCedPreference();
 		}
+		w95_fontSize = 0L;
+		u_strcpy(dFnt.fontName, lf.lfFaceName, 256);
+		dFnt.fontSize = lf.lfHeight;
+		dFnt.CharSet = (int)lf.lfCharSet;
+		dFnt.Encod = my_FontToScript(dFnt.fontName, dFnt.CharSet);
+		dFnt.orgEncod = dFnt.Encod;
+		dFnt.orgFType = NOCHANGE;
+		stickyFontSize = dFnt.fontSize;
+		dFnt.isUTF = TRUE;
+		copyNewFontInfo(&oFnt, &dFnt);
+		C_MBF = uS.partwcmp(dFnt.fontName, "Jpn ") || uS.partwcmp(dFnt.fontName, "Chn ");
+		WriteCedPreference();
+
+		m_font.DeleteObject();
+		m_font.CreateFontIndirect(&lf);
+
 		u_strcpy(fi.FName, lf.lfFaceName, LF_FACESIZE);
 		fi.FSize = lf.lfHeight;
 		fi.CharSet = (int)lf.lfCharSet;
@@ -2373,7 +2669,7 @@ void CClan2View::OnChooseFont() {
 		cedDFnt.isUTF = global_df->isUTF;
 		ChangeCurLineAlways(0);
 		if (global_df->row_win2 == 0L && global_df->col_win2 == -2L) {
-			for (rt=global_df->head_text->next_row; rt != global_df->tail_text; rt=ToNextRow(rt, FALSE)) {
+			for (rt = global_df->head_text->next_row; rt != global_df->tail_text; rt = ToNextRow(rt, FALSE)) {
 				strcpy(rt->Font.FName, FName);
 				rt->Font.FSize = lf.lfHeight;
 				rt->Font.CharSet = (int)lf.lfCharSet;
@@ -2396,7 +2692,7 @@ void CClan2View::OnChooseFont() {
 						cnt++;
 						rt = ToPrevRow(global_df->row_txt, FALSE);
 					}
-					for (; cnt<=0 && rt!=global_df->head_text; cnt++, rt=ToPrevRow(rt,FALSE)) {
+					for (; cnt <= 0 && rt != global_df->head_text; cnt++, rt = ToPrevRow(rt, FALSE)) {
 						strcpy(rt->Font.FName, FName);
 						rt->Font.FSize = lf.lfHeight;
 						rt->Font.CharSet = (int)lf.lfCharSet;
@@ -2404,8 +2700,8 @@ void CClan2View::OnChooseFont() {
 					}
 				} else if (global_df->row_win2 > 0L) {
 					if (global_df->col_win2 <= 0) cnt--;
-					for (rt=global_df->row_txt; cnt >= 0 && rt != global_df->tail_text;
-											cnt--, rt=ToNextRow(rt, FALSE)) {
+					for (rt = global_df->row_txt; cnt >= 0 && rt != global_df->tail_text;
+						 cnt--, rt = ToNextRow(rt, FALSE)) {
 						strcpy(rt->Font.FName, FName);
 						rt->Font.FSize = lf.lfHeight;
 						rt->Font.CharSet = (int)lf.lfCharSet;
@@ -2418,8 +2714,13 @@ void CClan2View::OnChooseFont() {
 		clear();
 		global_df->total_num_rows = 1;
 		global_df->CodeWinStart = 0;
-		if (!init_windows(true, 1, false))
-	    	mem_err(TRUE, global_df);
+		global_df->winWidthOffset = -1;
+		if (!init_windows(true, !doReWrap, false))
+			mem_err(TRUE, global_df);
+		if (doReWrap) {
+			Re_WrapLines(AddLineToRow, 0L, FALSE, NULL);
+			DisplayTextWindow(NULL, 1);
+		}
 		if (global_df->DataChanged == '\0') {
 			global_df->DataChanged = '\001';
 			pDoc->SetModifiedFlag(TRUE);
@@ -2489,8 +2790,15 @@ void CClan2View::OnLButtonDblClk(UINT nFlags, CPoint point)
 	if (cursorCnt < 0)
 		cursorCnt = ShowCursor(TRUE);
 
-	if (MovDlg != NULL && MovDlg->qt != NULL &&
-		(MovDlg->qt)->isPlaying && !(MovDlg->qt)->IsQTMovieDone()) {
+/* // NO QT
+	if (MovDlg != NULL && MovDlg->qt != NULL && (MovDlg->qt)->isPlaying && !(MovDlg->qt)->IsQTMovieDone()) {
+		if (PlayingContMovie || !PBC.walk || !PBC.enable) {
+			stopMoviePlaying();
+			PlayingContMovie = FALSE;
+		}
+	}
+*/
+	if (MpegDlg != NULL && MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->isPlaying && !(MpegDlg->mpeg)->IsMpegMovieDone()) {
 		if (PlayingContMovie || !PBC.walk || !PBC.enable) {
 			stopMoviePlaying();
 			PlayingContMovie = FALSE;
@@ -2535,8 +2843,15 @@ point	Specifies the x- and y-coordinate of the cursor.
 	if (cursorCnt < 0)
 		cursorCnt = ShowCursor(TRUE);
 
-	if (MovDlg != NULL && MovDlg->qt != NULL &&
-		(MovDlg->qt)->isPlaying && !(MovDlg->qt)->IsQTMovieDone()) {
+/* // NO QT
+	if (MovDlg != NULL && MovDlg->qt != NULL && (MovDlg->qt)->isPlaying && !(MovDlg->qt)->IsQTMovieDone()) {
+		if (PlayingContMovie || !PBC.walk || !PBC.enable) {
+			stopMoviePlaying();
+			PlayingContMovie = FALSE;
+		}
+	}
+*/
+	if (MpegDlg != NULL && MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->isPlaying && !(MpegDlg->mpeg)->IsMpegMovieDone()) {
 		if (PlayingContMovie || !PBC.walk || !PBC.enable) {
 			stopMoviePlaying();
 			PlayingContMovie = FALSE;
@@ -2606,7 +2921,7 @@ void CClan2View::OnMouseMove(UINT nFlags, CPoint point)
 //	CView::OnMouseMove(nFlags, point);
 }
 
-void CClan2View::OnLButtonUp(UINT nFlags, CPoint point) 
+void CClan2View::OnLButtonUp(UINT nFlags, CPoint point)
 {
 	extern char *lineNumFname;
 	extern long lineNumOverride;
@@ -2636,29 +2951,33 @@ void CClan2View::OnLButtonUp(UINT nFlags, CPoint point)
 	}
 	if (lineNumOverride < 0L && lineNumFname != NULL)
 		lineNumFname = NULL;
-		
+
 	ReleaseCapture();   // Release the mouse capture established at
 
-//	if (isPlayS == -8) {
-//		ShowFStruct();
-//		isPlayS = 0;
-//	}
+	//	if (isPlayS == -8) {
+	//		ShowFStruct();
+	//		isPlayS = 0;
+	//	}
 	while (isPlayS) {
 		win95_call(0, 0, 0, 0);
 	}
 	DrawSoundCursor(1);
-	if (global_df->row_txt == global_df->cur_line) {
-		if (global_df->col_txt->prev_char != global_df->head_row)
-			global_df->gAtt = global_df->col_txt->prev_char->att;
+	if (global_df != NULL) {
+		if (global_df->row_txt == global_df->cur_line) {
+			if (global_df->col_txt->prev_char != global_df->head_row)
+				global_df->gAtt = global_df->col_txt->prev_char->att;
+			else
+				global_df->gAtt = 0;
+		}
+		else if (global_df->row_txt->att != NULL) {
+			if (global_df->col_chr > 0)
+				global_df->gAtt = global_df->row_txt->att[global_df->col_chr - 1];
+			else
+				global_df->gAtt = 0;
+		}
 		else
 			global_df->gAtt = 0;
-	} else if (global_df->row_txt->att != NULL) {
-		if (global_df->col_chr > 0)
-			global_df->gAtt = global_df->row_txt->att[global_df->col_chr-1];
-		else
-			global_df->gAtt = 0;
-	} else
-		global_df->gAtt = 0;
+	}
 	GlobalDC = tGlobalDC;
 						// the beginning of the mouse drag.
 
@@ -2739,6 +3058,61 @@ void CClan2View::OnSelectMediaFile()
 	}
 	GlobalDC = tGlobalDC;
 }
+
+// MORGrammar get MOR Grammar BEG
+void CClan2View::OnGetEnglishGrammar() {
+	GetMORGrammar("eng", 603000L);
+}
+
+void CClan2View::OnGetCantoneseGrammar() {
+	GetMORGrammar("yue",363000L);
+}
+
+void CClan2View::OnGetChineseGrammar() {
+	GetMORGrammar("zho", 416000L);
+}
+
+void CClan2View::OnGetDanishGrammar() {
+	GetMORGrammar("dan", 589000L);
+}
+
+void CClan2View::OnGetDutchGrammar() {
+	GetMORGrammar("nld", 100000L);
+}
+
+void CClan2View::OnGetFrenchGrammar() {
+	GetMORGrammar("fra", 346000L);
+}
+
+void CClan2View::OnGetGermanGrammar() {
+	GetMORGrammar("deu", 1700000L);
+}
+
+void CClan2View::OnGetHebrewGrammar() {
+	GetMORGrammar("heb",1100000L);
+}
+
+void CClan2View::OnGetItalianGrammar() {
+	GetMORGrammar("ita", 282000L);
+}
+
+void CClan2View::OnGetJapaneseGrammar() {
+	GetMORGrammar("jpn",1000000L);
+}
+
+void CClan2View::OnGetSpanishGrammar() {
+	GetMORGrammar("spa", 399000L);
+}
+// MORGrammar get MOR Grammar END
+
+// KIDEVAL Get KIDEVAL Database BEG
+void CClan2View::OnGetEnglishKevalDB() {
+	GetKidevalDB("eng_fp_kideval_db.cut", 127000L);
+}
+void CClan2View::OnGetChineseKevalDB() {
+	GetKidevalDB("zho_md_kideval_db.cut", 5000L);
+}
+// KIDEVAL Get KIDEVAL Database END
 
 void CClan2View::OnFileSave() 
 {
@@ -3145,12 +3519,6 @@ void CClan2View::OnEditReplace()
 	call_win95_call(0, 0, 0, 0);
 }
 
-void CClan2View::OnEditReplacefind() 
-{
-	isPlayS = 86;
-	call_win95_call(0, 0, 0, 0);
-}
-
 void CClan2View::OnEditGoto() 
 {
 	isPlayS = 12;
@@ -3418,7 +3786,7 @@ void CClan2View::OnModeLinksnd()
 	CClan2Doc* pDoc = GetDocument();
 	ASSERT_VALID(pDoc);
 	FNType mFileName[FILENAME_MAX];
-	wchar_t wFileName[FILENAME_MAX];
+	unCH wFileName[FILENAME_MAX];
 
 	GlobalDC = &dc;
 	GlobalDoc = pDoc;
@@ -3426,15 +3794,17 @@ void CClan2View::OnModeLinksnd()
 	stopSoundIfPlaying();
 	if (global_df != NULL)
 		strcpy(global_df->err_message, DASHES);
-	if (MPegDlg)
-		MPegDlg->Save();
+	if (MpegDlg)
+		MpegDlg->Save();
+/* // NO QT
 	else if (MovDlg)
 		MovDlg->Save();
+*/
 	else if (global_df->SoundWin) {
 		SetCurrSoundTier();
 	} else {
 		char ret;
-		if ((ret=GetNewMediaFile(TRUE, 0))) {
+		if ((ret = GetNewMediaFile(TRUE, isPictText))) {
 			if (ret == isAudio) { // sound
 			} else if (ret == isVideo) { // movie
 			} else if (ret == isPict) { // picture
@@ -4090,19 +4460,197 @@ void CClan2View::OnSpeakers10()
 	GlobalDC = tGlobalDC;
 }
 
+
+static BOOL Handletext_FKeyPress(UINT nChar, BOOL isVK, unCH *CAChar, char num) {
+	// CA CHARS
+	if (num == 1) {
+		if (nChar == VK_UP && isVK) { // up-arrow
+			*CAChar = 0x2191;
+			return(true);
+		} else if (nChar == VK_DOWN && isVK) { // down-arrow
+			*CAChar = 0x2193;
+			return(true);
+		} else if (nChar == '1' && !isVK) { // rise to high
+			*CAChar = 0x21D7;
+			return(true);
+		} else if (nChar == '2' && !isVK) { // rise to mid
+			*CAChar = 0x2197;
+			return(true);
+		} else if (nChar == '3' && !isVK) { // level
+			*CAChar = 0x2192;
+			return(true);
+		} else if (nChar == '4' && !isVK) { // fall to mid
+			*CAChar = 0x2198;
+			return(true);
+		} else if (nChar == '5' && !isVK) { // fall to low
+			*CAChar = 0x21D8;
+			return(true);
+		} else if (nChar == '6' && !isVK) { // unmarked ending
+			*CAChar = 0x221E;
+			return(true);
+		} else if (nChar == '+' && !isVK) { // continuation - wavy triple-line equals sign
+			*CAChar = 0x224B;
+			return(true);
+		} else if (nChar == '.' && !isVK) { // inhalation
+			*CAChar = 0x2219;
+			return(true);
+		} else if (nChar == '=' && !isVK) { // latching
+			*CAChar = 0x2248;
+			return(true);
+		} else if ((nChar == 'u' || nChar == 'U') && !isVK) { // uptake
+			*CAChar = 0x2261;
+			return(true);
+		} else if (isEqChar(nChar, OpSQBKey) && isEqShift(OpSQBKey) && isVK) { // raised [
+			*CAChar = 0x2308;
+			return(true);
+		} else if (isEqChar(nChar, ClSQBKey) && isEqShift(ClSQBKey) && isVK) { // raised ]
+			*CAChar = 0x2309;
+			return(true);
+		} else if (isEqChar(nChar, OpSQBKey) && isVK) { // lowered [
+			*CAChar = 0x230A;
+			return(true);
+		} else if (isEqChar(nChar, ClSQBKey) && isVK) { // lowered ]
+			*CAChar = 0x230B;
+			return(true);
+		} else if (nChar == VK_RIGHT && isEqShift(VK_RIGHT) && isVK) { // faster
+			*CAChar = 0x2206;
+			return(true);
+		} else if (nChar == VK_LEFT && isEqShift(VK_LEFT) && isVK) { // slower
+			*CAChar = 0x2207;
+			return(true);
+		} else if (nChar == '*' && !isVK) { // creaky
+			*CAChar = 0x204E;
+			return(true);
+		} else if ((nChar == '/') && !isVK) { // unsure
+			*CAChar = 0x2047;
+			return(true);
+		} else if (nChar == '0' && !isVK) { // softer
+			*CAChar = 0x00B0;
+			return(true);
+		} else if (nChar == ')' && !isVK) { // louder
+			*CAChar = 0x25C9;
+			return(true);
+		} else if ((nChar == 'd') && !isVK) { // low pitch - low bar
+			*CAChar = 0x2581;
+			return(true);
+		} else if ((nChar == 'h') && !isVK) { // high pitch - high bar
+			*CAChar = 0x2594;
+			return(true);
+		} else if ((nChar == 'l' || nChar == 'L') && !isVK) { // smile voice
+			*CAChar = 0x263A;
+			return(true);
+		} else if ((nChar == 'b') && !isVK) { // breathy-voice
+			*CAChar = 0x264B;
+			return(true);
+		} else if ((nChar == 'w' || nChar == 'W') && !isVK) { // whisper
+			*CAChar = 0x222C;
+			return(true);
+		} else if ((nChar == 'y' || nChar == 'Y') && !isVK) { // yawn
+			*CAChar = 0x03AB;
+			return(true);
+		} else if ((nChar == 's' || nChar == 'S') && !isVK) { // singing
+			*CAChar = 0x222E;
+			return(true);
+		} else if ((nChar == 'p' || nChar == 'P') && !isVK) { // precise
+			*CAChar = 0x00A7;
+			return(true);
+		} else if ((nChar == 'n' || nChar == 'N') && !isVK) { // constriction
+			*CAChar = 0x223E;
+			return(true);
+		} else if ((nChar == 'r' || nChar == 'R') && !isVK) { // pitch reset
+			*CAChar = 0x21BB;
+			return(true);
+		} else if ((nChar == 'c' || nChar == 'C') && !isVK) { // laugh in a word
+			*CAChar = 0x1F29;
+			return(true);
+		}
+	}
+	if (num == 2) {
+		if (nChar == 'h' && !isVK) { // raised h
+			*CAChar = 0x02B0;
+			return(true);
+		} else if (nChar == ',' && !isVK) { // dot diacritic
+			*CAChar = 0x0323;
+			return(true);
+		} else if ((nChar == '<') && !isVK) { // Group start marker - NOT CA
+			*CAChar = 0x2039;
+			return(true);
+		} else if ((nChar == '>') && !isVK) { // Group end marker - NOT CA
+			*CAChar = 0x203A;
+			return(true);
+		} else if ((nChar == 't' || nChar == 'T') && !isVK) { // Tag or sentence final particle; „ - NOT CA
+			*CAChar = 0x201E;
+			return(true);
+		} else if ((nChar == 'v' || nChar == 'V') && !isVK) { // Vocative or summons - NOT CA
+			*CAChar = 0x2021;
+			return(true);
+		} else if ((nChar == '-') && !isVK) { // Stress - NOT CA
+			*CAChar = 0x0304;
+			return(true);
+		} else if ((nChar == 'q') && !isVK) { // Glottal stop - NOT CA
+			*CAChar = 0x0294;
+			return(true);
+		} else if ((nChar == 'Q') && !isVK) { // Hebrew glottal - NOT CA
+			*CAChar = 0x0295;
+			return(true);
+		} else if ((nChar == ';') && !isVK) { // caron - NOT CA
+			*CAChar = 0x030C;
+			return(true);
+		} else if ((nChar == '1') && !isVK) { // raised stroke - NOT CA
+			*CAChar = 0x02C8; // cb 88
+			return(true);
+		} else if ((nChar == '2') && !isVK) { // lowered stroke - NOT CA
+			*CAChar = 0x02CC; // cb 8c
+			return(true);
+		} else if ((nChar == '{') && !isVK) { // sign group start marker - NOT CA
+			*CAChar = 0x3014; // 0xe3 80 94
+			return(true);
+		} else if ((nChar == '}') && !isVK) { // sign group end marker - NOT CA
+			*CAChar = 0x3015; // 0xe3 80 95
+			return(true);
+		} else if ((nChar == 'm') && !isVK) { // %pho missing word - NOT CA
+			*CAChar = 0x2026;
+			return(true);
+		} else if ((nChar == '_') && !isVK) { // Uderline NOT CA
+			*CAChar = 0x0332;
+			return(true);
+		} else if ((nChar == '\'') && !isVK) { // open quote “ - NOT CA
+			*CAChar = 0x201C; // 0xe2 80 9c - NOTCA_OPEN_QUOTE
+			return(true);
+		} else if ((nChar == '"') && !isVK) { // close quote ” - NOT CA
+			*CAChar = 0x201D; // 0xe2 80 a6 - NOTCA_CLOSE_QUOTE
+			return(true);
+		} else if (nChar == '=' && !isVK) { // crossed equal
+			*CAChar = 0x2260; // 0xe2 89 a0 - NOTCA_CROSSED_EQUAL
+			return(true);
+		} else if (nChar == '/' && !isVK) { // left arrow with circle
+			*CAChar = 0x21AB; // 0xe2 86 ab - NOTCA_LEFT_ARROW_CIRCLE
+			return(true);
+		} else if (nChar == ':' && !isVK) { // colon for long vowels
+			*CAChar = 0x02D0; // 0xe2 CB 90 - NOTCA_VOWELS_COLON
+			return(true);
+		}
+	}
+	return(false);
+}
+
 void CClan2View::OnChar(UINT nChar, UINT nRepCnt, UINT nFlags) 
 {
 	BOOL isHideCursor;
 	CClan2Doc* pDoc = GetDocument();
 
 	isHideCursor = (isKeyEqualCommand(nChar, 1) || isKeyEqualCommand(nChar, 5)) && whichInput == 0;
-	if (CAKeyShortcuts) {
-		wchar_t CAChar;
-		if (HandleCAKeyShortcuts(nChar, false, &CAChar, CAKeyShortcuts)) {
+	if (text_isFKeyPressed) {
+		unCH CAChar;
+		if (text_isFKeyPressed == 3) {
+			SetUpVideos();
+			getVideosExt(nChar);
+			skipOnChar = TRUE;
+		} else if (Handletext_FKeyPress(nChar, false, &CAChar, text_isFKeyPressed)) {
 			call_win95_call(CAChar, nRepCnt, nFlags, 0);
 			skipOnChar = TRUE;
 		}
-		CAKeyShortcuts = 0;
+		text_isFKeyPressed = 0;
 	}
 	if (!skipOnChar) {
 		if (cursorCnt >= 0) {
@@ -4125,24 +4673,7 @@ void CClan2View::OnChar(UINT nChar, UINT nRepCnt, UINT nFlags)
 		} else if (!isHideCursor)
 			cursorCnt = ShowCursor(TRUE);
 		if (pDoc->FileInfo->isUTF) {
-#ifdef _UNICODE
 			call_win95_call(nChar, nRepCnt, nFlags, 0);
-#else
-			short orgEncod;
-			int  i;
-			unsigned long len;
-			UINT toW[BUFSIZ];
-			unsigned char toC[BUFSIZ];
-			myFInfo *gdf = pDoc->FileInfo;
-
-			orgEncod = GetEncode("Win95:", gdf->row_txt->Font.FName, WIN95cour, gdf->row_txt->Font.CharSet, FALSE);
-			ANSIToUTF8((unsigned char *)&nChar, 1L, toC, &len, BUFSIZ, orgEncod);
-			for (i=0L; i < len; i++)
-				toW[i] = (UINT)toC[i];
-			toW[i] = 0;
-			for (i=0; toW[i] != 0; i++)
-				call_win95_call(toW[i], nRepCnt, nFlags, 0);
-#endif
 		} else
 			call_win95_call(nChar, nRepCnt, nFlags, 0);
 	}
@@ -4294,16 +4825,20 @@ static UINT MakeExtendedKey(UINT nChar, char isExtKeyFound) {
 void CClan2View::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags) 
 {
 
-	if (CAKeyShortcuts) {
-		wchar_t CAChar;
-		if (HandleCAKeyShortcuts(nChar, true, &CAChar, CAKeyShortcuts)) {
+	if (text_isFKeyPressed) {
+		unCH CAChar;
+		if (text_isFKeyPressed == 3) {
+			SetUpVideos();
+			getVideosExt(nChar);
+			skipOnChar = TRUE;
+		} else if (Handletext_FKeyPress(nChar, true, &CAChar, text_isFKeyPressed)) {
 			call_win95_call(CAChar, nRepCnt, nFlags, 0);
 			skipOnChar = TRUE;
-			CAKeyShortcuts = 0;
+			text_isFKeyPressed = 0;
 		}
 		return;
 	} else
-		CAKeyShortcuts = 0;
+		text_isFKeyPressed = 0;
 
 	if (isExtKeyFound && nChar != VK_SHIFT && nChar != VK_CONTROL) {
 		if ((nChar=MakeExtendedKey(nChar, isExtKeyFound))) {
@@ -4316,9 +4851,18 @@ void CClan2View::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		return;
 	}
 
-	if (MovDlg != NULL && MovDlg->qt != NULL &&
-		(MovDlg->qt)->isPlaying && !(MovDlg->qt)->IsQTMovieDone() && 
+/* // NO QT
+	if (MovDlg != NULL && MovDlg->qt != NULL && (MovDlg->qt)->isPlaying && !(MovDlg->qt)->IsQTMovieDone() &&
 			nChar != VK_CONTROL && nChar != VK_SHIFT) {
+		if (PlayingContMovie || !PBC.walk || !PBC.enable) {
+			stopMoviePlaying();
+			PlayingContMovie = FALSE;
+			skipOnChar = TRUE;
+			return;
+		}
+	}
+*/
+	if (MpegDlg != NULL && MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->isPlaying && !(MpegDlg->mpeg)->IsMpegMovieDone()) {
 		if (PlayingContMovie || !PBC.walk || !PBC.enable) {
 			stopMoviePlaying();
 			PlayingContMovie = FALSE;
@@ -4334,28 +4878,37 @@ void CClan2View::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			CDC* tGlobalDC = GlobalDC;
 			CClan2Doc* pDoc = GetDocument();
 			ASSERT_VALID(pDoc);
+			BOOL EditorMode;
 
 			GlobalDC = &dc;
 			GlobalDoc = pDoc;
 			global_df = pDoc->FileInfo;
+			if (global_df != NULL)
+				EditorMode = global_df->EditorMode;
+			else
+				EditorMode = FALSE;
 
 			if (nChar == VK_F7 || nChar == VK_F9)
 				;
-			else if (MovDlg == NULL && MPegDlg == NULL) {
+			else if (/* // NO QT MovDlg == NULL && */MpegDlg == NULL) {
 				if (global_df->SnTr.isMP3 == TRUE)
-					stopMP3SoundIfPlaying();
+					stopMovieIfPlaying();
 				else
 					stopSoundIfPlaying();
 			}
 			if (global_df) {
-				if (nChar != VK_F7 && nChar != VK_F9) {
+				if (nChar == VK_F1 && isUseSPCKeyShortcuts && EditorMode) {
+					text_isFKeyPressed = 1;
+				} else if (nChar == VK_F2 && isUseSPCKeyShortcuts && EditorMode) {
+					text_isFKeyPressed = 2;
+				} else if (nChar != VK_F7 && nChar != VK_F9) {
 					strcpy(global_df->err_message, "-Aborted.");
 					draw_mid_wm();
 					wmove(global_df->w1, global_df->row_win, global_df->col_win-global_df->LeftCol);
 					wrefresh(global_df->w1);
-					if (MovDlg != NULL && MovDlg->qt != NULL) {
-						if ((nChar == VK_F5 || nChar == VK_F6) && MovDlg != NULL && MovDlg->qt != NULL && 
-							(MovDlg->qt)->isPlaying && PBC.walk && PBC.enable) {
+					if (MpegDlg != NULL && MpegDlg->mpeg != NULL) {
+						if ((nChar == VK_F5 || nChar == VK_F6) && MpegDlg != NULL && MpegDlg->mpeg != NULL &&
+							(MpegDlg->mpeg)->isPlaying && PBC.walk && PBC.enable) {
 							stopMoviePlaying();
 							PlayingContMovie = FALSE;
 							skipOnChar = TRUE;
@@ -4371,7 +4924,6 @@ void CClan2View::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 				}
 				SetPBCglobal_df(false, 0L);
 			}
-
 			GlobalDC = tGlobalDC;
 			if (nChar == VK_F7 || nChar == VK_F9) {
 				F_key = nChar-VK_F1+1;
@@ -4396,9 +4948,9 @@ void CClan2View::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 				EditorMode = FALSE;
 
 			if (EditorMode) {
-				CAKeyShortcuts = 1;
+				text_isFKeyPressed = 1;
 			} else {
-				F_key = nChar-VK_F1+1;
+				F_key = nChar - VK_F1 + 1;
 				nChar = 1;
 				if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
 					nChar += 12;
@@ -4423,9 +4975,36 @@ void CClan2View::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 				EditorMode = FALSE;
 
 			if (EditorMode) {
-				CAKeyShortcuts = 2;
+				text_isFKeyPressed = 2;
 			} else {
-				F_key = nChar-VK_F2+1;
+				F_key = nChar - VK_F2 + 1;
+				nChar = 1;
+				if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
+					nChar += 12;
+				if (!skipOnChar)
+					call_win95_call(nChar, nRepCnt, nFlags, 0);
+				F_key = 0;
+			}
+			GlobalDC = tGlobalDC;
+		} else if (nChar == VK_F3 && isUseSPCKeyShortcuts) {
+			CClientDC dc(this);
+			CDC* tGlobalDC = GlobalDC;
+			CClan2Doc* pDoc = GetDocument();
+			ASSERT_VALID(pDoc);
+			BOOL EditorMode;
+
+			GlobalDC = &dc;
+			GlobalDoc = pDoc;
+			global_df = pDoc->FileInfo;
+			if (global_df != NULL)
+				EditorMode = global_df->EditorMode;
+			else
+				EditorMode = FALSE;
+
+			if (EditorMode) {
+				text_isFKeyPressed = 3;
+			} else {
+				F_key = nChar - VK_F3 + 1;
 				nChar = 1;
 				if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
 					nChar += 12;
@@ -4561,7 +5140,7 @@ BOOL CClan2View::PreTranslateMessage(MSG* pMsg)
 		if (skipOnChar)
 			skipOnChar = FALSE;
 	}
-	if (!PlayingContSound && PBC.enable && MovDlg == NULL && MPegDlg == NULL) {
+	if (!PlayingContSound && PBC.enable && /* // NO QT MovDlg == NULL && */ MpegDlg == NULL) {
 		if (walker_pause != 0L) {
 			DWORD t;
 			if ((t=GetTickCount()) > walker_pause) {
@@ -4579,23 +5158,8 @@ BOOL CClan2View::PreTranslateMessage(MSG* pMsg)
 			GlobalDoc = pDoc;
 			global_df = pDoc->FileInfo;
 
-			skipOnChar = checkPCMSound(pMsg, skipOnChar);
+			skipOnChar = checkPCMSound(pMsg, skipOnChar, GetTickCount());
 			checkPCMPlaybackBuffer();
-
-			GlobalDC = tGlobalDC;
-		}
-
-		if (!isMP3SoundDone) {
-			CClientDC dc(this);
-			CDC* tGlobalDC = GlobalDC;
-			CClan2Doc* pDoc = GetDocument();
-			ASSERT_VALID(pDoc);
-
-			GlobalDC = &dc;
-			GlobalDoc = pDoc;
-			global_df = pDoc->FileInfo;
-
-			skipOnChar = checkMP3Sound(pMsg, skipOnChar);
 
 			GlobalDC = tGlobalDC;
 		}

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -8,6 +8,7 @@
 
 #include "cu.h"
 #include "check.h"
+#include "c_curses.h"
 
 #if !defined(UNX)
 #define _main time_main
@@ -32,6 +33,8 @@ struct sp_stat {
 	char prev_sp_name[SPEAKERLEN];
 	char sp_name[SPEAKERLEN];
 	char *IDs;
+	char isPSDFound;
+	float pauses_dur;	// (2.4)
 	unsigned long words;
 	unsigned long utts;
 	unsigned long lastEnd;
@@ -42,8 +45,10 @@ struct sp_stat {
 static char isSpeakerNameGiven;
 static char timedur_ftime, timedur_ftime1;
 static long ln;
+static float tmDur;
 static struct sp_list *spRoot;
 static struct sp_stat *RootStats;
+static FNType fpout_fname[FNSize];
 
 /*  ********************************************************* */
 
@@ -53,7 +58,15 @@ void usage() {
 	puts("+d :  outputs default results in SPREADSHEET format");
 	puts("+d1:  outputs ratio of words and utterances over time duration");
 	puts("+d10: outputs above, +d1, results in SPREADSHEET format");
-	mainusage(TRUE);
+	mainusage(FALSE);
+#ifdef UNX
+	printf("DATA ASSOCIATED WITH CODES [/], [//], [///], [/-], [/?] IS EXCLUDED BY DEFAULT.\n");
+	printf("TO INCLUDE THIS DATA PLEASE USE \"+r6\" OPTION.\n");
+#else
+	printf("%c%cDATA ASSOCIATED WITH CODES [/], [//], [///], [/-], [/?] IS EXCLUDED BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cTO INCLUDE THIS DATA PLEASE USE \"+r6\" OPTION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
+	cutt_exit(0);
 }
 
 static void FreeSpList(void) {
@@ -86,6 +99,7 @@ static void FreeSpStats(void) {
 
 void init(char first) {
 	if (first) {
+		tmDur = 0.0;
 		spRoot = NULL;
 		RootStats = NULL;
 		onlydata = 0;
@@ -94,6 +108,11 @@ void init(char first) {
 		LocalTierSelect = TRUE;
 		OverWriteFile = TRUE;
 		isSpeakerNameGiven = FALSE;
+		addword('\0','\0',"+</?>");
+		addword('\0','\0',"+</->");
+		addword('\0','\0',"+<///>");
+		addword('\0','\0',"+<//>");
+		addword('\0','\0',"+</>");  // list R6 in mmaininit funtion in cutt.c
 		addword('\0','\0',"+xxx");
 		addword('\0','\0',"+yyy");
 		addword('\0','\0',"+www");
@@ -113,7 +132,7 @@ void init(char first) {
 			timedur_ftime = FALSE;
 			if (onlydata == 1 || onlydata == 3) {
 				if (onlydata == 3 && !isSpeakerNameGiven) {
-					fprintf(stderr,"Please specify speaker's tier code with \"+t\" option on command line.\n");
+					fprintf(stderr,"Please specify at least one speaker tier code with \"+t\" option on command line.\n");
 					cutt_exit(0);
 				}
 				combinput = TRUE;
@@ -122,6 +141,7 @@ void init(char first) {
 				AddCEXExtension = ".xls";
 			}
 		}
+		tmDur = 0.0;
 	}
 	FreeSpList();
 	FreeSpStats();
@@ -131,18 +151,17 @@ void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
 		case 'd':
+			if (onlydata != 0) {
+				fprintf(stderr, "Please use only one +d option: +d, +d1 or +d10.\n");
+				cutt_exit(0);
+			}
 			if (*f == EOS || *f == '0') {
-				if (onlydata == 0)
-					onlydata = 1;
-				else if (onlydata == 2)
-					onlydata = 3;
+				onlydata = 1;
 			} else if (*f == '1') {
 				if (*(f+1) == '0')
 					onlydata = 3;
-				else if (onlydata == 0)
+				else
 					onlydata = 2;
-				else if (onlydata == 1)
-					onlydata = 3;
 			} else {
 				fprintf(stderr, "The only +d levels allowed are 0-%d.\n", 1);
 				cutt_exit(0);
@@ -196,7 +215,9 @@ static struct sp_stat *MkSpStruct(struct sp_stat *p, const char *prevsp, char *t
 	}
 	strcpy(p->prev_sp_name, prevsp);
 	strcpy(p->sp_name, thissp);
+	p->isPSDFound = FALSE;
 	p->lastEnd = 0L;
+	p->pauses_dur = 0.0;
 	p->total = 0L;
 	p->words = 0L;
 	p->utts = 0L;
@@ -214,11 +235,13 @@ static void ProcessStats(char *prevsp, char *thissp, long *prev_stime, long *pre
 		mediaRes = getOLDMediaTagInfo(hc, NULL, NULL, &stime, &etime);
 	if (mediaRes) {
 		if (onlydata == 1) {
-			fprintf(fpout, "%ld\t%s", ln, thissp);
+			excelRow(fpout, ExcelRowStart);
+			excelLongNumCell(fpout, "%ld", ln);
+			excelStrCell(fpout, thissp);
 			for (p=RootStats; p != NULL; p=p->nextsp) {
 				if (*p->prev_sp_name == EOS && !strcmp(thissp,p->sp_name)) {
 					duration = etime - stime;
-					fprintf(fpout, "\t%ld", duration);
+					excelLongNumCell(fpout, "%ld", duration);
 					p->total = p->total + duration;
 					tDiff = p->lastEnd - stime;
 					if (tDiff > 500L) {
@@ -229,17 +252,17 @@ static void ProcessStats(char *prevsp, char *thissp, long *prev_stime, long *pre
 					p->lastEnd = etime;
 				} else  if ((!strcmp(prevsp,p->prev_sp_name) && !strcmp(thissp,p->sp_name)) || 
 							(!strcmp(thissp,p->prev_sp_name) && !strcmp(prevsp,p->sp_name))) {
-					fprintf(fpout, "\t%ld", stime-*prev_etime);
+					excelLongNumCell(fpout, "%ld", (stime - *prev_etime));
 				} else {
-					fprintf(fpout, "\t");
+					excelStrCell(fpout, "");
 				}
 			}
-			fprintf(fpout, "\n");
+			excelRow(fpout, ExcelRowEnd);
 		} else if (onlydata == 2 || onlydata == 3) {
 			for (p=RootStats; p != NULL; p=p->nextsp) {
 				if (*p->prev_sp_name == EOS && !strcmp(thissp,p->sp_name)) {
 					duration = etime - stime;
-					p->total = p->total + (duration / 1000L);
+					p->total = p->total + duration;
 					tDiff = p->lastEnd - stime;
 					if (tDiff > 500L) {
 						fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, ln);
@@ -351,18 +374,28 @@ static void MakeSpHeader(void) {
 		}
 	}
 	if (onlydata == 1) {
-		fprintf(fpout, "Line #\tSpeaker");
+		if (timedur_ftime1 || !combinput) {
+			strcpy(fpout_fname, newfname);
+			excelHeader(fpout, newfname, 75);
+		}
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, "Line #,Speaker");
 		for (p=RootStats; p != NULL; p=p->nextsp) {
 			if (*p->prev_sp_name == EOS)
-				fprintf(fpout, "\t%s duration of", p->sp_name);
+				sprintf(templineC, ",%s duration of", p->sp_name);
 			else
-				fprintf(fpout, "\t%s-%s duration between", p->prev_sp_name, p->sp_name);
+				sprintf(templineC, ",%s-%s duration between", p->prev_sp_name, p->sp_name);
+			excelStrCell(fpout, templineC);
 		}
-		fprintf(fpout, "\n");
+		excelRow(fpout, ExcelRowEnd);
 	} else if (onlydata == 2) {
 	} else if (onlydata == 3) {
 		if (timedur_ftime1 || !combinput) {
-			fprintf(fpout, "File\tLanguage\tCorpus\tCode\tAge\tSex\tGroup\tSES\tRole\tEducation\tCustom_field\t# Words\t# Utterances\tDuration Time\t# Words/Time\t# Utts/Time\n");
+			strcpy(fpout_fname, newfname);
+			excelHeader(fpout, newfname, 125);
+			excelRow(fpout, ExcelRowStart);
+			excelCommasStrCell(fpout, "File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field,# Words,# Utterances,Pause Duration (sec.msec),Duration Time,# Words/Min,# Utts/Min");
+			excelRow(fpout, ExcelRowEnd);
 		}
 	} else {
 		fprintf(fpout, " #  Cur|");
@@ -377,33 +410,71 @@ static void MakeSpHeader(void) {
 	timedur_ftime1 = FALSE;
 }
 
+static unsigned long roundUpDur(unsigned long dur) {
+	unsigned long t;
+	double num;
+
+	num = (double)dur;
+	num = num / 1000L;
+	t = (long)num;
+	num = num - t;
+	if (num > 0.5)
+		t++;
+	return(t);
+}
+
 void call() {
-	int i, wi, cnt;
-	char *hc;
+	int i, j, wi;
+	char *hc, rightTier;
 	char word[BUFSIZ];
 	char thissp[SPEAKERLEN], prevsp[SPEAKERLEN], isFirstStartTime;
-	long prev_stime, prev_etime, firstStartTime, tutts, twords, words;
+	char curPSDFound;
+	float tfloat, cur_pauses_dur, tpauses_dur;
+	long prev_stime, prev_etime, firstStartTime = 0L, tutts, twords, words, uttInc;
 	unsigned long transcript_total;
-	float tt, tw, tu;
+	double tt, tw, tu;
 	struct sp_stat *p;
+	extern char PostCodeMode;
 
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
-		if (onlydata == 3 && uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
-			if (isIDSpeakerSpecified(utterance->line, templineC, TRUE)) {
-				uS.remblanks(utterance->line);
-				spcpy(thissp, templineC);
-				spRoot = AddSpeakersToList(spRoot, thissp, utterance->line);
+		if (uS.partcmp(utterance->speaker,"@Time Duration:",FALSE,FALSE)) {
+			uS.remFrontAndBackBlanks(utterance->line);
+			tmDur = tmDur + (getTimeDuration(utterance->line) * 1000.0000);
+		}
+		if ((onlydata == 1 || onlydata == 3) && uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
+			rightTier = TRUE;
+		} else if (!PostCodeMode || PostCodeMode == 'I') {
+			rightTier = TRUE;
+		} else if (PostCodeMode == 'e') {
+			if (postcodeRes == 5)
+				rightTier = FALSE;
+			else
+				rightTier = TRUE;
+		} else if (PostCodeMode == 'i') {
+			if (postcodeRes != 0)
+				rightTier = TRUE;
+			else
+				rightTier = FALSE;
+		} else
+			rightTier = TRUE;
+		if (rightTier) {
+			if (onlydata == 3 && uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
+				if (isIDSpeakerSpecified(utterance->line, templineC, TRUE)) {
+					uS.remblanks(utterance->line);
+					spcpy(thissp, templineC);
+					spRoot = AddSpeakersToList(spRoot, thissp, utterance->line);
+				}
+			} else if (*utterance->speaker == '*' && (onlydata < 2 || checktier(utterance->speaker))) {
+				spcpy(thissp, utterance->speaker);
+				spRoot = AddSpeakersToList(spRoot, thissp, NULL);
 			}
-		} else if (*utterance->speaker == '*' && (onlydata < 2 || checktier(utterance->speaker))) {
-			spcpy(thissp, utterance->speaker);
-			spRoot = AddSpeakersToList(spRoot, thissp, NULL);
 		}
 	}
 	rewind(fpin);
 	if (!stout && onlydata == 0) {
-		fprintf(fpout, "@UTF8\n");
+		fprintf(fpout, "%s\n", UTF8HEADER);
 #ifdef _WIN32 
 		fprintf(fpout, "%s	Win95:CAfont:-15:0\n", FONTHEADER);
 #else
@@ -412,6 +483,7 @@ void call() {
 	}
 	tutts = 0L;
 	twords = 0L;
+	tpauses_dur = 0.0;
 	isFirstStartTime = TRUE;
 	lineno = 0L;
 	tlineno = 1L;
@@ -420,6 +492,7 @@ void call() {
 	prev_stime = prev_etime = 0L;
 	if (RootStats == NULL)
 		MakeSpHeader();
+	rightTier = FALSE;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
@@ -428,7 +501,21 @@ printf("sp=%s; uttline=%s", utterance->speaker, uttline);
 if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 */
 		if (*utterance->speaker == '*') {
-			if (checktier(utterance->speaker)) {
+			if (!PostCodeMode || PostCodeMode == 'I') {
+				rightTier = TRUE;
+			} else if (PostCodeMode == 'e') {
+				if (postcodeRes == 5)
+					rightTier = FALSE;
+				else
+					rightTier = TRUE;
+			} else if (PostCodeMode == 'i') {
+				if (postcodeRes != 0)
+					rightTier = TRUE;
+				else
+					rightTier = FALSE;
+			} else
+				rightTier = TRUE;
+			if (checktier(utterance->speaker) && rightTier) {
 				strcpy(prevsp, thissp);
 				spcpy(thissp, utterance->speaker);
 				ln = lineno;
@@ -442,7 +529,13 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					}
 				}
 				if (onlydata == 2 || onlydata == 3) {
+					cur_pauses_dur = 0.0;
 					words = 0L;
+					i = 0;
+					while ((i=getword(utterance->speaker, utterance->line, word, &wi, i))) {
+						if (word[0] == '(' && uS.isPause(word, 0, NULL, &j))
+							cur_pauses_dur = cur_pauses_dur + getPauseTimeDuration(word);
+					}
 					i = 0;
 					while ((i=getword(utterance->speaker, uttline, word, &wi, i))) {
 						if (word[0] == '-' && !uS.isToneUnitMarker(word) && !exclude(word))
@@ -451,12 +544,42 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 							words++;
 						}
 					}
+					curPSDFound = FALSE;
+					uttInc = 1L;
+					for (i=0; utterance->line[i] != EOS; i++) {
+						if ((i == 0 || uS.isskip(utterance->line,i-1,&dFnt,MBF)) && utterance->line[i] == '+' &&
+							uS.isRightChar(utterance->line,i+1,',',&dFnt, MBF)) {
+							uttInc = 0L;
+						}
+						if (utterance->line[i] == '+' && (i == 0 || uS.isskip(utterance->line,i-1,&dFnt,MBF))) {
+							if (utterance->line[i+1] == '/') {
+								if (utterance->line[i+2] == '.' && (uS.isskip(utterance->line,i+3,&dFnt,MBF) || utterance->line[i+3] == EOS))
+									curPSDFound = TRUE;
+								else if (utterance->line[i+2] == '/' && utterance->line[i+3] == '.' && (uS.isskip(utterance->line,i+4,&dFnt,MBF) || utterance->line[i+4] == EOS))
+									curPSDFound = TRUE;
+								else if (utterance->line[i+2] == '?' && (uS.isskip(utterance->line,i+3,&dFnt,MBF) || utterance->line[i+3] == EOS))
+									curPSDFound = TRUE;
+								else if (utterance->line[i+2] == '/' && utterance->line[i+3] == '?' && (uS.isskip(utterance->line,i+4,&dFnt,MBF) || utterance->line[i+4] == EOS))
+									curPSDFound = TRUE;
+							} else if (utterance->line[i+1] == '.') {
+								if (utterance->line[i+2] == '.' && utterance->line[i+3] == '.' && (uS.isskip(utterance->line,i+4,&dFnt,MBF) || utterance->line[i+4] == EOS))
+									curPSDFound = TRUE;
+								else if (utterance->line[i+2] == '.' && utterance->line[i+3] == '?' && (uS.isskip(utterance->line,i+4,&dFnt,MBF) || utterance->line[i+4] == EOS))
+									curPSDFound = TRUE;
+							}
+						}
+					}
 					for (p=RootStats; p != NULL; p=p->nextsp) {
 						if (*p->prev_sp_name == EOS && !strcmp(thissp,p->sp_name)) {
+							if (p->isPSDFound == FALSE && uttInc == 0L)
+								uttInc = 1L;
 							p->words = p->words + words;
-							p->utts = p->utts + 1L;
+							p->utts = p->utts + uttInc;
+							p->pauses_dur = p->pauses_dur + cur_pauses_dur;
 							twords = twords + words;
-							tutts = tutts + 1L;
+							tutts = tutts + uttInc;
+							tpauses_dur = tpauses_dur + cur_pauses_dur;
+							p->isPSDFound = curPSDFound;
 						}
 					}
 				}
@@ -464,63 +587,92 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				*thissp = EOS;
 		}
 	}
+	if (tmDur != 0.0 || (tpauses_dur != 0.0 && (onlydata == 2 || onlydata == 3))) {
+		isFirstStartTime = FALSE;
+	}
 	if (!isFirstStartTime) {
 		transcript_total = 0L;
 		if (onlydata == 1) {
-			fprintf(fpout, "Totals\t");
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, "Totals");
 			for (p=RootStats; p != NULL; p=p->nextsp) {
+				if (tmDur != 0.0 && p->total == 0L) {
+					p->total = tmDur;
+				}
 				if (*p->prev_sp_name == EOS) {
-					fprintf(fpout, "\t%ld", p->total);
+					excelLongNumCell(fpout, "%ld", p->total);
 					transcript_total += p->total;
 				} else
-					fprintf(fpout, "\t");
+					excelStrCell(fpout, "");
 			}
-			fprintf(fpout, "\n\n");
-			fprintf(fpout, "Transcript Total (excluding pauses between utterances) MSec:\t%ld\n", transcript_total);
-			fprintf(fpout, "Transcript Total (including pauses between utterances) MSec:\t%ld\n", prev_etime - firstStartTime);
+			excelRow(fpout, ExcelRowEnd);
+			sprintf(templineC, "Transcript Total (excluding pauses between utterances) MSec:,%ld\n", transcript_total);
+			excelRowOneStrCell(fpout, ExcelRedCell, templineC);
+			sprintf(templineC, "Transcript Total (including pauses between utterances) MSec:,%ld\n", prev_etime - firstStartTime);
+			excelRowOneStrCell(fpout, ExcelRedCell, templineC);
 		} else if (onlydata == 2) {
 			if (!stout)
-				fprintf(fpout, "**** File name: %s\n", oldfname);
+				fprintf(fpout, "*** File name: %s\n", oldfname);
 			for (p=RootStats; p != NULL; p=p->nextsp) {
 				if (*p->prev_sp_name == EOS) {
+					if (tmDur != 0.0 && p->total == 0L) {
+						p->total = tmDur;
+					}
 					transcript_total += p->total;
 					fprintf(fpout, "Ratio for Speaker: %s\n", p->sp_name);
 					fprintf(fpout, "\tNumber of: utterances = %ld, words = %ld\n", p->utts, p->words);
-					fprintf(fpout, "\tDuration time: %ld Secs\n", p->total);
+					fprintf(fpout, "\tPauses duration (sec.msec): %.3f\n", p->pauses_dur);
+					Secs2Str(roundUpDur(p->total), word, FALSE);
+					fprintf(fpout, "\tDuration time: %s\n", word);
 					if (p->total > 0L) {
-						tw = (float)p->words;
-						tt = (float)p->total;
-						fprintf(fpout,"\tRatio of words over time duration (#/Secs) = %.3f\n", tw/tt);
-						tu = (float)p->utts;
-						fprintf(fpout,"\tRatio of utterances over time duration (#/Secs) = %.3f\n", tu/tt);
+						tw = (double)p->words;
+						tt = (double)p->total;
+						tt = tt / 1000L;
+						tt = tt / 60.0000;
+						fprintf(fpout,"\tRatio of words over time duration (#/Min) = %.3lf\n", tw/tt);
+						tu = (double)p->utts;
+						fprintf(fpout,"\tRatio of utterances over time duration (#/Min) = %.3lf\n", tu/tt);
 					}
 					putc('\n',fpout);
 				}
 			}
 			fprintf(fpout,"Total number of: utterances = %ld, words = %ld\n", tutts, twords);
-			fprintf(fpout, "Transcript Total Duration (excluding pauses between utterances): %ld Secs\n", transcript_total);
+			fprintf(fpout,"Total pauses duration (sec.msec): %.3f\n", tpauses_dur);
+			Secs2Str(roundUpDur(transcript_total), word, FALSE);
+			fprintf(fpout, "Transcript Total Duration (excluding pauses between utterances): %s\n", word);
 			if (transcript_total > 0L) {
-				tw = (float)twords;
-				tt = (float)transcript_total;
-				fprintf(fpout,"\tRatio of total number of words over time duration (#/Secs) = %.3f\n", tw/tt);
-				tu = (float)tutts;
-				fprintf(fpout,"\tRatio of total number of utterances over time duration (#/Secs) = %.3f\n", tu/tt);
+				tw = (double)twords;
+				tt = (double)transcript_total;
+				tt = tt / 1000L;
+				tt = tt / 60.0000;
+				fprintf(fpout,"\tRatio of total number of words over time duration (#/Min) = %.3lf\n", tw/tt);
+				tu = (double)tutts;
+				fprintf(fpout,"\tRatio of total number of utterances over time duration (#/Min) = %.3lf\n", tu/tt);
 			}
-			fprintf(fpout, "Transcript Total Duration (including pauses between utterances): %ld Secs\n", prev_etime - firstStartTime);
+			Secs2Str(roundUpDur(prev_etime-firstStartTime), word, FALSE);
+			fprintf(fpout, "Transcript Total Duration (including pauses between utterances): %s\n", word);
 			if (prev_etime - firstStartTime > 0L) {
-				tw = (float)twords;
-				tt = (float)prev_etime - firstStartTime;
-				fprintf(fpout,"\tRatio of total number of words over time duration (#/Secs) = %.3f\n", tw/tt);
-				tu = (float)tutts;
-				fprintf(fpout,"\tRatio of total number of utterances over time duration (#/Secs) = %.3f\n", tu/tt);
+				tw = (double)twords;
+				tt = (double)prev_etime - firstStartTime;
+				tt = tt / 1000L;
+				tt = tt / 60.0000;
+				fprintf(fpout,"\tRatio of total number of words over time duration (#/Min) = %.3lf\n", tw/tt);
+				tu = (double)tutts;
+				fprintf(fpout,"\tRatio of total number of utterances over time duration (#/Min) = %.3lf\n", tu/tt);
 			}
 			putc('\n',fpout);
 		} else if (onlydata == 3) {
 			for (p=RootStats; p != NULL; p=p->nextsp) {
 				if (*p->prev_sp_name == EOS) {
-					tw = (float)twords;
-					tu = (float)tutts;
-					tt = (float)p->total;
+					if (tmDur != 0.0 && p->total == 0L) {
+						p->total = tmDur;
+					}
+					tw = (double)twords;
+					tu = (double)tutts;
+					tt = (double)p->total;
+					tt = tt / 1000L;
+					tt = tt / 60.0000;
+// ".xls"
 					hc = strrchr(oldfname, PATHDELIMCHR);
 					if (hc == NULL)
 						hc = oldfname;
@@ -530,32 +682,43 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					hc = strchr(FileName1, '.');
 					if (hc != NULL)
 						*hc = EOS;
-					fprintf(fpout, "%s", FileName1);
+					excelRow(fpout, ExcelRowStart);
+					excelStrCell(fpout, FileName1);
 					if (p->IDs != NULL) {
-						cnt = 0;
-						for (i=0; p->IDs[i] != EOS; i++) {
-							if (p->IDs[i] == '|') {
-								cnt++;
-								if (cnt < 10)
-									p->IDs[i] = '\t';
-								else
-									p->IDs[i] = EOS;
-							}
-						}
-						fprintf(fpout,"\t%s", p->IDs);
-					} else
-						fprintf(fpout,"\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.", p->sp_name);
-					if (p->total > 0L) {
-						fprintf(fpout, "\t%ld\t%ld\t%ld\t%.3f\t%.3f\n", p->words, p->utts, p->total, tw/tt, tu/tt);
+						excelOutputID(fpout, p->IDs);
 					} else {
-						fprintf(fpout, "\t%ld\t%ld\t%ld\tN/A\tN/A\n",  p->words, p->utts, p->total);
+						excelCommasStrCell(fpout, ".,.");
+						excelStrCell(fpout, p->sp_name);
+						excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.");
 					}
+					Secs2Str(roundUpDur(p->total), word, FALSE);
+					if (p->total > 0L) {
+						excelLongNumCell(fpout, "%ld", p->words);
+						excelLongNumCell(fpout, "%ld", p->utts);
+						excelNumCell(fpout, "%.3f", p->pauses_dur);
+						excelStrCell(fpout, word);
+						tfloat = (float)(tw/tt);
+						excelNumCell(fpout, "%.3f", tfloat);
+						tfloat = (float)(tu/tt);
+						excelNumCell(fpout, "%.3f", tfloat);
+					} else {
+						excelLongNumCell(fpout, "%ld", p->words);
+						excelLongNumCell(fpout, "%ld", p->utts);
+						excelNumCell(fpout, "%.3f", p->pauses_dur);
+						excelStrCell(fpout, word);
+						excelStrCell(fpout, "NA");
+						excelStrCell(fpout, "NA");
+					}
+					excelRow(fpout, ExcelRowEnd);
 				}
-			}				
+			}
 		} else {
 			fprintf(fpout, " Totals|");
 			for (p=RootStats; p != NULL; p=p->nextsp) {
 				if (*p->prev_sp_name == EOS) {
+					if (tmDur != 0.0 && p->total == 0L) {
+						p->total = tmDur;
+					}
 					fprintf(fpout, "%7ld|", p->total);
 					transcript_total += p->total;
 				} else
@@ -569,12 +732,34 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 }
 
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
+	FILE *fp;
+
+	onlydata = 0;
+	fpout_fname[0] = EOS;
 	isWinMode = IS_WIN_MODE;
 	CLAN_PROG_NUM = TIMEDUR;
 	chatmode = CHAT_MODE;
 	OnlydataLimit = 0;
 	UttlineEqUtterance = FALSE;
 	bmain(argc,argv,NULL);
+	if (onlydata == 1 || onlydata == 3) {
+		if (fpout_fname[0] != EOS) {
+			fp  = fopen(fpout_fname, "a");
+			if (fp !=  NULL) {
+				excelFooter(fp);
+				fclose(fp);
+			}
+		}
+	}
 	FreeSpList();
 	FreeSpStats();
+	if (!R6) {
+#ifdef UNX
+		fprintf(stderr, "\nDATA ASSOCIATED WITH CODES [/], [//], [///], [/-], [/?] IS EXCLUDED BY DEFAULT.\n");
+		fprintf(stderr, "TO INCLUDE THIS DATA PLEASE USE \"+r6\" OPTION.\n");
+#else
+		fprintf(stderr, "\n%c%cDATA ASSOCIATED WITH CODES [/], [//], [///], [/-], [/?] IS EXCLUDED BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+		fprintf(stderr, "%c%cTO INCLUDE THIS DATA PLEASE USE \"+r6\" OPTION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
+	}
 }

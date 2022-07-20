@@ -1,6 +1,6 @@
 /**********************************************************************
- "Copyright 2011 Brian MacWhinney. Use is subject to Gnu Public License
- as stated in the attached "gpl.txt" file."
+	"Copyright 1990-2020 Brian MacWhinney. Use is subject to Gnu Public License
+	as stated in the attached "gpl.txt" file."
  */
 
 // this is a program for converting a model file to a C source

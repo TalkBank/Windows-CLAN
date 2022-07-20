@@ -25,6 +25,8 @@ extern char isUpdateCLAN;
 CWnd *isMouseButtonDn;
 char firstTimeStart;
 char tFileBuf[FILENAME_MAX];
+float scalingSize;
+
 
 static int ScreenX = 0, ScreenY = 0;
 
@@ -111,13 +113,18 @@ CClan2App::CClan2App()
 	// Place all significant initialization in InitInstance
 	// Initialize QTML and QuickTime
 	isMouseButtonDn = NULL;
-	InitializeQTML (0);
-	EnterMovies ();
+// NO QT	InitializeQTML (0);
+// NO QT	EnterMovies ();
 }
 
 
 /////////////////////////////////////////////////////////////////////////////
 // The one and only CClan2App object
+
+CComModule _Module;
+
+BEGIN_OBJECT_MAP(ObjectMap)
+END_OBJECT_MAP()
 
 CClan2App theApp;
 /////////////////////////////////////////////////////////////////////////////
@@ -126,12 +133,15 @@ CClan2App theApp;
 BOOL CClan2App::InitInstance()
 {
 	extern char *nameOverride, *pathOverride, *lineNumFname,
-		*clanBuf, clanRun, quickTranscribe;
+		*clanBuf, clanRun, quickTranscribe, isSpOverride;
 	extern long rowLimitOverride, lineNumOverride;
 	extern unCH *getWebMedia;
+	int  PPI;
+	float tf;
+	HDC   hDC;
 
 /*
-    HWND      hwnd;
+    HWND		hwnd;
 
     // Win32 will always set hPrevInstance to NULL, so lets check
     // things a little closer. This is because we only want a single
@@ -150,6 +160,10 @@ BOOL CClan2App::InitInstance()
 	AfxInitRichEdit();
     // Initialize the quartz library
     CoInitialize(NULL);
+
+	HINSTANCE	hInstance;
+	hInstance = AfxGetInstanceHandle();
+	_Module.Init(ObjectMap, hInstance, &LIBID_ATLLib);
 
 	AfxEnableControlContainer();
 
@@ -188,6 +202,7 @@ BOOL CClan2App::InitInstance()
 	nameOverride = NULL;
 	pathOverride = NULL;
 	lineNumFname = NULL;
+	isSpOverride = FALSE;
 	getWebMedia = NULL;
 	clanBuf = NULL;
 	clanRun = FALSE;
@@ -213,6 +228,61 @@ BOOL CClan2App::InitInstance()
 		RUNTIME_CLASS(CChildFrame), // custom MDI child frame
 		RUNTIME_CLASS(CClan2View));
 	AddDocTemplate(pDocTemplate);
+
+/*
+	#define DRIVERVERSION 0     /* Device driver version
+	#define TECHNOLOGY    2     /* Device classification
+	#define HORZSIZE      4     /* Horizontal size in millimeters
+	#define VERTSIZE      6     /* Vertical size in millimeters
+	#define HORZRES       8     /* Horizontal width in pixels
+	#define VERTRES       10    /* Vertical height in pixels
+	#define BITSPIXEL     12    /* Number of bits per pixel
+	#define PLANES        14    /* Number of planes
+	#define NUMBRUSHES    16    /* Number of brushes the device has
+	#define NUMPENS       18    /* Number of pens the device has
+	#define NUMMARKERS    20    /* Number of markers the device has
+	#define NUMFONTS      22    /* Number of fonts the device has
+	#define NUMCOLORS     24    /* Number of colors the device supports
+	#define PDEVICESIZE   26    /* Size required for device descriptor
+	#define CURVECAPS     28    /* Curve capabilities
+	#define LINECAPS      30    /* Line capabilities
+	#define POLYGONALCAPS 32    /* Polygonal capabilities
+	#define TEXTCAPS      34    /* Text capabilities
+	#define CLIPCAPS      36    /* Clipping capabilities
+	#define RASTERCAPS    38    /* Bitblt capabilities
+	#define ASPECTX       40    /* Length of the X leg
+	#define ASPECTY       42    /* Length of the Y leg
+	#define ASPECTXY      44    /* Length of the hypotenuse
+
+	#define LOGPIXELSX    88    /* Logical pixels/inch in X
+	#define LOGPIXELSY    90    /* Logical pixels/inch in Y
+
+	#define SIZEPALETTE  104    /* Number of entries in physical palette
+	#define NUMRESERVED  106    /* Number of reserved entries in palette
+	#define COLORRES     108    /* Actual color resolution
+
+	// Printing related DeviceCaps. These replace the appropriate Escapes
+
+	#define PHYSICALWIDTH   110 /* Physical Width in device units
+	#define PHYSICALHEIGHT  111 /* Physical Height in device units
+	#define PHYSICALOFFSETX 112 /* Physical Printable Area x margin
+	#define PHYSICALOFFSETY 113 /* Physical Printable Area y margin
+	#define SCALINGFACTORX  114 /* Scaling factor x
+	#define SCALINGFACTORY  115 /* Scaling factor y
+*/
+	hDC = CreateDC(_T("DISPLAY"), NULL, NULL, NULL);
+	if (hDC != NULL) {
+		PPI = GetDeviceCaps(hDC, LOGPIXELSY);  // lxslxslxs
+		tf = 96.00;
+		scalingSize = (float)PPI;
+		scalingSize = scalingSize / tf;
+		scalingSize = scalingSize * 100;
+		PPI = (int)scalingSize;
+		scalingSize = (float)PPI;
+		scalingSize = scalingSize / 100;
+		DeleteDC(hDC);
+	} else
+		scalingSize = 1.00;
 
 	// create main MDI Frame window
 	CMainFrame* pMainFrame = new CMainFrame;
@@ -243,7 +313,6 @@ BOOL CClan2App::InitInstance()
 	EnableShellOpen();
 	m_pMainWnd->DragAcceptFiles();
 	
-
 	CClan2View::Initialize();
 	LocalInit();
 	firstTimeStart = TRUE;
@@ -297,8 +366,9 @@ int CClan2App::ExitInstance()
 	CClan2View::Terminate();
 	CChildFrame::Terminate();
     CoUninitialize();
-	ExitMovies();
-	TerminateQTML();
+	_Module.Term();
+// NO QT	ExitMovies();
+// NO QT	TerminateQTML();
 	freeArgs();
 	return CWinApp::ExitInstance();
 }
@@ -404,6 +474,7 @@ void CClan2App::OnEditOptionsCedoptions()
 	long tClanWinRowLim;
 	extern char DefClan;
 	extern char ClanAutoWrap;
+	extern char isShowCHECKMessage;
 	extern char isCursorPosRestore;
 	extern long ClanWinRowLim;
 
@@ -420,6 +491,7 @@ void CClan2App::OnEditOptionsCedoptions()
 	dlg.m_Tier = cl_T(DisTier);
 	dlg.m_Mixed_Stereo_Wave = doMixedSTWave;
 	dlg.m_Update_Clan = isUpdateCLAN;
+	dlg.m_No_CheckMess = !isShowCHECKMessage;
 	tIsChatLineNums = isChatLineNums;
 	tDoMixedSTWave = doMixedSTWave;
 	tClanWinRowLim = ClanWinRowLim;
@@ -440,6 +512,7 @@ void CClan2App::OnEditOptionsCedoptions()
 		uS.uppercasestr(DisTier, &dFnt, C_MBF);
 		doMixedSTWave = dlg.m_Mixed_Stereo_Wave;
 		isUpdateCLAN = dlg.m_Update_Clan;
+		isShowCHECKMessage = !dlg.m_No_CheckMess;
 
 	    WriteCedPreference();
 	    if (ClanWinRowLim != tClanWinRowLim) {
@@ -460,7 +533,7 @@ void CClan2App::OnEditOptionsCedoptions()
 								pDoc->FileInfo->RowLimit = ClanWinRowLim;
 						}
 					}
-					pDoc->redo_soundwave = ClanWinRowLim;
+					pDoc->redo_soundwave = (char)ClanWinRowLim;
 				}
 			}
 		}
@@ -515,9 +588,16 @@ void CClan2App::OnEditOptionsCedoptions()
 
 void CClan2App::OnClanClanwindow() 
 {
+	char commands_win_name[512];
+	extern char ced_version[];
+
 	if (clanDlg == NULL) {
 		clanDlg = new CClanWindow(AfxGetApp()->m_pMainWnd);
-	}
+		strcpy(commands_win_name, "Commands - ");
+		strcat(commands_win_name, ced_version);
+		clanDlg->SetWindowText(cl_T(commands_win_name));
+	} else
+		clanDlg->SetActiveWindow();
 }
 
 void CClan2App::OnClanCaChars() 
@@ -531,7 +611,8 @@ void CClan2App::OnClanCaChars()
 void CClan2App::OnWebData() 
 {
 	if (webDataDlg == NULL) {
-		webDataDlg = new CWebData(AfxGetApp()->m_pMainWnd);
+		do_warning("WEB Data function is no longer supported", 0);
+//		webDataDlg = new CWebData(AfxGetApp()->m_pMainWnd);
 	}	
 }
 
@@ -629,7 +710,7 @@ void CClan2App::OnEditResetOptions()
 static void checkForUpdate(void) {
 	int	 vn;
 	char *s, res;
-	wchar_t URLPath[128];
+	unCH URLPath[128];
 	char fname[FNSize];
 	char buf[BUFSIZ];
 	FILE *fp;
@@ -648,7 +729,7 @@ static void checkForUpdate(void) {
 // strcpy(templineC, ctime(&timer));
 	versionTime = timer + 345600L; // this number = 4 days time
 // strcpy(templineC, ctime((time_t *)&versionTime));
-	u_strcpy(URLPath, "http://childes.talkbank.org/clan/CLAN_VERSION.txt", 128);
+	u_strcpy(URLPath, "http://alpha.talkbank.org/clan/CLAN_VERSION.txt", 128);
 	strcpy(fname, prefsDir);
 	strcat(fname, "CLAN_VERSION.txt");
 	u_strcpy(templine, fname, UTTLINELEN);
@@ -680,7 +761,7 @@ static void checkForUpdate(void) {
 			if (dlgUpdate.DoModal() == IDOK) {
 				res = dlgUpdate.res;
 				if (res == 1) {
-					u_strcpy(URLPath, "http://childes.talkbank.org/clan/clanwin.exe", 128);
+					u_strcpy(URLPath, "http://alpha.talkbank.org/clan/clanwin.exe", 128);
 					strcpy(fname, prefsDir);
 					strcat(fname, "clanwin.exe");
 					u_strcpy(templine, fname, UTTLINELEN);
@@ -767,7 +848,7 @@ int CClan2App::Run()
 	tDelay = GetTickCount();
 	_AFX_THREAD_STATE *pstate = AfxGetThreadState();
 	// acquire and dispatch messages until a WM_QUIT message is received.
-	checkForUpdate();
+//	checkForUpdate();
 	for (;;)
 	{
 		if (isMouseButtonDn != NULL) {

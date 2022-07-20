@@ -134,7 +134,7 @@ char readSearchList(FNType *fname) {
 	while (fgets_cr(templineC, UTTLINELEN, fp) != NULL) {
 		if ((templineC[0] == '%' || templineC[0] == '#') && isSpace(templineC[1]))
 			continue;
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 			continue;
 		if (!strcmp(templineC,"\n"))
 			continue;
@@ -151,12 +151,8 @@ char readSearchList(FNType *fname) {
 		if (i > 0 && templineC[i-1] == '\n')
 			templineC[i-1] = EOS;
 
-#ifdef _UNICODE
 		UTF8ToUnicode((unsigned char *)templineC, strlen(templineC), templine, NULL, UTTLINELEN);
 		sPtr = templine;
-#else
-		sPtr = templineC;
-#endif
 
 		if (!CaseSensSearch)
 			uS.uppercasestr(sPtr, &dFnt, C_MBF);
@@ -245,10 +241,8 @@ static int StringMatched(unCH *pat, char isBeg, char isSearchFromList) {
 	int offset = 0, len;
 	struct uIEWords *t;
 
-	if (!isSearchFromList || searchList == NULL) {
-		if ((len=strlen(pat)) == 0)
-			return(0);
-	}
+	if ((len=strlen(pat)) == 0)
+		return(0);
 	if (global_df->row_txt == global_df->cur_line) {
 		LINE *tl;
 		if (isBeg)
@@ -318,45 +312,59 @@ static int StringMatched(unCH *pat, char isBeg, char isSearchFromList) {
 
 int FindString(unCH *st, char updateScreen, char isWrap, char isSearchFromList) {
 	long old_row_win = global_df->row_win;
-	long old_lineno = global_df->lineno;
+	long old_lineno  = global_df->lineno;
+	long old_wLineno = global_df->wLineno;
 	ROWS *old_row_txt = global_df->row_txt;
 
 	if (CMP_VIS_ID(global_df->row_txt->flag) && StringMatched(st, FALSE, isSearchFromList)) {
+		global_df->lineno = countLines(global_df->row_txt);
 		if (updateScreen)
 			DisplayRow(TRUE);
 		return(1);
 	}
 	global_df->row_txt = global_df->row_txt->next_row;
-	if (CMP_VIS_ID(global_df->row_txt->flag))
-		global_df->lineno++;
+	if (CMP_VIS_ID(global_df->row_txt->flag)) {
+		if (isNL_CFound(global_df->row_txt))
+			global_df->lineno++;
+		global_df->wLineno++;
+	}
 	if (global_df->row_win < (long)global_df->EdWinSize)
 		global_df->row_win++;
 	while (global_df->row_txt != global_df->tail_text) {
 		if (CMP_VIS_ID(global_df->row_txt->flag) && StringMatched(st, TRUE, isSearchFromList)) {
+			global_df->lineno = countLines(global_df->row_txt);
 			if (updateScreen)
 				DisplayRow(TRUE);
 			return(1);
 		}
 		global_df->row_txt = global_df->row_txt->next_row;
-		if (CMP_VIS_ID(global_df->row_txt->flag))
-			global_df->lineno++;
+		if (CMP_VIS_ID(global_df->row_txt->flag)) {
+			if (isNL_CFound(global_df->row_txt))
+				global_df->lineno++;
+			global_df->wLineno++;
+		}
 		if (global_df->row_win < (long)global_df->EdWinSize)
 			global_df->row_win++;
 	}
 	if (isWrap && global_df->head_text->next_row != global_df->tail_text) {
 		global_df->row_txt = global_df->head_text->next_row;
-		global_df->lineno = 1L;
+		global_df->lineno  = 1L;
+		global_df->wLineno = 1L;
 		if (global_df->top_win == global_df->row_txt)
 			global_df->row_win = 0L;
 		while (global_df->row_txt != old_row_txt->next_row) {
 			if (CMP_VIS_ID(global_df->row_txt->flag) && StringMatched(st, TRUE, isSearchFromList)) {
+				global_df->lineno = countLines(global_df->row_txt);
 				if (updateScreen)
 					DisplayRow(TRUE);
 				return(1);
 			}
 			global_df->row_txt = global_df->row_txt->next_row;
-			if (CMP_VIS_ID(global_df->row_txt->flag))
-				global_df->lineno++;
+			if (CMP_VIS_ID(global_df->row_txt->flag)) {
+				if (isNL_CFound(global_df->row_txt))
+					global_df->lineno++;
+				global_df->wLineno++;
+			}
 			if (global_df->row_win < (long)global_df->EdWinSize)
 				global_df->row_win++;
 		}
@@ -364,6 +372,7 @@ int FindString(unCH *st, char updateScreen, char isWrap, char isSearchFromList) 
 	global_df->row_txt = old_row_txt;
 	global_df->row_win = old_row_win;
 	global_df->lineno  = old_lineno;
+	global_df->wLineno = old_wLineno;
 	return(0);
 }
 
@@ -461,10 +470,8 @@ static int RevStringMatched(unCH *pat, int end, char isSearchFromList) {
 	unCH *s, *beg;
 	struct uIEWords *t;
 
-	if (!isSearchFromList || searchList == NULL) {
-		if ((len=(unsigned int)strlen(pat)) == 0)
-			return(0);
-	}
+	if ((len=(unsigned int)strlen(pat)) == 0)
+		return(0);
 	if (global_df->row_txt == global_df->cur_line) {
 		LINE *tl;
 		if (end) {
@@ -557,45 +564,59 @@ static int RevStringMatched(unCH *pat, int end, char isSearchFromList) {
 
 static int RevFindString(unCH *st) {
 	long old_row_win = global_df->row_win;
-	long old_lineno = global_df->lineno;
+	long old_lineno  = global_df->lineno;
+	long old_wLineno = global_df->wLineno;
 	ROWS *old_row_txt = global_df->row_txt, *tr;
 
 	if (CMP_VIS_ID(global_df->row_txt->flag) && RevStringMatched(st,0,SearchFromList)) {
+		global_df->lineno = countLines(global_df->row_txt);
 		DisplayRow(TRUE);
 		return(1);
 	}
 	global_df->row_txt = global_df->row_txt->prev_row;
 	if (CMP_VIS_ID(global_df->row_txt->flag)) {
-		global_df->lineno--;
+		if (isNL_CFound(global_df->row_txt))
+			global_df->lineno--;
+		global_df->wLineno--;
 		if (global_df->row_win >= 0L)
 			global_df->row_win--;
 	}
 	while (global_df->row_txt != global_df->head_text) {
 		if (CMP_VIS_ID(global_df->row_txt->flag) && RevStringMatched(st,1,SearchFromList)) {
+			global_df->lineno = countLines(global_df->row_txt);
 			DisplayRow(TRUE);
 			return(1);
 		}
 		global_df->row_txt = global_df->row_txt->prev_row;
 		if (CMP_VIS_ID(global_df->row_txt->flag)) {
-			global_df->lineno--;
+			if (isNL_CFound(global_df->row_txt))
+				global_df->lineno--;
+			global_df->wLineno--;
 			if (global_df->row_win >= 0L)
 				global_df->row_win--;
 		}
     }
 	if (SearchWrap && global_df->tail_text->prev_row != global_df->head_text) {
 		global_df->row_txt = global_df->tail_text->prev_row;
-		global_df->lineno = 0L;
+		global_df->lineno  = 0L;
+		global_df->wLineno = 0L;
 		global_df->row_win = -1L;
-		for (tr=global_df->head_text->next_row; tr != global_df->tail_text; tr=tr->next_row)
-			global_df->lineno++;
+		for (tr=global_df->head_text->next_row; tr != global_df->tail_text; tr=tr->next_row) {
+			if (isNL_CFound(tr))
+				global_df->lineno++;
+			global_df->wLineno++;
+		}
 		while (global_df->row_txt != old_row_txt->prev_row) {
 			if (CMP_VIS_ID(global_df->row_txt->flag) && RevStringMatched(st,1,SearchFromList)) {
+				global_df->lineno = countLines(global_df->row_txt);
 				DisplayRow(TRUE);
 				return(1);
 			}
 			global_df->row_txt = global_df->row_txt->prev_row;
 			if (CMP_VIS_ID(global_df->row_txt->flag)) {
-				global_df->lineno--;
+				if (isNL_CFound(global_df->row_txt))
+					global_df->lineno--;
+				global_df->wLineno--;
 				if (global_df->row_win >= 0L)
 					global_df->row_win--;
 			}
@@ -604,6 +625,7 @@ static int RevFindString(unCH *st) {
 	global_df->row_txt = old_row_txt;
 	global_df->row_win = old_row_win;
 	global_df->lineno  = old_lineno;
+	global_df->wLineno = old_wLineno;
 	return(0);
 }
 
@@ -738,7 +760,7 @@ char replaceOne(char isDisplayText, int SrchStrLen, int ReplStrLen) {
 //	TRUE_CHECK_ID2(global_df->row_txt->flag);
 	i = SrchStrLen - 1;
 	if (SearchString[i] == CR_CHR &&
-		  (global_df->col_txt->prev_char->c == NL_C || global_df->col_txt == global_df->tail_row)) {
+		(global_df->col_txt->prev_char->c == NL_C || global_df->col_txt == global_df->tail_row)) {
 		if ((global_df->UndoList->str=(unCH *)malloc((SrchStrLen+2)*sizeof(unCH))) == NULL) 
 			mem_err(TRUE, global_df);
 		global_df->UndoList->str[0] = (char)ReplStrLen;
@@ -859,8 +881,8 @@ static int doReplace(char isOneTime) {
 			SaveUndoState(FALSE);
 		} else {
 			do {
-		    	if (CheckLeftCol(global_df->col_win))
-		    		DisplayTextWindow(NULL, 1);
+				if (CheckLeftCol(global_df->col_win))
+					DisplayTextWindow(NULL, 1);
 				if (replaceOne(FALSE, SrchStrLen, ReplStrLen) == FALSE)
 					return(0);
 				if (isOneTime) {
@@ -976,9 +998,9 @@ repeatR:
 				*ReplaceString = EOS;
 				break;
 			}
-			if ((templineC[0] == '%' || templineC[0] == '#') && isSpace(templineC[1]))
+			if (templineC[0] == '#' && isSpace(templineC[1]))
 				goto repeatR;
-			if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+			if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 				goto repeatR;
 			if (!strcmp(templineC,"\n"))
 				goto repeatR;
@@ -1091,26 +1113,4 @@ repeatR:
 	if (fp != NULL)
 		fclose(fp);
 	return(7);
-}
-
-int ReplaceAndFind(int i) {
-	if (*SearchString == EOS) {
-		return(Replace(i));
-	}
-#if defined(_MAC_CODE)
-#elif defined(_WIN32)
-	if (global_df == NULL)
-		return(86);
-#endif
-
-	replaceExecPos = 0;
-	if (doReplace(TRUE)) {
-		global_df->LeaveHighliteOn = TRUE;
-		strcpy(global_df->err_message, DASHES);
-	} else {
-		global_df->LeaveHighliteOn = FALSE;
-		strcpy(global_df->err_message, "-No match found.");
-	}
-
-	return(86);
 }

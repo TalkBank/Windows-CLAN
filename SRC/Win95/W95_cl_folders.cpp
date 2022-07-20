@@ -1,6 +1,5 @@
 #include "ced.h"
-#include "c_clan.h"
-#include "CedDlgs.h"
+#include "W95_cl_folders.h"
 
 extern "C"
 {

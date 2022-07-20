@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -136,6 +136,28 @@ void set_default_speaker(enum classification_enum speaker) {
 	default_speaker = speaker;
 }
 
+void output_child_codes(FILE *fp) {
+	int i;
+
+	for (i=0; i < number_of_adults; i++) {
+		if (i == 0)
+			fprintf(fp, "%s", children[i]);
+		else
+			fprintf(fp, ", %s", children[i]);
+	}
+}
+
+void output_adult_codes(FILE *fp) {
+	int i;
+
+	for (i=0; i < number_of_adults; i++) {
+		if (i == 0)
+			fprintf(fp, "%s", adults[i]);
+		else
+			fprintf(fp, ", %s", adults[i]);
+	}
+}
+
 void output_utter(
 	FILE *f,					/* The output file				*/
 	real_utterance *utter)	/* The parsed utterance to output   */
@@ -186,6 +208,16 @@ char *utter_speaker(real_utterance *utter) {
 static int DO_SUFFIX = FALSE;
 static int DO_PREFIX = FALSE;
 
+static void trimPostClitics(char *st) {
+	int i;
+
+	i = strlen(st) - 1;
+	while (i >= 0 && st[i] == '~')
+		i--;
+	i++;
+	st[i] = EOS;
+}
+
 /* Returns a new atom if space is available */
 static char *atomize(char *str) {
 	char *new_atom;
@@ -200,7 +232,7 @@ static char *atomize(char *str) {
 static char *get_stem(char *surf, MORFEATS *word_feats) {
 	char stem[CHIP_MAX_WORD_LENGTH];
 	int i, j;
-	MORFEATS *word_feat;
+	MORFEATS *word_clitc, *word_feat;
 
 	if (surf == NULL && word_feats == NULL) {
 		fprintf(stderr, "No string specified for get_stem.\n");
@@ -225,26 +257,42 @@ static char *get_stem(char *surf, MORFEATS *word_feats) {
 		}
 		stem[j] = EOS;
 	} else if (word_feats != NULL) {
-		for (word_feat=word_feats; word_feat != NULL; word_feat=word_feat->comp) {
-			if (word_feat->typeID == '+')
-				strcat(stem, "+");
-			else if (word_feat->typeID == '~')
-				strcat(stem, "~");
-			else if (word_feat->typeID == '$')
-				strcat(stem, "$");
-			if (word_feat->stem != NULL)
-				strcat(stem, word_feat->stem);
+		for (word_clitc=word_feats; word_clitc != NULL; word_clitc=word_clitc->clitc) {
+			if (word_clitc->typeID == '$') {
+				for (word_feat=word_clitc; word_feat != NULL; word_feat=word_feat->compd) {
+					if (word_feat->typeID == '+' && stem[0] != EOS)
+						strcat(stem, "+");
+					if (word_feat->stem != NULL)
+						strcat(stem, word_feat->stem);
+				}
+				if (stem[0] != EOS)
+					strcat(stem, "$");
+			}
+		}
+		for (word_clitc=word_feats; word_clitc != NULL; word_clitc=word_clitc->clitc) {
+			if (word_clitc->typeID != '$'){
+				if (word_clitc->typeID == '~')
+					strcat(stem, "~");
+				for (word_feat=word_clitc; word_feat != NULL; word_feat=word_feat->compd) {
+					if (word_feat->typeID == '+' && stem[0] != EOS)
+						strcat(stem, "+");
+					if (word_feat->stem != NULL)
+						strcat(stem, word_feat->stem);
+				}
+			}
 		}
 	}
-	if (stem[0] != EOS)
+	trimPostClitics(stem);
+	if (stem[0] != EOS) {
 		return (atomize(stem));
+	}
 	return (NULL);
 }
 
 static char *get_prefix(char *surf, MORFEATS *word_feats) {
 	char prefix[CHIP_MAX_WORD_LENGTH];
 	int i, j;
-	MORFEATS *word_feat;
+	MORFEATS *word_clitc, *word_feat;
 
 	if (surf == NULL && word_feats == NULL) {
 		fprintf(stderr, "No string specified for get_prefix.\n");
@@ -265,11 +313,30 @@ static char *get_prefix(char *surf, MORFEATS *word_feats) {
 		}
 		prefix[j] = EOS;
 	} else if (word_feats != NULL) {
-		for (word_feat=word_feats; word_feat != NULL; word_feat=word_feat->comp) {
-			if (word_feat->prefix != NULL)
-				strcat(prefix, word_feat->prefix);
+		for (word_clitc=word_feats; word_clitc != NULL; word_clitc=word_clitc->clitc) {
+			if (word_clitc->typeID == '$') {
+				for (word_feat=word_clitc; word_feat != NULL; word_feat=word_feat->compd) {
+					if (word_feat->typeID == '+' && prefix[0] != EOS)
+						strcat(prefix, "+");
+					addIxesToSt(prefix, word_feat->prefix, NUM_PREF, "#", FALSE);
+				}
+				if (prefix[0] != EOS)
+					strcat(prefix, "$");
+			}
+		}
+		for (word_clitc=word_feats; word_clitc != NULL; word_clitc=word_clitc->clitc) {
+			if (word_clitc->typeID != '$') {
+				if (word_clitc->typeID == '~')
+					strcat(prefix, "~");
+				for (word_feat=word_clitc; word_feat != NULL; word_feat=word_feat->compd) {
+					if (word_feat->typeID == '+' && prefix[0] != EOS)
+						strcat(prefix, "+");
+					addIxesToSt(prefix, word_feat->prefix, NUM_PREF, "#", FALSE);
+				}
+			}
 		}
 	}
+	trimPostClitics(prefix);
 	if (prefix[0] != EOS) {
 		DO_PREFIX = FALSE;
 		return (atomize(prefix));
@@ -280,7 +347,7 @@ static char *get_prefix(char *surf, MORFEATS *word_feats) {
 static char *get_suffix(char *surf, MORFEATS *word_feats) {
 	char suffix[CHIP_MAX_WORD_LENGTH];
 	int i, j;
-	MORFEATS *word_feat;
+	MORFEATS *word_clitc, *word_feat;
 
 	if (surf == NULL && word_feats == NULL) {
 		fprintf(stderr, "No string specified for get_suffix.\n");
@@ -305,39 +372,35 @@ static char *get_suffix(char *surf, MORFEATS *word_feats) {
 		suffix[j] = EOS;
 	} else if (word_feats != NULL) {
 		DO_SUFFIX = TRUE;
-		for (word_feat=word_feats; word_feat != NULL; word_feat=word_feat->comp) {
-			if (word_feat->suffix0 != NULL) {
+		for (word_clitc=word_feats; word_clitc != NULL; word_clitc=word_clitc->clitc) {
+			if (word_clitc->typeID == '$') {
+				for (word_feat=word_clitc; word_feat != NULL; word_feat=word_feat->compd) {
+					if (word_feat->typeID == '+' && suffix[0] != EOS)
+						strcat(suffix, "+");
+					addIxesToSt(suffix, word_feat->suffix, NUM_SUFF, "-", TRUE);
+					addIxesToSt(suffix, word_feat->fusion, NUM_FUSI, "&", TRUE);
+				}
 				if (suffix[0] != EOS)
-					strcat(suffix, "-");
-				strcat(suffix, word_feat->suffix0);
+					strcat(suffix, "$");
 			}
-			if (word_feat->suffix1 != NULL) {
-				if (suffix[0] != EOS)
-					strcat(suffix, "-");
-				strcat(suffix, word_feat->suffix1);
-			}
-			if (word_feat->suffix2 != NULL) {
-				if (suffix[0] != EOS)
-					strcat(suffix, "-");
-				strcat(suffix, word_feat->suffix2);
-			}
-			if (word_feat->fusion0 != NULL) {
-				if (suffix[0] != EOS)
-					strcat(suffix, "&");
-				strcat(suffix, word_feat->fusion0);
-			}
-			if (word_feat->fusion1 != NULL) {
-				if (suffix[0] != EOS)
-					strcat(suffix, "&");
-				strcat(suffix, word_feat->fusion1);
-			}
-			if (word_feat->fusion2 != NULL) {
-				if (suffix[0] != EOS)
-					strcat(suffix, "&");
-				strcat(suffix, word_feat->fusion2);
+		}
+		for (word_clitc=word_feats; word_clitc != NULL; word_clitc=word_clitc->clitc) {
+			if (word_clitc->typeID != '$') {
+				if (word_clitc->typeID == '~')
+					strcat(suffix, "~");
+				for (word_feat=word_clitc; word_feat != NULL; word_feat=word_feat->compd) {
+					if (word_feat->typeID == '+' && suffix[0] != EOS) {
+						if (word_clitc->typeID != '~')
+							break;
+						strcat(suffix, "+");
+					}
+					addIxesToSt(suffix, word_feat->suffix, NUM_SUFF, "-", TRUE);
+					addIxesToSt(suffix, word_feat->fusion, NUM_FUSI, "&", TRUE);
+				}
 			}
 		}
 	}
+	trimPostClitics(suffix);
 	if (suffix[0] != EOS && DO_SUFFIX) {
 		DO_SUFFIX = FALSE;
 		return (atomize(suffix));
@@ -348,7 +411,7 @@ static char *get_suffix(char *surf, MORFEATS *word_feats) {
 /* Sets the POS of a_in */
 static char *get_pos(char *surf, MORFEATS *word_feats) {
 	char pos[CHIP_MAX_WORD_LENGTH];
-	MORFEATS *word_feat;
+	MORFEATS *word_clitc, *word_feat;
 
 	if (surf == NULL && word_feats == NULL) {
 		fprintf(stderr, "No string specified for get_pos.\n");
@@ -356,17 +419,32 @@ static char *get_pos(char *surf, MORFEATS *word_feats) {
 	}
 	make_null(pos);
 	if (word_feats != NULL) {
-		for (word_feat=word_feats; word_feat != NULL; word_feat=word_feat->comp) {
-			if (word_feat->typeID == '+')
-				strcat(pos, "+");
-			else if (word_feat->typeID == '~')
-				strcat(pos, "~");
-			else if (word_feat->typeID == '$')
-				strcat(pos, "$");
-			if (word_feat->pos != NULL)
-				strcat(pos, word_feat->pos);
+		for (word_clitc=word_feats; word_clitc != NULL; word_clitc=word_clitc->clitc) {
+			if (word_clitc->typeID == '$') {
+				for (word_feat=word_clitc; word_feat != NULL; word_feat=word_feat->compd) {
+					if (word_feat->typeID == '+' && pos[0] != EOS)
+						strcat(pos, "+");
+					if (word_feat->pos != NULL)
+						strcat(pos, word_feat->pos);
+				}
+				if (pos[0] != EOS)
+					strcat(pos, "$");
+			}
+		}
+		for (word_clitc=word_feats; word_clitc != NULL; word_clitc=word_clitc->clitc) {
+			if (word_clitc->typeID != '$') {
+				if (word_clitc->typeID == '~')
+					strcat(pos, "~");
+				for (word_feat=word_clitc; word_feat != NULL; word_feat=word_feat->compd) {
+					if (word_feat->typeID == '+' && pos[0] != EOS)
+						strcat(pos, "+");
+					if (word_feat->pos != NULL)
+						strcat(pos, word_feat->pos);
+				}
+			}
 		}
 	}
+	trimPostClitics(pos);
 	if (pos[0] != EOS) {
 		return (atomize(pos));
 	}
@@ -386,9 +464,7 @@ static real_word *new_word(char *surf, char *mor) {
 		DO_SUFFIX = FALSE;
 		DO_PREFIX = FALSE;
 		if (mor != NULL) {
-			word_feats.type = NULL;
-			word_feats.typeID = 'R';
-			if (ParseWordIntoFeatures(mor, &word_feats) == FALSE)
+			if (ParseWordMorElems(mor, &word_feats) == FALSE)
 				mor = NULL;
 		}
 		if (surf == NULL)
@@ -420,7 +496,7 @@ static real_word *new_word(char *surf, char *mor) {
 	return(the_word);
 }
 
-static char isUttDel(char *s) {
+static char chip_isUttDel(char *s) {
 	int i;
 
 	for (i=0; s[i] != EOS; i++) {
@@ -446,7 +522,7 @@ int parse_utter(real_utterance *utter) {
 		chip_exit(NULL, TRUE);
 	}
 	while (utterance->speaker[0] != '*') {
-		if (*utterance->speaker && onlydata != 2)
+		if (*utterance->speaker && onlydata != 2 && onlydata != 3)
 			printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 		if ((chip_done=getwholeutter()) == 0)
 			return(FALSE);
@@ -460,20 +536,20 @@ int parse_utter(real_utterance *utter) {
 	utter->speaker = atomize(&utterance->speaker[1]); 
 	utter->thisClass = classify(utter->speaker);
 	if (isMorTier) {
-		if (onlydata != 2)
+		if (onlydata != 2 && onlydata != 3)
 			printout(templineC3,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 		while ((chip_done=getwholeutter()) && utterance->speaker[0] != '*') {
-			if (onlydata != 2)
+			if (onlydata != 2 && onlydata != 3)
 				printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 			if (uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE)) {
 				if (!DOING_SUBST) {
 					if (uttline != utterance->line)
 						strcpy(uttline,utterance->line);
-					createMorUttline(utterance->line, org_spTier, utterance->tuttline, TRUE);
+					createMorUttline(utterance->line, org_spTier, "%mor:", utterance->tuttline, TRUE, TRUE);
 					strcpy(utterance->tuttline, utterance->line);
 					if (strchr(uttline, dMarkChr) == NULL) {
 						fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno);
-						fprintf(stderr,"%%mor: tier does not have one-to-one correspondence to it's speaker tier.\n");
+						fprintf(stderr,"%%mor: tier does not have one-to-one correspondence to its speaker tier.\n");
 						chip_exit(NULL, TRUE);
 					}
 				}
@@ -504,7 +580,7 @@ int parse_utter(real_utterance *utter) {
 		index = getword(utterance->speaker, uttline, surf_word, NULL, index);
 	}
 	while (index != 0) {
-		if (!isUttDel(surf_word)) {
+		if (!chip_isUttDel(surf_word)) {
 			if (isMorTier) {
 				if (DOING_SUBST)
 					utter->words[utter->word_count] = new_word(NULL, mor_word);
@@ -529,10 +605,10 @@ int parse_utter(real_utterance *utter) {
 			index = getword(utterance->speaker, uttline, surf_word, NULL, index);
 		}
 	}
-	if (!isMorTier && onlydata != 2)
+	if (!isMorTier && onlydata != 2 && onlydata != 3)
 		printout(templineC3,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 	while ((chip_done=getwholeutter()) && utterance->speaker[0] == '%') {
-		if (onlydata != 2)
+		if (onlydata != 2 && onlydata != 3)
 			printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 	}
 	return TRUE;	/* Indicate that we found an utterance.  */
@@ -678,7 +754,7 @@ void pr_ops()
 	double total_asr_ops = 0.0; double total_csr_ops = 0.0;
 
 	/* Output ADD_OPS */
-	fprintf(fpout, "ADD_OPS\t\t");
+	fprintf(fpout, "ADD_OPS  \t");
 	if (DOING_ADU) {
 		fprintf(fpout, "%.0f\t", adu_dat.add_ops);
 	} else fprintf(fpout, "adu\t");
@@ -695,7 +771,7 @@ void pr_ops()
 	fprintf(fpout, "\n");
 
 	/* Output DEL_OPS */
-	fprintf(fpout, "DEL_OPS\t\t");
+	fprintf(fpout, "DEL_OPS  \t");
 	if (DOING_ADU) {
 		fprintf(fpout, "%.0f\t", adu_dat.del_ops);
 	} else fprintf(fpout, "adu\t");
@@ -712,7 +788,7 @@ void pr_ops()
 	fprintf(fpout, "\n");
 
 	/* Output EXA_OPS */
-	fprintf(fpout, "EXA_OPS\t\t");
+	fprintf(fpout, "EXA_OPS  \t");
 	if (DOING_ADU) {
 		fprintf(fpout, "%.0f\t", adu_dat.exa_ops);
 	} else fprintf(fpout, "adu\t");
@@ -730,7 +806,7 @@ void pr_ops()
 
 	/* Output SUB_OPS */
 	if (DOING_SUBST) {
-		fprintf(fpout, "SUB_OPS\t\t");
+		fprintf(fpout, "SUB_OPS  \t");
 		if (DOING_ADU) {
 			fprintf(fpout, "%.0f\t", adu_dat.sub_ops);
 		} else fprintf(fpout, "adu\t");
@@ -1325,7 +1401,7 @@ void pr_avg()
 void pr_front()
 {
 	/* Output Fronted_Words */
-	fprintf(fpout, "FRONTED\t\t");
+	fprintf(fpout, "FRONTED  \t");
 	if (DOING_ADU) {
 		fprintf(fpout, "%.0f\t", adu_dat.fro_words);
 	} else fprintf(fpout, "adu\t");
@@ -1370,7 +1446,7 @@ void pr_front()
 void pr_special()
 {
 	/* Output IMITATIONS */
-	fprintf(fpout, "IMITAT\t\t");
+	fprintf(fpout, "IMITAT   \t");
 	if (DOING_ADU) {
 		fprintf(fpout, "%.0f\t", (adu_dat.exact_match+adu_dat.expanded_match+adu_dat.reduced_match+adu_dat.subst_match));
 	} else fprintf(fpout, "adu\t");
@@ -1432,7 +1508,7 @@ void pr_special()
 	
 	
 	/* Output EXACT_MATCHES */
-	fprintf(fpout, "EXACT\t\t");
+	fprintf(fpout, "EXACT    \t");
 	if (DOING_ADU) {
 		fprintf(fpout, "%.0f\t", adu_dat.exact_match);
 	} else fprintf(fpout, "adu\t");
@@ -1449,7 +1525,7 @@ void pr_special()
 	fprintf(fpout, "\n");
 
 	/* Output EXPANDED_MATCHES */
-	fprintf(fpout, "EXPAN\t\t");
+	fprintf(fpout, "EXPAN    \t");
 	if (DOING_ADU) {
 		fprintf(fpout, "%.0f\t", adu_dat.expanded_match);
 	} else fprintf(fpout, "adu\t");
@@ -1466,7 +1542,7 @@ void pr_special()
 	fprintf(fpout, "\n");
 
 	/* Output REDUCED_MATCHES */
-	fprintf(fpout, "REDUC\t\t");
+	fprintf(fpout, "REDUC    \t");
 	if (DOING_ADU) {
 		fprintf(fpout, "%.0f\t", adu_dat.reduced_match);
 	} else fprintf(fpout, "adu\t");
@@ -1484,7 +1560,7 @@ void pr_special()
 
 	/* Output SUBST_MATCHES */
 	if (DOING_SUBST) {
-		fprintf(fpout, "SUBST\t\t");
+		fprintf(fpout, "SUBST    \t");
 		if (DOING_ADU) {
 			fprintf(fpout, "%.0f\t", adu_dat.subst_match);
 		} else fprintf(fpout, "adu\t");
@@ -1502,7 +1578,7 @@ void pr_special()
 	}
 
 	/* Output %_EXACT_MATCHES */
-	fprintf(fpout, "%%_EXACT\t\t");
+	fprintf(fpout, "%%_EXACT  \t");
 	if (DOING_ADU) {
 		if (DOING_CLASS) {
 			if (adu_dat.clresponses > 0) {
@@ -1545,7 +1621,7 @@ void pr_special()
 	fprintf(fpout, "\n");
 
 	/* Output %_EXPANDED_MATCHES */
-	fprintf(fpout, "%%_EXPAN\t\t");
+	fprintf(fpout, "%%_EXPAN  \t");
 	if (DOING_ADU) {
 		if (DOING_CLASS) {
 			if (adu_dat.clresponses > 0) {
@@ -1588,7 +1664,7 @@ void pr_special()
 	fprintf(fpout, "\n");
 
 	/* Output %_REDUCED_MATCHES */
-	fprintf(fpout, "%%_REDUC\t\t");
+	fprintf(fpout, "%%_REDUC  \t");
 	if (DOING_ADU) {
 		if (DOING_CLASS) {
 			if (adu_dat.clresponses > 0) {
@@ -1632,20 +1708,20 @@ void pr_special()
 
 	/* Output %_SUBST_MATCHES */
 	if (DOING_SUBST) {
-		fprintf(fpout, "%%_SUBST\t\t");
+		fprintf(fpout, "%%_SUBST  \t");
 		if (DOING_ADU) {
 			if (DOING_CLASS) {
 				if (adu_dat.clresponses > 0) {
 					fprintf(fpout, "%2.3f\t", adu_dat.subst_match/adu_dat.clresponses);
 				} else fprintf(fpout, "0.00\t");
-			} else fprintf(fpout, "N/A\t");
+			} else fprintf(fpout, "NA\t");
 	   } else fprintf(fpout, "adu\t");
 	   if (DOING_CHI) {
 		   if (DOING_CLASS) {
 			   if (chi_dat.clresponses > 0) {
 				   fprintf(fpout, "%2.3f\t", chi_dat.subst_match/chi_dat.clresponses);
 				} else fprintf(fpout, "0.00\t");
-		   } else fprintf(fpout, "N/A\t");
+		   } else fprintf(fpout, "NA\t");
 		} else fprintf(fpout, "chi\t");
 		if (DOING_SLF) {
 			if (DOING_CLASS) {
@@ -1656,8 +1732,8 @@ void pr_special()
 					fprintf(fpout, "%2.3f", csr_dat.subst_match/csr_dat.clresponses);
 				} else fprintf(fpout, "0.00");
 			} else {
-				fprintf(fpout, "N/A\t");
-				fprintf(fpout, "N/A");
+				fprintf(fpout, "NA\t");
+				fprintf(fpout, "NA");
 			}
 		} else {
 			fprintf(fpout, "asr\t");

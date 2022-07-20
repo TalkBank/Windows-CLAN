@@ -140,7 +140,7 @@ BOOL CClan2Doc::OnSaveDocument(LPCTSTR lpszPathName)
 	if (global_df == NULL)
 		return FALSE;
 	u_strcpy(global_df->fileName, lpszPathName, _MAX_PATH+_MAX_FNAME);
-	if (!SaveToFile(global_df->fileName)) {
+	if (!SaveToFile(global_df->fileName, TRUE)) {
 		return FALSE;
 	}
 	sprintf(global_df->err_message, "-File \"%s\" written.", global_df->fileName); 

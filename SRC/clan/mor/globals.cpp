@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -48,13 +48,9 @@ int drules_linenum;
 RESULT_REC *result_list; /* results of arules or crules */
 int result_index; /* keeps track of number of results */
 
-PARSE_REC *parse_stack; /* output of c-rules (intermediate results) */
-int parse_index;
-
 int DEBUG_CLAN;
 FILE *debug_fp;
 long rt_entry_ctr;
 
 long mem_ctr;
 
-BOOL STD_ENG_CHA;

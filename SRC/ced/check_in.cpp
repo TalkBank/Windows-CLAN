@@ -6,7 +6,7 @@
 
 #ifdef _WIN32
 	#include "w95_commands.h"
-	#include <TextUtils.h>
+// NO QT	#include <TextUtils.h>
 #endif
 #ifdef _MAC_CODE
 #undef isatty
@@ -37,21 +37,28 @@
 //#define IS_LANG_CHECK(x)	(AttTYPE)(x & 16)
 //#define SET_LANG_CHECK_0(x)	(AttTYPE)(x & 0xffef)
 
-ERRLIST {
-	unCH *st;
-	short errnum;
-	ERRLIST *nexterr;
-} ;
-
 TPLATES {
 	unCH *pattern;
 	TPLATES *nextone;
 } ;
 
-SP_LIST {
+struct IDsp {
 	unCH *sp;
+	struct IDsp *nextsp;
+} ;
+
+SPLIST {
+	unCH *sp;
+	unCH *role;
 	long endTime;
-	SP_LIST *nextsp;
+	char hasID;
+	SPLIST *nextsp;
+} ;
+
+ERRLIST {
+	unCH *st;
+	short errnum;
+	ERRLIST *nexterr;
 } ;
 
 CHECK_IN_TIERS {
@@ -70,73 +77,82 @@ static class cedUtil
 {
 public:
 
-#ifdef _UNICODE
-	int check_patmat(wchar_t *s, const wchar_t *pat);
-	int check_patmat(wchar_t *s, const char *pat);
-	int check_partcmp(wchar_t *st1, const wchar_t *st2, char pat_match);
-	int check_partcmp(wchar_t *st1, const char *st2, char pat_match);
-#endif // _UNICODE
-
+	int check_patmat(unCH *s, const unCH *pat);
+	int check_patmat(unCH *s, const char *pat);
+	int check_partcmp(unCH *st1, const unCH *st2, char pat_match);
+	int check_partcmp(unCH *st1, const char *st2, char pat_match);
 	int check_patmat(char *s, const char *pat);
 	int check_partcmp(char *st1, const char *st2, char pat_match);
 } ced_u;
 
 static int  ced_onlydata;
+static int  ced_curLanguage;
+static int  ced_CurSpLen;
+static char ced_AtBeginFound;
+static char ced_AtEndFound;
+static char ced_AtIDFound;
+static char ced_CodeLegalPos;
 static char ced_isNumberShouldBeHere;
-static char ced_isCaps;
-static char ced_isLegacy;
 static char ced_isArabic;
-static char	ced_isHebrew;
+static char ced_isHebrew;
 static char ced_isGerman;
 static char ced_isBlob;
-static char ced_isSign;
 static char ced_isCAFound;
 static char ced_isMultiBullets;
 static char ced_isCheckBullets;
 static char ced_isUnlinkedFound;
+static char ced_applyG2Option;
+static char ced_check_mismatch;
 static char ced_Parans = '\001';		   /* get(s); 1-gets, 2-get(s), 3-get				   */
 static char Check_level;
 static char isItemPrefix[256];
 static char dep_file[FILENAME_MAX];
-static char err_item[17];
+static char err_item[512];
 static char checkBullets = 0;
 static char ced_fav_lang[20];
 static unCH ced_LanguagesTable[NUMLANGUAGESINTABLE][9];
 static unCH ced_lastSpDelim[25];
 static unCH ced_SNDFname[FILENAME_MAX];
+static unCH ced_sp[SPEAKERLEN];
 static long tDiff;
 static long ced_tierBegTime = 0L;
 static long ced_SNDBeg = 0L;
 static long ced_SNDEnd = 0L;
+static struct IDsp *ced_idsp;
 //static UInt32 DepfileDate = 0L;
 //static long DepAddDate = 0L;
 static NewFontInfo tFnt;
 static TPLATES *ced_WordExceptions;
+static CHECK_IN_TIERS *ced_headt, *ced_maint, *ced_codet;
+static SPLIST *ced_headsp;
+static TCODES *ced_headcodes;
+static BE_TIERS *ced_head_bg;
+static ERRLIST *ced_headerr;
 
 AttTYPE ced_GenOpt, old_GenOpt;
 char isdone;
 
 static void ced_clean_headerr(void);
 static void ced_clean_template(TPLATES *p);
-static void ced_clean_speakers(SP_LIST *p);
+static void ced_clean_IDsp(struct IDsp *p);
+static void ced_clean_speakers(SPLIST *p);
 static void ced_clean_t(CHECK_IN_TIERS *p);
 
 void main_check_init(void) {
 	checkBullets = 0;
 	ced_onlydata = 0;
 	ced_isNumberShouldBeHere = FALSE;
-	ced_isCaps = FALSE;
-	ced_isLegacy = FALSE;
 	ced_isArabic = FALSE;
 	ced_isHebrew = FALSE;
 	ced_isGerman = FALSE;
 	ced_isBlob = FALSE;
-	ced_isSign = FALSE;
 	ced_isCAFound = FALSE;
 	ced_isMultiBullets = FALSE;
 	ced_isCheckBullets = TRUE;
 	ced_WordExceptions = NULL;
 	ced_isUnlinkedFound = FALSE;
+	ced_applyG2Option = TRUE;
+	ced_check_mismatch = TRUE;
 	strcpy(dep_file, DEPFILE);
 	ced_Parans = '\001';
 	ced_GenOpt = 0;
@@ -151,39 +167,40 @@ void ced_check_init(char first) {
 	int i;
 
 	if (!first) {
-		ced_clean_t(global_df->headt);
-		ced_clean_t(global_df->maint);
-		ced_clean_t(global_df->codet);
-		ced_clean_speakers(global_df->headsp);
+		ced_clean_t(ced_headt);
+		ced_clean_t(ced_maint);
+		ced_clean_t(ced_codet);
+		ced_clean_IDsp(ced_idsp);
+		ced_clean_speakers(ced_headsp);
 		ced_clean_headerr();
-		ced_clean_template(global_df->headcodes);
-		ced_clean_template(global_df->head_bg);
+		ced_clean_template(ced_headcodes);
+		ced_clean_template(ced_head_bg);
 		ced_clean_template(ced_WordExceptions);
 	}
-	global_df->AtBeginFound = FALSE;
-	global_df->AtEndFound   = FALSE;
-	global_df->AtIDFound    = FALSE;
-	global_df->CodeLegalPos = FALSE;
-	global_df->CurSpLen = 0;
-	global_df->headt = NULL;
-	global_df->maint = NULL;
-	global_df->codet = NULL;
-	global_df->headsp = NULL;
-	global_df->head_bg = NULL;
-	global_df->headerr = NULL;
-	global_df->headcodes = NULL;
+	ced_AtBeginFound = FALSE;
+	ced_AtEndFound   = FALSE;
+	ced_AtIDFound    = FALSE;
+	ced_CodeLegalPos = FALSE;
+	ced_CurSpLen = 0;
+	ced_headt = NULL;
+	ced_maint = NULL;
+	ced_codet = NULL;
+	ced_idsp = NULL;
+	ced_headsp = NULL;
+	ced_head_bg = NULL;
+	ced_headerr = NULL;
+	ced_headcodes = NULL;
 	ced_isNumberShouldBeHere = FALSE;
-	ced_isCaps = FALSE;
-	ced_isLegacy = FALSE;
 	ced_isArabic = FALSE;
 	ced_isHebrew = FALSE;
 	ced_isGerman = FALSE;
 	ced_isBlob = FALSE;
-	ced_isSign = FALSE;
 	ced_isCAFound = FALSE;
 	ced_isMultiBullets = FALSE;
 	ced_isCheckBullets = TRUE;
 	ced_isUnlinkedFound = FALSE;
+	ced_applyG2Option = TRUE;
+	ced_check_mismatch = TRUE;
 	ced_WordExceptions = NULL;
 	ced_SNDFname[0] = EOS;
 	ced_SNDBeg = 0L;
@@ -250,22 +267,36 @@ void SetGOption(short which, int val) {
 static void ced_clean_headerr(void) {
 	ERRLIST *t;
 
-	while (global_df->headerr != NULL) {
-		t = global_df->headerr;
-		global_df->headerr = global_df->headerr->nexterr;
+	while (ced_headerr != NULL) {
+		t = ced_headerr;
+		ced_headerr = ced_headerr->nexterr;
 		free(t->st);
 		free(t);
 	}
 }
 
-static void ced_clean_speakers(SP_LIST *p) {
-	SP_LIST *t;
+static void ced_clean_IDsp(struct IDsp *p) {
+	struct IDsp *t;
 
 	while (p != NULL) {
 		t = p;
 		p = p->nextsp;
 		if (t->sp)
 			free(t->sp);
+		free(t);
+	}
+}
+
+static void ced_clean_speakers(SPLIST *p) {
+	SPLIST *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->nextsp;
+		if (t->sp)
+			free(t->sp);
+		if (t->role)
+			free(t->role);
 		free(t);
 	}
 }
@@ -322,8 +353,7 @@ static unCH *ced_mkstring(unCH *s) {  /* allocate space for string of text */
    used to specify meta characters as litteral characters. The value returned
    is 1 if there is a match, and 0 otherwise.
 */
-#ifdef _UNICODE
-int cedUtil::check_patmat(wchar_t *s, const wchar_t *pat) {
+int cedUtil::check_patmat(unCH *s, const unCH *pat) {
 	register int j, k;
 	int n, m, t, l;
 	unCH *lf;
@@ -335,7 +365,7 @@ int cedUtil::check_patmat(wchar_t *s, const wchar_t *pat) {
 
 	lf = s+l;
 	for (j = 0, k = 0; pat[k]; j++, k++) {
-		if ((s[j] == '(' || s[j] == ')') && *sp != '%') {
+		if ((s[j] == '(' || s[j] == ')') && *ced_sp != '%') {
 			if (pat[k] != s[j]) {
 				k--;
 				continue;
@@ -380,7 +410,7 @@ f1:
 						if (uS.ismorfchar(s,t, &tFnt, CHECK_MORPHS, TRUE))
 							return(FALSE);
 					}
-					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *sp == '*') {
+					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *ced_sp == '*') {
 						s = s+l;
 						if (lf != s) {
 							while (lf != s)
@@ -392,7 +422,7 @@ f1:
 				}
 			}
 			for (m=j+1, n=k+1; s[m] && pat[n]; m++, n++) {
-				if ((s[m]== '(' || s[m]== ')') && *sp != '%')
+				if ((s[m]== '(' || s[m]== ')') && *ced_sp != '%')
 					n--;
 				else if (pat[n] == '*' || pat[n] == '%')
 					break;
@@ -445,7 +475,7 @@ f2:
 						if (uS.ismorfchar(s, m, &tFnt, CHECK_MORPHS, TRUE))
 							return(FALSE);
 					}
-					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *sp == '*') {
+					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *ced_sp == '*') {
 						lf = uS.sp_cp(s+t,s+j);
 						s = s+l;
 						if (lf != s) {
@@ -457,7 +487,7 @@ f2:
 				}
 			}
 			for (m=j+1, n=k+1; s[m] && pat[n]; m++, n++) {
-				if ((s[m]== '(' || s[m]== ')') && *sp != '%')
+				if ((s[m]== '(' || s[m]== ')') && *ced_sp != '%')
 					n--;
 				else if (pat[n] == '*' || pat[n] == '%') break;
 				else if (pat[n] == '_') {
@@ -487,7 +517,7 @@ f2:
 
 		if (s[j] != pat[k]) {
 			if (pat[k+1] == '%' && pat[k+2] == '%') {
-				if (s[j] == EOS && pat[k+3] == EOS && *sp == '*') {
+				if (s[j] == EOS && pat[k+3] == EOS && *ced_sp == '*') {
 					s = s+l;
 					if (lf != s) {
 						while (lf != s)
@@ -511,7 +541,7 @@ f2:
 		return(FALSE);
 }
 
-int cedUtil::check_patmat(wchar_t *s, const char *pat) {
+int cedUtil::check_patmat(unCH *s, const char *pat) {
 	register int j, k;
 	int n, m, t, l;
 	unCH *lf;
@@ -523,7 +553,7 @@ int cedUtil::check_patmat(wchar_t *s, const char *pat) {
 
 	lf = s+l;
 	for (j = 0, k = 0; pat[k]; j++, k++) {
-		if ((s[j] == '(' || s[j] == ')') && *sp != '%') {
+		if ((s[j] == '(' || s[j] == ')') && *ced_sp != '%') {
 			if (pat[k] != s[j]) {
 				k--;
 				continue;
@@ -568,7 +598,7 @@ f1:
 						if (uS.ismorfchar(s,t, &tFnt, CHECK_MORPHS, TRUE))
 							return(FALSE);
 					}
-					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *sp == '*') {
+					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *ced_sp == '*') {
 						s = s+l;
 						if (lf != s) {
 							while (lf != s)
@@ -580,7 +610,7 @@ f1:
 				}
 			}
 			for (m=j+1, n=k+1; s[m] && pat[n]; m++, n++) {
-				if ((s[m]== '(' || s[m]== ')') && *sp != '%')
+				if ((s[m]== '(' || s[m]== ')') && *ced_sp != '%')
 					n--;
 				else if (pat[n] == '*' || pat[n] == '%')
 					break;
@@ -620,62 +650,62 @@ f1:
 f2:
 /*			while (s[j] && s[j] != pat[k]) s[j++] = ' ';
 */			while (s[j] && s[j] != pat[k]) j++;
- if (!s[j]) {
-	 if (!pat[k]) {
-		 lf = uS.sp_cp(s+t,s+j);
-		 s = s+l;
-		 if (lf != s) {
-			 while (lf != s) *lf++ = ' ';
-		 }
-		 return(TRUE); 
-	 } else {
-		 for (; m < j; m++) {
-			 if (uS.ismorfchar(s, m, &tFnt, CHECK_MORPHS, TRUE))
-				 return(FALSE);
-		 }
-		 if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *sp == '*') {
-			 lf = uS.sp_cp(s+t,s+j);
-			 s = s+l;
-			 if (lf != s) {
-				 while (lf != s) *lf++ = ' ';
-			 }
-			 return(TRUE); 
-		 } else
-			 return(FALSE);
-	 }
- }
- for (m=j+1, n=k+1; s[m] && pat[n]; m++, n++) {
-	 if ((s[m]== '(' || s[m]== ')') && *sp != '%')
-		 n--;
-	 else if (pat[n] == '*' || pat[n] == '%') break;
-	 else if (pat[n] == '_') {
-		 if (iswspace(s[m])) {
-			 j++;
-			 goto f2;
-		 }
-	 } else if (pat[n] == '\\') {
-		 if (!pat[++n])
-			 return(FALSE);
-		 else if (s[m] != pat[n]) {
-			 j++;
-			 goto f2;
-		 }
-	 } else if (s[m] != pat[n]) {
-		 j++;
-		 goto f2;
-	 }
- }
- if (s[m] && !pat[n]) {
-	 j++;
-	 goto f2;
- }
- lf = uS.sp_cp(s+t,s+j);
- j = t;
+			if (!s[j]) {
+				if (!pat[k]) {
+					lf = uS.sp_cp(s+t,s+j);
+					s = s+l;
+					if (lf != s) {
+						while (lf != s) *lf++ = ' ';
+					}
+					return(TRUE); 
+				} else {
+					for (; m < j; m++) {
+						if (uS.ismorfchar(s, m, &tFnt, CHECK_MORPHS, TRUE))
+							return(FALSE);
+					}
+					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *ced_sp == '*') {
+						lf = uS.sp_cp(s+t,s+j);
+						s = s+l;
+						if (lf != s) {
+							while (lf != s) *lf++ = ' ';
+						}
+						return(TRUE); 
+					} else
+						return(FALSE);
+				}
+			}
+			for (m=j+1, n=k+1; s[m] && pat[n]; m++, n++) {
+				if ((s[m]== '(' || s[m]== ')') && *ced_sp != '%')
+					n--;
+				else if (pat[n] == '*' || pat[n] == '%') break;
+				else if (pat[n] == '_') {
+					if (iswspace(s[m])) {
+						j++;
+						goto f2;
+					}
+				} else if (pat[n] == '\\') {
+					if (!pat[++n])
+						return(FALSE);
+					else if (s[m] != pat[n]) {
+						j++;
+						goto f2;
+					}
+				} else if (s[m] != pat[n]) {
+					j++;
+					goto f2;
+				}
+			}
+			if (s[m] && !pat[n]) {
+				j++;
+				goto f2;
+			}
+			lf = uS.sp_cp(s+t,s+j);
+			j = t;
 		}
 
 		if (s[j] != pat[k]) {
 			if (pat[k+1] == '%' && pat[k+2] == '%') {
-				if (s[j] == EOS && pat[k+3] == EOS && *sp == '*') {
+				if (s[j] == EOS && pat[k+3] == EOS && *ced_sp == '*') {
 					s = s+l;
 					if (lf != s) {
 						while (lf != s)
@@ -698,7 +728,7 @@ f2:
 	} else
 		return(FALSE);
 }
-#endif
+
 int cedUtil::check_patmat(char *s, const char *pat) {
 	register int j, k;
 	int n, m, t, l;
@@ -711,7 +741,7 @@ int cedUtil::check_patmat(char *s, const char *pat) {
 
 	lf = s+l;
 	for (j = 0, k = 0; pat[k]; j++, k++) {
-		if ((s[j] == '(' || s[j] == ')') && *sp != '%') {
+		if ((s[j] == '(' || s[j] == ')') && *ced_sp != '%') {
 			if (pat[k] != s[j]) {
 				k--;
 				continue;
@@ -756,7 +786,7 @@ f1:
 						if (uS.ismorfchar(s, t, &tFnt, CHECK_MORPHS, TRUE))
 							return(FALSE);
 					}
-					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *sp == '*') {
+					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *ced_sp == '*') {
 						s = s+l;
 						if (lf != s) {
 							while (lf != s)
@@ -768,7 +798,7 @@ f1:
 				}
 			}
 			for (m=j+1, n=k+1; s[m] && pat[n]; m++, n++) {
-				if ((s[m]== '(' || s[m]== ')') && *sp != '%')
+				if ((s[m]== '(' || s[m]== ')') && *ced_sp != '%')
 					n--;
 				else if (pat[n] == '*' || pat[n] == '%')
 					break;
@@ -821,7 +851,7 @@ f2:
 						if (uS.ismorfchar(s, m, &tFnt, CHECK_MORPHS, TRUE))
 							return(FALSE);
 					}
-					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *sp == '*') {
+					if (pat[k+1]=='%' && pat[k+2]=='%' && pat[k+3]==EOS && *ced_sp == '*') {
 						lf = uS.sp_cp(s+t,s+j);
 						s = s+l;
 						if (lf != s) {
@@ -833,7 +863,7 @@ f2:
 				}
 			}
 			for (m=j+1, n=k+1; s[m] && pat[n]; m++, n++) {
-				if ((s[m]== '(' || s[m]== ')') && *sp != '%')
+				if ((s[m]== '(' || s[m]== ')') && *ced_sp != '%')
 					n--;
 				else if (pat[n] == '*' || pat[n] == '%') break;
 				else if (pat[n] == '_') {
@@ -862,7 +892,7 @@ f2:
 
 		if (s[j] != pat[k]) {
 			if (pat[k+1] == '%' && pat[k+2] == '%') {
-				if (s[j] == EOS && pat[k+3] == EOS && *sp == '*') {
+				if (s[j] == EOS && pat[k+3] == EOS && *ced_sp == '*') {
 					s = s+l;
 					if (lf != s) {
 						while (lf != s)
@@ -886,8 +916,7 @@ f2:
 		return(FALSE);
 }
 
-#ifdef _UNICODE
-int cedUtil::check_partcmp(wchar_t *st1, const wchar_t *st2, char pat_match) { /* st1- full, st2- part */
+int cedUtil::check_partcmp(unCH *st1, const unCH *st2, char pat_match) { /* st1- full, st2- part */
 	if (pat_match) {
 		int i;
 		if (*st1 == *st2) {
@@ -902,10 +931,11 @@ int cedUtil::check_partcmp(wchar_t *st1, const wchar_t *st2, char pat_match) { /
 	if (*st2 == ':') return(!*st1);
 	else return(!*st2);
 }
-int cedUtil::check_partcmp(wchar_t *st1, const char *st2, char pat_match) { /* st1- full, st2- part */
+
+int cedUtil::check_partcmp(unCH *st1, const char *st2, char pat_match) { /* st1- full, st2- part */
 	if (pat_match) {
 		int i;
-		if (*st1 == (wchar_t)*st2) {
+		if (*st1 == (unCH)*st2) {
 			for (i=strlen(st1)-1; i >= 0 && (st1[i] == ' ' || st1[i] == '\t'); i--) ;
 			if (st1[i] == ':') st1[i] = EOS;
 			else st1[i+1] = EOS;
@@ -913,11 +943,11 @@ int cedUtil::check_partcmp(wchar_t *st1, const char *st2, char pat_match) { /* s
 		} else
 			return(FALSE);
 	}
-	for (; *st1 == (wchar_t)*st2 && *st2 != EOS; st1++, st2++) ;
+	for (; *st1 == (unCH)*st2 && *st2 != EOS; st1++, st2++) ;
 	if (*st2 == ':') return(!*st1);
 	else return(!*st2);
 }
-#endif
+
 int cedUtil::check_partcmp(char *st1, const char *st2, char pat_match) { /* st1- full, st2- part */
 	if (pat_match) {
 		int i;
@@ -1019,25 +1049,6 @@ static TPLATES *ced_getPrefChars(TPLATES *prefs, unCH *st) {
 	return(prefs);
 }
 
-static char ced_isRightPref(TPLATES *prefs, unCH *w, int s) {
-	int len;
-
-	while (prefs != NULL) {
-		if (prefs->pattern) {
-			len = strlen(prefs->pattern);
-			if (s >= len) {
-				strncpy(templine3, w+s-len, len);
-				templine3[len] = EOS;
-//				uS.uppercasestr(templine3, &tFnt, TRUE);
-				if (!strcmp(prefs->pattern, templine3))
-					return(TRUE);
-			}
-		}
-		prefs = prefs->nextone;
-	}
-	return(FALSE);
-}
-
 static void ced_HandleParans(unCH *beg, unCH *end) {
 	unCH *temp;
 
@@ -1063,6 +1074,26 @@ static void ced_HandleParans(unCH *beg, unCH *end) {
 	}
 }
 
+/* 2019-04-23 do not check for upper case letters
+static char ced_isRightPref(TPLATES *prefs, unCH *w, int s) {
+	int len;
+
+	while (prefs != NULL) {
+		if (prefs->pattern) {
+			len = strlen(prefs->pattern);
+			if (s >= len) {
+				strncpy(templine3, w+s-len, len);
+				templine3[len] = EOS;
+				//				uS.uppercasestr(templine3, &tFnt, TRUE);
+				if (!strcmp(prefs->pattern, templine3))
+					return(TRUE);
+			}
+		}
+		prefs = prefs->nextone;
+	}
+	return(FALSE);
+}
+
 static char ced_isException(unCH *w, TPLATES *prefs) {
 	char tced_Parans;
 
@@ -1080,6 +1111,7 @@ static char ced_isException(unCH *w, TPLATES *prefs) {
 	}
 	return(FALSE);
 }
+*/
 
 static unCH *ced_convertRegExp(unCH *s) {
 	strcpy(templine, s);
@@ -1091,7 +1123,7 @@ static char ced_ParseTier(unCH *org) {
 	unCH *s;
 	char sb, regExp;
 	unCH *temp = org;
-	CHECK_IN_TIERS *ts;
+	CHECK_IN_TIERS *ts, *tsWor;
 
 	for (s=temp; *temp != ':' && *temp != '\n'; temp++) {
 		if (*temp == '#')
@@ -1104,25 +1136,31 @@ static char ced_ParseTier(unCH *org) {
 	*temp = EOS;
 //	uS.uppercasestr(s, &tFnt, TRUE);
 	if (*s == '*') {
-		if ((ts=SameNameTier(s, sb, global_df->maint)) == NULL) {
+		if ((ts=SameNameTier(s, sb, ced_maint)) == NULL) {
 			ts = mktier(s, sb, TRUE, 1);
 			if (ts == NULL) return(FALSE);
-			ts->nexttier = global_df->maint;
-			global_df->maint = ts;
+			ts->nexttier = ced_maint;
+			ced_maint = ts;
+		}
+		if ((tsWor=SameNameTier(cl_T("%wor"), sb, ced_maint)) == NULL) {
+			tsWor = mktier(cl_T("%wor"), sb, TRUE, 1);
+			if (tsWor == NULL) return(FALSE);
+			tsWor->nexttier = ced_codet;
+			ced_codet = tsWor;
 		}
 	} else if (*s == '%') {
-		if ((ts=SameNameTier(s, sb, global_df->codet)) == NULL) {
+		if ((ts=SameNameTier(s, sb, ced_codet)) == NULL) {
 			ts = mktier(s, sb, FALSE, 0);
 			if (ts == NULL) return(FALSE);
-			ts->nexttier = global_df->codet;
-			global_df->codet = ts;
+			ts->nexttier = ced_codet;
+			ced_codet = ts;
 		}
 	} else {
-		if ((ts=SameNameTier(s, sb, global_df->headt)) == NULL) {
+		if ((ts=SameNameTier(s, sb, ced_headt)) == NULL) {
 			ts = mktier(s, sb, FALSE, 0);
 			if (ts == NULL) return(FALSE);
-			ts->nexttier = global_df->headt;
-			global_df->headt = ts;
+			ts->nexttier = ced_headt;
+			ced_headt = ts;
 		}
 	}
 	for (temp++; *temp && isSpace(*temp); temp++) ;
@@ -1145,15 +1183,41 @@ static char ced_ParseTier(unCH *org) {
 				s = ced_convertRegExp(s);
 			}
 			if (!strcmp(s,"*")) {
-				if (!ced_mktplate(ts,ced_mkstring(s),1)) return(FALSE);
-			} else if (!strcmp(s,UTTDELSYM)) ts->UTD   = 1;
-			else if (!strcmp(s,NUTTDELSYM))  ts->UTD   = -1;
-			else if (!strcmp(s,UTTIGNORE))   ts->IGN   = TRUE;
-			else if (!strcmp(s,SUFFIXSYM))   ts->CSUFF = '\002';
-			else if (!strcmp(s,WORDCKECKSYM)) ts->WORDCHECK = FALSE;
-			else if (uS.fpatmat(s, UPREFSSYM)) ts->prefs = ced_getPrefChars(ts->prefs, s);
-			else {
+				if (!ced_mktplate(ts,ced_mkstring(s),1))
+					return(FALSE);
+				if (strcmp(ts->code, "*") == 0) {
+					if (!ced_mktplate(tsWor,ced_mkstring(s),1))
+						return(FALSE);
+				}
+			} else if (!strcmp(s,UTTDELSYM)) {
+				ts->UTD   = 1;
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->UTD   = 1;
+			} else if (!strcmp(s,NUTTDELSYM)) {
+				ts->UTD   = -1;
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->UTD   = -1;
+			} else if (!strcmp(s,UTTIGNORE)) {
+				ts->IGN   = TRUE;
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->IGN   = TRUE;
+			} else if (!strcmp(s,SUFFIXSYM)) {
+				ts->CSUFF = '\002';
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->CSUFF = '\002';
+			} else if (!strcmp(s,WORDCKECKSYM)) {
+				ts->WORDCHECK = FALSE;
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->WORDCHECK = FALSE;
+			} else if (uS.fpatmat(s, UPREFSSYM)) {
+				ts->prefs = ced_getPrefChars(ts->prefs, s);
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->prefs = ced_getPrefChars(tsWor->prefs, s);
+			} else {
 				if (!ced_mktplate(ts,ced_mkstring(s),0)) return(FALSE);
+				if (strcmp(ts->code, "*") == 0) {
+					if (!ced_mktplate(tsWor,ced_mkstring(s),0)) return(FALSE);
+				}
 			}
 			s = temp;
 		} else
@@ -1177,6 +1241,7 @@ static char ced_ReadDepFile(char *depfile, char err) {
 	FNType mDirPathName[FNSize];
 
 	fp = NULL;
+/* 2018-03-23
 	if (!isRefEQZero(global_df->fileName)) {
 		extractPath(mDirPathName, global_df->fileName);
 		addFilename2Path(mDirPathName, depfile);
@@ -1186,6 +1251,7 @@ static char ced_ReadDepFile(char *depfile, char err) {
 			draw_mid_wm();
 		}
 	}
+*/
 /*
 	if (fp == NULL) {
 		strcpy(mDirPathName, wd_dir);
@@ -1285,7 +1351,7 @@ static char ced_ReadDepFile(char *depfile, char err) {
 	for (i=0; i < 256; i++)
 		isItemPrefix[i] = FALSE;
 
-	for (ts=global_df->maint; ts != NULL; ts = ts->nexttier) {
+	for (ts=ced_maint; ts != NULL; ts = ts->nexttier) {
 		if (*ts->code == '*') {
 			for (tp=ts->tplate; tp != NULL; tp = tp->nextone) {
 				if (*tp->pattern == '*' && *(tp->pattern+1) != EOS) {
@@ -1298,6 +1364,22 @@ static char ced_ReadDepFile(char *depfile, char err) {
 					}
 				}
 			}
+		}
+	}
+	for (ts=ced_codet; ts != NULL; ts = ts->nexttier) {
+		if (strcmp(ts->code, "%wor") == 0) {
+			for (tp=ts->tplate; tp != NULL; tp = tp->nextone) {
+				if (*tp->pattern == '*' && *(tp->pattern+1) != EOS) {
+					if (uS.ismorfchar(tp->pattern, 1, &tFnt, CHECK_MORPHS, TRUE)) {
+						isItemPrefix[tp->pattern[1]] = FALSE;
+					} else {
+						i = strlen(tp->pattern) - 1;
+						if (uS.ismorfchar(tp->pattern, i, &tFnt, CHECK_MORPHS, TRUE))
+							isItemPrefix[tp->pattern[i]] = TRUE;
+					}
+				}
+			}
+			break;
 		}
 	}
 	fclose(fp);
@@ -1388,10 +1470,12 @@ static char ced_SetUpDependents(unCH *line) {
 			else
 				strcat(ced_line, "\t");
 			*line = t;
-			if (sp == 10) sp = 0;
+			if (sp == 10)
+				sp = 0;
 			if (!AllocSpeakerNames(ced_line, sp))
 				return(FALSE);
-			if (sp == 0) return(TRUE);
+			if (sp == 0)
+				return(TRUE);
 			sp++;
 			if (*line)
 				line++;
@@ -1410,10 +1494,10 @@ void SetUpParticipants(void) {
 	tt = global_df->head_text->next_row;
 	while (tt != global_df->tail_text) {
 		for (i=0; tt->line[i] && tt->line[i] != ':' && i < SPEAKERLEN-1; i++) {
-			sp[i] = tt->line[i];
+			ced_sp[i] = tt->line[i];
 		}
-		sp[i] = EOS;
-		if (strcmp(sp, DEPENDENT) == 0) {
+		ced_sp[i] = EOS;
+		if (strcmp(ced_sp, DEPENDENT) == 0) {
 			found = TRUE;
 			strcpy(templine, tt->line);
 			tt = tt->next_row;
@@ -1434,10 +1518,10 @@ void SetUpParticipants(void) {
 	tt = global_df->head_text->next_row;
 	while (tt != global_df->tail_text) {
 		for (i=0; tt->line[i] && tt->line[i] != ':' && i < SPEAKERLEN-1; i++) {
-			sp[i] = tt->line[i];
+			ced_sp[i] = tt->line[i];
 		}
-		sp[i] = EOS;
-		if (strcmp(sp, PARTICIPANTS) == 0) {
+		ced_sp[i] = EOS;
+		if (strcmp(ced_sp, PARTICIPANTS) == 0) {
 			found = TRUE;
 			strcpy(templine, tt->line);
 			tt = tt->next_row;
@@ -1477,17 +1561,17 @@ static char ced_adderror(int s, int e, int num, unCH *st) {
 		return(2);
 	}
 
-	if (global_df->headerr == NULL) {
-		if ((global_df->headerr=NEW(ERRLIST)) == NULL) {
+	if (ced_headerr == NULL) {
+		if ((ced_headerr=NEW(ERRLIST)) == NULL) {
 			free(tst);
 			strcpy(global_df->err_message, "+Error: Out of memory.");
 			return(2);
 		}
-		te = global_df->headerr;
+		te = ced_headerr;
 	} else {
 		strcpy(ced_line,st+s);
 //		uS.uppercasestr(ced_line, &tFnt, TRUE);
-		for (te=global_df->headerr; 1; te=te->nexterr) {
+		for (te=ced_headerr; 1; te=te->nexterr) {
 			if ((!strcmp(te->st,ced_line) || ced_onlydata==2) && te->errnum==num){
 				st[e] = t;
 				return(0);
@@ -1515,10 +1599,12 @@ static char ced_adderror(int s, int e, int num, unCH *st) {
 }
 
 static void ced_mess(short wh) {
+	int i;
+
 	switch(wh) {
 		case 1: strcpy(global_df->err_message, "-Expected characters are: @ or % or *.");
 				break;
-		case 2: strcpy(global_df->err_message, "-Missing ':' character."); break;
+		case 2: strcpy(global_df->err_message, "-Missing ':' character and argument."); break;
 		case 3: strcpy(global_df->err_message, "-Missing either TAB or SPACE character.");
 				break;
 		case 4: if (!ced_onlydata) {
@@ -1536,13 +1622,13 @@ static void ced_mess(short wh) {
 				break;
 		case 9: strcpy(global_df->err_message,  "-Tier name is too long."); break;
 		case 10: strcpy(global_df->err_message, "-Tier text is too long"); break;
-		case 11: strcpy(global_df->err_message, "-Symbol is not declared in the depfile(s)."); break;
+		case 11: strcpy(global_df->err_message, "-Symbol is not declared in the depfile."); break;
 		case 12: strcpy(global_df->err_message, "-Missing speaker name and/or role."); break;
 		case 13: strcpy(global_df->err_message, "-Duplicate speaker declaration."); break;
-		case 14: strcpy(global_df->err_message, "-Warning: Spaces before tier code.");break;
+		case 14: strcpy(global_df->err_message, "-Spaces before tier code.");break;
 		case 15: strcpy(global_df->err_message, "-Illegal role. Please see \"depfile.cut\" for list of roles."); break;
 		case 16: strcpy(global_df->err_message, "-Illegal use of extended characters in speaker names."); break;
-		case 17: strcpy(global_df->err_message, "-Tier is not declared in depfile(s) file."); 
+		case 17: strcpy(global_df->err_message, "-Tier is not declared in depfile file.");
 				 break;
 		case 18: strcpy(global_df->err_message, "-Speaker is not specified in a participants list.");
 				 break;
@@ -1560,9 +1646,9 @@ static void ced_mess(short wh) {
 		case 29: strcpy(global_df->err_message, "-Unmatched ) found on the tier."); break;
 		case 30: strcpy(global_df->err_message, "-Text is illegal."); break;
 		case 31: strcpy(global_df->err_message, "-Missing text after the colon."); break;
-		case 32: strcpy(global_df->err_message, "-Code is not declared in depfile(s).");
+		case 32: strcpy(global_df->err_message, "-Code is not declared in depfile.");
 				 break;
-		case 33: strcpy(global_df->err_message, "-Either symbol is not declared in depfile(s) or illegal date or time.");
+		case 33: strcpy(global_df->err_message, "-Either illegal date or time or symbol is not declared in depfile.");
 				 break;
 		case 34: strcpy(global_df->err_message, "-Illegal date representation."); break;
 		case 35: strcpy(global_df->err_message, "-Illegal time representation."); break;
@@ -1583,7 +1669,10 @@ static void ced_mess(short wh) {
 				 break;
 		case 44: strcpy(global_df->err_message, "-The file must end with \"@End\" tier. Trailing blank lines possible.");
 				 break;
-		case 45: strcpy(global_df->err_message, "-There were more @Bg than @Eg tiers found.");
+		case 45: if (err_item[0] == EOS)
+					strcpy(global_df->err_message, "-There were more @Bg than @Eg tiers found.");
+				 else
+					sprintf(global_df->err_message, "-There were more \"%s\" than @Eg tiers found.", err_item);
 				 break;
 		case 46: strcpy(global_df->err_message, "-This @Eg does not have matching @Bg.");
 				 break;
@@ -1612,12 +1701,16 @@ static void ced_mess(short wh) {
 				 else
 					sprintf(global_df->err_message, "-Please add space between word and pause symbol: '%s'.", err_item);
 				 break;
-		case 58: strcpy(global_df->err_message, "-Tier name is longer than 7 characters."); break;
+		case 58: strcpy(global_df->err_message, "-Tier name is longer than 8 characters."); break;
+		case 59: if (err_item[0] == EOS)
 #if defined(_MAC_CODE)
-		case 59: sprintf(global_df->err_message, "-Expected second %c character.", '\245'); break;
+					sprintf(global_df->err_message, "-Expected second %c character.", '\245');
 #elif defined(_WIN32) // _MAC_CODE
-		case 59: sprintf(global_df->err_message, "-Expected second %c character.", '\225'); break;
+					sprintf(global_df->err_message, "-Expected second %c character.", '\225');
 #endif // _WIN32
+				else
+					sprintf(global_df->err_message, "-Expected second %s character. Expand bullets {Esc-a} to better see the error.", err_item);
+				break;
 		case 60: sprintf(global_df->err_message, "-Use \"Tiers->ID headers\" menu to add \"@ID:\" tier."); break;
 		case 61: strcpy(global_df->err_message, "-\"@Participants:\" tier is expected here."); break;
 		case 62: strcpy(global_df->err_message, "-Missing language information."); break;
@@ -1675,7 +1768,7 @@ static void ced_mess(short wh) {
 				 else
 					sprintf(global_df->err_message, "-Item '%s' must be used at the beginning of tier.", err_item);
 				 break;
-		case 79: strcpy(global_df->err_message, "-Only one occurrence of this symbol per word is allowed."); break;
+		case 79: strcpy(global_df->err_message, "-Only one occurrence of | symbol per word is allowed."); break;
 		case 80: strcpy(global_df->err_message, "-There must be at least one occurrence of '|'."); break;
 		case 81: strcpy(global_df->err_message, "-Bullet must follow utterance delimiter or be followed by end-of-line.");
 				break;
@@ -1732,7 +1825,7 @@ static void ced_mess(short wh) {
 		case 104: strcpy(global_df->err_message, "-Please select \"CAfont\" or \"Ascender Uni Duo\" font for CA file as per \"@Options:\" tier."); break;
 		case 105: strcpy(global_df->err_message, "-Please select \"Charis SIL\" font for IPA file as per \"@Options:\" tier."); break;
 		case 106: strcpy(global_df->err_message, "-The whole code must be on one line. Please run chstring +q on this file."); break;
-		case 107: strcpy(global_df->err_message, "-Only double or single commas are allowed in tier."); break;
+		case 107: strcpy(global_df->err_message, "-Only single commas are allowed in tier."); break;
 		case 108: strcpy(global_df->err_message, "-All postcodes must precede final bullet."); break;
 		case 109: strcpy(global_df->err_message, "-Postcodes are not allowed on dependent tiers."); break;
 		case 110: strcpy(global_df->err_message, "-No bullet found on this tier."); break;
@@ -1747,28 +1840,28 @@ static void ced_mess(short wh) {
 		case 115: strcpy(global_df->err_message, "-Old bullets format found. Please run \"fixbullets\" program to fix this data."); break;
 		case 116: strcpy(global_df->err_message, "-Specifying Font for individual lines is illegal."); break;
 		case 117: if (err_item[0] == EOS)
-					  strcpy(global_df->err_message, "-This character must be used in pairs. See if any are unmatched.");
-				  else
-					  sprintf(global_df->err_message, "-Character %s must be used in pairs. See if any are unmatched.", err_item);
-				  break;
+					strcpy(global_df->err_message, "-This character must be used in pairs. See if any are unmatched.");
+				else
+					sprintf(global_df->err_message, "-Character %s must be used in pairs. See if any are unmatched.", err_item);
+				break;
 		case 118: strcpy(global_df->err_message, "-Utterance delimiter must precede final bullet."); break;
 		case 119: strcpy(global_df->err_message, "-Illegal to imbed code inside the scope of the same code."); break;
 		case 120: if (ced_fav_lang[0] == EOS)
-					  strcpy(global_df->err_message, "-Please use three letter language code.");
-				  else
-					  sprintf(global_df->err_message, "-Please use \"%s\" language code instead.", ced_fav_lang);
-				  break;
+					strcpy(global_df->err_message, "-Please use three letter language code.");
+				else
+					sprintf(global_df->err_message, "-Please use \"%s\" language code instead.", ced_fav_lang);
+				break;
 		case 121: if (err_item[0] == EOS)
-					  strcpy(global_df->err_message, "-Language code not found in CLAN/lib/fixes/ISO-639.cut file. If it is legal, then add it.");
-				  else
-					  sprintf(global_df->err_message, "-Language code \"%s\" not found in CLAN/lib/fixes/ISO-639.cut file. If it is legal, then add it", err_item);
-				  break;
-		case 122: strcpy(global_df->err_message, "-Language on @ID tier does not match anything on @Languages: tier."); break;
+					strcpy(global_df->err_message, "-Language code not found in CLAN/lib/fixes/ISO-639.cut file. If it is legal, then add it.");
+				else
+					sprintf(global_df->err_message, "-Language code \"%s\" not found in CLAN/lib/fixes/ISO-639.cut file. If it is legal, then add it", err_item);
+				break;
+		case 122: strcpy(global_df->err_message, "-Language on @ID tier is not defined on \"@Languages:\" header tier."); break;
 		case 123: if (err_item[0] == EOS)
-					  strcpy(global_df->err_message, "-Illegal character found after Tier name. If it CA, then add \"@Options: CA\"");
-				  else
-					  sprintf(global_df->err_message, "-Illegal character '%s' found after Tier name. If it CA, then add \"@Options: CA\"", err_item);
-				  break;
+					strcpy(global_df->err_message, "-Illegal character found in tier text. If it CA, then add \"@Options: CA\"");
+				else
+					sprintf(global_df->err_message, "-Illegal character '%s' found in tier text. If it CA, then add \"@Options: CA\"", err_item);
+			break;
 		case 124: strcpy(global_df->err_message, "-Please remove \"unlinked\" from @Media header."); break;
 		case 125: strcpy(global_df->err_message, "-\"@Options\" header must immediately follow \"@Participants:\" header."); break;
 		case 126: strcpy(global_df->err_message, "-\"@ID\" header must immediately follow \"@Participants:\" or \"@Options\" header."); break;
@@ -1799,17 +1892,17 @@ static void ced_mess(short wh) {
 			break;
 		case 132: strcpy(global_df->err_message, "-Tabs should only be used to mark the beginning of lines."); break;
 		case 133: sprintf(global_df->err_message, "-BEG time is smaller than same speaker's previous END time by %ld msec.", tDiff);
-				  break;
+			break;
 		case 134: if (err_item[0] == EOS)
-					  strcpy(global_df->err_message, "-This item is illegal. Please run \"mor\", \"post\" command on this data.");
-				  else
-					  sprintf(global_df->err_message, "-Item '%s' is illegal. Please run \"mor\", \"post\" commands on this data.", err_item);
-				  break;
+				strcpy(global_df->err_message, "-This item is illegal. Please run \"mor\" command on this data.");
+			else
+				sprintf(global_df->err_message, "-Item '%s' is illegal. Please run \"mor\" command on this data.", err_item);
+			break;
 		case 135: if (err_item[0] == EOS)
-					  strcpy(global_df->err_message, "-This item is illegal.");
-				  else
-					  sprintf(global_df->err_message, "-Item '%s' is illegal.", err_item);
-				  break;
+				strcpy(global_df->err_message, "-This item is illegal.");
+			else
+				sprintf(global_df->err_message, "-Item '%s' is illegal.", err_item);
+			break;
 		case 136:
 			strcpy(global_df->err_message, "-Unmatched     found on the tier.");
 			global_df->err_message[11] = 0xE2;
@@ -1822,25 +1915,51 @@ static void ced_mess(short wh) {
 			global_df->err_message[12] = 0x80;
 			global_df->err_message[13] = 0x9D;
 			break;
-		case 138:
-			strcpy(global_df->err_message, "-Unmatched     found on the tier.");
-			global_df->err_message[11] = 0xE2;
-			global_df->err_message[12] = 0x80;
-			global_df->err_message[13] = 0x98;
-			break;
-		case 139:
-			strcpy(global_df->err_message, "-Unmatched     found on the tier.");
-			global_df->err_message[11] = 0xE2;
-			global_df->err_message[12] = 0x80;
-			global_df->err_message[13] = 0x99;
-			break;
-		case 140: sprintf(global_df->err_message, "-%%MOR: tier does not link in size to it's speaker tier.");
+		case 138: strcpy(global_df->err_message, "-Special quote U2019 must be replaced by single quote (')."); break;
+		case 139: strcpy(global_df->err_message, "-Special quote U2018 must be replaced by single quote (')."); break;
+		case 140: sprintf(global_df->err_message, "-%%MOR: tier does not link in size to its speaker tier.");
 			break;
 		case 141: if (err_item[0] == EOS)
 				strcpy(global_df->err_message, "-[: ...] has to be preceded by only one word and nothing else.");
 			else
 				sprintf(global_df->err_message, "-'%s' must be preceded by only one word and nothing else.", err_item);		
 			break;
+		case 142: strcpy(global_df->err_message, "-Speaker's role on @ID tier does not match role on @Participants: tier."); break;
+		case 143: strcpy(global_df->err_message, "-The @ID line needs 10 fields."); break;
+		case 144: strcpy(global_df->err_message, "-Either illegal SES field value or symbol is not declared in depfile."); break;
+		case 145: strcpy(global_df->err_message, "-This intonational marker should be outside paired markers."); break;
+		case 146: strcpy(global_df->err_message, "-The &= symbol must include some code after '=' character."); break;
+		case 147: strcpy(global_df->err_message, "-Undeclared special form marker in depfile."); break;
+		case 148: strcpy(global_df->err_message, "-Space character is not allowed before comma(,) character on \"@Media:\" header."); break;
+		case 149: if (err_item[0] == EOS)
+				strcpy(global_df->err_message, "-Illegal character located between a word and [...] code.");
+			else
+				sprintf(global_df->err_message, "-Illegal character '%s' located between a word and [...] code.", err_item);
+			break;
+		case 150: strcpy(global_df->err_message, "-Illegal item located between a word and [...] code."); break;
+		case 151: strcpy(global_df->err_message, "-This word has only repetition segments."); break;
+		case 152: strcpy(global_df->err_message, "-Language is not defined on \"@Languages:\" header tier."); break;
+		case 153: strcpy(global_df->err_message, "-Age's month or day are missing initial zero.\nPlease run \"chstring +q +1\" command on this file to fix this error."); break;
+		case 154: strcpy(global_df->err_message, "-Please add \"unlinked\" to @Media header."); break;
+		case 155: if (err_item[0] == EOS)
+				strcpy(global_df->err_message, "-Please use \"0word\" instead of \"(word)\".");
+			else {
+				i = strlen(err_item) - 1;
+				if (i > 0)
+					err_item[i] = EOS;
+				sprintf(global_df->err_message, "-Please use \"0%s\" instead of \"(%s)\".", err_item+1, err_item+1);
+			}
+			break;
+		case 156:
+			strcpy(global_df->err_message, "-Please replace ,, with F2-t (   ) character .");
+			global_df->err_message[30] = 0xE2;
+			global_df->err_message[31] = 0x80;
+			global_df->err_message[32] = 0x9D;
+			break;
+		case 157: strcpy(global_df->err_message, "-Media file name has to match datafile name."); break;
+		case 158: strcpy(global_df->err_message, "-[: ...] has to have real word, not 0... or &... or xxx."); break;
+		case 159: strcpy(global_df->err_message, "-Pause markers should appear after retrace markers"); break;
+
 		default: strcpy(global_df->err_message, "+Internal ERROR. undefined error code!"); break;
 	}
 }
@@ -1863,7 +1982,9 @@ static char check_err(int num, int s, int e, unCH *templine) {
 		if (Check_level == 1) {
 			if (isdone == 2 && !AtTopEnd(global_df->row_txt, global_df->head_text, FALSE)) {
 				global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-				global_df->lineno--;
+				if (isNL_CFound(global_df->row_txt))
+					global_df->lineno--;
+				global_df->wLineno--;
 				if (global_df->row_win >= 0L && global_df->row_win < (long)global_df->EdWinSize)
 					global_df->row_win--;
 			}
@@ -1873,7 +1994,9 @@ static char check_err(int num, int s, int e, unCH *templine) {
 				for (; i > s && i >= 0; i--) {
 					if (templine[i] == '\n' && !AtTopEnd(global_df->row_txt, global_df->head_text, FALSE)) {
 						global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-						global_df->lineno--;
+						if (isNL_CFound(global_df->row_txt))
+							global_df->lineno--;
+						global_df->wLineno--;
 						if (global_df->row_win>=0L && global_df->row_win< (long)global_df->EdWinSize)
 							global_df->row_win--;
 					}
@@ -1883,9 +2006,9 @@ static char check_err(int num, int s, int e, unCH *templine) {
 					if (templine[i] == '\n') break;
 				}
 				if (i < 0) {
-					global_df->col_chr  = (long)(s + global_df->CurSpLen);
+					global_df->col_chr  = (long)(s + ced_CurSpLen);
 					global_df->col_win  = ComColWin(FALSE, global_df->row_txt->line, global_df->col_chr);
-					global_df->col_chr2 = (long)(e + 1 + global_df->CurSpLen);
+					global_df->col_chr2 = (long)(e + 1 + ced_CurSpLen);
 					global_df->col_win2 = ComColWin(FALSE, global_df->row_txt->line, global_df->col_chr2);
 				} else {
 					global_df->col_chr  = (long)(s - i - 1);
@@ -1953,62 +2076,33 @@ static char check_err(int num, int s, int e, unCH *templine) {
 			}
 		}
 
-#ifndef _UNICODE
-		if (global_df->col_chr != global_df->col_chr2 && global_df->col_chr2 != -2L) {
-			do {
-				i = (int)my_CharacterByteType(global_df->row_txt->line, global_df->col_chr, &tFnt);
-				if (i != 0 && i != -1)
-					global_df->col_chr--;
-				else
-					break;
-			} while (1) ;
-			do {
-				i = (int)my_CharacterByteType(global_df->row_txt->line, global_df->col_chr2, &tFnt);
-				if (i != 0 && i != -1)
-					global_df->col_chr2++;
-				else
-					break;
-			} while (1) ;
-		} else {
-			do {
-				i = (int)my_CharacterByteType(global_df->row_txt->line, global_df->col_chr, &tFnt);
-				if (i != 0 && i != -1)
-					global_df->col_chr--;
-				else
-					break;
-			} while (1) ;
-			if (global_df->col_chr2 != -2L)
-				global_df->col_chr2 = global_df->col_chr;
-		}
-		global_df->col_win = ComColWin(FALSE, global_df->row_txt->line, global_df->col_chr);
-		if (global_df->col_chr2 != -2L)
-			global_df->col_win2 = ComColWin(FALSE, global_df->row_txt->line, global_df->col_chr2);
-#endif
-		j = 0L;
-		if (global_df->col_chr2 != -2L) {
-			for (i=global_df->col_chr; j < 15 && i < global_df->col_chr2; i++) {
-				if (global_df->row_txt->line[i] == NL_C || global_df->row_txt->line[i] == EOS)
-					break;
-				if (global_df->row_txt->line[i] == HIDEN_C) {
-					strcpy(err_item, "<bullet>");
-					j = strlen(err_item);
-					break;
-				} else if (global_df->row_txt->line[i] == ' ' && j < 1) {
-					strcpy(err_item+j, "Space");
-					j += 5;
-				} else if (global_df->row_txt->line[i] == '\t' && j < 1) {
-					strcpy(err_item+j, "Tab");
-					j += 3;
-				} else {
-					if (global_df->isUTF && (global_df->row_txt->line[i] > 127 || !UTF8_IS_SINGLE((unsigned char)global_df->row_txt->line[i]))) {
-						err_item[0] = EOS;
+		if (num != 45) {
+			j = 0L;
+			if (global_df->col_chr2 != -2L) {
+				for (i=global_df->col_chr; j < 15 && i < global_df->col_chr2; i++) {
+					if (global_df->row_txt->line[i] == NL_C || global_df->row_txt->line[i] == EOS)
 						break;
-					} else
-						err_item[j++] = (char)global_df->row_txt->line[i];
+					if (global_df->row_txt->line[i] == HIDEN_C) {
+						strcpy(err_item, "<bullet>");
+						j = strlen(err_item);
+						break;
+					} else if (global_df->row_txt->line[i] == ' ' && j < 1) {
+						strcpy(err_item+j, "Space");
+						j += 5;
+					} else if (global_df->row_txt->line[i] == '\t' && j < 1) {
+						strcpy(err_item+j, "Tab");
+						j += 3;
+					} else {
+						if (global_df->isUTF && (global_df->row_txt->line[i] > 127 || !UTF8_IS_SINGLE((unsigned char)global_df->row_txt->line[i]))) {
+							err_item[0] = EOS;
+							break;
+						} else
+							err_item[j++] = (char)global_df->row_txt->line[i];
+					}
 				}
 			}
+			err_item[j] = EOS;
 		}
-		err_item[j] = EOS;
 		ced_mess(num);
 		return(TRUE);
 	} else
@@ -2021,15 +2115,17 @@ static char ced_CodeErr(short wh) {
 
 	if (isdone == 3 && wh != 46)
 		return(FALSE);
-	for (j=0; sp[j] != ':' && sp[j]; j++) ;
-	res = ced_adderror(0,j,wh,sp);
+	for (j=0; ced_sp[j] != ':' && ced_sp[j]; j++) ;
+	res = ced_adderror(0,j,wh,ced_sp);
 	if (res == 2)
 		return(TRUE);
 	else if (res) {
 		if (Check_level == 1) {
 			if ((isdone == 2 || wh == 46) && !AtTopEnd(global_df->row_txt, global_df->head_text, FALSE)) {
 				global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-				global_df->lineno--;
+				if (isNL_CFound(global_df->row_txt))
+					global_df->lineno--;
+				global_df->wLineno--;
 				if (global_df->row_win >= 0L && global_df->row_win < (long)global_df->EdWinSize)
 					global_df->row_win--;
 			}
@@ -2038,7 +2134,9 @@ static char ced_CodeErr(short wh) {
 			for (; i > 0; i--) {
 				if (templine[i] == '\n' && !AtTopEnd(global_df->row_txt, global_df->head_text, FALSE)) {
 					global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-					global_df->lineno--;
+					if (isNL_CFound(global_df->row_txt))
+						global_df->lineno--;
+					global_df->wLineno--;
 					if (global_df->row_win >= 0L && global_df->row_win < (long)global_df->EdWinSize)
 						global_df->row_win--;
 				}
@@ -2159,7 +2257,7 @@ static char ced_Tabs(unCH *line) {
 					return(FALSE);
 			}
 			if (line[i] == '\t' && i > 0 && line[i-1] != ':') {
-				if (check_err(123,i,i,line))
+				if (check_err(132,i,i,line))
 					return(FALSE);
 			}
 		}
@@ -2189,11 +2287,13 @@ static char ced_Colon(unCH *line) {
 		check_in_remblanks(ced_line);
 //		uS.uppercasestr(ced_line, &tFnt, TRUE);
 		if (*line == '@') 
-			ts = ced_MatchTierName(global_df->headt,ced_line,(line[i] ==':'));
+			ts = ced_MatchTierName(ced_headt,ced_line,(line[i] ==':'));
 		else if (*line == '*') 
-			ts = ced_MatchTierName(global_df->maint,ced_line,(line[i] ==':'));
+			ts = ced_MatchTierName(ced_maint,ced_line,(line[i] ==':'));
 		else if (*line == '%') 
-			ts = ced_MatchTierName(global_df->codet,ced_line,(line[i] ==':'));
+			ts = ced_MatchTierName(ced_codet,ced_line,(line[i] ==':'));
+		else
+			ts = NULL;
 
 		if (line[i] != ':') {
 			if (ts != NULL) {
@@ -2299,17 +2399,65 @@ static void calcRow_win(void) {
 	global_df->row_win -= offset;
 }
 
+static void ced_checkFixAge(unCH *line, int i) {
+	int cnt;
+
+	cnt = 0;
+	for (; line[i] != EOS; i++) {
+		if (line[i] == '|') {
+			cnt++;
+			if (cnt == 3) {
+				for (i++; line[i] != EOS && line[i] != '|'; i++) {
+					if (line[i] == ';' && isdigit(line[i+1]) && line[i+2] == '.') {
+						i++;
+						ResetUndos();
+						global_df->col_chr = i;
+						ChangeCurLine();
+						AddText(NULL, '0', TRUE, 1L);
+						while (global_df->col_txt != global_df->tail_row && global_df->col_txt->c != '|') {
+							if (global_df->col_txt->c == '.') {
+								global_df->col_txt = global_df->col_txt->next_char;
+								global_df->col_chr++;
+								if (global_df->col_txt != global_df->tail_row && isdigit(global_df->col_txt->c)) {
+									if (global_df->col_txt->next_char != global_df->tail_row && global_df->col_txt->next_char->c == '|') {
+										AddText(NULL, '0', TRUE, 1L);
+										ChangeCurLineAlways(0);
+										return;
+									}
+								}
+							}
+							global_df->col_txt = global_df->col_txt->next_char;
+							global_df->col_chr++;
+						}
+						ChangeCurLineAlways(0);
+						return;
+					} else if (line[i] == '.' && isdigit(line[i+1]) && line[i+2] == '|') {
+						i++;
+						ResetUndos();
+						global_df->col_chr = i;
+						ChangeCurLine();
+						AddText(NULL, '0', TRUE, 1L);
+						ChangeCurLineAlways(0);
+						return;
+					}
+				}
+			}
+		}
+	}
+}
+
 static char ced_getwholeutter(void) {
 	register int i;
 	register int len;
 //	register char CombCheck;
 	register char isDashFound;
 	register char tCheck_level;
+	char isAddLineno;
 #ifdef _MAC_CODE
 	Str255 pFontName;
 #endif
 	len = 0;
-	*sp = EOS;
+	*ced_sp = EOS;
 	*templine = EOS;
 //	CombCheck = 0;
 	while (1) {
@@ -2319,46 +2467,49 @@ static char ced_getwholeutter(void) {
 			isDashFound = FALSE;
 			for (i=0; global_df->row_txt->line[i] != ':' && global_df->row_txt->line[i]; i++) {
 				if (i >= SPEAKERLEN) {
-					*sp = EOS;
+					*ced_sp = EOS;
 					*templine = EOS;
 					check_err(9,-1,-1,cl_T(""));
 					return(-1);
 				}
-				sp[i] = global_df->row_txt->line[i];
-				if (sp[i] == '-') {
+				ced_sp[i] = global_df->row_txt->line[i];
+				if (ced_sp[i] == '-') {
 					isDashFound = TRUE;
-					if (i > 7+1 && (sp[0] == '*' || sp[0] == '%')) {
-						sp[i] = EOS;
+					if (i > 7+1 && (ced_sp[0] == '*' || ced_sp[0] == '%')) {
+						ced_sp[i] = EOS;
 						*templine = EOS;
 						tCheck_level = Check_level;
 						Check_level = 0;
 						isdone = 1;
-						check_err(58,1,i-1,sp);
+						check_err(58,1,i-1,ced_sp);
 						Check_level = tCheck_level;
 						return(-1);
 					}
 				}
 			}
 			if (!isDashFound) {
-				if (i > 7+1 && (sp[0] == '*' || sp[0] == '%')) {
-					sp[i] = EOS;
+				if (i > 7+1 && (ced_sp[0] == '*' || ced_sp[0] == '%')) {
+					ced_sp[i] = EOS;
 					*templine = EOS;
 					tCheck_level = Check_level;
 					Check_level = 0;
 					isdone = 1;
-					check_err(58,1,i-1,sp);
+					check_err(58,1,i-1,ced_sp);
 					Check_level = tCheck_level;
 					return(-1);
 				}
 			}
-			sp[i] = global_df->row_txt->line[i];
-			if (sp[i]) {
-				sp[++i] = EOS;
+			ced_sp[i] = global_df->row_txt->line[i];
+			if (ced_sp[i]) {
+				ced_sp[++i] = EOS;
 				if ((len=strlen(global_df->row_txt->line+i)) >= UTTLINELEN) {
-					*sp = EOS;
+					*ced_sp = EOS;
 					*templine = EOS;
 					check_err(10,-1,-1,cl_T(""));
 					return(-1);
+				}
+				if (ced_u.check_partcmp(ced_sp,IDOF,FALSE)) {
+					ced_checkFixAge(global_df->row_txt->line, i);
 				}
 				if (global_df->row_txt->att)
 					check_att_cp(0L, templine, global_df->row_txt->line+i, tempAtt, global_df->row_txt->att+i);
@@ -2378,9 +2529,9 @@ static char ced_getwholeutter(void) {
 #ifdef _WIN32
 			strcpy(tFnt.fontName, global_df->row_txt->Font.FName);
 #endif
-			global_df->CurSpLen = i;
-			check_in_remblanks(sp);
-			strcpy(ced_line,sp);
+			ced_CurSpLen = i;
+			check_in_remblanks(ced_sp);
+			strcpy(ced_line,ced_sp);
 //			uS.uppercasestr(ced_line, &tFnt, TRUE);
 
 			if (ced_u.check_partcmp(ced_line,"%pho:",FALSE) ||
@@ -2394,11 +2545,15 @@ static char ced_getwholeutter(void) {
 			break;
 		}
 		global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-		global_df->lineno--;
+		if (isNL_CFound(global_df->row_txt))
+			global_df->lineno--;
+		global_df->wLineno--;
 		if (global_df->row_txt == global_df->head_text) {
 			global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-			global_df->lineno++;
-			*sp = EOS;
+			if (isNL_CFound(global_df->row_txt))
+				global_df->lineno++;
+			global_df->wLineno++;
+			*ced_sp = EOS;
 			*templine = EOS;
 			calcRow_win();
 			return(0);
@@ -2406,11 +2561,19 @@ static char ced_getwholeutter(void) {
 		calcRow_win();
 	}
 	do {
+		if (isNL_CFound(global_df->row_txt))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-		global_df->lineno++;
+		if (isAddLineno)
+			global_df->lineno++;
+		global_df->wLineno++;
 		if (global_df->row_txt == global_df->tail_text) {
 			global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-			global_df->lineno--;
+			if (isNL_CFound(global_df->row_txt))
+				global_df->lineno--;
+			global_df->wLineno--;
 			calcRow_win();
 			return(1);
 		}
@@ -2421,7 +2584,7 @@ static char ced_getwholeutter(void) {
 //		FALSE_CHECK_ID2(global_df->row_txt->flag);
 		len += strlen(global_df->row_txt->line) + 2;
 		if (len >= UTTLINELEN) {
-			*sp = EOS;
+			*ced_sp = EOS;
 			*templine = EOS;
 			check_err(10,-1,-1,cl_T(""));
 			return(-1);
@@ -2490,6 +2653,23 @@ static char ced_correctMonth(unCH *s) {
 	else if (!strncmp(s, "NOV", 3))
 		return(TRUE);
 	else if (!strncmp(s, "DEC", 3))
+		return(TRUE);
+	else
+		return(FALSE);
+}
+
+static int ced_SES_item(unCH *tmpl, unCH *s) {
+	if (*tmpl == 's')
+		tmpl++;
+	if (*tmpl == '<')
+		tmpl++;
+	while (*tmpl != EOS && *s != EOS) {
+		if (*tmpl != *s)
+			break;
+		tmpl++;
+		s++;
+	}
+	if ((*tmpl == '>' || *tmpl == EOS) && *s == EOS)
 		return(TRUE);
 	else
 		return(FALSE);
@@ -2567,12 +2747,12 @@ static int ced_MatchDT(unCH *tmpl, unCH *s) {
 		return(FALSE);
 }
 
-static int ced_matchplate(TPLATES *tp, unCH *s) {
-	char dt = FALSE;
+static int ced_matchplate(TPLATES *tp, unCH *s, char charType) {
+	char dt = FALSE, ses = FALSE;
 
 	for (; tp != NULL; tp = tp->nextone) {
 		if (*tp->pattern == '@') {
-			if (*(tp->pattern+1) == 'd' || *(tp->pattern+1) == 't') {
+			if ((*(tp->pattern+1) == 'd' || *(tp->pattern+1) == 't') && charType == 'D') {
 				dt = TRUE;
 				if (ced_MatchDT(tp->pattern+1,s))
 					return(FALSE);
@@ -2582,7 +2762,12 @@ static int ced_matchplate(TPLATES *tp, unCH *s) {
 					else
 						return(35);
 				}
-			} else if (ced_u.check_patmat(s,tp->pattern)) return(FALSE);
+			} else if ((*(tp->pattern+1) == 's' || *(tp->pattern+1) == 'e') && charType == 's') {
+				ses = TRUE;
+				if (ced_SES_item(tp->pattern+2,s))
+					return(FALSE);
+			} else if (ced_u.check_patmat(s,tp->pattern))
+				return(FALSE);
 		} else if (*tp->pattern == '*' && *(tp->pattern+1) == EOS) {
 			if (*s == '(')
 				return(FALSE);
@@ -2603,28 +2788,63 @@ static int ced_matchplate(TPLATES *tp, unCH *s) {
 				return(FALSE);
 		}
 	}
-	if (dt) return(33);
-	else if (*s == '$') return(32);
-	else return(11);
+	if (dt) {
+		return(33);
+	} else if (ses) {
+		return(144);
+	} else if (*s == '$') {
+		if (ced_isBlob)
+			return(FALSE);
+		else
+			return(32);
+	} else {
+		if (ced_isBlob)
+			return(FALSE);
+		else
+			return(11);
+	}
 }
 
-static int ced_matchSpeaker(SP_LIST *tp, unCH *s) {	
+static int ced_matchIDsp(struct IDsp *tp, unCH *s) {
+	for (; tp != NULL; tp = tp->nextsp) {
+		if (uS.mStricmp(s,tp->sp) == 0) {
+			return(TRUE);
+		}
+	}
+	return(FALSE);
+}
+
+static int ced_matchSpeaker(SPLIST *tp, unCH *s, char isFromID) {
 	for (; tp != NULL; tp = tp->nextsp) {
 		if (ced_u.check_patmat(s,tp->sp)) {
+			if (isFromID)
+				tp->hasID = TRUE;
 			return(FALSE);
 		}
 	}
 	return(TRUE);
 }
 
+static int ced_matchRole(unCH *sp, SPLIST *tp, unCH *s) {
+	for (; tp != NULL; tp = tp->nextsp) {
+		if (ced_u.check_patmat(sp,tp->sp)) {
+			if (uS.mStricmp(tp->role, s) == 0)
+				return(FALSE);
+			else
+				return(TRUE);
+		}
+	}
+	return(TRUE);
+}
+
 static char ced_setLastTime(unCH *s, long t) {
-	SP_LIST *tp;
+	SPLIST *tp;
 
 	if (*s == '*')
 		s++;
 	else if (*s == '%' || *s == '@')
 		return(FALSE);
-	for (tp=global_df->headsp; tp != NULL; tp=tp->nextsp) {
+	for (tp=ced_headsp; tp != NULL; tp=tp->nextsp) {
 		if (uS.mStricmp(s,tp->sp) == 0) {
 			tp->endTime = t;
 			return(TRUE);
@@ -2634,13 +2854,13 @@ static char ced_setLastTime(unCH *s, long t) {
 }
 
 static long ced_getLatTime(unCH *s) {
-	SP_LIST *tp;
+	SPLIST *tp;
 
 	if (*s == '*')
 		s++;
 	else if (*s == '%' || *s == '@')
 		return(-2L);
-	for (tp=global_df->headsp; tp != NULL; tp=tp->nextsp) {
+	for (tp=ced_headsp; tp != NULL; tp=tp->nextsp) {
 		if (uS.mStricmp(s,tp->sp) == 0) {
 			return(tp->endTime);
 		}
@@ -2665,8 +2885,8 @@ static int ced_badrole(unCH *s, unCH *c) {
 
 	strcpy(ced_line,s);
 //	uS.uppercasestr(ced_line, &tFnt, TRUE);
-	if ((ts=ced_FindTier(global_df->headt,c)) != NULL) {
-		if (ced_matchplate(ts->tplate,ced_line) == FALSE)
+	if ((ts=ced_FindTier(ced_headt,c)) != NULL) {
+		if (ced_matchplate(ts->tplate, ced_line, 'D') == FALSE)
 			return(FALSE);
 	}
 	return(TRUE);
@@ -2677,16 +2897,14 @@ static char ced_trans_err(int wh, unCH *sp, unCH *ep, unCH *line) {
 
 	s = (int)((unsigned long)(sp)-(unsigned long)(line));
 	e = (int)((unsigned long)(ep)-(unsigned long)(line));
-#ifdef _UNICODE
 	s /= 2;
 	e /= 2;
-#endif
 	return(check_err(wh, s, e, line));
 }
 
-static char ced_addsp(unCH *s, unCH *line, unCH *templine, unCH t) {
+static char ced_addIDdsp(unCH *s) {
 	unCH *tst;
-	SP_LIST *tp;
+	struct IDsp *tp;
 
 	strcpy(ced_line,s);
 	tst = ced_mkstring(ced_line);
@@ -2694,23 +2912,21 @@ static char ced_addsp(unCH *s, unCH *line, unCH *templine, unCH t) {
 		strcpy(global_df->err_message, "+Error: Out of memory.");
 		return(FALSE);
 	}
-	if (global_df->headsp == NULL) {
-		if ((global_df->headsp=NEW(SP_LIST)) == NULL) {
-			free(tst);
+	if (ced_idsp == NULL) {
+		if ((ced_idsp=NEW(struct IDsp)) == NULL) {
 			strcpy(global_df->err_message, "+Error: Out of memory.");
+			free(tst);
 			return(FALSE);
 		}
-		tp = global_df->headsp;
+		tp = ced_idsp;
 	} else {
-		for (tp=global_df->headsp; 1; tp=tp->nextsp) {
+		for (tp=ced_idsp; 1; tp=tp->nextsp) {
 			if (!uS.mStricmp(tp->sp,ced_line)) {
-				*line = t;
-				if (ced_trans_err(13,s,line-1,templine))
-					return(FALSE);
+				free(tst);
 				return(TRUE);
 			}
 			if (tp->nextsp == NULL) {
-				if ((tp->nextsp=NEW(SP_LIST)) == NULL) {
+				if ((tp->nextsp=NEW(struct IDsp)) == NULL) {
 					free(tst);
 					strcpy(global_df->err_message, "+Error: Out of memory.");
 					return(FALSE);
@@ -2722,7 +2938,75 @@ static char ced_addsp(unCH *s, unCH *line, unCH *templine, unCH t) {
 	}
 	tp->nextsp = NULL;
 	tp->sp = tst;
+	return(TRUE);
+}
+
+static char ced_addsp(unCH *s, unCH *role, unCH *line, unCH *templine, unCH t) {
+	unCH *tst, *trole;
+	SPLIST *tp;
+
+	if (role == NULL)
+		trole = NULL;
+	else {
+		strcpy(ced_line,role);
+		trole = ced_mkstring(ced_line);
+		if (trole == NULL) {
+			strcpy(global_df->err_message, "+Error: Out of memory.");
+			*line = t;
+			free(trole);
+			return(FALSE);
+		}
+	}
+	strcpy(ced_line,s);
+	tst = ced_mkstring(ced_line);
+	if (tst == NULL) {
+		strcpy(global_df->err_message, "+Error: Out of memory.");
+		*line = t;
+		return(FALSE);
+	}
+	if (ced_headsp == NULL) {
+		if ((ced_headsp=NEW(SPLIST)) == NULL) {
+			strcpy(global_df->err_message, "+Error: Out of memory.");
+			*line = t;
+			free(tst);
+			free(trole);
+			return(FALSE);
+		}
+		tp = ced_headsp;
+	} else {
+		for (tp=ced_headsp; 1; tp=tp->nextsp) {
+			if (!uS.mStricmp(tp->sp,ced_line)) {
+				free(tst);
+				if (role == NULL) {
+					*line = t;
+					if (ced_trans_err(13,s,line-1,templine)) {
+						free(trole);
+						return(FALSE);
+					}
+				} else if (tp->role == NULL)
+					tp->role = trole;
+				else
+					free(trole);
+				return(TRUE);
+			}
+			if (tp->nextsp == NULL) {
+				if ((tp->nextsp=NEW(SPLIST)) == NULL) {
+					*line = t;
+					free(tst);
+					free(trole);
+					strcpy(global_df->err_message, "+Error: Out of memory.");
+					return(FALSE);
+				}
+				tp = tp->nextsp;
+				break;
+			}
+		}
+	}
+	tp->nextsp = NULL;
+	tp->sp = tst;
+	tp->role = trole;
 	tp->endTime = 0L;
+	tp->hasID = FALSE;
 	return(TRUE);
 }
 
@@ -2734,8 +3018,8 @@ static char ced_getpart(unCH *line) {
 	char wc, tchFound, isCommaFound;
 	short cnt = 0;
 
-	ced_clean_speakers(global_df->headsp);
-	global_df->headsp = NULL;
+	ced_clean_speakers(ced_headsp);
+	ced_headsp = NULL;
 	for (; *line && isSpace(*line); line++) ;
 	s = line;
 	tchFound = FALSE;
@@ -2767,12 +3051,13 @@ static char ced_getpart(unCH *line) {
 						if (!strcmp(sp, "CHI") && !strcmp(s, "Target_Child"))
 							tchFound = TRUE;
 					}
-
-					if (ced_badrole(s,cl_T(PARTICIPANTS))) { 
+					if (ced_badrole(s,cl_T(PARTICIPANTS))) {
 						*e = t;
 						if (ced_trans_err(15,s,e-1,rootline))
 							return(FALSE);
 					}
+					if (!ced_addsp(sp,s,line,rootline,t))
+						return(FALSE);
 				} else if (cnt == 0) {
 					for (i=0; s[i] > 32 && s[i] < 127 && s[i] != EOS; i++) ;
 					if (s[i] != EOS) {
@@ -2781,7 +3066,7 @@ static char ced_getpart(unCH *line) {
 					} else {
 						isCommaFound = FALSE;
 						strcpy(sp, s);
-						if (!ced_addsp(s,line,rootline,t))
+						if (!ced_addsp(s,NULL,line,rootline,t))
 							return(FALSE);
 					}
 				}
@@ -2821,6 +3106,8 @@ static char ced_getpart(unCH *line) {
 						if (ced_trans_err(15,s,e-1,rootline))
 							return(FALSE);
 					}
+					if (!ced_addsp(sp,s,line,rootline,t))
+						return(FALSE);
 					*e = t;
 				}
 				for (line=e; *line; line++) ;
@@ -2834,7 +3121,7 @@ static char ced_getpart(unCH *line) {
 		if (check_err(100,-1,-1,rootline))
 			return(FALSE);
 	}
-	if (NAME_ROLE_COUNT(ced_GenOpt) && !tchFound) {
+	if (NAME_ROLE_COUNT(ced_GenOpt) && !tchFound && ced_applyG2Option) {
 		if (check_err(68,-1,-1,rootline))
 			return(FALSE);
 	}
@@ -2878,7 +3165,7 @@ static char ced_Age(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine, int offset, ch
 
 	if (sp != NULL) {
 		uS.extractString(templine4, sp, "@Age of ", ':');
-		if (ced_matchSpeaker(global_df->headsp, templine4)) {
+		if (ced_matchSpeaker(ced_headsp, templine4, FALSE)) {
 			if (ced_CodeErr(18))
 				return(FALSE);
 		}
@@ -2897,8 +3184,7 @@ static char ced_Age(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine, int offset, ch
 				break;
 		}
 		*st = EOS;
-//		uS.uppercasestr(ced_line, &tFnt, TRUE);
-		if ((r=ced_matchplate(ts->tplate,ced_line))) {
+		if ((r=ced_matchplate(ts->tplate, ced_line, 'D'))) {
 			if (eChar == EOS)
 				offset = e - 2;
 			else
@@ -2917,7 +3203,7 @@ static char ced_Sex(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine) {
 
 	if (sp != NULL) {
 		uS.extractString(templine4, sp, "@Sex of ", ':');
-		if (ced_matchSpeaker(global_df->headsp, templine4)) {
+		if (ced_matchSpeaker(ced_headsp, templine4, FALSE)) {
 			if (ced_CodeErr(18))
 				return(FALSE);
 		}
@@ -2936,13 +3222,40 @@ static char ced_Sex(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine) {
 	return(TRUE);
 }
 
-static char ced_Ses(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine) {
+static char ced_ses(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine, int offset, char eChar) {
+	int r, s, e;
+	unCH *st;
+
 	if (sp != NULL) {
 		uS.extractString(templine4, sp, "@Ses of ", ':');
-		if (ced_matchSpeaker(global_df->headsp, templine4)) {
+		if (ced_matchSpeaker(ced_headsp, templine4, FALSE)) {
 			if (ced_CodeErr(18))
 				return(FALSE);
 		}
+	}
+	s = offset;
+	e = s;
+	while (1) {
+		st = ced_line;
+		while ((*st=templine[s++]) == '\n' || *st == ',' || *st == NL_C || isSpace(*st)) ;
+		if (*st == eChar)
+			break;
+		e = s;
+		while ((*++st=templine[e]) != eChar) {
+			e++;
+			if (*st == '\n' || *st == ',' || isSpace(*st) || *st == NL_C)
+				break;
+		}
+		*st = EOS;
+		if ((r=ced_matchplate(ts->tplate, ced_line, 's'))) {
+			if (eChar == EOS)
+				offset = e - 2;
+			else
+				offset = e - 1;
+			if (check_err(r,s-1,offset,templine))
+				return(FALSE);
+		}
+		s = e;
 	}
 	return(TRUE);
 }
@@ -2953,7 +3266,7 @@ static char ced_Birth(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine) {
 
 	if (sp != NULL) {
 		uS.extractString(templine4, sp, "@Birth of ", ':');
-		if (ced_matchSpeaker(global_df->headsp, templine4)) {
+		if (ced_matchSpeaker(ced_headsp, templine4, FALSE)) {
 			if (ced_CodeErr(18))
 				return(FALSE);
 		}
@@ -2973,7 +3286,7 @@ static char ced_Birth(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine) {
 		}
 		*st = EOS;
 //		uS.uppercasestr(ced_line, &tFnt, TRUE);
-		if ((r=ced_matchplate(ts->tplate,ced_line))) {
+		if ((r=ced_matchplate(ts->tplate, ced_line, 'D'))) {
 			if (check_err(r,s-1,e - 2,templine))
 				return(FALSE);
 		}
@@ -2985,7 +3298,7 @@ static char ced_Birth(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine) {
 static char ced_Educ(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine) {
 	if (sp != NULL) {
 		uS.extractString(templine4, sp, "@Education of ", ':');
-		if (ced_matchSpeaker(global_df->headsp, templine4)) {
+		if (ced_matchSpeaker(ced_headsp, templine4, FALSE)) {
 			if (ced_CodeErr(18))
 				return(FALSE);
 		}
@@ -2996,7 +3309,7 @@ static char ced_Educ(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine) {
 static char ced_Group(CHECK_IN_TIERS *ts, unCH *sp, unCH *templine) {
 	if (sp != NULL) {
 		uS.extractString(templine4, sp, "@Group of ", ':');
-		if (ced_matchSpeaker(global_df->headsp, templine4)) {
+		if (ced_matchSpeaker(ced_headsp, templine4, FALSE)) {
 			if (ced_CodeErr(18))
 				return(FALSE);
 		}
@@ -3030,7 +3343,7 @@ static char ced_MorItem(unCH *item, int *sErr, int *eErr, int offset) {
 		last = NULL;
 		while (*item != EOS) {
 			for (c=item; *c != '|' && *c != '#' &&  *c != '-' && 
-						*c != '=' && *c != '~' && *c != EOS; c++) {
+						*c != '=' && *c != '~' && *c != '$' && *c != EOS; c++) {
 				if (!strncmp(c, "&amp;", 5))
 					break;
 			}
@@ -3256,7 +3569,7 @@ static char ced_MorItem(unCH *item, int *sErr, int *eErr, int offset) {
 				}
 				sprintf(tempst2, "\nItem=%ls", org);
 				freeAll(900);
-			} else if (*last == '~') {
+			} else if (*last == '~' || *last == '$') {
 				*c = t;
 				if (t != '|') {
 					sprintf(tempst2, ": %ls\nItem=%ls", c, org);
@@ -3326,8 +3639,7 @@ static char ced_atUFound(unCH *w, int s) {
 }
 
 static char isIllegalASCII(unCH *w, int s) {
-#ifdef _UNICODE
-	if (w[s] == 0x2018 || w[s] == 0x2019 || w[s] == 0x00b7)
+	if (w[s] == 0x00b7)
 		return(TRUE);
 	else if (w[s] >= 0xe000) {
 		if ((w[s] >= 0xf170 && w[s] <= 0xf264) || (w[s] >= 0xff01 && w[s] <= 0xff5e))
@@ -3335,41 +3647,20 @@ static char isIllegalASCII(unCH *w, int s) {
 		else
 			return(TRUE);
 	}
-#else
-	if ((unsigned char)w[s] == 0xe2 && my_CharacterByteType(w,(short)s,&dFnt) == -1 && (unsigned char)w[s+1] == 0x80 && 
-			((unsigned char)w[s+2] == 0x98 || (unsigned char)w[s+2] == 0x99))
-		return(TRUE);
-	else if ((unsigned char)w[s] == 0xc2 && my_CharacterByteType(w,(short)s,&dFnt) == -1 && (unsigned char)w[s+1] == 0xb7)
-		return(TRUE);
-	else if ((unsigned char)w[s] >= 0xee && my_CharacterByteType(w,(short)s,&dFnt) == -1 && my_CharacterByteType(w,(short)s+1,&dFnt) > 0 && my_CharacterByteType(w,(short)s+2,&dFnt) > 0) {
-		long num, t;
+	return(FALSE);
+}
 
-		num = (unsigned char)w[s];
-		num = num << 16;
-		t = (unsigned char)w[s+1];
-		t = t << 8;
-		num = num | t;
-		t = (unsigned char)w[s+2];
-		num = num | t;
-		if ((num >= 0xef85b0 /*15697328L*/ && num <= 0xef89a4 /*15698340L*/) || 
-			(num >= 0xefbc81 /* 15711361L */ && num <= 0xefbd9e /* 15711646 */))
-			return(FALSE);
-		else
-			return(TRUE);
-	}
-#endif
+static int isBadQuotes(unCH *w, int s) {
+	if (w[s] == 0x2018)
+		return(139);
+	else if (w[s] == 0x2019)
+		return(138);
 	return(FALSE);
 }
 
 static char isLegalUseOfDigit(unCH *w, int s) {
 	if (uS.isRightChar(w,s-1,'-',&tFnt,TRUE) ||
-#ifdef _UNICODE
 		 (w[s-1] == 0x2308 || w[s-1] == 0x2309 || w[s-1] == 0x230a || w[s-1] == 0x230b)
-#else
-		 (s >= 3 && (unsigned char)w[s-3] == 0xe2 && (unsigned char)w[s-2] == 0x8c && 
-			((unsigned char)w[s-1] == 0x88 || (unsigned char)w[s-1] == 0x89 || 
-			 (unsigned char)w[s-1] == 0x8a || (unsigned char)w[s-1] == 0x8b))
-#endif
 		)
 		return(TRUE);
 	else
@@ -3412,16 +3703,38 @@ static char ced_isEndOfWord(unCH *w) {
 	return(TRUE);
 }
 
+static char ced_isThereStem(unCH *w, int pos) {
+	int s, matchType;
+	char isF;
+
+	isF = FALSE;
+	for (s=0; w[s] != EOS; s++) {
+		if (uS.HandleCAChars(w+s, &matchType)) {
+			if (matchType == NOTCA_LEFT_ARROW_CIRCLE)
+				isF = !isF;
+		}
+		if (!isF && w[s+1] != EOS)
+			return(TRUE);
+	}
+	if (check_err(151, pos-1, pos+s-2, templine))
+		return(FALSE);
+	else
+		return(TRUE);
+}
+
 static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts) {
 	char capWErrFound, capWFound, digFound, isCompFound, paransFound;
 	int s, t, len, matchType, CAOffset, isATFound;
 
 	len = strlen(w) - 1;
-	if (ts->code[0] == '*') {
+	if (ts->code[0] == '*' || uS.partcmp(ts->code, "%wor", FALSE, TRUE) || uS.partcmp(ts->code, "%xwor", FALSE, TRUE)) {
 		if (global_df->isUTF) {
 			s = uS.HandleCAChars(w, &matchType);
 			if (s) {
-				if (matchType == CA_APPLY_CLTOPSQ || matchType == CA_APPLY_CLBOTSQ ||
+				if (matchType == NOTCA_MISSINGWORD) {
+					if (check_err(48, pos-1, pos+s-2, templine))
+						return(FALSE);
+				} else if (matchType == CA_APPLY_CLTOPSQ || matchType == CA_APPLY_CLBOTSQ ||
 					matchType == NOTCA_GROUP_END || matchType == NOTCA_SIGN_GROUP_END) {
 					if (!ced_isOnlyCAs(w, s)) {
 						if (check_err(92, pos-1, pos+s-2, templine))
@@ -3436,6 +3749,10 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 						   matchType == CA_APPLY_LAUGHINWORD || matchType == NOTCA_ARABIC_DOT_DIACRITIC || matchType == NOTCA_ARABIC_RAISED ||
 						   matchType == NOTCA_STRESS || matchType == NOTCA_GLOTTAL_STOP || matchType == NOTCA_HEBREW_GLOTTAL ||
 						   matchType == NOTCA_CARON || matchType == NOTCA_CROSSED_EQUAL || matchType == NOTCA_LEFT_ARROW_CIRCLE) {
+					if (matchType == NOTCA_LEFT_ARROW_CIRCLE) {
+						if (!ced_isThereStem(w, pos))
+							return(FALSE);
+					}
 					if (w[s] == EOS || uS.isskip(w,s,&tFnt,TRUE)) {
 						if (check_err(101, pos-1, pos+s-2, templine))
 							return(FALSE);
@@ -3452,7 +3769,7 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 					}
 				} else if (matchType == CA_APPLY_OPTOPSQ || matchType == CA_APPLY_OPBOTSQ ||
 						   matchType == NOTCA_GROUP_START || matchType == NOTCA_SIGN_GROUP_START ||
-						   matchType == NOTCA_OPEN_QUOTE ||  matchType == NOTCA_OPEN_S_QUOTE)
+						   matchType == NOTCA_OPEN_QUOTE)
 					;
 				else
 					s = 0;
@@ -3503,7 +3820,6 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 				if (check_err(111, pos-1, pos+strlen(w)-2, templine))
 					return(FALSE);
 			}
-// /* 2009-06-09 &lxs
 		} else if (uS.isRightChar(w,s,'&',&tFnt,TRUE)) {
 			s++;	
 			if (w[s] == EOS) {
@@ -3518,7 +3834,7 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 						 uS.isRightChar(w,s,'+',&tFnt,TRUE) || uS.isRightChar(w,s,'/',&tFnt,TRUE)  ||
 						 uS.isRightChar(w,s,'~',&tFnt,TRUE) || uS.isRightChar(w,s,'*',&tFnt,TRUE)) {
 
-					if (w[s] == ':' && w[s+1] == ':' &&	(w[s+2] == '@' || w[s+2] == ':')) {
+					if (w[s] == ':' && w[s+1] == ':' && (w[s+2] == '@' || w[s+2] == ':')) {
 						if (ced_atUFound(w, s))
 							break;
 						if (check_err(48, pos+s-1, pos+s-1, templine))
@@ -3538,25 +3854,6 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 				}
 				s++;
 			}
-// */
-/*
-		} else if (uS.isRightChar(w,s,'&',&tFnt,TRUE)) {
-			while (w[s] != EOS) {
-				if (w[s] == ':' && w[s+1] == ':' && (w[s+2] == EOS || w[s+2] == '@' || w[s+2] == ':')) {
-					if (ced_atUFound(w, s))
-						break;
-					if (check_err(48, pos+s-1, pos+s-1, templine))
-						return(FALSE);
-				}
-				if (w[s] == w[s+1] && w[s] != ':') {
-					if (ced_atUFound(w, s))
-						break;
-					if (check_err(48, pos+s-1, pos+s-1, templine))
-						return(FALSE);
-				}
-				s++;
-			}
-*/
 		} else if (uS.isRightChar(w,s,'#',&tFnt,TRUE))  {
 			s++;
 			if (uS.isRightChar(w,s,'#',&tFnt,TRUE))
@@ -3582,8 +3879,8 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 				s++;
 			}
 		} else if (uS.mStricmp(w,"xx") == 0 || uS.mStricmp(w,"yy") == 0) {
-			if (check_err(135, pos-1, pos+len-1, templine))
-				return(FALSE);
+				if (check_err(135, pos-1, pos+len-1, templine))
+					return(FALSE);
 		} else {
 			isATFound = 0;
 			capWFound = FALSE;
@@ -3596,11 +3893,10 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 			if (uS.isRightChar(w,s,'0',&tFnt,TRUE) || uS.isRightChar(w,s,'*',&tFnt,TRUE))
 				s++;
 			while (w[s] != EOS) {
-				if (is_unCH_digit(w[s])
-#ifndef _UNICODE
-					  && my_CharacterByteType(w, (short)s, &tFnt) == 0
-#endif
-				   ) {
+				if (w[s] == 0x2026) {
+					if (check_err(48, pos+s-1, pos+s-1, templine))
+						return(FALSE);
+				} else if (is_unCH_digit(w[s])) {
 				   	if (isATFound) ;
 					else if (!digFound && (s == 0 || !isLegalUseOfDigit(w, s))) {
 						if (ced_atUFound(w, s)) {
@@ -3611,13 +3907,21 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 							digFound = TRUE;
 							if (check_err(47, pos+s-1, pos+s-1, templine))
 								return(FALSE);
+						} else if (ced_isNumberShouldBeHere) {
+							if (s == 0) {
+								digFound = TRUE;
+								if (check_err(47, pos+s-1, pos+s-1, templine))
+									return(FALSE);
+							}
 						}
 					}
 				} else if (!is_unCH_alpha(w[s])) {
 					if (global_df->isUTF)
 						t = uS.HandleCAChars(w+s, &matchType);
-					else
+					else {
+						matchType = CA_NOT_ALL;
 						t = 0;
+					}
 
 					if (t) {
 						if (w[s+t] == EOS && (matchType == CA_APPLY_OPTOPSQ || matchType == CA_APPLY_OPBOTSQ ||
@@ -3625,11 +3929,8 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 							if (check_err(93, pos+s-1, pos+s+t-2, templine))
 								return(FALSE);
 						}
-						if (w[s+t] != EOS && (matchType == CA_APPLY_CONTINUATION || matchType == CA_APPLY_LATCHING)) {
-							if (check_err(92, pos+s-1, pos+s+t-2, templine))
-								return(FALSE);
-						}
-						if (w[s+t] != EOS && (matchType == NOTCA_DOUBLE_COMMA || matchType == NOTCA_VOCATIVE)) {
+						if (w[s+t] != EOS && (matchType == CA_APPLY_CONTINUATION || matchType == CA_APPLY_LATCHING ||
+											  matchType == NOTCA_DOUBLE_COMMA || matchType == NOTCA_VOCATIVE)) {
 							if (check_err(92, pos+s-1, pos+s+t-2, templine))
 								return(FALSE);
 						}
@@ -3638,6 +3939,11 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 								return(FALSE);
 						}
 						s += (t - 1);
+						if (matchType == NOTCA_LEFT_ARROW_CIRCLE && iswupper(w[s+1]))
+							s++;
+					} else if ((t=isBadQuotes(w, s)) > 0) {
+						if (check_err(t, pos+s-1, pos+s-1, templine))
+							return(FALSE);
 					} else if (isIllegalASCII(w, s)) {
 						if (check_err(86, pos+s-1, pos+s-1, templine))
 							return(FALSE);
@@ -3702,7 +4008,7 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 						}
 					} else if (uS.isRightChar(w,s,'`',&tFnt,TRUE) && ced_isArabic) {
 					} else if (uS.isRightChar(w,s,'#',&tFnt,TRUE)) {
-						if (ced_isLegacy || ced_isEndOfWord(w+s+1)) ;
+						if (ced_isEndOfWord(w+s+1)) ;
 						else {
 							if (ced_atUFound(w, s))
 								break;
@@ -3743,9 +4049,9 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 						}
 					} else if (uS.isRightChar(w,s,'$',&tFnt,TRUE)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'+',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'~',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'@',&tFnt,TRUE) || uS.isRightChar(w,s+1,')',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'"',&tFnt,TRUE) || uS.isRightChar(w,s+1,'_',&tFnt,TRUE)) {
+							uS.isRightChar(w,s+1,'~',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'@',&tFnt,TRUE) || uS.isRightChar(w,s+1,')',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'"',&tFnt,TRUE) || uS.isRightChar(w,s+1,'_',&tFnt,TRUE)) {
 							if (ced_atUFound(w, s))
 								break;
 							if (check_err(65, pos+s-1, pos+s-1, templine))
@@ -3783,37 +4089,28 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 					} else if (uS.isRightChar(w,s,'-',&tFnt,TRUE)) {
 						if (w[s+1] == EOS)
 							;
-						else if (isATFound == 0 && !uS.isRightChar(w,s+1,'0',&tFnt,TRUE)) {
-/* 2009-05-01
-							if (ced_isLegacy || ced_isSign || is_unCH_upper(w[0]) || ced_isCAchar(w, s+1)) ;
-							else {
-								if (ced_atUFound(w, s))
-									break;
-								if (check_err(48, pos+s-1, pos+s-1, templine))
-									return(FALSE);
-							}
-*/
-						} else if (uS.isRightChar(w,s+1,',',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE) ||
-							uS.isRightChar(w,s+1,'.',&tFnt,TRUE) || uS.isRightChar(w,s+1,'!',&tFnt,TRUE)  ||
-							uS.isRightChar(w,s+1,'?',&tFnt,TRUE) || uS.isRightChar(w,s+1,'_',&tFnt,TRUE)) {
+						else if (uS.isRightChar(w,s+1,',',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE) ||
+								   uS.isRightChar(w,s+1,'.',&tFnt,TRUE) || uS.isRightChar(w,s+1,'!',&tFnt,TRUE)  ||
+								   uS.isRightChar(w,s+1,'?',&tFnt,TRUE) || uS.isRightChar(w,s+1,'_',&tFnt,TRUE)) {
 							if (ced_atUFound(w, s))
 								break;
 							if (check_err(66, pos+s-1, pos+s-1, templine))
 								return(FALSE);
-						} else if (w[s+1] == EOS ||
-								uS.isRightChar(w,s+1,'-',&tFnt,TRUE) ||	uS.isRightChar(w,s+1,'+',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'~',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'@',&tFnt,TRUE) || uS.isRightChar(w,s+1,')',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'"',&tFnt,TRUE)) {
+						} else if (uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'+',&tFnt,TRUE) ||
+								   uS.isRightChar(w,s+1,'~',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
+								   uS.isRightChar(w,s+1,'@',&tFnt,TRUE) || uS.isRightChar(w,s+1,')',&tFnt,TRUE) ||
+								   uS.isRightChar(w,s+1,'"',&tFnt,TRUE)) {
 							if (ced_atUFound(w, s))
 								break;
 							if (check_err(67, pos+s-1, pos+s-1, templine))
 								return(FALSE);
-						} else if (!isATFound /*&& w[isATFound+1] != 'l' && w[isATFound+1] != 'k'*/) {
-							if (ced_atUFound(w, s))
-								break;
-							if (check_err(48, pos+s-1, pos+s-1, templine))
-								return(FALSE);
+						} else if (isATFound == 0 && w[s+1] == '@') {
+//							if (!uS.isRightChar(w,s+1,'0',&tFnt,TRUE)) {
+//								if (ced_atUFound(w, s))
+//									break;
+								if (check_err(48, pos+s-1, pos+s-1, templine))
+									return(FALSE);
+//							}
 						}
 					} else if (uS.isRightChar(w,s,'\'',&tFnt,TRUE)) {
 						if (w[s+1] != EOS && (uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE) ||
@@ -3875,8 +4172,10 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 						if (check_err(48, pos+s-1, pos+s-1, templine))
 							return(FALSE);
 					}
-				} else if (is_unCH_upper(w[s]) && w[s]>0 && w[s]<=127 && !ced_isLegacy && !ced_isSign && !ced_isCAFound && !ced_isCaps &&
-						   (s == 0 || (w[s-1] != '-' && w[s-1] != '_' && w[s-1] != '0' && w[s-1] != '(' && s != CAOffset)) && !capWErrFound) {
+				}
+/* 2019-04-23 do not check for upper case letters
+				else if (is_unCH_upper(w[s]) && w[s]>0 && w[s]<=127 && !ced_isCAFound && !capWErrFound &&
+						   (s == 0 || (w[s-1] != '-' && w[s-1] != '\'' && w[s-1] != '_' && w[s-1] != '0' && w[s-1] != '(' && s != CAOffset))) {
 					if (s == 0 && ced_isGerman)
 						;
 					else
@@ -3891,6 +4190,7 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 							return(FALSE);
 					}
 				}
+*/
 				s++;
 			}
 		}
@@ -3908,8 +4208,8 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 			}
 			s++;
 		}
-	} else if (ced_u.check_partcmp(ts->code, "%mor", FALSE) ||
-				ced_u.check_partcmp(ts->code, "%trn", FALSE)) {
+	} else if (ced_u.check_partcmp(ts->code, "%mor", FALSE) || ced_u.check_partcmp(ts->code, "%xmor", FALSE) ||
+			   ced_u.check_partcmp(ts->code, "%trn", FALSE)) {
 		if (w[0] == 0x201E && w[1] == EOS) {
 		} else if (uS.isRightChar(w,0,'[',&tFnt,TRUE) && uS.isRightChar(w,len,']',&tFnt,TRUE)) {
 			if (isPostCodeMark(w[1], w[2])) {
@@ -3931,32 +4231,38 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 				if (check_err(65, pos+s-1, pos+s-1, templine))
 					return(FALSE);
 			}
+			if (w[0] == '^' && uS.partcmp(ced_sp, "%mor", FALSE, FALSE)) {
+				if (check_err(48, pos+s-1, pos+s-1, templine))
+					return(FALSE);
+			}
 			isFoundBar = 0;
 			s = 0;
 			numOfCompounds = -1;
 			while (w[s] != EOS) {
 				if (is_unCH_alnum(w[s])) {
 				} else {
-					if (isIllegalASCII(w, s)) {
+					if ((t=isBadQuotes(w, s)) > 0) {
+						if (check_err(t, pos+s-1, pos+s-1, templine))
+							return(FALSE);
+					} else if (isIllegalASCII(w, s)) {
 						if (check_err(86, pos+s-1, pos+s-1, templine))
 							return(FALSE);
 					} else if (w[s] == HIDEN_C) {
 						if (check_err(65, pos+s-1, pos+s-1, templine))
 							return(FALSE);
 					} else if (uS.isRightChar(w,s,'-',&tFnt,TRUE) || uS.isRightChar(w,s,'&',&tFnt,TRUE) ||
-							uS.isRightChar(w,s,'*',&tFnt,TRUE) || uS.isRightChar(w,s,'#',&tFnt,TRUE) || 
-							uS.isRightChar(w,s,'\'',&tFnt,TRUE)|| uS.isRightChar(w,s,'/',&tFnt,TRUE)) {
+							   uS.isRightChar(w,s,'*',&tFnt,TRUE) || uS.isRightChar(w,s,'#',&tFnt,TRUE) || 
+							   uS.isRightChar(w,s,'\'',&tFnt,TRUE)|| uS.isRightChar(w,s,'/',&tFnt,TRUE)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'&',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'|',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'#',&tFnt,TRUE) || uS.isRightChar(w,s+1,':',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'^',&tFnt,TRUE) || uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'*',&tFnt,TRUE) || uS.isRightChar(w,s+1,'+',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
+							uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'|',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'#',&tFnt,TRUE) || uS.isRightChar(w,s+1,':',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'^',&tFnt,TRUE) || uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'*',&tFnt,TRUE) || uS.isRightChar(w,s+1,'+',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
 							if (check_err(65, pos+s-1, pos+s-1, templine))
 								return(FALSE);
 						}
-					} else if (uS.isRightChar(w,s,'+',&tFnt,TRUE) || uS.isRightChar(w,s,'~',&tFnt,TRUE) ||
-							uS.isRightChar(w,s,'$',&tFnt,TRUE)) {
+					} else if (uS.isRightChar(w,s,'+',&tFnt,TRUE) || uS.isRightChar(w,s,'~',&tFnt,TRUE) || uS.isRightChar(w,s,'$',&tFnt,TRUE)) {
 						if (isFoundBar == 1) {
 							isFoundBar = 0;
 							e = s;
@@ -3965,11 +4271,11 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 								return(FALSE);
 						}
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'&',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'|',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'#',&tFnt,TRUE) || uS.isRightChar(w,s+1,':',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'^',&tFnt,TRUE) || uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'*',&tFnt,TRUE) || uS.isRightChar(w,s+1,'+',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
+							uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'|',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'#',&tFnt,TRUE) || uS.isRightChar(w,s+1,':',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'^',&tFnt,TRUE) || uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'*',&tFnt,TRUE) || uS.isRightChar(w,s+1,'+',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
 							if (check_err(65, pos+s-1, pos+s-1, templine))
 								return(FALSE);
 						}
@@ -3986,49 +4292,48 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 						}
 					} else if (uS.isRightChar(w,s,':',&tFnt,TRUE)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'&',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'|',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'#',&tFnt,TRUE) || uS.isRightChar(w,s+1,':',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'^',&tFnt,TRUE) || uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
+							uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'|',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'#',&tFnt,TRUE) || uS.isRightChar(w,s+1,':',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'^',&tFnt,TRUE) || uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
 							if (check_err(65, pos+s-1, pos+s-1, templine))
 								return(FALSE);
 						}
 					} else if (uS.isRightChar(w,s,'|',&tFnt,TRUE)) {
 						if (isFoundBar) {
-							if (check_err(79, pos+s-1, pos+s-1, templine))
+							if (check_err(79, pos-1, pos+s-1, templine))
 								return(FALSE);
 						} else
-						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'&',&tFnt,TRUE) ||
+							if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'&',&tFnt,TRUE) ||
 								uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'|',&tFnt,TRUE) ||
 								uS.isRightChar(w,s+1,'#',&tFnt,TRUE) || uS.isRightChar(w,s+1,':',&tFnt,TRUE) ||
 								uS.isRightChar(w,s+1,'^',&tFnt,TRUE) || uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
 								uS.isRightChar(w,s+1,'*',&tFnt,TRUE)) {
-							if (check_err(65, pos+s-1, pos+s-1, templine))
-								return(FALSE);
-						}
+								if (check_err(65, pos+s-1, pos+s-1, templine))
+									return(FALSE);
+							}
 						isFoundBar++;
 					} else if (uS.isRightChar(w,s,'^',&tFnt,TRUE)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'&',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,':',&tFnt,TRUE) || uS.isRightChar(w,s+1,'^',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
+							uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,':',&tFnt,TRUE) || uS.isRightChar(w,s+1,'^',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
 							if (check_err(65, pos+s-1, pos+s-1, templine))
 								return(FALSE);
 						}
 					} else if (uS.isRightChar(w,s,'?',&tFnt,TRUE)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'&',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,':',&tFnt,TRUE) || uS.isRightChar(w,s+1,'^',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'~',&tFnt,TRUE) || uS.isRightChar(w,s+1,'*',&tFnt,TRUE) ||
-								uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
+							uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,':',&tFnt,TRUE) || uS.isRightChar(w,s+1,'^',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'~',&tFnt,TRUE) || uS.isRightChar(w,s+1,'*',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
 							if (check_err(65, pos+s-1, pos+s-1, templine))
 								return(FALSE);
 						}
 					} else if (uS.isRightChar(w,s,'=',&tFnt,TRUE)) {
-						for (t=s+1; iswalpha(w[t]) || w[t] == '/' || w[t] == '_'; t++) ;
-						if (w[t] != EOS && w[t] != '~' && w[t] != '+' && w[t] != '$' &&
-							w[t] != '%' && w[t] != '^') {
+						for (t=s+1; iswalpha(w[t]) || w[t] == '/' || w[t] == '_' || w[t] == 0x2013; t++) ;
+						if (w[t] != EOS && w[t] != '~' && w[t] != '+' && w[t] != '$' && w[t] != '%' && w[t] != '^') {
 							if (check_err(65, pos+s-1, pos+t-2, templine))
 								return(FALSE);
 						}
@@ -4042,7 +4347,7 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 				}
 				s++;
 			}
-			if (isFoundBar != 1) {
+			if (isFoundBar < 1) {
 				if (check_err(80, pos+e-1, pos+len-1, templine))
 					return(FALSE);
 			}
@@ -4051,7 +4356,7 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 					return(FALSE);
 			}
 		}
-	} else if (ced_u.check_partcmp(ts->code, "%xcnl", FALSE)) {
+	} else if (ced_u.check_partcmp(ts->code, "%cnl", FALSE) || ced_u.check_partcmp(ts->code, "%xcnl", FALSE)) {
 		if (w[0] == 0x201E && w[1] == EOS) {
 		} else if (uS.isRightChar(w,0,'[',&tFnt,TRUE) && uS.isRightChar(w,len,']',&tFnt,TRUE)) {
 			if (isPostCodeMark(w[1], w[2])) {
@@ -4073,12 +4378,15 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 			while (w[s] != EOS) {
 				if (is_unCH_alnum(w[s])) {
 					if ((s == 0 || isSpace(w[s-1])) && w[s] == 'g' && w[s+1] == 'e' && w[s+2] == 'n' &&
-						  (uS.isskip(w,s+3,&tFnt,TRUE) || w[s+3] == EOS)) {
+						(uS.isskip(w,s+3,&tFnt,TRUE) || w[s+3] == EOS)) {
 						if (check_err(135, pos+s-1, pos+s+1, templine))
 							return(FALSE);
 					}
 				} else {
-					if (isIllegalASCII(w, s)) {
+					if ((t=isBadQuotes(w, s)) > 0) {
+						if (check_err(t, pos+s-1, pos+s-1, templine))
+							return(FALSE);
+					} else if (isIllegalASCII(w, s)) {
 						if (check_err(86, pos+s-1, pos+s-1, templine))
 							return(FALSE);
 					} else if (w[s] == HIDEN_C) {
@@ -4086,10 +4394,10 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 							return(FALSE);
 					} else if (uS.isRightChar(w,s,':',&tFnt,TRUE)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'&',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'|',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'#',&tFnt,TRUE) || uS.isRightChar(w,s+1,':',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'^',&tFnt,TRUE) || uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
+							uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'|',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'#',&tFnt,TRUE) || uS.isRightChar(w,s+1,':',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'^',&tFnt,TRUE) || uS.isRightChar(w,s+1,'~',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
 							if (check_err(65, pos+s-1, pos+s-1, templine))
 								return(FALSE);
 						}
@@ -4098,10 +4406,10 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 							return(FALSE);
 					} else if (uS.isRightChar(w,s,'?',&tFnt,TRUE)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&tFnt,TRUE) || uS.isRightChar(w,s+1,'&',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,':',&tFnt,TRUE) || uS.isRightChar(w,s+1,'^',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'~',&tFnt,TRUE) || uS.isRightChar(w,s+1,'*',&tFnt,TRUE) ||
-							  uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
+							uS.isRightChar(w,s+1,'=',&tFnt,TRUE) || uS.isRightChar(w,s+1,'#',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,':',&tFnt,TRUE) || uS.isRightChar(w,s+1,'^',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'~',&tFnt,TRUE) || uS.isRightChar(w,s+1,'*',&tFnt,TRUE) ||
+							uS.isRightChar(w,s+1,'+',&tFnt,TRUE) || uS.isRightChar(w,s+1,'\'',&tFnt,TRUE)) {
 							if (check_err(65, pos+s-1, pos+s-1, templine))
 								return(FALSE);
 						}
@@ -4123,7 +4431,10 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 		} else {
 			s = 0;
 			while (w[s] != EOS) {
-				if (isIllegalASCII(w, s)) {
+				if ((t=isBadQuotes(w, s)) > 0) {
+					if (check_err(t, pos+s-1, pos+s-1, templine))
+						return(FALSE);
+				} else if (isIllegalASCII(w, s)) {
 					if (check_err(86, pos+s-1, pos+s-1, templine))
 						return(FALSE);
 				} else if (w[s] == HIDEN_C) {
@@ -4165,7 +4476,10 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 		} else {
 			s = 0;
 			while (w[s] != EOS) {
-				if (isIllegalASCII(w, s)) {
+				if ((t=isBadQuotes(w, s)) > 0) {
+					if (check_err(t, pos+s-1, pos+s-1, templine))
+						return(FALSE);
+				} else if (isIllegalASCII(w, s)) {
 					if (check_err(86, pos+s-1, pos+s-1, templine))
 						return(FALSE);
 				} else if (w[s] == HIDEN_C) {
@@ -4182,10 +4496,52 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 	return(TRUE);
 }
 
+static char ced_isLangMatch(unCH *langs, int s, int wh, char isOneTime) {
+	int i, j, langCnt;
+	unCH t;
+
+	i = 0;
+	langCnt = 0;
+	while (langs[i]) {
+		for (; uS.isskip(langs,i,&tFnt,TRUE) || langs[i] == '\n'; i++) ;
+		if (langs[i] == EOS)
+			break;
+		for (j=i; !uS.isskip(langs,j,&tFnt,TRUE) && langs[j] != '=' && langs[j] != '\n' && langs[j] != EOS; j++) ;
+		t = langs[j];
+		langs[j] = EOS;
+		for (langCnt=0; ced_LanguagesTable[langCnt] != EOS && langCnt < NUMLANGUAGESINTABLE; langCnt++) {
+			if (strcmp(ced_LanguagesTable[langCnt], langs+i) == 0)
+				break;
+		}
+		langs[j] = t;
+		if (langCnt >= NUMLANGUAGESINTABLE) {
+			if (check_err(wh,s+i,s+j-1,templine))
+				return(FALSE);
+		}
+		if (isOneTime)
+			break;
+		if (langs[j] == '=')
+			for (; !uS.isskip(langs,j,&tFnt,TRUE) && langs[j] != '\n' && langs[j] != EOS; j++) ;
+		i = j;
+	}
+	return(TRUE);
+}
+
 static char ced_isOneLetter(unCH *word, unCH *bw) {
 	int num = 0;
 
 	for (; word != bw && *word != EOS && *word != '@' && *word != '-'; word++) {
+		if (*word == 0x21AB) {
+			while (*word != EOS) {
+				word++;
+				if (*word == 0x21AB)
+					break;
+			}
+			if (*word == 0x21AB)
+				word++;
+			if (*word == EOS)
+				break;
+		}
 		if (*word != ':')
 			num++;
 	}
@@ -4215,8 +4571,8 @@ static char ced_CheckFixes(CHECK_IN_TIERS *ts, unCH *word, unCH *templine, int s
 				bw = word + pos;
 				s1 = s;
 				for (pos++, s++; word[pos] && !uS.isRightChar(word, pos, '@', &tFnt, TRUE) &&
-								 !uS.ismorfchar(word,pos,&tFnt,CHECK_MORPHS,TRUE) &&
-					 !uS.isRightChar(word, pos, '$', &tFnt, TRUE); pos++, s++) ;
+											!uS.ismorfchar(word,pos,&tFnt,CHECK_MORPHS,TRUE) &&
+											!uS.isRightChar(word, pos, '$', &tFnt, TRUE); pos++, s++) ;
 				pos--;
 				s--;
 			} else
@@ -4226,8 +4582,14 @@ static char ced_CheckFixes(CHECK_IN_TIERS *ts, unCH *word, unCH *templine, int s
 			if (!strcmp(bw, "@l") && !ced_isOneLetter(word, bw)) {
 				if (check_err(76,s1-2,s1-2,templine)) return(FALSE);
 			}
+			if (bw[0] == '@' && bw[1] == 's' && bw[2] == ':') {
+				if (bw[3] == EOS) {
+					if (check_err(62,s1-1,s-1,templine))
+						return(FALSE);
+				}
+			}
 			for (tp=ts->tplate; tp != NULL; tp = tp->nextone) {
-				if (isCompFound && !ced_isSign) {
+				if (isCompFound) {
 					if (*tp->pattern == '+' && *(tp->pattern+1) != EOS) {
 						if (ced_u.check_patmat(bw,tp->pattern+1))
 							break;
@@ -4242,9 +4604,14 @@ static char ced_CheckFixes(CHECK_IN_TIERS *ts, unCH *word, unCH *templine, int s
 			word[pos+1] = t;
 			if (tp == NULL) {
 				if (isPrefix) {
-					if (check_err(37,s1-1,s-1,templine)) return(FALSE);
+					if (check_err(37,s1-1,s-1,templine))
+						return(FALSE);
+				} else if (templine[s1-1] == '@') {
+					if (check_err(147,s1-1,s-1,templine))
+						return(FALSE);
 				} else {
-					if (check_err(20,s1-1,s-1,templine)) return(FALSE);
+					if (check_err(20,s1-1,s-1,templine))
+						return(FALSE);
 				}
 			} else
 				*found = TRUE;
@@ -4255,38 +4622,9 @@ static char ced_CheckFixes(CHECK_IN_TIERS *ts, unCH *word, unCH *templine, int s
 	return(TRUE);
 }
 
-static char ced_isNotMatch(unCH *langs, int s) {
-	int i, j, langCnt;
-	unCH t;
-
-	i = 0;
-	langCnt = 0;
-	while (langs[i]) {
-		for (; uS.isskip(langs,i,&tFnt,TRUE) || langs[i] == '\n'; i++) ;
-		if (langs[i] == EOS)
-			break;
-		for (j=i; !uS.isskip(langs,j,&tFnt,TRUE) && langs[j] != '=' && langs[j] != '\n' && langs[j] != EOS; j++) ;
-		t = langs[j];
-		langs[j] = EOS;
-		for (langCnt=0; langCnt < NUMLANGUAGESINTABLE; langCnt++) {
-			if (strcmp(ced_LanguagesTable[langCnt], langs+i) == 0)
-				break;
-		}
-		if (langCnt >= NUMLANGUAGESINTABLE) {
-			if (check_err(122,s+i,s+j-1,templine))
-				return(FALSE);
-		}
-		langs[j] = t;
-		if (langs[j] == '=')
-			for (; !uS.isskip(langs,j,&tFnt,TRUE) && langs[j] != '\n' && langs[j] != EOS; j++) ;
-		i = j;
-	}
-	return(TRUE);
-}
-
 static char ced_ID(CHECK_IN_TIERS *ts) {
 	int r, s = 0, e = 0, cnt;
-	unCH *st;
+	unCH *st, spkr[BUFSIZ+1];
 	CHECK_IN_TIERS *tts;
 
 	cnt = 0;
@@ -4330,7 +4668,7 @@ static char ced_ID(CHECK_IN_TIERS *ts) {
 		if (is_unCH_alnum(*(ced_line+1)) || (*(ced_line+1) < 1 && *(ced_line+1) != EOS) || *(ced_line+1) > 127)
 			ced_HandleParans(ced_line,NULL);
 		if (cnt == 0) {
-			if (!ced_isNotMatch(ced_line, s))
+			if (!ced_isLangMatch(ced_line, s, 122, FALSE))
 				return(FALSE);
 			if (ced_line[0] == EOS) {
 				if (check_err(62,s,e-2,templine))
@@ -4345,12 +4683,19 @@ static char ced_ID(CHECK_IN_TIERS *ts) {
 			if (ced_line[0] == EOS) {
 				if (check_err(12,s,e-2,templine))
 					return(FALSE);
-			} else if (ced_matchSpeaker(global_df->headsp, ced_line)) {
+			} else if (ced_matchSpeaker(ced_headsp, ced_line, TRUE)) {
 				if (check_err(18,s,e-2,templine))
 					return(FALSE);
+			} else if (ced_matchIDsp(ced_idsp, ced_line)) {
+				if (check_err(13,s,e-2,templine))
+					return(FALSE);
 			}
+			if (!ced_addIDdsp(ced_line))
+				return(FALSE);
+			strncpy(spkr, ced_line, BUFSIZ);
+			spkr[BUFSIZ] = EOS;
 		} else if (cnt == 3) {
-			if ((tts=ced_FindTier(global_df->headt,cl_T(IDOF))) != NULL) {
+			if ((tts=ced_FindTier(ced_headt,cl_T(IDOF))) != NULL) {
 				if (!ced_Age(tts, NULL, templine, s, '|'))
 					return(FALSE);
 			}
@@ -4362,28 +4707,42 @@ static char ced_ID(CHECK_IN_TIERS *ts) {
 			}
 		} else if (cnt == 5) {
 		} else if (cnt == 6) {
+			if ((tts=ced_FindTier(ced_headt,cl_T(IDOF))) != NULL) {
+				if (!ced_ses(tts, NULL, templine, s, '|'))
+					return(FALSE);
+			}
 		} else if (cnt == 7) {
 			if (ced_line[0] == EOS) {
 				if (check_err(12,s,e-2,templine))
 					return(FALSE);
-			} else if ((tts=ced_FindTier(global_df->headt,cl_T(PARTICIPANTS))) != NULL) {
-				if (ced_matchplate(tts->tplate,ced_line)) {
-					if (check_err(15,s,e-2,templine)) return(FALSE);
+			} else {
+				if ((tts=ced_FindTier(ced_headt,cl_T(PARTICIPANTS))) != NULL) {
+					if (ced_matchplate(tts->tplate, ced_line, 'D')) {
+						if (check_err(15,s,e-2,templine)) return(FALSE);
+					}
+				}
+				if (ced_matchRole(spkr, ced_headsp, ced_line)) {
+					if (check_err(142,s,e-2,templine))
+						return(FALSE);
 				}
 			}
 		} else if (cnt == 8) {
 		} else if (cnt == 9) {
-		} else if ((r=ced_matchplate(ts->tplate,ced_line))) {
+		} else if ((r=ced_matchplate(ts->tplate, ced_line, 'D'))) {
 			if (check_err(r,s-1,e-2,templine)) return(FALSE);
 		}
 		s = e;
 		cnt++;
 	}
+	if (cnt != 10) {
+		if (check_err(143,1,e,templine))
+			return(FALSE);
+	}
 	return(TRUE);
 }
 
 static char ced_isMorTier(void) {
-    if (sp[0] == '%' && sp[1] == 'm' && sp[2] == 'o' && sp[3] == 'r')
+    if (ced_sp[0] == '%' && ced_sp[1] == 'm' && ced_sp[2] == 'o' && ced_sp[3] == 'r')
 		return(TRUE);
     else
 		return(FALSE);
@@ -4399,14 +4758,14 @@ static char ced_getMediaTagInfo(unCH *line, long *Beg, long *End) {
 		return(FALSE);
 	if (*line == '%' && (*(line+1) == 's' || *(line+1) == 'm'))
 		return(6);
-	if (*line == '%' && (*(line+1) == 'p' || *(line+1) == 't'))
+	if (*line == '%' && (*(line+1) == 'p' || *(line+1) == 't' || *(line+1) == 'n'))
 		return(0);
 	if (*line == '0' && is_unCH_digit(*(line+1)))
 		return(3);
 	for (i=0; *line && is_unCH_digit(*line); line++)
 		templine1[i++] = *line;
 	templine1[i] = EOS;
-	beg = atol(templine1);
+	beg = uS.atol(templine1);
 	if (beg == 0)
 		beg = 1;
 	if (*line != '_')
@@ -4419,7 +4778,7 @@ static char ced_getMediaTagInfo(unCH *line, long *Beg, long *End) {
 	for (i=0; *line && is_unCH_digit(*line); line++)
 		templine1[i++] = *line;
 	templine1[i] = EOS;
-	end = atol(templine1);
+	end = uS.atol(templine1);
 	*Beg = beg;
 	*End = end;
 	if (*line == '-')
@@ -4478,7 +4837,7 @@ static char ced_getOLDMediaTagInfo(unCH *line, unCH *fname, long *Beg, long *End
 	for (i=0; *line && is_unCH_digit(*line); line++)
 		templine1[i++] = *line;
 	templine1[i] = EOS;
-	beg = atol(templine1);
+	beg = uS.atol(templine1);
 	if (beg == 0)
 		beg = 1;
 	if (*line != '_')
@@ -4491,7 +4850,7 @@ static char ced_getOLDMediaTagInfo(unCH *line, unCH *fname, long *Beg, long *End
 	for (i=0; *line && is_unCH_digit(*line); line++)
 		templine1[i++] = *line;
 	templine1[i] = EOS;
-	end = atol(templine1);
+	end = uS.atol(templine1);
 	*Beg = beg;
 	*End = end;
 	if (*line == '-')
@@ -4526,12 +4885,12 @@ static int ced_checkBulletsConsist(char *FirstBulletFound, unCH *word) {
 		if (res) {
 			if (ced_isUnlinkedFound)
 				return(124); // remove "unlinked" from @Media header
+			if (ced_SNDEnd <= ced_SNDBeg) {
+				ced_SNDBeg = tBegTime;
+				ced_SNDEnd = tEndTime;
+				return(82); // BEG mark must be smaller than END mark
+			}
 			if (tEndTime != 0L) {
-				if (ced_SNDEnd <= ced_SNDBeg) {
-					ced_SNDBeg = tBegTime;
-					ced_SNDEnd = tEndTime;
-					return(82); // BEG mark must be smaller than END mark
-				}
 				if (*FirstBulletFound == FALSE) {
 					*FirstBulletFound = TRUE;
 					if (ced_SNDBeg < ced_tierBegTime) {
@@ -4548,11 +4907,11 @@ static int ced_checkBulletsConsist(char *FirstBulletFound, unCH *word) {
 						return(83); // Current BEG time is smaller than previous' tier BEG time
 					}
 				}
-				tDiff = ced_getLatTime(sp) - ced_SNDBeg;
+				tDiff = ced_getLatTime(ced_sp) - ced_SNDBeg;
 				if (tDiff > 500L) {
 					ced_SNDBeg = tBegTime;
 					ced_SNDEnd = tEndTime;
-					ced_setLastTime(sp, ced_SNDEnd);
+					ced_setLastTime(ced_sp, ced_SNDEnd);
 					return(133); // Current BEG time is smaller than same speaker's previous END time
 				}
 				if (checkBullets == 1) {
@@ -4560,18 +4919,18 @@ static int ced_checkBulletsConsist(char *FirstBulletFound, unCH *word) {
 						ced_SNDBeg = tBegTime;
 						ced_SNDEnd = tEndTime;
 						tDiff = tEndTime - ced_SNDBeg;
-						ced_setLastTime(sp, ced_SNDEnd);
+						ced_setLastTime(ced_sp, ced_SNDEnd);
 						return(84); // Current BEG time is smaller than previous' tier END time
 					}
 					if (ced_SNDBeg > tEndTime) {
 						ced_SNDBeg = tBegTime;
 						ced_SNDEnd = tEndTime;
-						ced_setLastTime(sp, ced_SNDEnd);
+						ced_setLastTime(ced_sp, ced_SNDEnd);
 						return(85); // Gap found between current BEG time and previous' tier END time
 					}
 				}
 			}
-			ced_setLastTime(sp, ced_SNDEnd);
+			ced_setLastTime(ced_sp, ced_SNDEnd);
 		}
 		return(0);
 	}
@@ -4615,11 +4974,11 @@ static int ced_checkBulletsConsist(char *FirstBulletFound, unCH *word) {
 					return(83); // Current BEG time is smaller than previous' tier BEG time
 				}
 			}
-			tDiff = ced_getLatTime(sp) - ced_SNDBeg;
+			tDiff = ced_getLatTime(ced_sp) - ced_SNDBeg;
 			if (tDiff > 500L) {
 				ced_SNDBeg = tBegTime;
 				ced_SNDEnd = tEndTime;
-				ced_setLastTime(sp, ced_SNDEnd);
+				ced_setLastTime(ced_sp, ced_SNDEnd);
 				return(133); // Current BEG time is smaller than same speaker's previous END time
 			}
 			if (checkBullets == 1) {
@@ -4627,18 +4986,18 @@ static int ced_checkBulletsConsist(char *FirstBulletFound, unCH *word) {
 					ced_SNDBeg = tBegTime;
 					ced_SNDEnd = tEndTime;
 					tDiff = tEndTime - ced_SNDBeg;
-					ced_setLastTime(sp, ced_SNDEnd);
+					ced_setLastTime(ced_sp, ced_SNDEnd);
 					return(84); // Current BEG time is smaller than previous' tier END time
 				}
 				if (ced_SNDBeg > tEndTime) {
 					ced_SNDBeg = tBegTime;
 					ced_SNDEnd = tEndTime;
-					ced_setLastTime(sp, ced_SNDEnd);
+					ced_setLastTime(ced_sp, ced_SNDEnd);
 					return(85); // Gap found between current BEG time and previous' tier END time
 				}
 			}
 		}
-		ced_setLastTime(sp, ced_SNDEnd);
+		ced_setLastTime(ced_sp, ced_SNDEnd);
 	}
 	return(0);
 }
@@ -4653,17 +5012,28 @@ static void ced_removeCAChars(unCH *word) {
 	i = 0;
 	while (word[i]) {
 		if ((res=uS.HandleCAChars(word+i, &matchedType)) != 0) {
-			strcpy(word+i,word+i+res);
+			if (matchedType != NOTCA_LEFT_ARROW_CIRCLE)
+				strcpy(word+i,word+i+res);
+			else
+				i++;
 		} else
 			i++;
 	}
+}
+
+static char ced_lastBulletOnTier(unCH *st) {
+	for (; *st != EOS; st++) {
+		if (*st != '\n' && !isSpace(*st))
+			return(FALSE);
+	}
+	return(TRUE);
 }
 
 static char ced_ParseBlob(CHECK_IN_TIERS *ts) {
 	int s = 0, e = 0, res;
 	unCH *st;
 	char hidenc;
-	char isTextBetweenBulletsFound = FALSE, FirstBulletFound = FALSE;
+	char isTextBetweenBulletsFound = FALSE, FirstBulletFound = FALSE, isLastItemBullet = FALSE;
 
 	ced_line[0] = EOS;
 	if (ts != NULL && ts->IGN)
@@ -4687,21 +5057,26 @@ static char ced_ParseBlob(CHECK_IN_TIERS *ts) {
 		}
 		*st = EOS;
 		if (ced_line[0] == HIDEN_C) {
-			if (*sp == '*') {
-				if (!isTextBetweenBulletsFound) {
+			if (*ced_sp == '*') {
+				if (!isTextBetweenBulletsFound && (!ced_isMultiBullets || !isLastItemBullet || !ced_lastBulletOnTier(templine+e))) {
 					if (check_err(73,s-1,e-1,templine)) return(FALSE);
 				}
 			}
 			if (hidenc) {
 				if (check_err(59,s-1,s-1,templine)) return(FALSE);
 			}
-			if ((res=ced_checkBulletsConsist(&FirstBulletFound, ced_line)) != 0) {
-				if (check_err(res,s-1,e-1,templine))
-					return(FALSE);
+			if (ced_sp[0] == '*' /* 2018-08-06 || ced_isBlob == FALSE */) {
+				if ((res=ced_checkBulletsConsist(&FirstBulletFound, ced_line)) != 0) {
+					if (check_err(res,s-1,e-1,templine))
+						return(FALSE);
+				}
 			}
 			isTextBetweenBulletsFound = FALSE;
-		} else 
+			isLastItemBullet = TRUE;
+		} else {
 			isTextBetweenBulletsFound = TRUE;
+			isLastItemBullet = FALSE;
+		}
 		s = e;
 	}
 	return(TRUE);
@@ -4759,22 +5134,57 @@ static char ced_isReplacementError(unCH *line, int s) {
 	return(FALSE);
 }
 
-static char ced_CheckLanguageCodes(unCH *word, int s) {
-	int i, j;
-	char old_code[20];
-	unCH *st, t;
+static char ced_isNumbersLang(unCH *lang) {
+	if (!strcmp(lang, "zh")  || !strncmp(lang, "zh-", 3)  ||
+		!strcmp(lang, "chi") || !strncmp(lang, "chi-", 4) ||
+		!strcmp(lang, "zho") || !strncmp(lang, "zho-", 4) ||
+		!strcmp(lang, "cy")  || !strcmp(lang, "cym")      ||
+		!strcmp(lang, "vi")  || !strcmp(lang, "vie")      ||
+		!strcmp(lang, "th")  || !strcmp(lang, "tha")      ||
+		!strcmp(lang, "nan") || !strcmp(lang, "yue")      ||
+		!strcmp(lang, "min") || !strcmp(lang, "hak")) {
+		return(TRUE);
+	}
+	return(FALSE);
+}
+
+static char ced_CheckLanguageCodes(unCH *word, int s, char *isLcodeFound, char *isGlcodeFound) {
+	int i, j, li;
+	char old_code[20], isAtS;
+	unCH t;
+	unCH *st;
 
 	if (word[0] == '[' && word[1] == '-') {
 		for (i=2; isSpace(word[i]); i++) ;
 		if (word[i] == EOS || word[i] == ']')
 			return(TRUE);
+		isAtS = FALSE;
 	} else if ((st=strchr(word, '@')) != NULL) {
-		if (st[1] != 's' || st[2] != ':')
+		if (st[1] != 's') {
 			return(TRUE);
+		} else if (st[2] != ':') {
+			if (ced_curLanguage == 0) {
+				li = 1;
+			} else if (ced_curLanguage == 1) {
+				li = 0;
+			} else {
+				li = -1;
+			}
+			if (li == -1)
+				ced_isNumberShouldBeHere = FALSE;
+			else if (ced_isNumbersLang(ced_LanguagesTable[li]))
+				ced_isNumberShouldBeHere = TRUE;
+			else
+				ced_isNumberShouldBeHere = FALSE;
+			*isLcodeFound = TRUE;
+			return(TRUE);
+		}
 		i = (st - word) + 3;
+		isAtS = TRUE;
 	} else
 		return(TRUE);
-	for (j=i; word[j] != EOS && word[j] != ']' && word[j] != '&' && word[j] != '+' && word[j] != '$' && word[j] != ':'; j++) ;
+	// 2019-04-17	for (j=i; word[j] != EOS && word[j] != ']' && word[j] != '&' && word[j] != '+' && word[j] != '$' && word[j] != ':'; j++) ;
+	for (j=i; (word[j] >= 'a' && word[j] <= 'z') || word[j] == '-'; j++) ;
 	t = word[j];
 	word[j] = EOS;
 	if (ced_isTwoLetterCode(word+i)) {
@@ -4784,7 +5194,7 @@ static char ced_CheckLanguageCodes(unCH *word, int s) {
 		word[j] = t;
 		if (check_err(120,s+i-1,s+j-2,templine)) {
 			word[j] = EOS;
-			return(FALSE);
+ 			return(FALSE);
 		}
 	} else {
 		u_strcpy(old_code, word+i, 19);
@@ -4803,6 +5213,37 @@ static char ced_CheckLanguageCodes(unCH *word, int s) {
 					word[j] = EOS;
 					return(FALSE);
 				}
+			} else if (isAtS) { // 2019-01-06 @s:rus
+				ced_isNumberShouldBeHere = FALSE;
+				do {
+					if (ced_isNumbersLang(word+i))
+						ced_isNumberShouldBeHere = TRUE;
+					word[j] = t;
+					if (word[j] == '+' || word[j] == '&') {
+						i = j + 1;
+						for (j=i; (word[j] >= 'a' && word[j] <= 'z') || word[j] == '-'; j++) ;
+						t = word[j];
+						word[j] = EOS;
+					} else
+						break;
+				} while (word[i] != EOS) ;
+				*isLcodeFound = TRUE;
+				return(TRUE);
+			} else if (!ced_isLangMatch(word+i, s+i-1, 152, TRUE)) {
+				word[j] = t;
+				return(FALSE);
+			} else {
+				if (ced_isNumbersLang(word+i))
+					ced_isNumberShouldBeHere = TRUE;
+				else
+					ced_isNumberShouldBeHere = FALSE;
+				*isGlcodeFound = TRUE;
+				for (li=0; ced_LanguagesTable[li] != EOS && li < NUMLANGUAGESINTABLE; li++) {
+					if (strcmp(ced_LanguagesTable[li], word+i) == 0) {
+						ced_curLanguage = li;
+						break;
+					}
+				}
 			}
 		}
 	}
@@ -4810,19 +5251,39 @@ static char ced_CheckLanguageCodes(unCH *word, int s) {
 	return(TRUE);
 }
 
+static char ced_isGrouping(unCH *beg, unCH *end, int e) {
+
+	if (beg[0] == 0x2039 && beg[1] == '(' && e >= 1 &&
+		end[e-1] == 0x2039 && end[e] == '(')
+		return(TRUE);
+	return(FALSE);
+}
+
+static char ced_isPlayBullet(unCH *word) {
+	if (isdigit(word[1]) || (word[1] == '%' && (word[2] == 's' || word[2] == 'm')))
+		return(TRUE);
+	return(FALSE);
+}
+
+
 static char ced_ParseWords(CHECK_IN_TIERS *ts) {
-	int r, s, e, te, res;
+	int j, r, s, e, te, res;
 	int matchType;
 	unCH *st, t;
 	char sq, hidenc;
 	char FirstWordFound = FALSE, FirstBulletFound = FALSE, isTextBetweenBulletsFound = FALSE,
-		isBulletFound = FALSE, isTextFound, isPauseFound, isSpecialDelimFound, isR2L, CADelFound = FALSE,
-		isPreLanguageCodeFound = FALSE;
+		isBulletFound = FALSE, isTextFound, isPoundSymFound, isSpecialDelimFound, isR2L, CADelFound = FALSE,
+		isPreLanguageCodeFound = FALSE, isLastItemBullet,
+		isLcodeFound, isLNumberShouldBeHere, isGLcodeFound, isGNumberShouldBeHere, isPauseFound;
 	int isFasterMatched, isSlowerMatched, isCreakyMatched, isUnsureMatched, isSofterMatched, 
 		isLouderMatched, isLoPitchMatched, isHiPitchMatched, isSmileMatched, isWhisperMatched,
 		isYawnMatched, isSingingMatched, isPreciseMatched, isBreathyMatched, isLeftArrowMatched;
-	int sb = 0, pb = 0, ab = 0, cb = 0, lpb = 0, gm = 0, sgm = 0, qt = 0, qts = 0, anb = FALSE, DelFound = 0;
+	int sb = 0, pb = 0, ab = 0, cb = 0, lpb = 0, gm = 0, sgm = 0, qt = 0, anb = FALSE, DelFound = 0;
+	int pauseBeg, pauseEnd;
 
+	pauseBeg = 0;
+	pauseEnd = 0;
+	isPauseFound = FALSE;
 	isFasterMatched = -1;
 	isSlowerMatched = -1;
 	isCreakyMatched = -1;
@@ -4838,25 +5299,29 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 	isPreciseMatched= -1;
 	isBreathyMatched= -1;
 	isLeftArrowMatched = -1;
+	ced_curLanguage = 0;
+	isGLcodeFound = FALSE;
+	isGNumberShouldBeHere = ced_isNumberShouldBeHere;
 	ced_line[0] = EOS;
 	if (ts->IGN)
 		return(TRUE);
-	if (*sp == '%' || *sp == '@')
+	if (*ced_sp == '%' || *ced_sp == '@')
 		isTextFound = TRUE;
 	else
 		isTextFound = FALSE;
-	isPauseFound = FALSE;
+	isPoundSymFound = FALSE;
 	isSpecialDelimFound = FALSE;
 	isR2L = ced_isRight2Left(templine);
 	s = 0;
 	e = 0;
+	isLastItemBullet = FALSE;
 	while (1) {
 		st = ced_line;
 		t = ced_line[0];
 		lpb = pb;
 		while ((*st=templine[s++]) != EOS && uS.isskip(templine,s-1,&tFnt,TRUE) && !uS.isRightChar(templine,s-1,'[',&tFnt,TRUE)) {
 			if (*st == '>')
-				isPauseFound = FALSE;
+				isPoundSymFound = FALSE;
 
 			if (is_italic(tempAtt[s-1])) {
 				if (check_err(102,s-1,s-1,templine)) return(FALSE);
@@ -4865,9 +5330,9 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 				if (!uS.isskip(templine,s,&tFnt,TRUE) && templine[s] != ',' && templine[s] != EOS && templine[s] != '\n') {
 					if (uS.HandleCAChars(templine+s, &matchType)) {
 						if (matchType != NOTCA_GROUP_START && matchType != NOTCA_GROUP_END &&
-							  matchType != NOTCA_SIGN_GROUP_START && matchType != NOTCA_SIGN_GROUP_END &&
-							  matchType != CA_APPLY_OPTOPSQ && matchType != CA_APPLY_CLTOPSQ &&
-							  matchType != CA_APPLY_OPBOTSQ && matchType != CA_APPLY_CLBOTSQ) {
+							matchType != NOTCA_SIGN_GROUP_START && matchType != NOTCA_SIGN_GROUP_END &&
+							matchType != CA_APPLY_OPTOPSQ && matchType != CA_APPLY_CLTOPSQ &&
+							matchType != CA_APPLY_OPBOTSQ && matchType != CA_APPLY_CLBOTSQ) {
 							if (check_err(92,s-1,s-1,templine))
 								return(FALSE);
 						}
@@ -4875,7 +5340,9 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 						return(FALSE);
 				} else if (templine[s] == ',' && templine[s+1] == ',') {
 					if (check_err(107,s-1,s+1,templine)) return(FALSE);
-				} 
+				} else if (templine[s] == ',') {
+					if (check_err(156,s-1,s,templine)) return(FALSE);
+				}
 			}
 			if (*st == '\n') {
 				isBulletFound = FALSE;
@@ -4886,10 +5353,10 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 				break;
 			else if ((res=uS.IsUtteranceDel(templine, s-1))) {
 				if (!isSpecialDelimFound) {
-					if (!strncmp(sp, "%mor", 4) && ced_lastSpDelim[0] != EOS && ced_lastSpDelim[0] != templine[s-1]) {
+					if (!strncmp(ced_sp, "%mor", 4) && ced_lastSpDelim[0] != EOS && ced_lastSpDelim[0] != templine[s-1]) {
 						if (check_err(94,s-1,s-1,templine)) return(FALSE);
 					}
-					if (*sp == '*') {
+					if (*ced_sp == '*') {
 						ced_lastSpDelim[0] = templine[s-1];
 						ced_lastSpDelim[1] = EOS;
 					}
@@ -4915,16 +5382,18 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 			}
 		}
 		if (*st == EOS) {
-			if (*sp == '*' && anb) {
+			if (*ced_sp == '*' && anb) {
 				if (check_err(51,s-1,s-1,templine)) return(FALSE);
 			}
 			break;
 		}
 		hidenc = FALSE;
 		sq = FALSE;
-		if (templine[s-1] == HIDEN_C) hidenc = TRUE;
-		else if (uS.isRightChar(templine,s-1,'[',&tFnt,TRUE)) sq = TRUE;
-		else if (uS.isRightChar(templine,s-1,'(',&tFnt,TRUE) && uS.isPause(templine,s-1,NULL,&r)) ; // Remove to diss-allow pause after '.'
+		if (templine[s-1] == HIDEN_C)
+			hidenc = TRUE;
+		else if (uS.isRightChar(templine,s-1,'[',&tFnt,TRUE))
+			sq = TRUE;
+		else if (uS.isRightChar(templine,s-1,'(',&tFnt,TRUE) && uS.isPause(templine,s-1,NULL,&r)) ; // Remove to diss-allow (.) pause after '.'
 		else {
 			if (DelFound && ts->UTD == 1) {
 				if (DelFound == 1) {
@@ -4942,7 +5411,12 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 		}
 		ced_CheckBrakets(templine,s-1,&sb,&pb,&ab,&cb,&anb);
 		e = s;
-		if (*st == '&' && *sp == '*') {
+		if (*st == '&' && *ced_sp == '*') {
+			if (templine[e] == '+' && (templine[e+1] < '!' || templine[e+1] > '?')) {
+				st++;
+				*st = templine[e];
+				e++;
+			}
 			while ((*++st=templine[e]) != EOS && !isSpace(*st) && *st != '\n' && *st != '>' && *st != '[' &&
 				   *st != ',' && *st != '+' && *st != '.' && *st != '?' && *st != '!') {
 				if (is_italic(tempAtt[e])) {
@@ -4957,7 +5431,7 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 					if (check_err(102,e-1,e-1,templine)) return(FALSE);
 				}
 				if (uS.isRightChar(templine, e, '(', &tFnt, TRUE) && uS.isPause(templine, e, NULL, &r)) {
-					if (!uS.isRightChar(ced_line, 0, '[', &tFnt, TRUE)) {
+					if (!uS.isRightChar(ced_line, 0, '[', &tFnt, TRUE) && !ced_isGrouping(ced_line, templine, e)) {
 						if (check_err(57,e,e,templine)) return(FALSE);
 					}
 				}
@@ -4972,7 +5446,7 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 				else if (uS.isRightChar(templine, e-1, '[', &tFnt, TRUE))
 					sb++;
 			}
-			if (*sp == '*') {
+			if (*ced_sp == '*') {
 				if (uS.IsUtteranceDel(templine, e)) {
 					if (ced_atUFound(templine, e)) {
 						e++;
@@ -5019,15 +5493,32 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 
 			*st = EOS;
 
-			if (!strncmp(sp, "%mor", 4) && uS.IsUtteranceDel(templine, e) && ced_lastSpDelim[0] != EOS && strcmp(ced_lastSpDelim, ced_line)) {
+			if (!strncmp(ced_sp, "%mor", 4) && uS.IsUtteranceDel(templine, e) && ced_lastSpDelim[0] != EOS && strcmp(ced_lastSpDelim, ced_line)) {
 				if (check_err(94,s-1,te-1,templine))
 					return(FALSE);
 			}
-			if (*sp == '*')
+			if (*ced_sp == '*')
 				strcpy(ced_lastSpDelim, ced_line);
 			isSpecialDelimFound = TRUE;
 		} else
 			*st = EOS;
+		//detecting pause markers before retrace markers-BEG
+		if (strcmp(ced_line, "[/]") == 0 || strcmp(ced_line, "[//]") == 0 || strcmp(ced_line, "[///]") == 0 ||
+			strcmp(ced_line, "[/-]") == 0) {
+			if (isPauseFound && pauseBeg != pauseEnd && e > pauseBeg) {
+				if (check_err(159,pauseBeg-1,e-1,templine))
+					return(FALSE);
+			}
+		}
+		pauseBeg = 0;
+		pauseEnd = 0;
+		isPauseFound = FALSE;
+		if (uS.isRightChar(ced_line,0,'(',&tFnt,TRUE) && uS.isPause(ced_line,0,NULL,&r)) {
+			pauseBeg = s;
+			pauseEnd = e;
+			isPauseFound = TRUE;
+		}
+		//detecting pause markers before retrace markers-END
 		if (ced_line[0] == '[' && ced_line[1] == ':' && ced_line[2] == ' ') {
 			templine[s-1] = ' ';
 			templine[s] = ' ';
@@ -5052,7 +5543,7 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 				 uS.isRightChar(ced_line,2,' ',&tFnt,TRUE))
 			isTextFound = TRUE;
 
-		if (*sp == '*') {
+		if (*ced_sp == '*') {
 			if (anb && !uS.isRightChar(ced_line,0,'[',&tFnt,TRUE)) {
 				if (check_err(51,s-1,s-1,templine)) return(FALSE);
 			}
@@ -5075,7 +5566,7 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 			}
 			if (res == 0) {
 				if (templine[e] && templine[e+1] && 
-					(*sp == '*' || (templine[e+1] != '\'' && templine[e+1] != '"' && !is_unCH_digit(templine[e+1])))) {
+					(*ced_sp == '*' || (templine[e+1] != '\'' && templine[e+1] != '"' && !is_unCH_digit(templine[e+1])))) {
 					if (templine[e] == HIDEN_C && e > 0) {
 						if (check_err(19,e,e-1,templine)) return(FALSE);
 					} else {
@@ -5088,8 +5579,21 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 			for (r=0; ced_line[r]; ) {
 				res = uS.HandleCAChars(ced_line+r, &matchType);// up-arrow
 				if (res) {
+/* 2019-04-17 leave this to CHATTER
 					if (matchType == CA_APPLY_RISETOHIGH || matchType == CA_APPLY_RISETOMID || matchType == CA_APPLY_LEVEL ||
-						  matchType == CA_APPLY_FALLTOMID || matchType == CA_APPLY_FALLTOLOW || matchType == CA_APPLY_UNMARKEDENDING) {
+						matchType == CA_APPLY_FALLTOMID || matchType == CA_APPLY_FALLTOLOW) {
+						if (isFasterMatched != -1 || isSlowerMatched != -1 || isCreakyMatched != -1 || isUnsureMatched != -1 ||
+							isSofterMatched != -1 || isLouderMatched != -1 || isLoPitchMatched!= -1 || isHiPitchMatched != -1||
+							isSmileMatched != -1  || isWhisperMatched != -1|| isYawnMatched != -1   || isSingingMatched != -1||
+							isPreciseMatched != -1|| isBreathyMatched != -1|| isLeftArrowMatched != -1) {
+							if (*ced_sp == '*') {
+								if (check_err(145,s+r-1,s+r-1,templine)) return(FALSE);
+							}
+						}
+					}
+*/
+					if (matchType == CA_APPLY_RISETOHIGH || matchType == CA_APPLY_RISETOMID || matchType == CA_APPLY_LEVEL ||
+						matchType == CA_APPLY_FALLTOMID || matchType == CA_APPLY_FALLTOLOW || matchType == CA_APPLY_UNMARKEDENDING) {
 						CADelFound = TRUE;
 						if (isBulletFound) {
 							if (check_err(118,s-1,e-1,templine)) return(FALSE);
@@ -5176,10 +5680,6 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 						qt++;
 					} else if (matchType == NOTCA_CLOSE_QUOTE) {
 						qt--;
-					} else if (matchType == NOTCA_OPEN_S_QUOTE) {
-						qts++;
-					} else if (matchType == NOTCA_CLOSE_S_QUOTE) {
-						qts--;
 					} else if (matchType == NOTCA_LEFT_ARROW_CIRCLE) {
 						if (isLeftArrowMatched != -1)
 							isLeftArrowMatched = -1;
@@ -5192,21 +5692,27 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 			}
 		}
 
-		if (W_CHECK_COUNT(ced_GenOpt) && ts->WORDCHECK && ced_line[0] != HIDEN_C) {
-			if (!ced_CheckWords(ced_line, s, templine, ts)) return(FALSE);
-		}
 //		uS.uppercasestr(ced_line, &tFnt, TRUE);
 		if (!strcmp(ced_line, "/")) {
 			if (check_err(48,s-1,e-1,templine)) return(FALSE);
 		}
-		if (*sp == '*') {
+		isLcodeFound = FALSE;
+		isLNumberShouldBeHere = ced_isNumberShouldBeHere;
+		if (*ced_sp == '*') {
+			j = strlen(ced_line) - 1;
+			if (!ced_isCAFound && j > 0 && ced_line[0] == '(' && ced_line[j] == ')') {
+				if (!uS.isPause(ced_line, 1, NULL, NULL) && strchr(ced_line+1, '(') == NULL) {
+					if (check_err(155,s-1,e-1,templine))
+						return(FALSE);
+				}
+			}
 			if (ced_line[0] == '#')
-				isPauseFound = TRUE;
+				isPoundSymFound = TRUE;
 			else {
-				if (ced_line[0] == '[' && ced_line[1] != '+' && ced_line[1] != '^' && isPauseFound) {
+				if (ced_line[0] == '[' && ced_line[1] != '+' && ced_line[1] != '^' && isPoundSymFound) {
 					if (check_err(71,s-1,e-1,templine)) return(FALSE);
 				}
-				isPauseFound = FALSE;
+				isPoundSymFound = FALSE;
 			}
 			if (ced_line[0] == '(' && uS.isPause(ced_line,0,NULL,&r) && DelFound) {
 				if (check_err(72,s-1,e-1,templine)) return(FALSE);
@@ -5222,11 +5728,18 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 					if (check_err(108,s-1,te-1,templine)) return(FALSE);
 				}
 			}
-			ced_removeCAChars(ced_line);
 			if (ced_line[0] == '[' && ced_line[1] == '-')
 				isPreLanguageCodeFound = TRUE;
-			if (!ced_CheckLanguageCodes(ced_line, s))
+			if (!ced_CheckLanguageCodes(ced_line, s, &isLcodeFound, &isGLcodeFound))
 				return(FALSE);
+		}
+
+		if (W_CHECK_COUNT(ced_GenOpt) && ts->WORDCHECK && ced_line[0] != HIDEN_C) {
+			if (!ced_CheckWords(ced_line, s, templine, ts)) return(FALSE);
+		}
+
+		if (*ced_sp == '*') {
+			ced_removeCAChars(ced_line);
 		}
 		if (ced_line[0]=='+' && (ced_line[1]=='"' || ced_line[1]=='^' || ced_line[1]=='<' || ced_line[1]==',' || ced_line[1]=='+') && ced_line[2]==EOS) {
 			if (FirstWordFound || isPreLanguageCodeFound) {
@@ -5234,9 +5747,13 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 			}
 		} 
 		if (ced_line[0] == HIDEN_C) {
-			isBulletFound = TRUE;
-			if (*sp == '*') {
-				if (!isTextBetweenBulletsFound) {
+			if (ced_isMultiBullets) {
+				if (DelFound)
+					isBulletFound = TRUE;
+			} else
+				isBulletFound = TRUE;
+			if (*ced_sp == '*' && ced_isPlayBullet(ced_line)) {
+				if (!isTextBetweenBulletsFound && (!ced_isMultiBullets || !isLastItemBullet || !ced_lastBulletOnTier(templine+e))) {
 					if (check_err(73,s-1,e-1,templine)) return(FALSE);
 				}
 				if (!DelFound && !ced_isMultiBullets) {
@@ -5253,12 +5770,18 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 			if (hidenc) {
 				if (check_err(59,s-1,s-1,templine)) return(FALSE);
 			}
-			if ((res=ced_checkBulletsConsist(&FirstBulletFound, ced_line)) != 0) {
-				if (check_err(res,s-1,e-1,templine))
-					return(FALSE);
+			if (!ced_isPlayBullet(ced_line)) {
+				isTextBetweenBulletsFound = TRUE;
+			} else if ((ced_sp[0] == '*' /* 2018-08-06 || ced_isBlob == FALSE*/) && (!ced_isMultiBullets || ced_lastBulletOnTier(templine+e))) {
+				if ((res=ced_checkBulletsConsist(&FirstBulletFound, ced_line)) != 0) {
+					if (check_err(res,s-1,e-1,templine))
+						return(FALSE);
+				}
+				isTextBetweenBulletsFound = FALSE;
 			}
-			isTextBetweenBulletsFound = FALSE;
+			isLastItemBullet = TRUE;
 		} else if (is_unCH_digit(*ced_line) && ts->CSUFF) {
+			isLastItemBullet = FALSE;
 			if (*ced_line != '0' || is_unCH_digit(*(ced_line+1))) {
 				if (ced_matchnumber(ts->tplate,ced_line) && !ced_isNumberShouldBeHere) {
 					if (check_err(38,s-1,e-1,templine))
@@ -5272,12 +5795,16 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 				isTextBetweenBulletsFound = TRUE;
 			}
 		} else {
+			isLastItemBullet = FALSE;
 			if (*ced_line == '&') {
 				for (r=1; ced_line[r]; r++) {
 					if (ced_line[r]=='(') {
 						if (check_err(42,s-1,e-1,templine)) return(FALSE);
 						break;
 					}
+				}
+				if (ced_line[1] == '=' && ced_line[2] == EOS) {
+					if (check_err(146,s-1,e-1,templine)) return(FALSE);
 				}
 			}
 			if (is_unCH_alpha(*(ced_line+1)) || (*(ced_line+1) < 1 && *(ced_line+1) != EOS) || *(ced_line+1) > 127)
@@ -5289,8 +5816,29 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 						break;
 					}
 				}
-				if (*sp == '*') {
-					if (!FirstWordFound) { 
+				if (*ced_sp == '*') {
+					if (templine[s-1] == '[' && templine[s] != '+' && templine[s] != '-') {
+						for (r=s-2; r >= 0; r--) {
+							if (templine[r] == ')') {
+								for (j=r; j >= 0 && templine[j] != '(' && !uS.isskip(templine, j, &dFnt, MBF); j--) ;
+								if (j < 0) {
+									if (check_err(150,j,r,templine))
+										return(FALSE);
+								}
+							}
+							if (!uS.isskip(templine, r, &dFnt, MBF) || templine[r] == ']')
+								break;
+							if (templine[r] == '\n' || templine[r] == '<' || templine[r] == '>') {
+							} else if (templine[r] == ',') {
+//								if (check_err(149,r,r,templine))
+//									return(FALSE);
+							} else if (!isSpace(templine[r])) {
+								if (check_err(149,r,r,templine))
+									return(FALSE);
+							}
+						}
+					}
+					if (!FirstWordFound) {
 						if (ced_line[1] == '<' || ced_line[1] == '>' || ced_line[1] == ':' || ced_line[1] == '/' || ced_line[1] == '"') {
 							if (check_err(52,s-1,te-1,templine))
 								return(FALSE);
@@ -5301,6 +5849,14 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 					} else if (ced_line[1] == ':') {
 						if (ced_isReplacementError(templine, s-1)) {
 							if (check_err(141,s-1,te-1,templine))
+								return(FALSE);
+						}
+						for (j=2; isSpace(ced_line[j]); j++) ;
+						uS.isSqCodes(ced_line+j, templine3, &tFnt, TRUE);
+						if (templine3[0] == '0' || uS.mStricmp(templine3, "xxx]") == 0 || uS.mStricmp(templine3, "xx]") == 0 ||
+							uS.mStricmp(templine3, "yyy]") == 0 || uS.mStricmp(templine3, "yy]") == 0||
+							uS.mStricmp(templine3, "www]") == 0 || uS.mStricmp(templine3, "ww]") == 0) {
+							if (check_err(158,s-1,te-1,templine))
 								return(FALSE);
 						}
 					}
@@ -5314,7 +5870,7 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 					if (!ced_CheckFixes(ts,ced_line,templine,s,e, &found))
 						return(FALSE);
 				}
-				if ((r=ced_matchplate(ts->tplate,ced_line))) {
+				if ((r=ced_matchplate(ts->tplate, ced_line, 'D'))) {
 					if (check_err(r,s-1,te-1,templine)) return(FALSE);
 				}
 			} else if (*ced_line != EOS) {
@@ -5327,17 +5883,17 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 						char found;
 						if (!ced_CheckFixes(ts,ced_line,templine,s,e,&found)) return(FALSE);
 						if (!found) {
-							if ((r=ced_matchplate(ts->tplate,ced_line))) {
+							if ((r=ced_matchplate(ts->tplate, ced_line, 'D'))) {
 								if (check_err(r,s-1,te-1,templine)) return(FALSE);
 							}
 						}
 					} else {
-						if ((r=ced_matchplate(ts->tplate,ced_line))) {
+						if ((r=ced_matchplate(ts->tplate, ced_line, 'D'))) {
 							if (check_err(r,s-1,te-1,templine)) return(FALSE);
 						}
 					}
 				} else {
-					if ((r=ced_matchplate(ts->tplate,ced_line))) {
+					if ((r=ced_matchplate(ts->tplate, ced_line, 'D'))) {
 						if (check_err(r,s-1,te-1,templine)) return(FALSE);
 					}
 					if ((is_unCH_alpha(*ced_line) || (*ced_line < 1 && *ced_line != EOS) || *ced_line > 127) && ts->CSUFF) {
@@ -5347,13 +5903,17 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 				}
 			}
 		}
+		if (isLcodeFound)
+			ced_isNumberShouldBeHere = isLNumberShouldBeHere;
 		s = e;
 	}
+	if (isGLcodeFound)
+		ced_isNumberShouldBeHere = isGNumberShouldBeHere;
 	if (!DelFound && ts->UTD == 1 && !ced_isCAFound) { 
 		if (check_err(21,s-2,s-2,templine)) return(FALSE);
 	}
 	if (!isTextFound) { if (check_err(70,-1,-1,templine)) return(FALSE); }
-	if (*sp == '*') {
+	if (*ced_sp == '*') {
 		if (isFasterMatched != -1) {
 			t = uS.HandleCAChars(templine+isFasterMatched, NULL);
 			if (check_err(117, isFasterMatched-1, isFasterMatched+t-1, templine))
@@ -5444,12 +6004,10 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 	if (sgm < 0) { if (check_err(131,-1,-1,templine)) return(FALSE); }
 	if (qt > 0) { if (check_err(136,-1,-1,templine)) return(FALSE); }
 	if (qt < 0) { if (check_err(137,-1,-1,templine)) return(FALSE); }
-	if (qts > 0) { if (check_err(138,-1,-1,templine)) return(FALSE); }
-	if (qts < 0) { if (check_err(139,-1,-1,templine)) return(FALSE); }
 	return(TRUE);
 }
 /*
-static char ced_isDoubleScope(wchar_t *line, int pos, wchar_t *code) {
+static char ced_isDoubleScope(unCH *line, int pos, unCH *code) {
 	long ang, isword;
 	long temp, sqCnt;
 
@@ -5489,7 +6047,7 @@ static char ced_isDoubleScope(wchar_t *line, int pos, wchar_t *code) {
 	return(FALSE);
 }
 */
-static char ced_ParseScope(wchar_t *wline) {
+static char ced_ParseScope(unCH *wline) {
 	int pos, temp, sqCnt;
 
 	pos = strlen(wline) - 1;
@@ -5520,29 +6078,41 @@ static char ced_ParseScope(wchar_t *wline) {
 	return(TRUE);
 }
 
+static char ced_isMissiingID(void) {
+	SPLIST *tp;
+
+	for (tp=ced_headsp; tp != NULL; tp = tp->nextsp) {
+		if (tp->hasID == FALSE) {
+			u_strcpy(err_item, tp->sp, 500);
+			sprintf(global_df->err_message, "-Missing @ID header for speaker *%s.", err_item);
+			return(TRUE);
+		}
+	}
+	return(FALSE);
+}
+
 static char ced_CheckRest(void) {
-	char FTime, isSkip;
-	int  i, j;
+	char FTime, isSkip, *s;
+	int  i, j, langCnt;
 	unCH t;
-	TCODES *tc;
+	TCODES *tc = NULL;
 	BE_TIERS *tb;
 	CHECK_IN_TIERS *ts;
 
 	findMediaTiers();
 	FTime = TRUE;
+	ced_clean_IDsp(ced_idsp);
+	ced_idsp = NULL;
 	while ((isdone=ced_getwholeutter()) > 0) {
 		isSkip = FALSE;
-		if (*sp == '@') {
+		if (*ced_sp == '@') {
 			init_punct(0);
-			if (ced_u.check_partcmp(sp, CKEYWORDHEADER, FALSE))
+			if (uS.isUTF8(ced_sp) || ced_u.check_partcmp(ced_sp, PIDHEADER, FALSE) || ced_u.check_partcmp(ced_sp, CKEYWORDHEADER, FALSE) ||
+				ced_u.check_partcmp(ced_sp, WINDOWSINFO, FALSE) || ced_u.check_partcmp(ced_sp, FONTHEADER, FALSE))
 				continue;
-			if (ced_u.check_partcmp(sp, FONTHEADER, FALSE))
-				continue;
-			if (uS.isUTF8(sp))
-				continue;
-//			uS.uppercasestr(sp, &tFnt, TRUE);
-			ced_CleanTierNames(sp);
-			if (ced_u.check_partcmp(sp, "@Bg", FALSE)) {
+//			uS.uppercasestr(ced_sp, &tFnt, TRUE);
+			ced_CleanTierNames(ced_sp);
+			if (ced_u.check_partcmp(ced_sp, "@Bg", FALSE)) {
 				if ((tb=NEW(BE_TIERS)) == NULL) {
 					strcpy(global_df->err_message, "+Error: Out of memory.");
 					return(FALSE);
@@ -5552,46 +6122,49 @@ static char ced_CheckRest(void) {
 					return(FALSE);
 				}
 				strcpy(tb->pattern, templine);
-				tb->nextone = global_df->head_bg;
-				global_df->head_bg = tb;
-			} else if (ced_u.check_partcmp(sp, "@Eg", FALSE)) {
-				if (global_df->head_bg == NULL) {
+				tb->nextone = ced_head_bg;
+				ced_head_bg = tb;
+			} else if (ced_u.check_partcmp(ced_sp, "@Eg", FALSE)) {
+				if (ced_head_bg == NULL) {
 					if (ced_CodeErr(46)) return(FALSE);
 				} else {
-					BE_TIERS *to;
-					for (tb=global_df->head_bg; tb != NULL; tb=tb->nextone) {
-						if (!strcmp(tb->pattern, templine)) break;
+					BE_TIERS *to = NULL;
+					for (tb=ced_head_bg; tb != NULL; tb=tb->nextone) {
+						if (!strcmp(tb->pattern, templine))
+							break;
 						to = tb;
 					}
 					if (tb == NULL) {
 						if (ced_CodeErr(46)) return(FALSE);
-					} else {
-						if (tb == global_df->head_bg) global_df->head_bg = tb->nextone;
+					} else if (to != NULL){
+						if (tb == ced_head_bg) ced_head_bg = tb->nextone;
 						else to->nextone = tb->nextone;
+						free(tb->pattern);
+						free(tb);
+					} else if (tb == ced_head_bg) {
+						ced_head_bg = tb->nextone;
 						free(tb->pattern);
 						free(tb);
 					}
 				}
-			} else if (ced_u.check_partcmp(sp, "@Languages:", FALSE)) {
-				int langCnt;
-				char isIPAFound = FALSE, old_code[20];
+			} else if (ced_u.check_partcmp(ced_sp, "@Languages:", FALSE)) {
+				char isIPAFound = FALSE, isFirstLang;
+				char old_code[20];
 
 				isSkip = TRUE;
 //				if (isdone != 3)
 //					resetAllTierCheckFlags(FALSE);
-				ced_isCaps = FALSE;
-				ced_isLegacy = FALSE;
 				ced_isArabic = FALSE;
 				ced_isHebrew = FALSE;
 				ced_isGerman = FALSE;
 				ced_isBlob= FALSE;
-				ced_isSign = FALSE;
 				ced_isCAFound = FALSE;
 				ced_isMultiBullets = FALSE;
 				ced_isCheckBullets = TRUE;
 				ced_isNumberShouldBeHere = FALSE;
 				i = 0;
 				langCnt = 0;
+				isFirstLang = TRUE;
 				while (templine[i]) {
 					for (; uS.isskip(templine,i,&tFnt,TRUE) || templine[i] == '\n'; i++) ;
 					if (templine[i] == EOS)
@@ -5599,27 +6172,21 @@ static char ced_CheckRest(void) {
 					for (j=i; !uS.isskip(templine,j,&tFnt,TRUE) && templine[j] != '=' && templine[j] != '\n' && templine[j] != EOS; j++) ;
 					t = templine[j];
 					templine[j] = EOS;
-					if (!strcmp(templine+i, "zh")  || !strncmp(templine+i, "zh-", 3)  ||
-						  !strcmp(templine+i, "chi") || !strncmp(templine+i, "chi-", 4) ||
-						  !strcmp(templine+i, "zho") || !strncmp(templine+i, "zho-", 4) ||
-						  !strcmp(templine+i, "cy")  || !strcmp(templine+i, "cym")      ||
-						  !strcmp(templine+i, "vi")  || !strcmp(templine+i, "vie")      ||
-						  !strcmp(templine+i, "th")  || !strcmp(templine+i, "tha")      ||
-						  !strcmp(templine+i, "nan") || !strcmp(templine+i, "yue")      ||
-						  !strcmp(templine+i, "min"))
-						ced_isNumberShouldBeHere = TRUE;
-					else if (!strcmp(templine+i, "ar") ||!strcmp(templine+i, "ara"))
+					if (ced_isNumbersLang(templine+i)) {
+						if (isFirstLang)
+							ced_isNumberShouldBeHere = TRUE;
+					} else if (!strcmp(templine+i, "ar") ||!strcmp(templine+i, "ara")) {
 						ced_isArabic = TRUE;
-					else if (!strcmp(templine+i, "he") || !strcmp(templine+i, "heb"))
+					} else if (!strcmp(templine+i, "he") || !strcmp(templine+i, "heb")) {
 						ced_isHebrew = TRUE;
-					else if (!strcmp(templine+i, "de") || !strcmp(templine+i, "deu"))
+					} else if (!strcmp(templine+i, "de") || !strcmp(templine+i, "deu")) {
 						ced_isGerman = TRUE;
-					else if (!strncmp(templine+i, "sgn-", 4))
-						ced_isSign = TRUE;
-					else if (!strcmp(templine+i, "CA"))
+					} else if (!strcmp(templine+i, "CA") || !strcmp(templine+i, "CA-Unicode")) {
 						ced_isCAFound = TRUE;
-					else if (!strcmp(templine+i, "IPA"))
+					} else if (!strcmp(templine+i, "IPA")) {
 						isIPAFound = TRUE;
+					}
+					isFirstLang = FALSE;
 					if (langCnt < NUMLANGUAGESINTABLE) {
 						strncpy(ced_LanguagesTable[langCnt], templine+i, 8);
 						ced_LanguagesTable[langCnt][8] = EOS;
@@ -5672,7 +6239,7 @@ static char ced_CheckRest(void) {
 					}
 */
 				}
-			} else if (ced_u.check_partcmp(sp, "@New Language:", FALSE)) {				
+			} else if (ced_u.check_partcmp(ced_sp, "@New Language:", FALSE)) {
 				isSkip = TRUE;
 				i = 0;
 				while (templine[i]) {
@@ -5682,12 +6249,12 @@ static char ced_CheckRest(void) {
 					for (j=i; !uS.isskip(templine,j,&tFnt,TRUE) && templine[j] != '=' && templine[j] != '\n' && templine[j] != EOS; j++) ;
 					t = templine[j];
 					templine[j] = EOS;
-					if (!ced_isNotMatch(templine+i, i))
+					if (!ced_isLangMatch(templine+i, i, 152, TRUE))
 						return(FALSE);
 					templine[j] = t;
 					i = j;
 				}
-			} else if (ced_u.check_partcmp(sp, "@Options:", FALSE)) {
+			} else if (ced_u.check_partcmp(ced_sp, "@Options:", FALSE)) {
 				char isIPAFound = FALSE;
 
 				i = 0;
@@ -5698,24 +6265,25 @@ static char ced_CheckRest(void) {
 					for (j=i; !uS.isskip(templine,j,&tFnt,TRUE) && templine[j] != '=' && templine[j] != '\n' && templine[j] != EOS; j++) ;
 					t = templine[j];
 					templine[j] = EOS;
-					if (!uS.mStricmp(templine+i, "caps"))
-						ced_isCaps = TRUE;
-					else if (!uS.mStricmp(templine+i, "num"))
-						ced_isNumberShouldBeHere = TRUE;
-					else if (!uS.mStricmp(templine+i, "legacy"))
-						ced_isLegacy = TRUE;
-					else if (!uS.mStricmp(templine+i, "heritage"))
+					if (!uS.mStricmp(templine+i, "heritage")) {
 						ced_isBlob = TRUE;
-					else if (!strcmp(templine+i, "multi"))
+					} else if (!strcmp(templine+i, "multi")) {
 						ced_isMultiBullets = TRUE;
-					else if (!strcmp(templine+i, "bullets"))
+					} else if (!strcmp(templine+i, "bullets")) {
 						ced_isCheckBullets = FALSE;
-					else if (!uS.mStricmp(templine+i, "sign"))
-						ced_isSign = TRUE;
-					else if (!strcmp(templine+i, "CA"))
+					} else if (!strcmp(templine+i, "CA") || !strcmp(templine+i, "CA-Unicode")) {
 						ced_isCAFound = TRUE;
-					else if (!strcmp(templine+i, "IPA"))
+					} else if (!strcmp(templine+i, "IPA")) {
 						isIPAFound = TRUE;
+					} else if (!strcmp(templine+i, "notarget")) {
+						ced_applyG2Option = FALSE;
+					} else if (!strcmp(templine+i, "mismatch")) {
+						ced_check_mismatch = FALSE;
+					} else if (!strcmp(templine+i, "dummy")) {
+						isdone = 1;
+						isSkip = TRUE;
+						break;
+					}
 					templine[j] = t;
 					if (templine[j] == '=')
 						for (; !uS.isskip(templine,j,&tFnt,TRUE) && templine[j] != '\n' && templine[j] != EOS; j++) ;
@@ -5737,13 +6305,14 @@ static char ced_CheckRest(void) {
 					}
 */
 				}
-			} else if (ced_u.check_partcmp(sp, MEDIAHEADER, FALSE)) {
+			} else if (ced_u.check_partcmp(ced_sp, MEDIAHEADER, FALSE)) {
 				int cnt;
 				char isAudioFound, isVideoFound;
 
 				isSkip = TRUE;
-				if ((ts=ced_FindTier(global_df->headt,sp)) == NULL) {
-					if (ced_CodeErr(17)) return(FALSE);
+				if ((ts=ced_FindTier(ced_headt,ced_sp)) == NULL) {
+					if (ced_CodeErr(17))
+						return(FALSE);
 				}
 				i = 0;
 				cnt = 0;
@@ -5751,10 +6320,15 @@ static char ced_CheckRest(void) {
 				isVideoFound = FALSE;
 				ced_isUnlinkedFound = FALSE;
 				while (templine[i]) {
-					for (; uS.isskip(templine,i,&tFnt,TRUE) || templine[i] == ',' || templine[i] == '\n'; i++) ;
+					for (; uS.isskip(templine,i,&tFnt,TRUE) || templine[i] == ',' || templine[i] == '\n'; i++) {
+						if (templine[i] == ',' && i > 0 && isSpace(templine[i-1])) {
+							if (check_err(148,i-1,i-1,templine))
+								return(FALSE);
+						}
+					}
 					if (templine[i] == EOS)
 						break;
-					for (j=i; !uS.isskip(templine,j,&tFnt,TRUE) && templine[j] != ',' && templine[j] != '\n' && templine[j] != EOS; j++) ;
+					for (j=i; (!uS.isskip(templine,j,&tFnt,TRUE) || templine[j] == '.') && templine[j] != ',' && templine[j] != '\n' && templine[j] != EOS; j++) ;
 					t = templine[j];
 					templine[j] = EOS;
 					cnt++;
@@ -5763,7 +6337,7 @@ static char ced_CheckRest(void) {
 							templine[j] = t;
 							if (check_err(99,i,j-1,templine))
 								return(FALSE);
-						} else if (ced_matchplate(ts->tplate,templine+i)) {
+						} else if (ced_matchplate(ts->tplate, templine+i, 'D')) {
 							templine[j] = t;
 							if (check_err(113,i,j-1,templine))
 								return(FALSE);
@@ -5773,6 +6347,25 @@ static char ced_CheckRest(void) {
 							isVideoFound = TRUE;
 						else if (!uS.mStricmp(templine+i, "unlinked"))
 							ced_isUnlinkedFound = TRUE;
+					} else if (ced_check_mismatch) {
+						extractFileName(templineC2, global_df->fileName);
+						if ((s=strrchr(templineC2, '.')) != NULL)
+							*s = EOS;
+						u_strcpy(templine2, templineC2, UTTLINELEN);
+						if (uS.mStricmp(templine+i, templine2)) {
+							s = strrchr(templineC2, '.');
+							if (s != NULL && (uS.mStricmp(s, ".elan") == 0 || uS.mStricmp(s, ".praat") == 0)) {
+								*s = EOS;
+								u_strcpy(templine2, templineC2, UTTLINELEN);
+								if (uS.mStricmp(templine+i, templine2)) {
+									if (check_err(157,i,j-1,templine))
+										return(FALSE);
+								}
+							} else {
+								if (check_err(157,i,j-1,templine))
+									return(FALSE);
+							}
+						}
 					}
 					templine[j] = t;
 					i = j;
@@ -5781,50 +6374,83 @@ static char ced_CheckRest(void) {
 					if (ced_CodeErr(114))
 						return(FALSE);
 				}
-			} else if (ced_u.check_partcmp(sp, "@Exceptions", FALSE)) {
+/* in 2018-10-03 out 2018-10-07
+				if (!ced_isUnlinkedFound) {
+					ROWS *tr;
+
+					for (tr=global_df->head_text->next_row; tr != global_df->tail_text; tr=tr->next_row) {
+						for (i=0; tr->line[i] != EOS; i++) {
+							if (tr->line[i] == HIDEN_C) {
+								if (isdigit(tr->line[i+1]))
+									break;
+							}
+						}
+						if (tr->line[i] == HIDEN_C) {
+							break;
+						}
+					}
+					if (tr == global_df->tail_text) {
+						if (check_err(154,0,strlen(templine)-1,templine))
+							return(FALSE);
+					}
+				}
+*/
+			} else if (ced_u.check_partcmp(ced_sp, "@Exceptions", FALSE)) {
 				ced_getExceptions(templine);
 			}
-			global_df->CodeLegalPos = FALSE;
-			if (ced_u.check_partcmp(sp,PARTICIPANTS,FALSE)) {
+			ced_CodeLegalPos = FALSE;
+			if (ced_u.check_partcmp(ced_sp,PARTICIPANTS,FALSE)) {
 //				if (isdone != 3)
 //					resetAllTierCheckFlags(FALSE);
 				if (FTime) {
-					ced_clean_speakers(global_df->headsp);
-					global_df->headsp = NULL;
+					ced_clean_speakers(ced_headsp);
+					ced_headsp = NULL;
 				}
-				if (!ced_getpart(templine)) return(FALSE);
+				if (!ced_getpart(templine))
+					return(FALSE);
 			} else if (isdone != 3) {
-				if ((ts=ced_FindTier(global_df->headt,sp)) == NULL) {
-					if (ced_CodeErr(17)) return(FALSE);
-				} else if (ced_u.check_partcmp(sp,AGEOF,TRUE)) {
-					if (!ced_Age(ts, sp, templine, 0, EOS)) return(FALSE);
-				} else if (ced_u.check_partcmp(sp,SEXOF,TRUE)) {
-					if (!ced_Sex(ts, sp, templine)) return(FALSE);
-				} else if (ced_u.check_partcmp(sp,SESOF,TRUE)) {
-					if (!ced_Ses(ts, sp, templine)) return(FALSE);
-				} else if (ced_u.check_partcmp(sp,BIRTHOF,TRUE)) {
-					if (!ced_Birth(ts, sp, templine)) return(FALSE);
-				} else if (ced_u.check_partcmp(sp,EDUCOF,TRUE)) {
-					if (!ced_Educ(ts, sp, templine)) return(FALSE);
-				} else if (ced_u.check_partcmp(sp,GROUPOF,TRUE)) {
-					if (!ced_Group(ts, sp, templine)) return(FALSE);
-				} else if (ced_u.check_partcmp(sp,IDOF,FALSE)) {
-					if (!ced_ID(ts)) return(FALSE);
+				if ((ts=ced_FindTier(ced_headt,ced_sp)) == NULL) {
+					if (ced_CodeErr(17))
+						return(FALSE);
+				} else if (ced_u.check_partcmp(ced_sp,AGEOF,TRUE)) {
+					if (!ced_Age(ts, ced_sp, templine, 0, EOS))
+						return(FALSE);
+				} else if (ced_u.check_partcmp(ced_sp,SEXOF,TRUE)) {
+					if (!ced_Sex(ts, ced_sp, templine))
+						return(FALSE);
+				} else if (ced_u.check_partcmp(ced_sp,SESOF,TRUE)) {
+					if (!ced_ses(ts, ced_sp, templine, 0, EOS))
+						return(FALSE);
+				} else if (ced_u.check_partcmp(ced_sp,BIRTHOF,TRUE)) {
+					if (!ced_Birth(ts, ced_sp, templine))
+						return(FALSE);
+				} else if (ced_u.check_partcmp(ced_sp,EDUCOF,TRUE)) {
+					if (!ced_Educ(ts, ced_sp, templine))
+						return(FALSE);
+				} else if (ced_u.check_partcmp(ced_sp,GROUPOF,TRUE)) {
+					if (!ced_Group(ts, ced_sp, templine))
+						return(FALSE);
+				} else if (ced_u.check_partcmp(ced_sp,IDOF,FALSE)) {
+					if (!ced_ID(ts))
+						return(FALSE);
 				} else if (!isSkip) {
-					if (!ced_ParseWords(ts)) return(FALSE);
+					if (!ced_ParseWords(ts))
+						return(FALSE);
 				}
 			}
-		} else if (isMainSpeaker(*sp)) {
+		} else if (isMainSpeaker(*ced_sp)) {
+			if (ced_isMissiingID())
+				return(FALSE);
 			init_punct(0);
-			ced_clean_template(global_df->headcodes);
-			global_df->headcodes = NULL;
-			global_df->CodeLegalPos = TRUE;
-//			uS.uppercasestr(sp, &tFnt, TRUE);
-			ced_CleanTierNames(sp);
+			ced_clean_template(ced_headcodes);
+			ced_headcodes = NULL;
+			ced_CodeLegalPos = TRUE;
+//			uS.uppercasestr(ced_sp, &tFnt, TRUE);
+			ced_CleanTierNames(ced_sp);
 			if (isdone == 3) ;
-			else if ((ts=ced_FindTier(global_df->maint,sp)) == NULL) {
+			else if ((ts=ced_FindTier(ced_maint,ced_sp)) == NULL) {
 				if (ced_CodeErr(17)) return(FALSE);
-			} else if (ced_matchSpeaker(global_df->headsp,sp+1)) {
+			} else if (ced_matchSpeaker(ced_headsp,ced_sp+1, FALSE)) {
 				if (ced_CodeErr(18)) return(FALSE);
 			} else if (ced_isBlob) {
 				if (!ced_ParseBlob(ts)) return(FALSE);
@@ -5832,27 +6458,45 @@ static char ced_CheckRest(void) {
 				if (!ced_ParseWords(ts)) return(FALSE);
 				if (!ced_ParseScope(templine)) return(FALSE);
 			}
-		} else if (sp[1] != 'x') /* if (*sp == '%') */ {
-			if (!global_df->CodeLegalPos) {
+		} else if (uS.partcmp(ced_sp, "%wor:",FALSE,FALSE)) {
+			if (ced_isMissiingID())
+				return(FALSE);
+			init_punct(0);
+			ced_clean_template(ced_headcodes);
+			ced_headcodes = NULL;
+			ced_CodeLegalPos = TRUE;
+//			uS.uppercasestr(ced_sp, &tFnt, TRUE);
+			ced_CleanTierNames(ced_sp);
+			if (isdone == 3) ;
+			else if ((ts=ced_FindTier(ced_codet,ced_sp)) == NULL) {
+				if (ced_CodeErr(17)) return(FALSE);
+			} else if (ced_isBlob) {
+				if (!ced_ParseBlob(ts)) return(FALSE);
+			} else {
+				if (!ced_ParseWords(ts)) return(FALSE);
+				if (!ced_ParseScope(templine)) return(FALSE);
+			}
+		} else if (ced_sp[1] != 'x') /* if (*ced_sp == '%') */ {
+			if (!ced_CodeLegalPos) {
 				if (ced_CodeErr(39)) return(FALSE);
 			}
-			global_df->CodeLegalPos = TRUE;
-//			uS.uppercasestr(sp, &tFnt, TRUE);
-			ced_CleanTierNames(sp);
-			if (ced_u.check_partcmp(sp,"%pho",FALSE) || ced_u.check_partcmp(sp,"%mod",FALSE))
+			ced_CodeLegalPos = TRUE;
+//			uS.uppercasestr(ced_sp, &tFnt, TRUE);
+			ced_CleanTierNames(ced_sp);
+			if (ced_u.check_partcmp(ced_sp,"%pho",FALSE) || ced_u.check_partcmp(ced_sp,"%mod",FALSE))
 				init_punct(1);
 			else
 				init_punct(0);
 			if (isdone != 3) {
-				if ((ts=ced_FindTier(global_df->codet,sp)) == NULL) {
+				if ((ts=ced_FindTier(ced_codet,ced_sp)) == NULL) {
 					if (ced_CodeErr(17)) return(FALSE);
 				} else if (ced_isBlob) {
 					if (!ced_ParseWords(ts)) return(FALSE);
 				} else {
 					if (!ced_ParseWords(ts)) return(FALSE);
 				}
-				for (tc=global_df->headcodes; tc != NULL; tc=tc->nextone) {
-					if (!strcmp(tc->pattern, sp)) {
+				for (tc=ced_headcodes; tc != NULL; tc=tc->nextone) {
+					if (!strcmp(tc->pattern, ced_sp)) {
 						if (ced_CodeErr(40)) return(FALSE);
 						break;
 					}
@@ -5864,29 +6508,60 @@ static char ced_CheckRest(void) {
 					strcpy(global_df->err_message, "+Error: Out of memory.");
 					return(FALSE);
 				}
-				if ((tc->pattern=(unCH *)malloc((strlen(sp)+1)*sizeof(unCH))) == NULL) {
+				if ((tc->pattern=(unCH *)malloc((strlen(ced_sp)+1)*sizeof(unCH))) == NULL) {
 					free(tc);
 					strcpy(global_df->err_message, "+Error: Out of memory.");
 					return(FALSE);
 				}
-				strcpy(tc->pattern, sp);
-				tc->nextone = global_df->headcodes;
-				global_df->headcodes = tc;
+				strcpy(tc->pattern, ced_sp);
+				tc->nextone = ced_headcodes;
+				ced_headcodes = tc;
 			}
-		} else { /* sp == '%x...: */
+		} else { /* ced_sp == '%x...: */
 			if (isdone != 3) {
+// Duplicate tiers: off 2019-07-22 on 2021-11-11
+				for (tc=ced_headcodes; tc != NULL; tc=tc->nextone) {
+					if (!strcmp(tc->pattern, ced_sp)) {
+						if (ced_CodeErr(40))
+							return(FALSE);
+						break;
+					}
+				}
 				if (!ced_ParseBlob(NULL)) return(FALSE);
 			}
+
+			if (tc == NULL) {
+				if ((tc=NEW(TCODES)) == NULL) {
+					strcpy(global_df->err_message, "+Error: Out of memory.");
+					return(FALSE);
+				}
+				if ((tc->pattern=(unCH *)malloc((strlen(ced_sp)+1)*sizeof(unCH))) == NULL) {
+					free(tc);
+					strcpy(global_df->err_message, "+Error: Out of memory.");
+					return(FALSE);
+				}
+				strcpy(tc->pattern, ced_sp);
+				tc->nextone = ced_headcodes;
+				ced_headcodes = tc;
+			}
 		}
-		if (isdone == 1) break;
+		if (isdone == 1)
+			break;
 		FTime = FALSE;
 	}
-	if (global_df->head_bg) {
+	if (ced_head_bg != NULL) {
+		u_strcpy(templineC, ced_head_bg->pattern, UTTLINELEN);
+		strncpy(err_item, "%Bg: ", 511);
+		strncat(err_item, templineC, 511);
+		err_item[511] = EOS;
+		uS.remblanks(err_item);
 		if (check_err(45,-1,-1,templine))
 			return(FALSE);
 	}
-	if (isdone < 0) return(FALSE);
-	else return(TRUE);
+	if (isdone < 0)
+		return(FALSE);
+	else
+		return(TRUE);
 }
 
 static void ToTopRow(void) {
@@ -5900,6 +6575,7 @@ static void ToTopRow(void) {
 		}
 	}
 	global_df->lineno = 1L;
+	global_df->wLineno = 1L;
 }
 
 static void addToID(unCH *sp, unCH *role, unCH *languages) {
@@ -5917,6 +6593,23 @@ static void addToID(unCH *sp, unCH *role, unCH *languages) {
 	templine2[i] = EOS;
 	if (strlen(templineW1)+strlen(templine2) < UTTLINELEN)
 		strcat(templineW1, templine2);
+}
+
+static void moveToParticipantsTier(void) {
+	ToTopRow();
+	while (!AtBotEnd(global_df->row_txt,global_df->tail_text, FALSE)) {
+		if (ced_u.check_partcmp(global_df->row_txt->line,PARTICIPANTS,FALSE))
+			break;
+		MoveDown(-1);
+	}
+	if (AtBotEnd(global_df->row_txt,global_df->tail_text, FALSE))
+		return;
+	MoveDown(-1);
+	while (!AtBotEnd(global_df->row_txt,global_df->tail_text, FALSE)) {
+		if (global_df->row_txt->line[0] == '@' || global_df->row_txt->line[0] == '*' || global_df->row_txt->line[0] == '%')
+			break;
+		MoveDown(-1);
+	}
 }
 
 static char createIDTier(unCH *line, unCH *languages) {
@@ -5938,12 +6631,11 @@ static char createIDTier(unCH *line, unCH *languages) {
 	while (*s) {
 		if (*line == ','  || isSpace(*line)  ||
 			*line == NL_C || *line == '\n' || *line == EOS) {
-
 			if (*line == ',' && !isSpace(*(line+1)) && *(line+1) != '\n') {
-				if (ced_trans_err(92,line,line,rootline))
-					return(FALSE);
+				moveToParticipantsTier();
+				ced_trans_err(92,line,line,rootline);
+				return(FALSE);
 			}
-
 			wc = ' ';
 			e = line;
 			for (; isSpace(*line) || *line == NL_C || *line == '\n'; line++) ;
@@ -5957,15 +6649,17 @@ static char createIDTier(unCH *line, unCH *languages) {
 				if (cnt == 2 || wc == ',') {
 					if (ced_badrole(s,cl_T(PARTICIPANTS))) {
 						*e = t;
-						if (ced_trans_err(15,s,e-1,rootline))
-							return(FALSE);
+						moveToParticipantsTier();
+						ced_trans_err(15,s,e-1,rootline);
+						return(FALSE);
 					}
 					addToID(sp, s, languages);
 				} else if (cnt == 0) {
 					for (i=0; s[i] > 32 && s[i] < 127 && s[i] != EOS; i++) ;
 					if (s[i] != EOS) {
-						if (ced_trans_err(16,line-strlen(s),line-1,rootline))
-							return(FALSE);
+						moveToParticipantsTier();
+						ced_trans_err(16,line-strlen(s),line-1,rootline);
+						return(FALSE);
 					} else {
 						strcpy(sp, s);
 					}
@@ -5973,8 +6667,9 @@ static char createIDTier(unCH *line, unCH *languages) {
 				*e = t;
 				if (wc == ',') {
 					if (cnt == 0) {
-						if (ced_trans_err(12,line,line,rootline))
-							return(FALSE);
+						moveToParticipantsTier();
+						ced_trans_err(12,line,line,rootline);
+						return(FALSE);
 					}
 					cnt = -1;
 					sp[0] = EOS;
@@ -5982,8 +6677,9 @@ static char createIDTier(unCH *line, unCH *languages) {
 				for (line++; isSpace(*line) || *line==NL_C || *line=='\n' || *line==','; line++) {
 					if (*line == ',') {
 						if (cnt == 0) {
-							if (ced_trans_err(12,line,line,rootline))
-								return(FALSE);
+							moveToParticipantsTier();
+							ced_trans_err(12,line,line,rootline);
+							return(FALSE);
 						}
 						cnt = -1;
 						sp[0] = EOS;
@@ -5992,14 +6688,16 @@ static char createIDTier(unCH *line, unCH *languages) {
 			} else {
 				for (line=e; *line; line++) ;
 				if (cnt == 0) {
-					if (ced_trans_err(12,e,e,rootline))
-						return(FALSE);
+					moveToParticipantsTier();
+					ced_trans_err(12,e,e,rootline);
+					return(FALSE);
 				} else {
 					t = *e;
 					*e = EOS;
 					if (ced_badrole(s,cl_T(PARTICIPANTS))) {
-						if (ced_trans_err(15,s,e-1,rootline))
-							return(FALSE);
+						moveToParticipantsTier();
+						ced_trans_err(15,s,e-1,rootline);
+						return(FALSE);
 					}
 					addToID(sp, s, languages);
 					*e = t;
@@ -6059,7 +6757,7 @@ static void addIDs(void) {
 			for (; templine[i] != ':' && templine[i] != EOS; i++) ;
 			if (templine[i] != EOS) {
 				i++;
-				global_df->CurSpLen = i;
+				ced_CurSpLen = i;
 				strcpy(templine, templine+i);
 			}
 			ParticipantsFound = TRUE;
@@ -6074,7 +6772,7 @@ static void addIDs(void) {
 			for (; templine[i] != ':' && templine[i] != EOS; i++) ;
 			if (templine[i] != EOS) {
 				i++;
-				global_df->CurSpLen = i;
+				ced_CurSpLen = i;
 				strcpy(templine, templine+i);
 			}
 			ParticipantsFound = TRUE;
@@ -6116,11 +6814,12 @@ static void addIDs(void) {
 }
 
 static char ced_OverAll(void) {
+	char isAddLineno;
 	int cnt, j;
 	unCH  lSP[SPEAKERLEN+1];
 
 	check_in_remblanks(templine);
-	strcpy(sp, "*");
+	strcpy(ced_sp, "*");
 	if (!isSpeaker(templine[0])){
 		if (check_err(1,0,0,templine)) return(FALSE);
 	}
@@ -6129,50 +6828,50 @@ static char ced_OverAll(void) {
 	do {
 		if (uS.partcmp(templine, "@Options:",FALSE,FALSE) || uS.partcmp(templine, "@Languages:",FALSE,FALSE)) {
 			for (j=0; templine[j] != EOS; j++) {
-				if (!strncmp(templine+j, "CA", 2)) {
+				if (!strncmp(templine+j, "CA", 2) || !strncmp(templine+j, "CA-Unicode", 10)) {
 					ced_isCAFound = TRUE;
-					break;
+				} else if (!strncmp(templine+j, "notarget", 8)) {
+					ced_applyG2Option = FALSE;
 				}
 			}
 		}
-		if (ced_u.check_partcmp(templine, CKEYWORDHEADER, FALSE)) ;
-		else if (uS.isUTF8(templine)) ;
-		else if (ced_u.check_partcmp(templine, FONTHEADER, FALSE)) ;
+		if (uS.isUTF8(templine) || ced_u.check_partcmp(templine, PIDHEADER, FALSE) || ced_u.check_partcmp(templine, CKEYWORDHEADER, FALSE) ||
+			 ced_u.check_partcmp(templine, WINDOWSINFO, FALSE) || ced_u.check_partcmp(templine, FONTHEADER, FALSE)) ;
 		else /* if (CMP_CHECK_ID1(global_df->row_txt->flag)) */ {
-			if (global_df->AtEndFound && *templine) { 
+			if (ced_AtEndFound && *templine) {
 				if (check_err(44,-1,-1,templine)) return(FALSE);
 			}
 			if (!isSpeaker(*templine) && !isSpace(*templine) && *templine != EOS) {
 				if (check_err(8,0,0,templine)) return(FALSE);
 			}
+			if (!ced_CheckErr(templine)) return(FALSE);
 			if (!ced_Tabs(templine)) return(FALSE);
 			if (!ced_Colon(templine)) return(FALSE);
-			if (!ced_CheckErr(templine)) return(FALSE);
 
 			if (*templine == '@') {
 				strcpy(ced_line, templine);
 				check_in_remblanks(ced_line);
 //				uS.lowercasestr(ced_line, &tFnt, FALSE);
 				if (!strcmp(ced_line,"@Begin")) {
-					if (global_df->AtBeginFound) {
+					if (ced_AtBeginFound) {
 						if (check_err(53,-1,-1,templine)) return(FALSE);
 					}
-					global_df->AtBeginFound = TRUE;
+					ced_AtBeginFound = TRUE;
 				} else if(!strcmp(ced_line,"@End")) {
-					if (global_df->AtEndFound) {
+					if (ced_AtEndFound) {
 						if (check_err(54,-1,-1,templine)) return(FALSE);
 					}
-					global_df->AtEndFound = TRUE;
+					ced_AtEndFound = TRUE;
 				} else if (ced_line[0] == '@' && ced_line[1] == 'I' &&
 						   ced_line[2] == 'D' && ced_line[3] == ':') {
-					global_df->AtIDFound = TRUE;
+					ced_AtIDFound = TRUE;
 				}
 			}
 
 			if (lHeaders[cnt][0] != EOS && !ced_u.check_partcmp(ced_line, lHeaders[cnt], FALSE)) {
 				if (cnt == 0) {
 					if (check_err(43,-1,-1,templine)) return(FALSE);
-					global_df->AtBeginFound = TRUE;
+					ced_AtBeginFound = TRUE;
 				} else if (cnt == 1) {
 					if (check_err(77,-1,-1,templine)) return(FALSE);
 				} else if (cnt == 2) {
@@ -6190,12 +6889,12 @@ static char ced_OverAll(void) {
 				check_in_remblanks(ced_line);
 //				uS.lowercasestr(ced_line, &tFnt, FALSE);
 				if (!strcmp(ced_line,"@Begin")) {
-					global_df->AtBeginFound = TRUE;
+					ced_AtBeginFound = TRUE;
 				} else if(!strcmp(ced_line,"@End")) {
-					global_df->AtEndFound = TRUE;
+					ced_AtEndFound = TRUE;
 				} else if (ced_line[0] == '@' && ced_line[1] == 'I' &&
 						   ced_line[2] == 'D' && ced_line[3] == ':') {
-					global_df->AtIDFound = TRUE;
+					ced_AtIDFound = TRUE;
 				}
 				if (lHeaders[cnt][0] != EOS)
 					cnt++;
@@ -6208,13 +6907,13 @@ static char ced_OverAll(void) {
 			}
 		} else if (ced_u.check_partcmp(templine, "@ID:", FALSE)) {
 			if (!ced_u.check_partcmp(lSP,"@Participants",FALSE) && !ced_u.check_partcmp(lSP,"@Options",FALSE) &&
-				  !ced_u.check_partcmp(lSP,"@ID:",FALSE)) {
+				!ced_u.check_partcmp(lSP,"@ID:",FALSE)) {
 				if (check_err(126,0,strlen(templine),templine)) return(FALSE);
 			}
 		} else if (ced_u.check_partcmp(templine,"@Birth of",FALSE) || ced_u.check_partcmp(templine,"@L1 of",FALSE) ||
 				   ced_u.check_partcmp(templine,"@Birthplace of",FALSE)) {
 			if (!ced_u.check_partcmp(lSP,"@ID:",FALSE) && !ced_u.check_partcmp(lSP,"@Birth of",FALSE) &&
-				  !ced_u.check_partcmp(lSP,"@L1 of",FALSE) && !ced_u.check_partcmp(lSP,"@Birthplace of",FALSE)) {
+				!ced_u.check_partcmp(lSP,"@L1 of",FALSE) && !ced_u.check_partcmp(lSP,"@Birthplace of",FALSE)) {
 				if (check_err(127,0,strlen(templine),templine)) return(FALSE);
 			}
 		} 
@@ -6223,8 +6922,14 @@ static char ced_OverAll(void) {
 			strncpy(lSP, templine, SPEAKERLEN);
 			lSP[SPEAKERLEN] = EOS;
 		}
+		if (isNL_CFound(global_df->row_txt))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-		global_df->lineno++;
+		if (isAddLineno)
+			global_df->lineno++;
+		global_df->wLineno++;
 		if (global_df->row_win >= 0L && global_df->row_win < (long)global_df->EdWinSize)
 			global_df->row_win++;
 		strcpy(templine, global_df->row_txt->line);
@@ -6254,10 +6959,12 @@ int Check(int d) {
 	long old_col_win = global_df->col_win;
 	long old_col_chr = global_df->col_chr;
 	long old_row_win = global_df->row_win;
-	long old_lineno = global_df->lineno;
+	long old_lineno  = global_df->lineno;
+	long old_wLineno = global_df->wLineno;
 	ROWS *old_row_txt = global_df->row_txt;
 	ROWS *old_top_win = global_df->top_win;
 
+	ced_applyG2Option = TRUE;
 	tFnt.isUTF = global_df->isUTF;
 #ifdef _MAC_CODE
 	Str255 pFontName;
@@ -6308,7 +7015,7 @@ int Check(int d) {
 	}
 	Check_level = 1;
 	ToTopRow();
-	if (!global_df->AtBeginFound) {
+	if (!ced_AtBeginFound) {
 		if (check_err(6,-1,-1,global_df->row_txt->line)) {
 			DisplayErrorRow();
 			ResetUndos();
@@ -6317,13 +7024,13 @@ int Check(int d) {
 			return(72);
 		}
 	}
-	if (!global_df->AtIDFound && IS_CHECK_ID(ced_GenOpt)) {
+	if (!ced_AtIDFound && IS_CHECK_ID(ced_GenOpt)) {
 		addIDs();
 		ced_check_init(FALSE);
 		cleanupLanguages();
 		return(72);
 	}
-	if (!global_df->AtEndFound) {
+	if (!ced_AtEndFound) {
 		if (check_err(7,-1,-1,global_df->row_txt->line)) {
 			DisplayErrorRow();
 			ResetUndos();
@@ -6342,7 +7049,7 @@ int Check(int d) {
 		return(72);
 	}
 /* 2011-04-07
-	if (ced_unUsedSpeakers(global_df->headsp)) {
+	if (ced_unUsedSpeakers(ced_headsp)) {
 		ResetUndos();
 		ced_check_init(FALSE);
 		cleanupLanguages();
@@ -6356,6 +7063,7 @@ int Check(int d) {
 	global_df->col_chr = old_col_chr;
 	global_df->row_win = old_row_win;
 	global_df->lineno  = old_lineno;
+	global_df->wLineno = old_wLineno;
 	global_df->row_txt = old_row_txt;
 	global_df->top_win = old_top_win;
 	wmove(global_df->w1, global_df->row_win, global_df->col_win-global_df->LeftCol);

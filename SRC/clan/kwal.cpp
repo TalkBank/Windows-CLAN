@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -40,6 +40,11 @@ kwal +o@ +o% +r2 +r4 +r6 +r7 +d3 +d t.cha
 
 #define MAXKEYS 35
 
+#if defined(CLAN_SRV)
+extern char SRV_PATH[];
+extern char SRV_NAME[];
+#endif
+
 struct utts_list {
 	unsigned char keys[MAXKEYS];
 	char *line;
@@ -65,14 +70,14 @@ struct kwal_speakers_list {
 
 static char uttword[SPEAKERLEN];
 static char keyword[SPEAKERLEN];
-static char kw, kwal_sort, outputOnlyMatched, isDuplicateTiers, isKeywordOneColumn;
+static char kw, kwal_sort, outputOnlyMatched, isDuplicateTiers, isKeywordOneColumn, isFPrTime;
 static char *kwal_total_line;
 static char kwalTSpeaker[SPEAKERLEN];
 static char kwalTSInclude;
 static char kwal_isOnlyOne;
 static char isDepTierIncluded;
 static char isBlankSpeakerName;
-static char kwal_ftime, kwal_ftime2, kwal_ftime3;
+static char kwal_ftime, kwal_ftime2, kwal_ftime3, ftime_excel;
 static int  kwal_total_line_size;
 static long kwal_tlineno;
 static KWALSP *kwal_head;
@@ -82,19 +87,23 @@ static char *keywordsList[MAXKEYS];
 
 extern int  aftwin;
 extern int  IsModUttDel;
+extern char isKWAL2013;
 extern char tch;
 extern char tct;
+extern char MorWordMode;
 extern char R5;
 extern char R7Slash;
 extern char R7Tilda;
 extern char R7Caret;
 extern char R7Colon;
 extern char isRemoveCAChar[];
+extern char isWOptUsed;
 extern char Parans;
 extern char isExpendX;
 extern char OverWriteFile;
 extern char PostCodeMode;
 extern char IncludeAllDefaultCodes;
+extern char linkDep2Other;
 extern struct tier *headtier, *HeadOutTier;
 extern UTTER *lutter;
 
@@ -126,18 +135,25 @@ void init(char t) {
 		kwal_ftime = TRUE;
 		kwal_ftime2 = TRUE;
 		kwal_ftime3 = TRUE;
+		ftime_excel = TRUE;
 		isDuplicateTiers = FALSE;
 		isKeywordOneColumn = FALSE;
-		if (outputOnlyMatched < 2) {
+		isFPrTime = FALSE;
+		if (outputOnlyMatched < 3) {
 			maininitwords();
 			mor_initwords();
+			if (outputOnlyMatched == 1 || outputOnlyMatched == 2) {
+				addword('\0','\0',"+.");
+				addword('\0','\0',"+!");
+				addword('\0','\0',"+?");
+			}
 		} else {
 			OverWriteFile = TRUE;
 		}
 		for (i=0; GlobalPunctuation[i]; ) {
 			if (GlobalPunctuation[i] == '!' ||
 				GlobalPunctuation[i] == '?' ||
-				GlobalPunctuation[i] == '.') 
+				GlobalPunctuation[i] == '.')
 				strcpy(GlobalPunctuation+i,GlobalPunctuation+i+1);
 			else
 				i++;
@@ -145,12 +161,56 @@ void init(char t) {
 	} else {
 		if (kwal_ftime2) {
 			kwal_ftime2 = FALSE;
-			if (isMorSearchListGiven() && chatmode)
-				maketierchoice("%mor",'+',FALSE);
+			if (linkDep2Other) {
+				if (!chatmode) {
+					fprintf(stderr,"The +d7 can't be used with +y or +y1 option\n");
+					cutt_exit(0);
+				}
+				if (isWOptUsed && onlydata == 5) {
+					fputs("+/-w option can't be used with +d4 option.\n",stderr);
+					cutt_exit(0);
+				}
+				if (mwdptr != NULL) {
+					fprintf(stderr,"The +d7 can't be used with multi-word search specified with +s option\n");
+					cutt_exit(0);
+				}
+				if (CntWUT || CntFUttLen) {
+					fprintf(stderr,"The +d7 can't be used with either +x or +z option\n");
+					cutt_exit(0);
+				}
+				if (fDepTierName[0] == EOS && chatmode) {
+					if (isGRASearch()) {
+						strcpy(fDepTierName, "%gra:");
+						if (isMORSearch() && sDepTierName[0] == EOS)
+							strcpy(sDepTierName, "%mor:");
+					} else
+						strcpy(fDepTierName, "%mor:");
+				}
+				if (fDepTierName[0] != EOS)
+					maketierchoice(fDepTierName,'+',FALSE);
+				if (sDepTierName[0] != EOS)
+					maketierchoice(sDepTierName,'+',FALSE);
+				FilterTier = 2;
+			} else if (chatmode) {
+				if (isWOptUsed && onlydata == 5) {
+					fputs("+/-w option can't be used with +d4 option.\n",stderr);
+					cutt_exit(0);
+				}
+				if (isMORSearch())
+					maketierchoice("%mor",'+',FALSE);
+				if (isGRASearch())
+					maketierchoice("%gra",'+',FALSE);
+			}
+			if (CntWUT)
+				isBlankSpeakerName = FALSE;
 			if (onlydata == 5 && !f_override)
 				stout = FALSE;
 			if (kwal_sort)
 				isKeywordOneColumn = FALSE;
+			if (!linkDep2Other) {
+				fDepTierName[0] = EOS;
+				sDepTierName[0] = EOS;
+			}
 		}
 		for (p=headtier; p != NULL; p=p->nexttier) {
 			if (p->tcode[0] == '%') {
@@ -199,6 +259,7 @@ static void kwal_FindSpeaker(char *sp, char *ID) {
 	}
 	if (ts == NULL)
 		out_of_mem();
+// ".xls"
 	if ((ts->fname=(char *)malloc(strlen(oldfname)+1)) == NULL) {
 		out_of_mem();
 	}
@@ -232,8 +293,7 @@ static KWALSP *kwal_freeSpeakers(KWALSP *p) {
 }
 
 static void kwal_outputIDInfo(FILE *fp, char *sp, char *fname) {
-	int  cnt;
-	char *s, isBlank;
+	char *s;
 	KWALSP *ts;
 
 	s = strrchr(fname, PATHDELIMCHR);
@@ -241,35 +301,16 @@ static void kwal_outputIDInfo(FILE *fp, char *sp, char *fname) {
 		s = fname;
 	else
 		s++;
-	fprintf(fp, "%s\t", s);
+	excelStrCell(fpout, s);
 	for (ts=kwal_head; ts != NULL; ts=ts->next_sp) {
 		if (uS.partcmp(ts->sp, sp, FALSE, FALSE) && uS.mStricmp(ts->fname, fname) == 0) {			
-			cnt = 0;
-			isBlank = TRUE;
-			for (s=ts->ID; *s != EOS; s++) {
-				if (*s == '|') {
-					if (isBlank)
-						fprintf(fp,".");
-					fprintf(fp,"\t");
-					isBlank = TRUE;
-					cnt++;
-				} else if (isSpace(*s)) {
-					if (isBlank) {
-						fprintf(fp,".");
-						isBlank = FALSE;
-					} else
-						fputc(*s, fp);
-				} else {
-					isBlank = FALSE;
-					fputc(*s, fp);
-				}
-			}
-			if (cnt < 10)
-				fprintf(fp,".\t");
+			excelOutputID(fp, ts->ID);
 			return;
 		}
 	}
-	fprintf(fp,".\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", sp);
+	excelCommasStrCell(fpout, ".,.");
+	excelStrCell(fpout, sp);
+	excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.");
 }
 
 static unsigned char addToKeysList(char *keyword) {
@@ -332,10 +373,34 @@ static struct utts_list *AddLinearUtts(struct utts_list *root, long lineno, char
 	if (u->line == NULL)
 		out_of_mem();
 	strcpy(u->line, line);
+#if defined(CLAN_SRV)
+	int  len;
+	FNType *s;
+
+	if (oldfname[0] == PATHDELIMCHR) {
+		len = strlen(SRV_PATH);
+		for (s=oldfname; *s != EOS; s++) {
+			if (uS.mStrnicmp(SRV_PATH, s, len) == 0) {
+				s = s + len;
+				if (*s == PATHDELIMCHR)
+					s++;
+				break;
+			}
+		}
+		if (s == EOS)
+			s = oldfname;
+	} else
+		s = oldfname;
+	u->fname = (FNType *)malloc((strlen(s)+1)*sizeof(FNType));
+	if (u->fname == NULL)
+		out_of_mem();
+	strcpy(u->fname, s);
+#else
 	u->fname = (FNType *)malloc((strlen(oldfname)+1)*sizeof(FNType));
 	if (u->fname == NULL)
 		out_of_mem();
 	strcpy(u->fname, oldfname);
+#endif
 	return(root);
 }
 
@@ -385,6 +450,30 @@ static struct key *AddKeyword(struct key *p, char *w) {
 	return(p);
 }
 
+static void excelKWALStrCell(FILE *fp, const char *st) {
+	int  i, j;
+
+	if (st != NULL) {
+		j = 0;
+		for (i=0; st[i] != EOS; i++) {
+			if (st[i] == '\n' && st[i+1] == '%') {
+				templineC4[j] = EOS;
+				if (templineC4[0] != EOS) {
+					excelTextToXML(templineC3, templineC4, templineC4+strlen(templineC4));
+					fprintf(fp, "    <Cell><Data ss:Type=\"String\">%s</Data></Cell>\n", templineC3);
+				}
+				j = 0;
+			} else
+				templineC4[j++] = st[i];
+		}
+		templineC4[j] = EOS;
+		if (templineC4[0] != EOS) {
+			excelTextToXML(templineC3, templineC4, templineC4+strlen(templineC4));
+			fprintf(fp, "    <Cell><Data ss:Type=\"String\">%s</Data></Cell>\n", templineC3);
+		}
+	}
+}
+
 static void PrintUtt(struct utts_list *u, char *keyword) {
 	int  i, j;
 	struct utts_list *t;
@@ -409,8 +498,9 @@ static void PrintUtt(struct utts_list *u, char *keyword) {
 					strcpy(spareTier1, "NO_SPEAKER_NAME");
 			} else
 				strcpy(spareTier1, "NO_SPEAKER_NAME");
+			excelRow(fpout, ExcelRowStart);
 			kwal_outputIDInfo(fpout, spareTier1, u->fname);
-			fprintf(fpout, "%ld\t", u->lineno);
+			excelLongNumCell(fpout, "%ld", u->lineno);
 			if (isKeywordOneColumn) {
 				for (i=0; i < MAXKEYS; i++) {
 					if (keywordsList[i] == NULL)
@@ -419,21 +509,22 @@ static void PrintUtt(struct utts_list *u, char *keyword) {
 						if (u->keys[j] == MAXKEYS)
 							break;
 						if (i == u->keys[j]) {
-							fprintf(fpout, "%s\t", keywordsList[i]);
+							excelStrCell(fpout, keywordsList[i]);
 							break;
 						}
 					}
 					if (j >= MAXKEYS || u->keys[j] == MAXKEYS)
-						fprintf(fpout, "\t");
+						excelStrCell(fpout, "");
 				}
 			} else if (keyword[0] != EOS)
-				fprintf(fpout, "%s\t", keyword);
+				excelStrCell(fpout, keyword);
 		}
 		if (nomain) {
 			remove_main_tier_print("", u->line, NULL);
 		} else if (onlydata == 5) {
 			remove_CRs_Tabs(u->line);
-			fprintf(fpout, "%s\n", u->line);
+			excelKWALStrCell(fpout, u->line);
+			excelRow(fpout, ExcelRowEnd);
 		} else
 			fputs(u->line,fpout);
 		t = u;
@@ -511,10 +602,10 @@ static void laftprintout() {
 		do {
 			temp = temp->nextutt;
 			w++;
-			if (temp->speaker) {
+//			if (temp->speaker) {
 				AddToTotalLine(temp->speaker);
 				AddToTotalLine(temp->line);
-			}
+//			}
 		} while (temp != lutter) ;
 	}
 	for (; w < aftwin; w++) {
@@ -557,6 +648,9 @@ static void kwal_pr_result(void) {
 		}
 	} else if (kwal_sort)
 		PrintKeywords(rootKey);
+	if (onlydata == 5) {
+		excelFooter(fpout);
+	}
 }
 
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
@@ -570,8 +664,13 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	outputOnlyMatched = 0;
 	for (i=1; i < argc; i++) {
 		if (*argv[i] == '+' || *argv[i] == '-') {
-			if (argv[i][1] == 'd' && argv[i][2] == '3' && argv[i][3] == '0') {
-				outputOnlyMatched = 2;
+			if (argv[i][1] == 'd' && argv[i][2] == '3') {
+				if (argv[i][3] == '0')
+					outputOnlyMatched = 3;
+				else if (argv[i][3] == '1')
+					outputOnlyMatched = 2;
+				else
+					outputOnlyMatched = 1;
 				break;
 			}
 		}
@@ -591,13 +690,55 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	}	
 }
 
-static void pr_idfld(char *wd, long lineno) {
-	if (*oldfname == EOS) fprintf(fpout,"File \"%s\": ", "Stdin");
-	else fprintf(fpout,"File \"%s\": ", oldfname);
+static void pr_idfld(const char *pref, char *wd, long lineno) {
+#if defined(CLAN_SRV)
+	int  len;
+	FNType *s;
+
+	if (oldfname[0] == PATHDELIMCHR) {
+		len = strlen(SRV_PATH);
+		for (s=oldfname; *s != EOS; s++) {
+			if (uS.mStrnicmp(SRV_PATH, s, len) == 0) {
+				s = s + len;
+				if (*s == PATHDELIMCHR)
+					s++;
+				break;
+			}
+		}
+		if (s == EOS)
+			s = oldfname;
+	} else
+		s = oldfname;
+	if (isFPrTime) {
+		isFPrTime = FALSE;
+		fprintf(stdout,"<a href=\"http://%s/index.php?url=%s/%s\">From file \"%s\"</a>\n", SRV_NAME, SRV_PATH, s, s);
+	}
+	if (pref[0] == '@')
+		fputs("@Comment:\t----------------------------------------\n", fpout);
+	else
+		fputs("----------------------------------------\n",fpout);
+	if (*s == EOS)
+		fprintf(fpout,"%s File \"%s\": ", pref, "Stdin");
+	else
+		fprintf(fpout,"%s File \"%s\": ", pref, s);
 	fprintf(fpout,"line %ld. ", lineno);
 	if (*wd && (WordMode == 'i' || WordMode == 'I'))
 		fprintf(fpout,"Keyword%s: %s ",((kw) ? "s" : ""),wd);
 	putc('\n',fpout);
+#else
+	if (pref[0] == '@')
+		fputs("@Comment:\t----------------------------------------\n", fpout);
+	else
+		fputs("----------------------------------------\n",fpout);
+	if (*oldfname == EOS)
+		fprintf(fpout,"%s File \"%s\": ", pref, "Stdin");
+	else
+		fprintf(fpout,"%s File \"%s\": ", pref, oldfname);
+	fprintf(fpout,"line %ld. ", lineno);
+	if (*wd && (WordMode == 'i' || WordMode == 'I'))
+		fprintf(fpout,"Keyword%s: %s ",((kw) ? "s" : ""),wd);
+	putc('\n',fpout);
+#endif
 }
 
 static char excludeutter(char isCheckNomain, char *isKeywordChecked) {
@@ -633,7 +774,7 @@ static char excludeutter(char isCheckNomain, char *isKeywordChecked) {
 					uttline[i] = ' ';
 				if (uttline[i] == ':')
 					uttline[i++] = ' ';
-			} else if (uS.isskip(uttline,i,&dFnt,MBF))
+			} else if (uttline[i] != '\n' && uS.isskip(uttline,i,&dFnt,MBF))
 				uttline[i++] = ' ';
 			else
 				i++;
@@ -708,10 +849,25 @@ static char excludeutter(char isCheckNomain, char *isKeywordChecked) {
 		found = oldFound;
 
 	if (CntWUT == 2) {
-		if (!found && wdptr == NULL && mwdptr == NULL && !isMorSearchListGiven() && !isLanguageSearchListGiven())
+		if (!found && wdptr == NULL && mwdptr == NULL && !isMORSearch() && !isGRASearch() && !isLangSearch())
 			WUCounter--;
 	}
 	return(!found);
+}
+
+static char BlanckLine(char *s) {
+	long i;
+
+	for (i=0L; s[i] != EOS; i++) {
+		if (s[i] == '%' && i > 0 && s[i-1] == '\n') {
+			while (s[i] != ':' && s[i] != EOS)
+				i++;
+			if (s[i] == EOS)
+				i--;
+		} else if (!isSpace(s[i]) && s[i] != '\n')
+			return(FALSE);
+	}
+	return(TRUE);
 }
 
 static int FullLine(char *s, char isCheckNomain) {
@@ -746,12 +902,60 @@ static int FullLine(char *s, char isCheckNomain) {
 }
 
 static void cleanUpOutput(void) {
-	int  i, j, k;
-	char isSpaceFound, isCopy, isDepTierFound;
+	int  i, j, k, ab;
+	char isSpaceFound, isCopy, isDepTierFound, sq, isTextFound;
 
 	isCopy = TRUE;
 	isSpaceFound = TRUE;
 	isDepTierFound = FALSE;
+	if (outputOnlyMatched == 2) {
+		for (i=0L; uttline[i]; i++) {
+			if (utterance->line[i] == '\n' && utterance->line[i+1] == '%') {
+				break;
+			}
+			if (uttline[i] == '[') {
+				k = i;
+repeatNextCode:
+				for (j=k; utterance->line[j] != ']' && utterance->line[j] != EOS; j++) ;
+				if (utterance->line[j] == ']') {
+					for (k=j+1; utterance->line[k] != EOS; k++) {
+						if (utterance->line[k] == '[') {
+							goto repeatNextCode;
+						} else if (utterance->line[k] == '>') {
+						} else if (!uS.isskip(utterance->line,k,&dFnt,MBF) || utterance->line[k] == '<' || utterance->line[k] == '[')
+							break;
+					}
+					isTextFound = FALSE;
+					sq = FALSE;
+					ab = 0;
+					for (k=i-1; k > 0; k--) {
+						if (utterance->line[k] == ']')
+							sq = TRUE;
+						else if (utterance->line[k] == '[')
+							sq = FALSE;
+						else if (utterance->line[k] == '>' && !sq)
+							ab++;
+						else if (utterance->line[k] == '<' && !sq)
+							ab--;
+						else if (uS.isskip(utterance->line,k,&dFnt,MBF) && isTextFound && ab == 0)
+							break;
+						else if (!uS.isskip(utterance->line,k,&dFnt,MBF) && !sq)
+							isTextFound = TRUE;
+					}
+					if (k < j) {
+						if (utterance->line[j] == ']')
+							j++;
+						while (k < j) {
+							uttline[k] = utterance->line[k];
+							k++;
+						}
+					}
+					i = j;
+				}
+			}
+		}
+	}
+
 	for (i=0L; utterance->line[i]; i++) {
 		if (utterance->line[i] == '\n' && utterance->line[i+1] == '%') {
 			isCopy = TRUE;
@@ -760,8 +964,10 @@ static void cleanUpOutput(void) {
 		if (isDepTierFound == FALSE && Parans == 1 && (utterance->line[i] == '(' || utterance->line[i] == ')'))
 			isCopy = FALSE;
 		if (!uS.isskip(uttline,i,&dFnt,MBF)) {
-			if (isCopy)
-				uttline[i] = utterance->line[i];
+			if (isCopy) {
+				if (isDepTierFound == FALSE || !isMORSearch())
+					uttline[i] = utterance->line[i];
+			}
 		} else
 			isCopy = TRUE;
 	}
@@ -807,6 +1013,10 @@ static void cleanUpOutput(void) {
 				}
 			} else
 				i--;
+			if (isMORSearch()) {
+				j = strlen(uttline);
+				break;
+			}
 		} else if (utterance->line[i] == '\n' && utterance->line[i+1] == '\t') {
 			uttline[j] = utterance->line[i];
 			utterance->attLine[j] = utterance->attLine[i];
@@ -848,12 +1058,102 @@ static void cleanUpOutput(void) {
 		att_cp(0, uttline, uttline+j, utterance->attLine, utterance->attLine+j);
 }
 
+static void clearAttLine(char *outLine, AttTYPE *attLine) {
+	int i;
+
+	for (i=0; outLine[i] != EOS; i++) {
+		attLine[i] = 0;
+	}
+}
+
+static char isLinkedPairFound(void) {
+	int i, j, wi;
+	char *s, morItem[BUFSIZ], spWord[BUFSIZ];
+
+	s = strchr(uttline, dMarkChr);
+	if (s == NULL)
+		return(FALSE);
+	for (i=0; s != uttline+i && uttline[i] != EOS; i++) ;
+	if (uttline[i] == EOS)
+		return(FALSE);
+	i--;
+	for (j=i; uttline[j] != EOS && (uttline[j] != '\n' || uttline[j+1] != '%'); j++) ;
+	while ((i=getNextDepTierPair(uttline, morItem, spWord, &wi, i)) != 0) {
+		if (WordMode == 'e') {
+			if (i > j)
+				return(FALSE);
+			if (!exclude(spWord)) {
+				if (outputOnlyMatched) {
+					for (; wi < i; wi++) {
+						if (uttline[wi] != (char)sMarkChr && uttline[wi] != (char)dMarkChr)
+							uttline[wi] = ' ';
+					}
+				} else
+					return(FALSE);
+			}
+		} else if (MorWordMode == 'e') {
+			if (i > j)
+				return(FALSE);
+			if (morItem[0] == EOS && spWord[0] != EOS && spWord[0] != ',') {
+				if (outputOnlyMatched) {
+					for (; wi < i; wi++) {
+						if (uttline[wi] != (char)sMarkChr && uttline[wi] != (char)dMarkChr)
+							uttline[wi] = ' ';
+					}
+				} else
+					return(FALSE);
+			}
+		} else {
+			if (i >= j)
+				return(FALSE);
+			if (morItem[0] != EOS && spWord[0] != EOS) {
+				return(TRUE);
+			}
+		}
+	}
+	if (WordMode == 'e' || MorWordMode == 'e')
+		return(TRUE);
+	return(FALSE);
+}
+
+static void addTabsAfterCRs(char *st) {
+	for (; *st != EOS; st++) {
+		if (*st == '\n' && *(st+1) == ' ')
+			*(st+1) = '\t';
+	}
+}
+
+static void addMORtag(char *line) {
+	int i;
+
+	for (i=0; line[i] != EOS; i++) {
+		if (line[i] == '\n' && line[i+1] == '%' && line[i+2] == 'g' && line[i+3] == 'r' && line[i+4] == 'a' && line[i+5] == ':') {
+			i++;
+			uS.shiftright(line+i, 7);
+			line[i++] = '%';
+			line[i++] = 'm';
+			line[i++] = 'o';
+			line[i++] = 'r';
+			line[i++] = (char)0xE2;
+			line[i++] = (char)0x87;
+			line[i++] = (char)0x94;
+		}
+	}
+}
+
 void call() {
 	int  i;
-	char isShow, isKeywordChecked;
+	char isShow, isKeywordChecked, tnomap;
 	char nextTS;
-	char *outLine, *comma, *keyw;
+	char *outLine, *comma = NULL, *keyw;
 
+	if (ftime_excel && onlydata == 5) {
+		ftime_excel = FALSE;
+		excelHeader(fpout, newfname, 75);
+	}
+	isKWAL2013 = FALSE;
+	isFPrTime = TRUE;
+	i = 0;
 	nextTS = FALSE;
 	kw = 0;
 	*keyword = EOS;
@@ -864,6 +1164,7 @@ void call() {
 printf("sp=%s; uttline=%s", utterance->speaker, uttline);
 if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 */
+		isKWAL2013 = FALSE;
 		if (kwalTSpeaker[0] != EOS) {
 			strcpy(templineC3, utterance->speaker);
 			uS.uppercasestr(templineC3, &dFnt, MBF);
@@ -879,9 +1180,19 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 		}
 		if (CntWUT == 1) {
 			outLine = uttline;
-			for (i=0L; utterance->line[i]; i++) {
+			strcpy(templineC2, utterance->line);
+			if (utterance->speaker[0] != '@' || !CheckOutTier(utterance->speaker)) {
+				tnomap = nomap;
+				nomap = TRUE;
+				if (FilterTier > 0)
+					filterwords(utterance->speaker,templineC2,excludedef);
+				if (FilterTier > 1 && WordMode != 'e' && !CntWUT && !CntFUttLen)
+					filterwords(utterance->speaker,templineC2,exclude);
+				nomap = tnomap;
+			}
+			for (i=0L; templineC2[i]; i++) {
 				if (!isSpace(uttline[i]))
-					uttline[i] = utterance->line[i];
+					uttline[i] = templineC2[i];
 			}
 		} else if (outputOnlyMatched) {
 			blankoSelectedSpeakers(uttline);
@@ -893,27 +1204,29 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 		if (kwalTSpeaker[0] != EOS && uS.partcmp(templineC3,kwalTSpeaker,TRUE,FALSE)) {
 			if ((nextTS && kwalTSInclude) || (!nextTS && !kwalTSInclude)) {
 				if (onlydata == 0) {
-					fputs("----------------------------------------\n",fpout);
-					fputs("*** ",fpout);
-					pr_idfld(keyword,utterance->tlineno);
+					pr_idfld("***", keyword, utterance->tlineno);
 				} else if (onlydata == 2) {
-					fputs("@Comment:\t----------------------------------------\n", fpout);
-					fputs("@Comment:\t*** ",fpout);
-					pr_idfld(keyword,utterance->tlineno);
+					isFPrTime = FALSE;
+					pr_idfld("@Comment:\t***", keyword, utterance->tlineno);
 				} else if (onlydata == 5) {
 					if (!isKeywordOneColumn) {
 						uS.remblanks(utterance->speaker);
+						excelRow(fpout, ExcelRowStart);
 						kwal_outputIDInfo(fpout, utterance->speaker, oldfname);
-						fprintf(fpout, "%ld\t", utterance->tlineno);
-						if (keyword[0] == EOS)
+						excelLongNumCell(fpout, "%ld", utterance->tlineno);
+						if (keyword[0] == EOS) {
 							comma = NULL;
-						else {
+							excelStrCell(fpout, "");
+						} else {
 							if (isDuplicateTiers) {
 								comma = strchr(keyword, ',');
 								if (comma != NULL)
 									*comma = EOS;
-							}
-							fprintf(fpout, "%s\t", keyword);
+								excelStrCell(fpout, keyword);
+//								if (comma != NULL)
+//									*comma = ',';
+							} else
+								excelStrCell(fpout, keyword);
 						}
 					}
 				}
@@ -937,7 +1250,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 							rootUtts = AddLinearUtts(rootUtts, utterance->tlineno, keyword, spareTier1);
 							*keyword = EOS;
 						} else
-							fprintf(fpout, "%s", outLine);
+							excelKWALStrCell(fpout, outLine);
 					} else
 						printout(NULL,outLine,utterance->attSp,utterance->attLine,FALSE);
 				} else {
@@ -952,7 +1265,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 							rootUtts = AddLinearUtts(rootUtts, utterance->tlineno, keyword, spareTier1);
 							*keyword = EOS;
 						} else
-							fprintf(fpout, "%s", outLine);
+							excelKWALStrCell(fpout, outLine);
 					} else
 						printout(utterance->speaker,outLine,utterance->attSp,utterance->attLine,FALSE);
 				}
@@ -965,66 +1278,69 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 						comma = strchr(keyw, ',');
 						if (comma != NULL)
 							*comma = EOS;
-						putc('\n', fpout);
+						excelRow(fpout, ExcelRowEnd);
+						excelRow(fpout, ExcelRowStart);
 						kwal_outputIDInfo(fpout, utterance->speaker, oldfname);
-						fprintf(fpout, "%ld\t", utterance->tlineno);
-						fprintf(fpout, "%s\t", keyw);
-						fprintf(fpout, "%s", outLine);
+						excelLongNumCell(fpout, "%ld", utterance->tlineno);
+						excelStrCell(fpout, keyw);
+						excelKWALStrCell(fpout, outLine);
 					} while (comma != NULL) ;
 				}
 				if (utterance->nextutt == utterance || *utterance->speaker != '@' || !CheckOutTier(utterance->speaker))
 					aftprintout(onlydata != 1);
 				if (onlydata == 5 && !isKeywordOneColumn)
-					putc('\n', fpout);
+					excelRow(fpout, ExcelRowEnd);
 			}
 			nextTS = FALSE;
 		} else {
 			isKeywordChecked = FALSE;
-			isShow = ((!excludeutter(TRUE, &isKeywordChecked) || (wdptr == NULL && isMorSearchListGiven() == FALSE)) && FullLine(uttline, TRUE));
-			if (!isShow)
-				isShow = (nextTS && kwalTSInclude);
-			if (!isShow && nomain && wdptr == NULL && isMorSearchListGiven() == FALSE && onlydata != 5) {
-				isShow = (*utterance->speaker== '*' && nomain && isDepTierIncluded && HeadOutTier == NULL);
+			if (linkDep2Other && strchr(uttline, dMarkChr) != NULL) {
+				isShow = isLinkedPairFound();
+			} else {
+				isShow = ((!excludeutter(TRUE, &isKeywordChecked) || (wdptr == NULL && isMORSearch() == FALSE && isGRASearch() == FALSE)) && FullLine(uttline, TRUE));
 				if (!isShow)
-					isShow = (*utterance->speaker== '*' && nomain && FullLine(uttline,FALSE) && CheckOutTier(utterance->speaker));
-				if (!isShow && tct) {
-					for (i=0; outLine[i] != EOS; i++) {
-						if (outLine[i] == '\n' && outLine[i+1] == '%')
-							break;
-					}
-					if (outLine == utterance->line && outLine[i] != EOS) {
-						isShow = TRUE;
-						att_cp(0, utterance->line, utterance->line+i, utterance->attLine, utterance->attLine+i);
+					isShow = (nextTS && kwalTSInclude);
+				if (!isShow && nomain && wdptr == NULL && isMORSearch() == FALSE  && isGRASearch() == FALSE && onlydata != 5) {
+					isShow = (*utterance->speaker== '*' && nomain && isDepTierIncluded && HeadOutTier == NULL && !BlanckLine(uttline));
+					if (!isShow)
+						isShow = (*utterance->speaker== '*' && nomain && FullLine(uttline,FALSE) && CheckOutTier(utterance->speaker));
+					if (!isShow && tct) {
+						for (i=0; outLine[i] != EOS; i++) {
+							if (outLine[i] == '\n' && outLine[i+1] == '%')
+								break;
+						}
+						if (outLine == utterance->line && outLine[i] != EOS) {
+							isShow = TRUE;
+							att_cp(0, utterance->line, utterance->line+i, utterance->attLine, utterance->attLine+i);
+						}
 					}
 				}
+				if (!isShow)
+					isShow = (*utterance->speaker== '*' && nomain && isDepTierIncluded && !excludeutter(FALSE, &isKeywordChecked) && !BlanckLine(uttline) && HeadOutTier == NULL && onlydata != 5);
+				if (!isShow)
+					isShow = (*utterance->speaker== '*' && nomain && FullLine(uttline, FALSE) && !excludeutter(FALSE, &isKeywordChecked) && CheckOutTier(utterance->speaker));
+				if (!isShow)
+					isShow = ((CntWUT || CntFUttLen) && !excludeutter(FALSE, &isKeywordChecked) && CheckOutTier(utterance->speaker) && utterance->nextutt == utterance);
+				if (!isShow)
+					isShow = ((CntWUT || CntFUttLen) && WordMode == '\0' && CheckOutTier(utterance->speaker) && utterance->nextutt == utterance);
+				if (!isShow)
+					isShow = (*utterance->speaker== '@' && CheckOutTier(utterance->speaker) /*&& utterance->nextutt == utterance*/);
 			}
-			if (!isShow)
-				isShow = (*utterance->speaker== '*' && nomain && isDepTierIncluded && !excludeutter(FALSE, &isKeywordChecked) && HeadOutTier == NULL && onlydata != 5);
-			if (!isShow)
-				isShow = (*utterance->speaker== '*' && nomain && FullLine(uttline, FALSE) && !excludeutter(FALSE, &isKeywordChecked) && CheckOutTier(utterance->speaker));
-			if (!isShow)
-				isShow = ((CntWUT || CntFUttLen) && !excludeutter(FALSE, &isKeywordChecked) && CheckOutTier(utterance->speaker) && utterance->nextutt == utterance);
-			if (!isShow)
-				isShow = ((CntWUT || CntFUttLen) && WordMode == '\0' && CheckOutTier(utterance->speaker) && utterance->nextutt == utterance);
-			if (!isShow)
-				isShow = (*utterance->speaker== '@' && CheckOutTier(utterance->speaker) /*&& utterance->nextutt == utterance*/);
 			if (isShow) {
 				if (kwalTSpeaker[0] != EOS)
 					nextTS = TRUE;
 				if (kwalTSInclude) {
 					if (onlydata == 0) {
-						fputs("----------------------------------------\n",fpout);
-						fputs("*** ",fpout);
-						pr_idfld(keyword,utterance->tlineno);
+						pr_idfld("***", keyword, utterance->tlineno);
 					} else if (onlydata == 2) {
-						fputs("@Comment:\t----------------------------------------\n", fpout);
-						fputs("@Comment:\t*** ",fpout);
-						pr_idfld(keyword,utterance->tlineno);
+						isFPrTime = FALSE;
+						pr_idfld("@Comment:\t***", keyword,utterance->tlineno);
 					} else if (onlydata == 5) {
 						if (!isKeywordOneColumn) {
 							uS.remblanks(utterance->speaker);
+							excelRow(fpout, ExcelRowStart);
 							kwal_outputIDInfo(fpout, utterance->speaker, oldfname);
-							fprintf(fpout, "%ld\t", utterance->tlineno);
+							excelLongNumCell(fpout, "%ld", utterance->tlineno);
 							if (keyword[0] == EOS)
 								comma = NULL;
 							else {
@@ -1032,19 +1348,52 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 									comma = strchr(keyword, ',');
 									if (comma != NULL)
 										*comma = EOS;
-								}
-								fprintf(fpout, "%s\t", keyword);
+									excelStrCell(fpout, keyword);
+//									if (comma != NULL)
+//										*comma = ',';
+								} else
+									excelStrCell(fpout, keyword);
 							}
 						}
 					}
 					if (!isKeywordOneColumn)
 						*keyword = EOS;
-					if (outputOnlyMatched)
-						cleanUpOutput();
+					if (outputOnlyMatched) {
+						if (linkDep2Other && strchr(uttline, dMarkChr) != NULL) {
+							if (isMORSearch() && isGRASearch()) {
+								removeBlankPairs(outLine);
+								combineMainDepWords(outLine, TRUE);
+								addMORtag(outLine);
+							} else
+								removeMainTierWords(outLine);
+//2018-03-29				removeExtraSpace(outLine);
+							clearAttLine(outLine, utterance->attLine);
+						} else {
+							cleanUpOutput();
+						}
+					}
 					if (utterance->nextutt == utterance || *utterance->speaker != '@' || !CheckOutTier(utterance->speaker))
 						befprintout(onlydata != 1);
+					if (outLine == uttline)
+						addTabsAfterCRs(outLine);
 					if (!CheckOutTier(utterance->speaker) && *utterance->speaker == '*' && nomain) {
-						remove_main_tier_print(utterance->speaker, outLine, utterance->attLine);
+						if (isMORSearch() && outputOnlyMatched) {
+							for (i=0L; outLine[i]; i++) {
+								if (outLine[i] == '\n')
+									outLine[i] = ' ';
+								tempAtt[i] = 0;
+							}
+							removeExtraSpace(outLine);
+							uS.remFrontAndBackBlanks(outLine);
+							if (uS.mStrnicmp(outLine, "%mor:", 5) == 0) {
+								strcpy(outLine, outLine+5);
+								if (isSpace(outLine[0]))
+									strcpy(outLine, outLine+1);
+								printout("%mor:", outLine, NULL, tempAtt, TRUE);
+							} else
+								printout(NULL,outLine,NULL,tempAtt,TRUE);
+						} else
+							remove_main_tier_print(utterance->speaker, outLine, utterance->attLine);
 					} else if (chatmode == 0) {
 						if (onlydata == 5)
 							remove_CRs_Tabs(outLine);
@@ -1057,7 +1406,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 								rootUtts = AddLinearUtts(rootUtts, utterance->tlineno, keyword, spareTier1);
 								*keyword = EOS;
 							} else
-								fprintf(fpout, "%s", outLine);
+								excelKWALStrCell(fpout, outLine);
 						} else
 							printout(NULL,outLine,utterance->attSp,utterance->attLine,FALSE);
 					} else {
@@ -1072,9 +1421,19 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 								rootUtts = AddLinearUtts(rootUtts, utterance->tlineno, keyword, spareTier1);
 								*keyword = EOS;
 							} else
-								fprintf(fpout, "%s", outLine);
-						} else
-							printout(utterance->speaker,outLine,utterance->attSp,utterance->attLine,FALSE);
+								excelKWALStrCell(fpout, outLine);
+						} else {
+							if (isMORSearch() && outputOnlyMatched) {
+								for (i=0L; outLine[i]; i++) {
+									if (outLine[i] == '\n')
+										outLine[i] = ' ';
+								}
+								removeExtraSpace(outLine);
+								uS.remFrontAndBackBlanks(outLine);
+								printout(utterance->speaker,outLine,utterance->attSp,utterance->attLine, TRUE);
+							} else
+								printout(utterance->speaker,outLine,utterance->attSp,utterance->attLine, FALSE);
+						}
 					}
 					if (isDuplicateTiers && comma != NULL) {
 						do {
@@ -1085,17 +1444,18 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 							comma = strchr(keyw, ',');
 							if (comma != NULL)
 								*comma = EOS;
-							putc('\n', fpout);
+							excelRow(fpout, ExcelRowEnd);
+							excelRow(fpout, ExcelRowStart);
 							kwal_outputIDInfo(fpout, utterance->speaker, oldfname);
-							fprintf(fpout, "%ld\t", utterance->tlineno);
-							fprintf(fpout, "%s\t", keyw);
-							fprintf(fpout, "%s", outLine);
+							excelLongNumCell(fpout, "%ld", utterance->tlineno);
+							excelStrCell(fpout, keyw);
+							excelKWALStrCell(fpout, outLine);
 						} while (comma != NULL) ;
 					}
 					if (utterance->nextutt == utterance || *utterance->speaker != '@' || !CheckOutTier(utterance->speaker))
 						aftprintout(onlydata != 1);
 					if (onlydata == 5 && !isKeywordOneColumn)
-						putc('\n', fpout);
+						excelRow(fpout, ExcelRowEnd);
 				}
 			} else
 				nextTS = FALSE;
@@ -1120,10 +1480,16 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 }
 
 void getflag(char *f, char *f1, int *i) {
+	char *j;
+
 	f++;
 	switch(*f++) {
 		case 'a':
 				kwal_sort = TRUE;
+				no_arg_option(f);
+				break;
+		case 'b':
+				kwal_isOnlyOne = TRUE;
 				no_arg_option(f);
 				break;
 		case 'n':
@@ -1135,24 +1501,25 @@ void getflag(char *f, char *f1, int *i) {
 				uS.uppercasestr(kwalTSpeaker, &dFnt, MBF);
 				kwalTSInclude = (*(f-2) == '+');
 				break;
-		case 'b':
-				kwal_isOnlyOne = TRUE;
-				no_arg_option(f);
+		case 't':
+				if (*(f-2) == '+' && *f == '%') {
+					if (fDepTierName[0] == EOS)
+						strcpy(fDepTierName, f);
+					else if (sDepTierName[0] == EOS)
+						strcpy(sDepTierName, f);
+				}
+				maingetflag(f-2,f1,i);
 				break;
 		case 'd':
-				if (*f == '4' && *(f+1) == '0') {
+				if (*f == '7') {
+					linkDep2Other = TRUE;
+					break;
+				} else if (*f == '4' && *(f+1) == '0') {
 					isDuplicateTiers = TRUE;
 					isKeywordOneColumn = FALSE;
 					onlydata = 5;
 					combinput = TRUE;
 					break;
-/*
-				} else if (*f == '4' && *(f+1) == '1') {
-					isKeywordOneColumn = TRUE;
-					isDuplicateTiers = FALSE;
-					onlydata = 5;
-					break;
-*/
 				} else if (*f == '4') {
 					combinput = TRUE;
 					isKeywordOneColumn = TRUE;
@@ -1160,7 +1527,7 @@ void getflag(char *f, char *f1, int *i) {
 					isExpendX = TRUE;
 					break;
 				} else if (*f == '3' && *(f+1) == '0') {
-					outputOnlyMatched = 2;
+					outputOnlyMatched = 3;
 					R5 = FALSE;
 					R7Slash = FALSE;
 					R7Tilda = FALSE;
@@ -1171,18 +1538,27 @@ void getflag(char *f, char *f1, int *i) {
 					Parans = 2;
 					IncludeAllDefaultCodes = TRUE;
 					break;
-				} else if (*f == '3') {
+				} else if (*f == '3' && *(f+1) == '1') {
+					outputOnlyMatched = 2;
+					break;
+				} else if (*f == '3' && *(f+1) == EOS) {
 					outputOnlyMatched = 1;
 					break;
 				}
 		case 's':
+				for (j=f; *j != EOS; j++) {
+					if (*j == '(') {
+						Parans = 2;
+						break;
+					}
+				}
 				if (*(f-2) == '+' && *(f-1) == 's') {
 					if (*f == '\\' && *(f+1) == '%' && f[strlen(f)-1] == ':')
 						isBlankSpeakerName = FALSE;
 				}
 		case 'z':
 				if (kwal_ftime) {
-					if (outputOnlyMatched != 2) {
+					if (outputOnlyMatched != 3) {
 						addword('\0','\0',"+xxx");
 						addword('\0','\0',"+yyy");
 						addword('\0','\0',"+www");
@@ -1197,7 +1573,6 @@ void getflag(char *f, char *f1, int *i) {
 				}
 				maingetflag(f-2,f1,i);
 				break;
-
 		default:
 				maingetflag(f-2,f1,i);
 				break;

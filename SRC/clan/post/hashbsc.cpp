@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -12,7 +12,7 @@
 #include "hashbsc.hpp"
 
 #define sz_cHashHeader 16
-#define sz_cCellBB sizeof(long)*3
+#define sz_cCellBB sizeof(long32)*3
 
 /*
  * Add an item to an hashfile system.
@@ -23,12 +23,12 @@ void cHashBasic::UpdateHeader()
 	// Write Header element by element.
 	// OLD *** vmWrite( &mHeader, mVirtualAddress, sz_cHashHeader );
 	vmWriteLong( mHeader.mVersionNumber, mVirtualAddress );		/* version number */
-	vmWriteLong( mHeader.mSizeBackbone, mVirtualAddress + (long)(sizeof(long)) );	/* number of elements in direct access */
-	vmWriteLong( mHeader.mNumberOfItems, mVirtualAddress + (long)(2*sizeof(long)) );/* number of items of hash */
-	vmWriteLong( mHeader.mNumberOfCrashes, mVirtualAddress + (long)(3*sizeof(long)) );/* number of hits of hash */
+	vmWriteLong( mHeader.mSizeBackbone, mVirtualAddress + (long32)(sizeof(long32)) );	/* number of elements in direct access */
+	vmWriteLong( mHeader.mNumberOfItems, mVirtualAddress + (long32)(2*sizeof(long32)) );/* number of items of hash */
+	vmWriteLong( mHeader.mNumberOfCrashes, mVirtualAddress + (long32)(3*sizeof(long32)) );/* number of hits of hash */
 }
 
-address cHashBasic::Create( long sizeBB )
+address cHashBasic::Create( long32 sizeBB, int type )
 {
 	mVirtualAddress = vmAllocate( sz_cHashHeader + sz_cCellBB * sizeBB );
 
@@ -42,25 +42,25 @@ address cHashBasic::Create( long sizeBB )
 	bb.data = NOCELL;
 	bb.next = NOCELL;
 	bb.size = 0;
-	for ( long n=0l; n<sizeBB; n++ ) {
+	for ( long32 n=0l; n<sizeBB; n++ ) {
 // if (n%100000==0) msg( ".%ld",n/1000);
 		// Write all element of structure
 		// OLD *** vmWrite( &bb, mVirtualAddress + sz_cHashHeader + n * sz_cCellBB, sz_cCellBB );
 		vmWriteLong( bb.data, mVirtualAddress + sz_cHashHeader + n * sz_cCellBB );
-		vmWriteLong( bb.next, mVirtualAddress + sz_cHashHeader + n * sz_cCellBB + sizeof(long) );
-		vmWriteLong( bb.size, mVirtualAddress + sz_cHashHeader + n * sz_cCellBB + 2 * sizeof(long) );
+		vmWriteLong( bb.next, mVirtualAddress + sz_cHashHeader + n * sz_cCellBB + sizeof(long32) );
+		vmWriteLong( bb.size, mVirtualAddress + sz_cHashHeader + n * sz_cCellBB + 2 * sizeof(long32) );
 	}
 	return mVirtualAddress;
 }
 
-int cHashBasic::Open( address vmadr )
+int cHashBasic::Open( address vmadr, int type )
 {
 	mVirtualAddress = vmadr;
 	// OLD *** vmRead( &mHeader, mVirtualAddress, sz_cHashHeader );
 	mHeader.mVersionNumber = vmReadLong( mVirtualAddress );		/* version number */
-	mHeader.mSizeBackbone = vmReadLong( mVirtualAddress + (long)(sizeof(long)) );	/* number of elements in direct access */
-	mHeader.mNumberOfItems = vmReadLong( mVirtualAddress + (long)(2*sizeof(long)) );/* number of items of hash */
-	mHeader.mNumberOfCrashes = vmReadLong( mVirtualAddress + (long)(3*sizeof(long)) );/* number of hits of hash */
+	mHeader.mSizeBackbone = vmReadLong( mVirtualAddress + (long32)(sizeof(long32)) );	/* number of elements in direct access */
+	mHeader.mNumberOfItems = vmReadLong( mVirtualAddress + (long32)(2*sizeof(long32)) );/* number of items of hash */
+	mHeader.mNumberOfCrashes = vmReadLong( mVirtualAddress + (long32)(3*sizeof(long32)) );/* number of hits of hash */
 
 	if ( mHeader.mVersionNumber < HASHBSC_VERSION_NUMBER ) {
 		msg( "The version of the POST database file is older than the version of the CLAN software.\nPlease upgrade your POST database file.\n" );
@@ -82,8 +82,8 @@ address cHashBasic::Add( unsigned char* element, int sizeofelement )
 	for (;;) {
 		// OLD *** vmRead( &cl, pt, sz_cCellBB );
 		cl.data = vmReadLong( pt );
-		cl.next = vmReadLong( pt + sizeof(long) );
-		cl.size = vmReadLong( pt + 2 * sizeof(long) );
+		cl.next = vmReadLong( pt + sizeof(long32) );
+		cl.size = vmReadLong( pt + 2 * sizeof(long32) );
 		if (cl.next==NOCELL) { /* Entry was empty */
 			cl.next= ENDCELL;
 			cl.data= vmAllocate(sizeofelement);
@@ -92,8 +92,8 @@ address cHashBasic::Add( unsigned char* element, int sizeofelement )
 			(*mWriteElement)( element, cl.data, sizeofelement );
 			// OLD *** vmWrite( &cl, pt, sz_cCellBB );
 			vmWriteLong( cl.data, pt );
-			vmWriteLong( cl.next, pt + sizeof(long) );
-			vmWriteLong( cl.size, pt + 2 * sizeof(long) );
+			vmWriteLong( cl.next, pt + sizeof(long32) );
+			vmWriteLong( cl.size, pt + 2 * sizeof(long32) );
 
 			mHeader.mNumberOfItems++;
 			UpdateHeader();
@@ -113,8 +113,8 @@ address cHashBasic::Add( unsigned char* element, int sizeofelement )
 			cl.next = vmAllocate(sz_cCellBB);
 			// OLD *** vmWrite( &cl, pt, sz_cCellBB );
 			// vmWriteLong( cl.data, pt );
-			vmWriteLong( cl.next, pt + sizeof(long) );
-			// vmWriteLong( cl.size, pt + 2 * sizeof(long) );
+			vmWriteLong( cl.next, pt + sizeof(long32) );
+			// vmWriteLong( cl.size, pt + 2 * sizeof(long32) );
 			pt = cl.next;  /* address of next cell */
 
 			/* generate next cell */
@@ -125,8 +125,8 @@ address cHashBasic::Add( unsigned char* element, int sizeofelement )
 			(*mWriteElement)( element, cl.data, sizeofelement );
 			// OLD *** vmWrite( &cl, pt, sz_cCellBB );
 			vmWriteLong( cl.data, pt );
-			vmWriteLong( cl.next, pt + sizeof(long) );
-			vmWriteLong( cl.size, pt + 2 * sizeof(long) );
+			vmWriteLong( cl.next, pt + sizeof(long32) );
+			vmWriteLong( cl.size, pt + 2 * sizeof(long32) );
 
 			mHeader.mNumberOfItems++;
 			mHeader.mNumberOfCrashes++;
@@ -148,8 +148,8 @@ unsigned char* cHashBasic::Look( unsigned char* element )
 	for (;;) {
 		// OLD *** vmRead( &cl, pt, sz_cCellBB );
 		cl.data = vmReadLong( pt );
-		cl.next = vmReadLong( pt + sizeof(long) );
-		cl.size = vmReadLong( pt + 2 * sizeof(long) );
+		cl.next = vmReadLong( pt + sizeof(long32) );
+		cl.size = vmReadLong( pt + 2 * sizeof(long32) );
 		if (cl.next==NOCELL)
 			return 0;
 
@@ -176,8 +176,8 @@ address cHashBasic::LookAddressOf( unsigned char* element )
 	for (;;) {
 		// OLD *** vmRead( &cl, pt, sz_cCellBB );
 		cl.data = vmReadLong( pt );
-		cl.next = vmReadLong( pt + sizeof(long) );
-		cl.size = vmReadLong( pt + 2 * sizeof(long) );
+		cl.next = vmReadLong( pt + sizeof(long32) );
+		cl.size = vmReadLong( pt + 2 * sizeof(long32) );
 		if (cl.next==NOCELL) return NOCELL;
 
 		/* there's a cell: read the item */
@@ -214,7 +214,7 @@ unsigned char* cHashBasic::Give(int firsttime)
 	static cCellBB cl;
 
 	if (firsttime) {
-		p=(long)sz_cHashHeader+mVirtualAddress;
+		p=(long32)sz_cHashHeader+mVirtualAddress;
 		l=0L;
 		return 0;
 	}
@@ -225,10 +225,10 @@ unsigned char* cHashBasic::Give(int firsttime)
 		  + mVirtualAddress )
 		return 0;
 	// OLD *** vmRead( &cl, p, sz_cCellBB );
-	cl.next = vmReadLong( p + sizeof(long) );
+	cl.next = vmReadLong( p + sizeof(long32) );
 	if (cl.next==NOCELL) { p+=sz_cCellBB; goto loop; }
 	cl.data = vmReadLong( p );
-	cl.size = vmReadLong( p + 2 * sizeof(long) );
+	cl.size = vmReadLong( p + 2 * sizeof(long32) );
 	l=cl.data;
  crash:
 	// OLD *** vmRead( mPad, l, cl.size /*MaxHashKeySize*/ );
@@ -237,8 +237,8 @@ unsigned char* cHashBasic::Give(int firsttime)
 	else {
 		// OLD *** vmRead( &cl, cl.next, sz_cCellBB );
 		cl.data = vmReadLong( cl.next );
-		cl.size = vmReadLong( cl.next + 2 * sizeof(long) );
-		cl.next = vmReadLong( cl.next + sizeof(long) );
+		cl.size = vmReadLong( cl.next + 2 * sizeof(long32) );
+		cl.next = vmReadLong( cl.next + sizeof(long32) );
 		l=cl.data;
 	}
 	return mPad;

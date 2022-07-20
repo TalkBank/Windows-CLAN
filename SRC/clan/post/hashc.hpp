@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -71,7 +71,7 @@ loopr* hashiteratorloopII (int hd);	// iterate for Int4 data type
 loopr* hashiteratorloopCN (int hd);	// iterate for number data type
 loopr* hashiteratorloopIN (int hd);	// iterate for number data type
 int hashstat(int hd, FILE* out=stdout);	// statistics of hash use
-long hashsize(int h);			// actual size of a hash
+long32 hashsize(int h);			// actual size of a hash
 
 int alloc_and_write_string( char* rule );	// allocate and store a string in the database
 void read_string( int adr, char* rule );	// retrieve a string stored in the database

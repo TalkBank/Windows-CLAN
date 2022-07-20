@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -143,7 +143,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			fprintf(fpout,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 			fprintf(fpout, "%s%s", utterance->speaker, utterance->line);
 		} else {
-			if ((i=isPostCodeFound(utterance)) == 5 || i == 1) {
+			if ((i=isPostCodeFound(utterance->speaker, utterance->line)) == 5 || i == 1) {
 				if (*utterance->speaker == '*')
 					rightspeaker = FALSE;
 				else

@@ -1,11 +1,16 @@
 #include "ced.h"
 #include "c_clan.h"
+#include <process.h>
 
 extern char *nameOverride, *pathOverride;
 extern char *lineNumFname;
+extern char isSpOverride;
 extern long lineNumOverride;
 
+char isAjustCursor = TRUE;
+
 int VisitFile(int i) {
+	isAjustCursor = TRUE;
 	::PostMessage(AfxGetApp()->m_pMainWnd->m_hWnd, WM_COMMAND, ID_FILE_OPEN, NULL);
 	return(59);
 }
@@ -35,14 +40,12 @@ static void lExtractFileName(unCH *line, FNType *fname, char term) {
 	}
 }
 
-#include <process.h>
-
 char FindFileLine(char isTest, char *message) {
 	char fname[FILENAME_MAX];
-	char isZeroFound = FALSE;
+	char isZeroFound = FALSE, isSpeakerNumber;
 	unCH *line;
 	char *t;
-	wchar_t u_fname[FNSize];
+	unCH u_fname[FNSize];
 	long len;
 	long ln = 0L;
 	LINE *tcol;
@@ -91,7 +94,15 @@ char FindFileLine(char isTest, char *message) {
 		len = strlen("line ");
 		if (strncmp(line, "line ", len) == 0) {
 			strcpy(line, line+len);
-			ln = atol(line);
+			ln = uS.atol(line);
+			isSpeakerNumber = FALSE;
+		} else {
+			len = strlen("speaker ");
+			if (strncmp(line, "speaker ", len) == 0) {
+				strcpy(line, line + len);
+				ln = uS.atol(line);
+				isSpeakerNumber = TRUE;
+			}
 		}
 	} else
 		return(FALSE);
@@ -103,12 +114,18 @@ char FindFileLine(char isTest, char *message) {
 			return(FALSE);
 		}
 
+		isAjustCursor = FALSE;
 		t = strrchr(fname, '.');
 		if (t != NULL && !strcmp(t, ".xls")) {
-			u_strcpy(u_fname, fname, FNSize);
+			strcpy(FileName2, "start \"Excel\" \"");
+			strcat(FileName2, fname);
+			strcat(FileName2, "\"");
+			u_strcpy(u_fname, FileName2, FNSize);
+			
 //			if (_wspawnl(_P_NOWAITO, u_fname, u_fname, _T(""), NULL))
 //			if (!_wsystem(u_fname))
 //			if (!_wexecl(u_fname, u_fname, NULL))
+			_wsystem(u_fname);
 				return(TRUE);
 		}
 
@@ -128,6 +145,7 @@ char FindFileLine(char isTest, char *message) {
 			nameOverride = tFileBuf;
 		lineNumFname = tFileBuf;
 		lineNumOverride = ln;
+		isSpOverride = isSpeakerNumber;
 		if (isZeroFound)
 			isDontAskDontTell = TRUE;
 		::PostMessage(AfxGetApp()->m_pMainWnd->m_hWnd, WM_COMMAND, ID_FILE_NEW, NULL);
@@ -184,10 +202,10 @@ void SetScrollControl(void) {
 			global_df->VScrollBar = FALSE;
 		}
 	} else {
-		if (global_df->lineno == 1)
+		if (global_df->wLineno == 1)
 			max = (double)(global_df->window_rows_offset * 100L) / global_df->numberOfRows;
 		else
-			max = (double)((global_df->lineno+global_df->window_rows_offset) * 100L) / global_df->numberOfRows;
+			max = (double)((global_df->wLineno + global_df->window_rows_offset) * 100L) / global_df->numberOfRows;
 		GlobalDC->GetWindow()->SetScrollPos(SB_VERT, (int)max, (BOOL)global_df->VScrollBar);
 		if (!global_df->VScrollBar) {
 			sb.nMax = 100;
@@ -218,19 +236,20 @@ void SetScrollControl(void) {
 			GlobalDC->GetWindow()->SetScrollPos(SB_HORZ, (int)max, (BOOL)global_df->HScrollBar);
 		}
 	} else {
-#ifndef _UNICODE
-		short res;
-		NewFontInfo finfo;
-#endif
 		max = 0.0000;
 		shiftMax = 0.0000;
-		win = global_df->top_win;
+		if (global_df->top_win == global_df->head_text)
+			win = ToNextRow(global_df->top_win, FALSE);
+		else
+			win = global_df->top_win;
 		gWin = GlobalDC->GetWindow();
 		if (!gWin)
 			return;
 		gWin->GetClientRect(&theRect);		
-		width = (double)(theRect.right - theRect.left - LEFTMARGIN -
-												global_df->w1->textOffset - SCROLL_BAR_SIZE);
+		if (global_df == NULL || global_df->w1 == NULL)
+			width = (double)(theRect.right - theRect.left - LEFTMARGIN - getNumberOffset() - SCROLL_BAR_SIZE);
+		else
+			width = (double)(theRect.right - theRect.left - LEFTMARGIN - global_df->w1->textOffset - SCROLL_BAR_SIZE);
 		for (i=0; i < global_df->EdWinSize && win!=global_df->tail_text; i++, win=ToNextRow(win,FALSE)) {
 			SetLogfont(&lfFont, &win->Font, NULL);
 			l_font.CreateFontIndirect(&lfFont);
@@ -238,10 +257,6 @@ void SetScrollControl(void) {
 			shiftLen = 0L;
 			colWin = 0L;
 			len = 0L;
-#ifndef _UNICODE
-			finfo.isUTF = global_df->isUTF;
-			finfo.Encod = my_FontToScript(win->Font.FName, win->Font.CharSet);
-#endif
 			if (win == global_df->cur_line) {
 				for (tl=global_df->head_row->next_char; 
 						tl != global_df->tail_row && len < UTTLINELEN-1; tl=tl->next_char) {
@@ -251,18 +266,7 @@ void SetScrollControl(void) {
 							templine4[len++] = ' ';
 					} else {
 						templine4[len] = tl->c;
-#ifndef _UNICODE
-						if (tl->next_char != global_df->tail_row)
-							templine4[len+1] = tl->next_char->c;
-						else
-							templine4[len+1] = '\0';
-						res = my_CharacterByteType(templine4, len, &finfo);
-						if (res == 0 || res == 1) {
-							colWin++;
-						}
-#else
 						colWin++;
-#endif
 						len++;
 					}
 				}
@@ -274,14 +278,7 @@ void SetScrollControl(void) {
 							templine4[len++] = ' ';
 					} else {
 						templine4[len++] = win->line[t];
-#ifndef _UNICODE
-						res = my_CharacterByteType(win->line, t, &finfo);
-						if (res == 0 || res == 1) {
-							colWin++;
-						}
-#else
 						colWin++;
-#endif
 					}
 				}
 			}
@@ -323,7 +320,8 @@ static long Con_MoveLineUp(long orgCol_win) {
 		DisplayTextWindow(NULL, 1);
 		if (global_df->row_win >= 0L && global_df->row_win < global_df->EdWinSize) 
 			global_df->window_rows_offset = 0;
-	} else {
+	} else if (global_df->row_txt != global_df->top_win && 
+								global_df->row_win < (long)global_df->EdWinSize) {
 		global_df->redisplay = 0;
 		MoveUp(-1);
 		global_df->redisplay = 1;
@@ -352,7 +350,7 @@ static long Con_PrevPage(long orgCol_win) {
 			if (!AtTopEnd(global_df->top_win,global_df-> head_text, FALSE)) 
 				global_df->top_win = ToPrevRow(global_df->top_win, FALSE);
 			else {
-				global_df->window_rows_offset = 0L - global_df->lineno;
+				global_df->window_rows_offset = 0L - global_df->wLineno;
 				break;
 			}
 	    	num -= global_df->top_win->Font.FHeight;
@@ -367,7 +365,7 @@ static long Con_PrevPage(long orgCol_win) {
 			}
 		}
 		if (AtTopEnd(global_df->top_win, global_df->head_text, FALSE))
-			global_df->window_rows_offset = 0L - global_df->lineno;
+			global_df->window_rows_offset = 0L - global_df->wLineno;
 		if (global_df->row_win >= 0L && global_df->row_win < global_df->EdWinSize) 
 			global_df->window_rows_offset = 0L;
 		DisplayTextWindow(NULL, 1);
@@ -396,21 +394,21 @@ static void Con_NextPage(void) {
 }
 
 static void Con_GotoLine(long num) {
-	register long fp = global_df->lineno+global_df->window_rows_offset;
+	register long fp = global_df->wLineno + global_df->window_rows_offset;
 
 	if (num < fp) {
 		for (; num < fp; num++) {
 			if (!AtTopEnd(global_df->top_win, global_df->head_text, FALSE)) 
 				global_df->top_win = ToPrevRow(global_df->top_win, FALSE);
 			else {
-				global_df->window_rows_offset = 0L - global_df->lineno;
+				global_df->window_rows_offset = 0L - global_df->wLineno;
 				break;
 			}
 			global_df->row_win++;
 			global_df->window_rows_offset--;
 		}
 		if (AtTopEnd(global_df->top_win, global_df->head_text, FALSE))
-			global_df->window_rows_offset = 0L - global_df->lineno;
+			global_df->window_rows_offset = 0L - global_df->wLineno;
 	} else {
 		for (; num > fp; num--) {
 			if (!AtBotEnd(global_df->top_win, global_df->tail_text, FALSE)) 

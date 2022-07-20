@@ -88,75 +88,59 @@ END_MESSAGE_MAP()
 static size_t totalBytesRead;
 static size_t totalsize = 2400000L /* 3072000L*/;
 
-struct FtpFile {
-  char *filename;
-  FILE *stream;
-};
-
-static int my_fwrite(void *buffer, size_t size, size_t nmemb, void *stream)
+static int my_fwrite(void *buffer, size_t size, size_t nmemb, FILE *fpout)
 {
 	int perc;
 	unsigned long percl; 
-	struct FtpFile *out=(struct FtpFile *)stream;
-	if(out && !out->stream) {
-		/* open file for writing */
-		out->stream=fopen(out->filename, "wb");
-		if(!out->stream)
-			return -1; /* failure, can't open file to write */
-	}
-	if (progressDlg != NULL) {
-		totalBytesRead += nmemb;
-		percl = (100L * totalBytesRead) / totalsize;
-		perc = (int)percl;
-		progressDlg->m_ProgressBar.SetPos(perc);
-		progressDlg->UpdateData(FALSE);
-	}
-	return fwrite(buffer, size, nmemb, out->stream);
+
+	totalBytesRead += nmemb;
+	percl = (100L * totalBytesRead) / totalsize;
+	perc = (int)percl;
+	setCurrentProgressBarValue(perc);
+	return fwrite(buffer, size, nmemb, fpout);
 }
 
 bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres) {
 	CURL *curl;
 	CURLcode res;
 	bool ret;
-	struct FtpFile ftpfile;
+	FILE *fpout;
 
 	u_strcpy(templineC, fname, UTTLINELEN);
-	ftpfile.filename = templineC;
-	ftpfile.stream = NULL;
-	progressDlg = NULL;
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 	curl = curl_easy_init();
 	if (curl) {
-		totalBytesRead = 0L;
-		if (isProgres > 0) {
-			totalsize = isProgres;
-			progressDlg = new CProgressBar(_T("Downloading CLAN installer..."), AfxGetApp()->m_pMainWnd);
-			progressDlg->m_ProgressBar.SetRange( 0, 100 );
-		}
-		curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-		if (proxyAddPort[0] != EOS)
-			curl_easy_setopt(curl, CURLOPT_PROXY, proxyAddPort);
-		/* Get curl 7.9.2 from sunet.se's FTP site: */
-		u_strcpy(templineC1, fulURLPath, UTTLINELEN);
-		curl_easy_setopt(curl, CURLOPT_URL, templineC1);
-		/* Define our callback to get called when there's data to be written */
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_fwrite);
-		/* Set a pointer to our struct to pass to the callback */
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ftpfile);
-		curl_easy_setopt(curl, CURLOPT_USERPWD, URL_passwd);
-/* Switch on full protocol/debug output */
+		fpout = fopen(templineC, "wb");
+		if (fpout != NULL) {
+			totalBytesRead = 0L;
+			if (isProgres > 0) {
+				totalsize = isProgres;
+				initProgressBar(_T("Downloading File..."));
+			}
+			curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+			if (proxyAddPort[0] != EOS)
+				curl_easy_setopt(curl, CURLOPT_PROXY, proxyAddPort);
+			// Get curl 7.9.2 from sunet.se's FTP site:
+			u_strcpy(templineC1, fulURLPath, UTTLINELEN);
+			curl_easy_setopt(curl, CURLOPT_URL, templineC1);
+			// Define our callback to get called when there's data to be written
+			curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_fwrite);
+			// Set a pointer to our struct to pass to the callback
+			curl_easy_setopt(curl, CURLOPT_WRITEDATA, fpout);
+			curl_easy_setopt(curl, CURLOPT_USERPWD, URL_passwd);
+// Switch on full protocol/debug output
 //curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE);
-		res = curl_easy_perform(curl);
-		/* always cleanup */
-		curl_easy_cleanup(curl);
-		if (progressDlg != NULL)
-			progressDlg->OnCancel();
-		if (res != CURLE_OK) {
-			ret = false;
+			res = curl_easy_perform(curl);
+			if (res != CURLE_OK)
+				ret = false;
+			else
+				ret = true;
+			fclose(fpout); /* close the local file */
+			curl_easy_cleanup(curl);
+			deleteProgressBar();
 		} else
-			ret = true;
-		if (ftpfile.stream)
-			fclose(ftpfile.stream); /* close the local file */
+			ret = false;
+		/* always cleanup */
 	} else
 		ret = false;
 	curl_global_cleanup();
@@ -208,7 +192,6 @@ void CWebData::handleWebDirFile(unCH *fname) {
 	long  count, offset;
 	bool  isPasswdNeeded;
 	FILE *fp;
-	OSErr err = noErr;
 
 repeat_read:
 	isPasswdNeeded = false;
@@ -260,7 +243,7 @@ repeat_read:
 // CWebData message handlers
 BOOL CWebData::OnInitDialog() {
 	int  i;
-	wchar_t fname[FNSize];
+	unCH fname[FNSize];
 
 	CDialog::OnInitDialog();
 
@@ -308,7 +291,7 @@ BOOL CWebData::OnInitDialog() {
 void CWebData::OnWebTalkbank() 
 {
 	int  i;
-	wchar_t fname[FNSize];
+	unCH fname[FNSize];
 
 	ROOTWEBDIR = TALKBANK_URL;
 	u_strcpy(fulURLPath, ROOTWEBDIR, 2000);
@@ -335,7 +318,7 @@ void CWebData::OnWebTalkbank()
 void CWebData::OnWebChildes() 
 {
 	int  i;
-	wchar_t fname[FNSize];
+	unCH fname[FNSize];
 
 	if (URL_Address[0] !=EOS)
 		ROOTWEBDIR = URL_Address;
@@ -389,9 +372,9 @@ void CWebData::OnDblclkWebData()
 {
 	int  i, t;
 	char *s;
-	wchar_t tchar;
-	wchar_t wbuf[256];
-	wchar_t fname[FNSize];
+	unCH tchar;
+	unCH wbuf[256];
+	unCH fname[FNSize];
 	Boolean isDirectory;
 
 	i = m_WebDataListControl.GetCurSel();

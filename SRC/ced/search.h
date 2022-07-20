@@ -17,7 +17,6 @@ extern "C"
 	extern int  SearchForward(int i);
 	extern int  SearchReverse(int i);
 	extern int  Replace(int i);
-	extern int  ReplaceAndFind(int i);
 	extern int  replaceAndFindNext(char isOnlyFind);
 	extern char readSearchList(FNType *fname);
 	extern char replaceOne(char DoAll, int SrchStrLen, int ReplStrLen);
@@ -25,7 +24,7 @@ extern "C"
 	extern void init_Search(void);
 
 #ifdef _MAC_CODE
-	extern char FindDialog(unCH *SearchString, char ActiveSDirection);
+	extern char FindDialog(unCH *SearchString, int ActiveSDirection);
 	extern char ReplaceDialog(unCH *SearchString, unCH *ReplaceString, FNType *fname);
 	extern char ContReplaceDialog(unCH *SearchString, unCH *ReplaceString);
 #endif // _MAC_CODE

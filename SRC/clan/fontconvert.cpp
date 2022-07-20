@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -7,6 +7,9 @@
 #include "common.h"
 #include <ctype.h>
 #include "c_clan.h"
+#ifdef _WIN32
+	#include "w95_QTReplace.h"
+#endif
 
 #ifdef UNX
 #include "cu.h"
@@ -14,13 +17,19 @@
 #include "fontconvert.h"
 #include "stringparser.h"
 
-extern short ArialUnicodeFOND, SecondDefUniFOND;
 
 extern "C" {
-  char defUniFontName[256];
-  long defUniFontSize;
+	char defUniFontName[256];
+	long defUniFontSize;
+	long stickyFontSize;
+	short ArialUnicodeFOND;
+	short SecondDefUniFOND;
 }
 
+#ifdef UNX
+    #define kTextEncodingMacThai 21
+    #define kTextEncodingWindowsLatin5 0x0504
+#endif
 
 /*	_WIN32
 ANSI Code-Page Identifiers
@@ -199,8 +208,6 @@ short GetEncode(const char  *fontPref, const char *fontName, short fontType, int
 
 	if (fontType == WINCAFont)
 		return(kTextEncodingWindowsLatin1);
-	if (fontType == WINTitusUC)
-		return(kTextEncodingWindowsLatin1);
 	if (fontType == UNICODEDATA)
 		return(kTextEncodingWindowsLatin1);
 	if (fontType == WINFxdsys)
@@ -252,8 +259,6 @@ short GetEncode(const char  *fontPref, const char *fontName, short fontType, int
 		return(1252);
 	if (fontType == WINCAFont)
 		return(1252);
-	if (fontType == WINTitusUC)
-		return(1252);
 	if (fontType == WINFxdsys)
 		return(1252);
 
@@ -280,8 +285,6 @@ short GetEncode(const char  *fontPref, const char *fontName, short fontType, int
 
 	if (fontType == MacCAFont)
 		return(1252);
-	if (fontType == MACTitusUC)
-		return(1252);
 	if (fontType == MacFxdsys)
 		return(1252);
 
@@ -300,10 +303,13 @@ short GetEncode(const char  *fontPref, const char *fontName, short fontType, int
 
 #ifdef _MAC_CODE
 char GetFontNumber(char *fname, short *font) {
+#ifndef _COCOA_APP
 	Str255 sysFName, pFName;
+#endif
 	Boolean res; 
 
 	res = TRUE;
+#ifndef _COCOA_APP
 	c2pstrcpy(pFName, fname);
 	*font = FMGetFontFamilyFromName(pFName);
 //	GetFNum(pFName, font);
@@ -311,6 +317,7 @@ char GetFontNumber(char *fname, short *font) {
 		GetFontName(0, sysFName);
 		res = EqualString(pFName, sysFName, FALSE, FALSE);
 	}
+#endif
 	return(res);
 }
 #endif
@@ -319,7 +326,7 @@ char GetFontNumber(char *fname, short *font) {
 short getFontType(const char *fontName, char isPC) {
 	short type;
 
-	if (!uS.mStricmp(fontName, "ARIAL UNICODE MS")) {
+	if (!uS.mStricmp(fontName, "ARIAL UNICODE MS") || !uS.mStricmp(fontName, "ARIAL")) {
 		type = ((isPC) ? WINArialUC : MACArialUC);
 	} else if (!uS.mStricmp(fontName, "CAFONT")) {
 		type = ((isPC) ? WINCAFont : MacCAFont);
@@ -336,9 +343,9 @@ static void	IDFont(char *tFontName, char isUTF, NewFontInfo *finfo) {
 	finfo->fontTable = NULL;
 	if (finfo->platform == WIN95DATA) {
 		finfo->fontPref = "Win95:";
-		if (/* isUTF && */!strcmp(tFontName, "ARIAL UNICODE MS"))
+		if (!strcmp(tFontName, "ARIAL UNICODE MS") || !strcmp(tFontName, "ARIAL"))
 			finfo->fontType = WINArialUC;
-		else if (/* isUTF && */!strcmp(tFontName, "CAFONT"/*UNICODEFONT*/))
+		else if (!strcmp(tFontName, "CAFONT"/*UNICODEFONT*/))
 			finfo->fontType = WINCAFont;
 		else if ((finfo->CharSet == 238) &&
 			  (!strcmp(tFontName, "COURIER NEW") || !strcmp(tFontName, "ARIAL") ||
@@ -360,8 +367,7 @@ static void	IDFont(char *tFontName, char isUTF, NewFontInfo *finfo) {
 		else if (finfo->CharSet == 129)
 			finfo->fontType = WINKor_HUNG;
 		else if (finfo->CharSet == -2 || (finfo->CharSet >= 0 && finfo->CharSet <= 2)) {
-			if (!strcmp(tFontName, "COURIER") || !strcmp(tFontName, "COURIER NEW") || 
-				  !strcmp(tFontName, "ARIAL")   || !strcmp(tFontName, "ARIAL UNICODE MS"))
+			if (!strcmp(tFontName, "COURIER") || !strcmp(tFontName, "COURIER NEW"))
 				finfo->fontType = WIN95cour;
 			else if (!strcmp(tFontName, "COURIER NEW CE") || !strcmp(tFontName, "ARIAL CE"))
 				finfo->fontType = WIN95courCE;
@@ -470,6 +476,8 @@ const char *GetDatasFont(const char *line, char ec, NewFontInfo *cfinfo, char is
 		t[j++] = line[i];
 	}
 	t[j] = EOS;
+	if (j >= 255)
+		return(NULL);
 	strcpy(finfo->fontName, t);
 	strcpy(tFontName, finfo->fontName);
 	uS.uppercasestr(tFontName, cfinfo, FALSE);
@@ -486,6 +494,8 @@ const char *GetDatasFont(const char *line, char ec, NewFontInfo *cfinfo, char is
 	}
 	t[j] = EOS;	
 	if (finfo->platform == WIN95DATA) {
+		if (j >= 255)
+			return(NULL);
 		strcpy(finfo->fontName, t);
 		strcpy(tFontName, finfo->fontName);
 		uS.uppercasestr(tFontName, cfinfo, FALSE);
@@ -617,35 +627,16 @@ char FindTTable(NewFontInfo *finfo, short thisPlatform) {
 			} else if (finfo->fontType == WINCAFont) {
 				strcpy(finfo->fontName, "CAfont");
 				finfo->fontPref = "";
-				finfo->fontSize = 13;
+				finfo->fontSize = 14;
 				finfo->CharSet = 0;
 				finfo->fontTable = NULL;
 				return(TRUE);
 			} else if (finfo->fontType == WINArialUC) {
 #if !defined(UNX)
 				if (ArialUnicodeFOND) {
-					strcpy(finfo->fontName, "Arial Unicode MS");
+					strcpy(finfo->fontName, "Cambria");
 					finfo->fontPref = "";
-					finfo->fontSize = 12L;
-					finfo->CharSet = 0;
-					finfo->fontTable = NULL;
-				} else {
-#endif
-					strcpy(finfo->fontName, defUniFontName);
-					finfo->fontPref = "";
-					finfo->fontSize = defUniFontSize;
-					finfo->CharSet = 0;
-					finfo->fontTable = NULL;
-#if !defined(UNX)
-				}
-#endif
-				return(TRUE);
-			} else if (finfo->fontType == WINTitusUC) {
-#if !defined(UNX)
-				if (SecondDefUniFOND) {
-					strcpy(finfo->fontName, "CAfont"/*UNICODEFONT*/);
-					finfo->fontPref = "";
-					finfo->fontSize = 13L;
+					finfo->fontSize = 14;
 					finfo->CharSet = 0;
 					finfo->fontTable = NULL;
 				} else {
@@ -660,29 +651,21 @@ char FindTTable(NewFontInfo *finfo, short thisPlatform) {
 #endif
 				return(TRUE);
 			} else if (finfo->fontType == WINThai) {
-#ifdef _UNICODE
 				finfo->orgEncod = finfo->CharSet;
 				strcpy(finfo->fontName, "LxS SpEcIaL FoNt");
 				finfo->fontPref = "";
-				finfo->fontSize = 12;
+				finfo->fontSize = 13;
 				finfo->CharSet = kTextEncodingMacThai;
 				finfo->fontTable = NULL;
 				return(TRUE);
-#else
-				return(FALSE);
-#endif
 			} else if (finfo->fontType == WIN95Latin5) {
-#ifdef _UNICODE
 				finfo->orgEncod = finfo->CharSet;
 				strcpy(finfo->fontName, "LxS SpEcIaL FoNt");
 				finfo->fontPref = "";
-				finfo->fontSize = 12;
+				finfo->fontSize = 14;
 				finfo->CharSet = kTextEncodingWindowsLatin5;
 				finfo->fontTable = NULL;
 				return(TRUE);
-#else
-				return(FALSE);
-#endif
 			} else if (finfo->fontType == WINchn) {
 				strcpy(finfo->fontName, "Taipei");
 				finfo->fontPref = "";
@@ -757,14 +740,14 @@ char FindTTable(NewFontInfo *finfo, short thisPlatform) {
 			if (finfo->fontType == COURIER) {
 				strcpy(finfo->fontName, "Courier");
 				finfo->fontPref = "Win95:";
-				finfo->fontSize = -13;
+				finfo->fontSize = -14;
 				finfo->CharSet = 1;
 				finfo->fontTable = CourierToWin95courier;
 				return(TRUE);
 			} else if (finfo->fontType == MONACO) {
 				strcpy(finfo->fontName, "Courier");
 				finfo->fontPref = "Win95:";
-				finfo->fontSize = -13;
+				finfo->fontSize = -14;
 				finfo->CharSet = 1;
 				finfo->fontTable = MonacoToWin95courier;
 				return(TRUE);
@@ -849,25 +832,6 @@ char FindTTable(NewFontInfo *finfo, short thisPlatform) {
 					strcpy(finfo->fontName, "Arial Unicode MS");
 					finfo->fontPref = "Win95:";
 					finfo->fontSize = -13;
-					finfo->CharSet = 0;
-					finfo->fontTable = NULL;
-				} else {
-#endif
-					strcpy(finfo->fontName, defUniFontName);
-					finfo->fontPref = "Win95:";
-					finfo->fontSize = defUniFontSize;
-					finfo->CharSet = 0;
-					finfo->fontTable = NULL;
-#if !defined(UNX)
-				}
-#endif
-				return(TRUE);
-			} else if (finfo->fontType == MACTitusUC) {
-#if !defined(UNX)
-				if (SecondDefUniFOND) {
-					strcpy(finfo->fontName, "CAfont"/*UNICODEFONT*/);
-					finfo->fontPref = "Win95:";
-					finfo->fontSize = -15;
 					finfo->CharSet = 0;
 					finfo->fontTable = NULL;
 				} else {

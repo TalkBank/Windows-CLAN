@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -16,11 +16,14 @@
 // #define DBG8 /* for error on joker categories */
 
 #include "database.hpp"
+#if !defined(UNX)
+  #include "c_curses.h"
+#endif
 
 static char** pwMorCompData=0;		// pointers to split words (not storage)
 static char** pwMorDataOriginal=0;	// pointers to split words (not storage)
 static char** pwTrainData=0;		// pointers to split words (not storage)
-static char** pwTrainDataOriginal=0;	// pointers to split words (not storage)
+static char** pwTrainDataOriginal=0;// pointers to split words (not storage)
 static char** pwUtterance=0;		// pointers to split words (not storage)
 
 #ifdef POSTCODE
@@ -69,20 +72,102 @@ int train_open(FNType* dbname, int cmode, int inmemory)
 		return 1;
 }
 
+#ifndef UNX
+static void addColor(int num, char *line) {
+	int  i, cnt;
+	char isSpaceFound;
+
+	isSpaceFound = FALSE;
+	for (i=0; isSpace(line[i]) || line[i] == '\n' || line[i] == '\r'; i++) ;
+	cnt = 1;
+	for (; line[i] != EOS; i++) {
+		if (isSpace(line[i]) || line[i] == '\n' || line[i] == '\r') {
+			if (!isSpaceFound) {
+				isSpaceFound = TRUE;
+				cnt++;
+			}
+		} else
+			isSpaceFound = FALSE;
+		if (cnt == num) {
+			for (; isSpace(line[i]) || line[i] == '\n' || line[i] == '\r'; i++) ;
+			uS.shiftright(line+i, 2);
+			line[i++] = ATTMARKER;
+			line[i] = error_start;
+			i += 2;
+			for (; line[i] != EOS && !isSpace(line[i]) && line[i] != '\n' && line[i] != '\r'; i++) ;
+			uS.shiftright(line+i, 2);
+			line[i++] = ATTMARKER;
+			line[i++] = error_end;
+			break;
+		}
+	}
+}
+#endif
+/*
+static void getStemStr(char *to, int num, char *line) {
+	int  i, j, cnt;
+	char isSpaceFound;
+
+	isSpaceFound = FALSE;
+	for (i=0; isSpace(line[i]) || line[i] == '\n' || line[i] == '\r'; i++) ;
+	cnt = 1;
+	for (; line[i] != EOS; i++) {
+		if (isSpace(line[i]) || line[i] == '\n' || line[i] == '\r') {
+			if (!isSpaceFound) {
+				isSpaceFound = TRUE;
+				cnt++;
+			}
+		} else
+			isSpaceFound = FALSE;
+		if (cnt == num) {
+			for (; isSpace(line[i]) || line[i] == '\n' || line[i] == '\r'; i++) ;
+			if (line[i] == ATTMARKER)
+				i += 2;
+			for (; line[i] != EOS && line[i] != ATTMARKER && line[i] != '^' && line[i] != '|' && !isSpace(line[i]) && line[i] != '\n' && line[i] != '\r'; i++) ;
+			j = 0;
+			if (line[i] == '|') {
+				for (; line[i] != EOS && line[i] != ATTMARKER && line[i] != '^' && !isSpace(line[i]) && line[i] != '\n' && line[i] != '\r'; i++) {
+					to[j++] = line[i];
+				}
+			}
+			to[j] = EOS;
+			break;
+		}
+	}
+}
+*/
+static void print_errmortag( FILE* out, ambmortag* amt, int num, char *line)
+{
+	int  j;
+
+	msgfile( out, "(%d ", amt->nA );
+	for ( j = 0; j < amt->nA ; j++ ) {
+		msgfile( out, "{%d} ", j+1 );
+		print_mortag( out, &amt->A[j] );
+		if (j == 0) {
+//			getStemStr(spareTier3, num, line);
+//			msgfile( out, "%s",  spareTier3);
+		}
+		if (j!=amt->nA-1)
+			msgfile( out, " " );
+	}
+	msgfile( out, " )" );
+}
+
 int train_file(FNType* name, int style, int withmatrix, FNType* outfilename)
 {
 	int res;
 	// below allocated once for all.
-	long postLineno = 0L;
-	long nb_of_new_rules = 0L;
+	long32 postLineno = 0L, spLineno = 0L;
+	long32 nb_of_new_rules = 0L;
 	int nboklines = 0;
-	char isConnlError;
+	char isConllError;
 	struct SimpleTier *convMorT = NULL;
 
 	int __total_words = 0;	// total words analyzed localy
 	int __total_words_amb = 0;	// total words ambiguous of the above
 
-	isConnlError = FALSE;
+	isConllError = FALSE;
 	if ( pwMorCompData == 0 ) {
 		pwMorCompData = new char* [MaxNbWords];
 		pwMorDataOriginal = new char* [MaxNbWords];
@@ -93,7 +178,7 @@ int train_file(FNType* name, int style, int withmatrix, FNType* outfilename)
 
 	FILE* outfile = stdout;
 	if ( !(style&BrillsRules) ) {
-#if UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#if defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 		res = strcmp(outfilename, "con");
 #else
 		res = uS.FNTypecmp(outfilename, "con", 0L);
@@ -141,7 +226,7 @@ int train_file(FNType* name, int style, int withmatrix, FNType* outfilename)
 		return 0;
 	}
 
-	FILE* FBRILLs;
+	FILE* FBRILLs = NULL;
 	if ( style&BrillsRules) {
 		// initialize local word file.
 		if ( ! open_brillword_dic( "brillwords" ) ) {
@@ -163,9 +248,9 @@ int train_file(FNType* name, int style, int withmatrix, FNType* outfilename)
 	int n, y;
 	char  pct_at_end = '\0';	// store a possible punctuation at the end of the sentence.
 	char* T;
-	char* TMorForDisplay; // full %mor line
-	char* TTrainForDisplay; // full %trn line
-	char* TFUtterance; // full *CHI: line
+	char* TMorForDisplay = NULL; // full %mor line
+	char* TTrainForDisplay = NULL; // full %trn line
+	char* TFUtterance = NULL; // full *CHI: line
 
 	char* storeMorComp;	// storage for word split
 	char* storeMorOriginal; // storage for word split and display
@@ -174,7 +259,7 @@ int train_file(FNType* name, int style, int withmatrix, FNType* outfilename)
 	char* storeUtterance;	// storage for word split
 
 	int nMorCompData, nTrainData, nUtterance, ii=7;	// must wait for a name
-	
+
 	rightSpTier = 0;
 	while ( (n = get_tier(id, T, y, postLineno)) != 0 ) {
 
@@ -184,6 +269,7 @@ msgfile( outfile, "[[000[[%s]]---]]\n", T );
 #endif
 
 		if ( y == TTname ) {
+			spLineno = postLineno;
 			dynreset();
 			ii = 3;		// now wait for a %mor: and a %trn:
 
@@ -201,9 +287,9 @@ msgfile( outfile, "[[000[[%s]]---]]\n", T );
 
 			continue;
 		} else if ( y == TTmor ) {
-			if (isConnlSpecified()) {
-				convMorT = convertTier(T, name, &isConnlError);
-				if (isConnlError)
+			if (isConllSpecified()) {
+				convMorT = convertTier(T, name, &isConllError);
+				if (isConllError)
 					return 0;
 				freeConvertTier(convMorT);
 			}
@@ -220,13 +306,13 @@ msgfile( outfile, "[[000[[%s]]---]]\n", T );
 				}
 
 				// makes a copy for later computation (mandatory) and display (optional)
-				TMorForDisplay = dynalloc( strlen(T)+2 );
+				TMorForDisplay = dynalloc( strlen(T)+1002 );
 				strcpy( TMorForDisplay, T );
 			}
 		} else if ( y == TTtrn ) {
-			if (isConnlSpecified()) {
-				convMorT = convertTier(T, name, &isConnlError);
-				if (isConnlError)
+			if (isConllSpecified()) {
+				convMorT = convertTier(T, name, &isConllError);
+				if (isConllError)
 					return 0;
 				freeConvertTier(convMorT);
 			}
@@ -244,7 +330,7 @@ msgfile( outfile, "[[000[[%s]]---]]\n", T );
 				}
 
 				// makes copies for later computation (mandatory) and display (optional)
-				TTrainForDisplay = dynalloc( strlen(T)+2 );
+				TTrainForDisplay = dynalloc( strlen(T)+1002 );
 				strcpy( TTrainForDisplay, T );
 
 			}
@@ -377,9 +463,9 @@ for (i=0; i<nTrainData; i++) msg("{%s} ", pwTrainData[i] ); msg("\n");
 						for ( i=1 ; i<nTrainData; i++) {
 							msgfile( outfile, " %s", pwTrainData[i] );
 						}
-*/						msgfile( outfile, "\n## not the same number of words between %mor: and %trn: lines\n" );
+*/						msgfile( outfile, "\n## not the same number of words between %%mor: and %%trn: lines\n" );
 					}
-					msgfile( outfile, "*** File \"%s\": line %ld.\n", name, postLineno );
+					msgfile( outfile, "*** File \"%s\": line %ld.\n", name, spLineno );
 					msgfile( outfile, "--------------------------------------\n");
 					total_errors++;
 					mor_groups++;
@@ -513,6 +599,18 @@ msgfile( outfile, "\n" );
 
 				// train the rules (and print output)
 				// flag used to know if some error already occured in the utterance
+#ifndef UNX
+				if ( (style & VertOutput) == 0) {
+					for (i=0; i<nMorCompData-1; i++) {
+						if (  (pc[i] || (!uk[i] && ni[i]==1))
+							&& (pc[i+1] || (!uk[i+1] && ni[i+1]==1)) ) {
+						} else if ( !(style&BrillsRules) && !(pc[i+1] || (!uk[i+1] && ni[i+1]==1)) ) {
+							addColor(i+2, TMorForDisplay);
+							addColor(i+2, TTrainForDisplay);
+						}
+					}
+				}
+#endif
 				int error_in_utterance = 0;
 				for (i=0; i<nMorCompData-1; i++) {
 					if (  (pc[i] || (!uk[i] && ni[i]==1))
@@ -566,19 +664,25 @@ msgfile( outfile, "\n" );
 								}
 								msgfile(outfile, "\n" );
 								***/
+								putc('\n', outfile);
 							}
 							error_in_utterance++;
-							msgfile(outfile, "#%d ", i+2 );
+							msgfile(outfile, "#%d ", i+1 );
 							if (i+1<nUtterance)
 								msgfile( outfile, "Word: %s ", pwUtterance[i+1] );
 						}
+						putc('\n', outfile);
 						msgfile( outfile, "%%mor: " );
 						if ( style & VertOutput )
 							msgfile( outfile, "%s", pwMorDataOriginal[i+1] );
-						else
-							print_ambmortag(outfile, &AMT[i+1]);
-						msgfile( outfile, " %%trn: " );
+						else {
+							print_errmortag(outfile, &AMT[i+1], i+2, TMorForDisplay);
+						}
+						putc('\n', outfile);
+						msgfile( outfile, "%%trn: " );
 						print_mortag(outfile, &MT[i+1]);
+//						getStemStr(spareTier3, i+2, TTrainForDisplay);
+//						msgfile( outfile, "%s",  spareTier3);
 						if ( ni[i+1]>1 ) {
 							// ambiguous class conversion.
 							msgfile( outfile, " => multiple_tags[%d]\n", ni[i+1] );
@@ -590,12 +694,13 @@ msgfile( outfile, "\n" );
 							else
 								msgfile( outfile, "\n" );
 						}
+						putc('\n', outfile);
 					}
 				}
 				if (!(style&BrillsRules)) {
 					if ( (style & ChatOutput) && error_in_utterance > 0 ) {
-						msgfile( outfile, "%d errors in the last utterance\n", error_in_utterance );
-						msgfile( outfile, "*** File \"%s\": line %ld.\n", name, postLineno );
+						msgfile( outfile, "%d errors in the above utterance\n", error_in_utterance );
+						msgfile( outfile, "*** File \"%s\": line %ld.\n", name, spLineno );
 						msgfile( outfile, "--------------------------------------\n");
 						mor_groups ++;
 						total_errors ++;
@@ -616,7 +721,7 @@ msgfile( outfile, "\n" );
 								nottodo=1; // there is an unknown word. Skip this sentence.
 								break;
 							}
-						if (nottodo==0) {
+						if (nottodo==0 && FBRILLs != NULL) {
 							if ( style&PrintForTest ) {
 								nboklines ++;
 								
@@ -722,7 +827,7 @@ msgfile( outfile, "\n" );
 
 	if ( !(style&BrillsRules) && (style&ChatOutput) ) {
 		if (total_errors==0)
-			msgfile( outfile, "there were no errors in this file\n" );
+			msgfile( outfile, "\n----- there were no errors in file \"%s\"\n", name);
 		else
 			msgfile( outfile, "there were a total of %d errors in a total of %d MOR statements\n", total_errors, mor_groups );
 	}

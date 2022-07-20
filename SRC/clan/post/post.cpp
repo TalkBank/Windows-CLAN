@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -67,7 +67,7 @@ int main( int argc, char** argv );
 				break;
 		}
 	}
-#elif UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#elif defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 	#define CLAN_MAIN_RETURN int
 	#define main_return return(0);
 #else
@@ -87,7 +87,7 @@ static int internal_mor = 0;
 static int priority_freq_local = 1;
 
 extern const char *posErrType;
-extern char isReportConnlError;
+extern char isReportConllError;
 
 void call(
 #ifndef POSTCODE
@@ -120,7 +120,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 	outfilename[0] = 0;
 
 #ifdef POSTCODE
-//	replaceFile = TRUE;
+	replaceFile = TRUE;
 #endif
 	style = 0;
 	style_unkwords = 0;
@@ -130,6 +130,8 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 	strcpy(gb_filter_name, "posttags.cut" );
 #ifdef UNX
 	strcpy(mFileName, gb_filter_name);
+	filter_out = KeepAll;
+	gb_filter_name[0] = 0;
 #elif defined(POSTCODE)
 	FILE *tfp;
 
@@ -146,15 +148,15 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 #else
 	filter_out = ThrowAwayAll;
 #endif
-	init_connl();
+	init_conll();
 	if ( argc<2 ) {
 		msg("POST-ANALYZE: version - %s - INSERM - PARIS - FRANCE - %s\n",MSA_VERSION,MSA_DATE);
 		msg("Usage: post [dF eNc f lN gN cF sS tF] filename(s)\n");
 		msg("+dF : use POST database file F (if omitted, default is %s).\n", dbname);
-		if (isReportConnlError)
-			msg("+dv : do not report missing elements from \"connl.cut\" file\n");
+		if (isReportConllError)
+			msg("+dv : do not report missing elements from \"conll.cut\" file\n");
 		else
-			msg("+dv : report missing elements from \"connl.cut\" file\n");
+			msg("+dv : report missing elements from \"conll.cut\" file\n");
 		msg("+eNC: this option allows you to change the separator used.\n");
 		msg("    It is a complement to the option +s2 and +s3 only.\n");
 		msg("    +e1C- change separator used between different solutions to C (default '#').\n");
@@ -230,7 +232,8 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 					break;
 				case 'd' :
 					if (argv[i][2] == 'v' || argv[i][2] == 'V') {
-						isReportConnlError = !isReportConnlError;
+						isReportConllError = !isReportConllError;
+					} else if (argv[i][2] == '1' && argv[i][3] == EOS) {
 					} else if (argv[i][2] != EOS) {
 						strcpy(dbname, argv[i]+2);
 //						uS.str2FNType(dbname, 0L, argv[i]+2);
@@ -252,7 +255,8 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 						inmemory = 0;
 					} else {
 						linelimit = atoi( argv[i]+2 );
-						if (linelimit < 10 || linelimit > 1024) linelimit = 70;
+						if (linelimit < 10 || linelimit > 1024)
+							linelimit = 70;
 					}
 					break;
 				case 'a' :
@@ -384,6 +388,10 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 				case '1' :
 					break;
 #endif // above is NEEDED FOR CLAN
+				case 'p':
+					if (argv[i][2] == '1') {
+						break;
+					}
 				default:
 					msg ( "unknown parameter %s\n", argv[i] );
 					main_return;
@@ -409,7 +417,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 	if (gb_filter_name[0]!='\0')
 		gbout_filter_create(gb_filter_name);
 	posErrType = "w";
-	readConnlFile(dbname);
+	readConllFile(dbname);
 #ifdef POSTCODE
 	isWinMode = IS_WIN_MODE;
 	chatmode = CHAT_MODE;
@@ -425,7 +433,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 		}
 	}
 #endif
-	freeConnl();
+	freeConll();
 	gbin_filter_free();
 	gbout_filter_free();
 	dynfreeall();

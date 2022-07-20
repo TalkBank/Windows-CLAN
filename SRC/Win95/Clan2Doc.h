@@ -22,7 +22,7 @@ public:
 	long m_RowLimit;
 	long ChangeCursorInfo;
 	BOOL isTranscribing;
-	wchar_t InsertSpChar;
+	unCH InsertSpChar;
 	int  ExecuteCommNUM;
 	char isAddFStructComm[2000];
 	char RestorePlayMovieInfo;

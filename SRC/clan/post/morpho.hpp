@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2012 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2020 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 

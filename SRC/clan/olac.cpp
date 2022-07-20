@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -149,6 +149,8 @@ static char isHeadTerm(char *id, int i) {
 	} else if (!strcmp(id, "IMDI_WrittenResourceSubType")) {
 	} else if (!strcmp(id, "IMDI_ProjectDescription")) {
 	} else if (!strcmp(id, "IMDI_MediaFileDescription")) {
+	} else if (!strcmp(id, "DOI")) {
+	} else if (!strcmp(id, CMDIPIDHEADER)) {
 	} else {
 		id[i] = ':';
 		return(FALSE);
@@ -194,13 +196,8 @@ static void Choices(const char *h) {
 
 static void printOut(char *h, char *l, char *lang) {
 	int  i;
-	char *subH, *tl;
+	char *comma, *tl;
 
-	subH = strchr(h, '.');
-	if (subH != NULL) {
-		*subH = EOS;
-		subH++;
-	}
 	uS.remFrontAndBackBlanks(l);
 	if (!strcmp(h, "Title")) {
 		if (l[0] != EOS)
@@ -215,45 +212,44 @@ static void printOut(char *h, char *l, char *lang) {
 		if (l[0] != EOS)
 			fprintf(tFP, "\t\t\t\t<dcterms:accessRights>%s</dcterms:accessRights>\n", l);
 	} else if (!strcmp(h, "Subject")) {
+		if (l[0] != EOS)
+			fprintf(tFP, "\t\t\t\t<subject>%s</subject>\n", l);
+	} else if (!strcmp(h, "Subject.olac:language")) {
 		if (l[0] != EOS) {
-			if (subH == NULL) {
-				fprintf(tFP, "\t\t\t\t<subject>%s</subject>\n", l);
-			} else {
-				if (!strcmp(subH, "olac:language")) {
-					strcpy(lang, l);
-					if (l[0] != EOS)
-						tl = l;
-					else
-						tl = NULL;
-					if (tl != NULL) {
-						subH = tl;
-						do {
-							subH = strchr(tl, ',');
-							if (subH != NULL) {
-								*subH = EOS;
-								fprintf(tFP, "\t\t\t\t<subject xsi:type=\"olac:language\" olac:code=\"%s\"/>\n", tl);
-								tl = subH + 1;
-								while (isSpace(*tl))
-									tl++;
-							} else {
-								fprintf(tFP, "\t\t\t\t<subject xsi:type=\"olac:language\" olac:code=\"%s\"/>\n", tl);
-								break;
-							}
-						} while (*tl != EOS) ;
+			strcpy(lang, l);
+			tl = l;
+			if (tl != NULL) {
+				comma = tl;
+				do {
+					comma = strchr(tl, ',');
+					if (comma != NULL) {
+						*comma = EOS;
+						fprintf(tFP, "\t\t\t\t<subject xsi:type=\"olac:language\" olac:code=\"%s\"/>\n", tl);
+						tl = comma + 1;
+						while (isSpace(*tl))
+							tl++;
+					} else {
+						fprintf(tFP, "\t\t\t\t<subject xsi:type=\"olac:language\" olac:code=\"%s\"/>\n", tl);
+						break;
 					}
-				} else if (!strcmp(subH, "olac:linguistic-field")) {
-					fprintf(tFP, "\t\t\t\t<subject xsi:type=\"olac:linguistic-field\" olac:code=\"%s\"/>\n", l);
-				} else if (!strcmp(subH, "childes:participant")) {
-					for (i=0; l[i] != EOS; i++) {
-						if (l[i] == ',')
-							strcpy(l+i, l+i+1);
-					}
-					fprintf(tFP, "\t\t\t\t<subject xsi:type=\"childes:participant\" %s/>\n", l);
-				} else {
-					fprintf(fpout,"*** File \"%s\": line %ld. Illegal field \"%s.%s\" found.\n", oldfname, lineno, h, subH);
-					Choices(h);
-				}
+				} while (*tl != EOS) ;
 			}
+		}
+	} else if (!strcmp(h, "Subject.olac:linguistic-field")) {
+		if (l[0] != EOS)
+			fprintf(tFP, "\t\t\t\t<subject xsi:type=\"olac:linguistic-field\" olac:code=\"%s\"/>\n", l);
+	} else if (!strcmp(h, "Subject.childes:participant")) {
+		if (l[0] != EOS) {
+			for (i=0; l[i] != EOS; i++) {
+				if (l[i] == ',')
+					strcpy(l+i, l+i+1);
+			}
+			if (whichData == isChildes)
+				fprintf(tFP, "\t\t\t\t<subject xsi:type=\"childes:participant\" %s/>\n", l);
+			else if (whichData == isTalkbank)
+				fprintf(tFP, "\t\t\t\t<subject xsi:type=\"talkbank:participant\" %s/>\n", l);
+			else
+				fprintf(tFP, "\t\t\t\t<subject xsi:type=\"talkbank:participant\" %s/>\n", l);
 		}
 	} else if (!strcmp(h, "Description")) {
 		if (l[0] != EOS)
@@ -267,26 +263,21 @@ static void printOut(char *h, char *l, char *lang) {
 			fprintf(tFP, "\t\t\t\t<date>%s</date>\n", l);
 	} else if (!strcmp(h, "Type")) {
 		if (l[0] != EOS) {
-			if (subH == NULL) {
-				if (uS.mStricmp(l, "text") == 0)
-					fprintf(tFP, "\t\t\t\t<type xsi:type=\"dcterms:DCMIType\">Text</type>\n");
-				else if (uS.mStricmp(l, "sound") == 0)
-					fprintf(tFP, "\t\t\t\t<type xsi:type=\"dcterms:DCMIType\">Sound</type>\n");
-				else if (uS.mStricmp(l, "movingimage") == 0)
-					fprintf(tFP, "\t\t\t\t<type xsi:type=\"dcterms:DCMIType\">MovingImage</type>\n");
-				else
-					fprintf(tFP, "\t\t\t\t<type>%s</type>\n", l);
-			} else {
-				if (!strcmp(subH, "olac:linguistic-type")) {
-					fprintf(tFP, "\t\t\t\t<type xsi:type=\"olac:linguistic-type\" olac:code=\"%s\"/>\n", l);
-				} else if (!strcmp(subH, "olac:discourse-type")) {
-					fprintf(tFP, "\t\t\t\t<type xsi:type=\"olac:discourse-type\" olac:code=\"%s\"/>\n", l);
-				} else {
-					fprintf(fpout,"*** File \"%s\": line %ld. Illegal field \"%s.%s\" found.\n", oldfname, lineno, h, subH);
-					Choices(h);
-				}
-			}
+			if (uS.mStricmp(l, "text") == 0)
+				fprintf(tFP, "\t\t\t\t<type xsi:type=\"dcterms:DCMIType\">Text</type>\n");
+			else if (uS.mStricmp(l, "sound") == 0)
+				fprintf(tFP, "\t\t\t\t<type xsi:type=\"dcterms:DCMIType\">Sound</type>\n");
+			else if (uS.mStricmp(l, "movingimage") == 0)
+				fprintf(tFP, "\t\t\t\t<type xsi:type=\"dcterms:DCMIType\">MovingImage</type>\n");
+			else
+				fprintf(tFP, "\t\t\t\t<type>%s</type>\n", l);
 		}
+	} else if (!strcmp(h, "Type.olac:linguistic-type")) {
+		if (l[0] != EOS)
+			fprintf(tFP, "\t\t\t\t<type xsi:type=\"olac:linguistic-type\" olac:code=\"%s\"/>\n", l);
+	} else if (!strcmp(h, "Type.olac:discourse-type")) {
+		if (l[0] != EOS)
+			fprintf(tFP, "\t\t\t\t<type xsi:type=\"olac:discourse-type\" olac:code=\"%s\"/>\n", l);
 	} else if (!strcmp(h, "Format")) {
 	} else if (!strcmp(h, "Identifier")) {
 		for (i=0; isSpace(l[i]); i++) ;
@@ -328,13 +319,13 @@ static void printOut(char *h, char *l, char *lang) {
 		else
 			tl = NULL;
 		if (tl != NULL) {
-			subH = tl;
+			comma = tl;
 			do {
-				subH = strchr(tl, ',');
-				if (subH != NULL) {
-					*subH = EOS;
+				comma = strchr(tl, ',');
+				if (comma != NULL) {
+					*comma = EOS;
 					fprintf(tFP, "\t\t\t\t<language xsi:type=\"olac:language\" olac:code=\"%s\"/>\n", tl);
-					tl = subH + 1;
+					tl = comma + 1;
 					while (isSpace(*tl))
 						tl++;
 				} else {
@@ -394,6 +385,8 @@ static void printOut(char *h, char *l, char *lang) {
 	} else if (!strcmp(h, "IMDI_WrittenResourceSubType")) {
 	} else if (!strcmp(h, "IMDI_ProjectDescription")) {
 	} else if (!strcmp(h, "IMDI_MediaFileDescription")) {
+	} else if (!strcmp(h, "DOI")) {
+	} else if (!strcmp(h, CMDIPIDHEADER)) {
 	} else if (h[0] != EOS) {
 		fprintf(fpout,"*** File \"%s\": line %ld. Illegal field \"%s\" found.\n", oldfname, lineno, h);
 		Choices("");
@@ -494,11 +487,11 @@ void call() {
 	rewind(fpin);
 	utterance->speaker[0] = EOS;
 	while (fgets_cr(uttline, UTTLINELEN, fpin)) {
-		if (uS.isUTF8(uttline) || uS.partcmp(uttline, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(uttline) || uS.isInvisibleHeader(uttline))
 			continue;
 		if (!strcmp(uttline,"\n"))
 			continue;
-		if (uttline[0] == '%')
+		if (uttline[0] == '#')
 			break;
 		uS.remblanks(uttline);
 		for (i=0; uttline[i] != EOS && !isHeadTerm(uttline, i); i++) ;
@@ -569,7 +562,7 @@ static void printStaticInfo(char isPrefix) {
 		} else if (whichData == isTalkbank) {
 			fprintf(tFP, "\
                                 http://talkbank.org/\n\
-                                http://talkbank.org/talkbank.xsd\n");
+                                http://talkbank.org/talkbank-olac.xsd\n");
 		} else {
 			fprintf(tFP, "\
                                 http://talkbank.org/\n\

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -26,8 +26,11 @@
 #endif
 
 #include "mul.h" 
+#ifndef _WIN32
 #include "mp3.h"
-#if defined(_WIN32) || defined(__MACH__)
+#endif
+//#if defined(_WIN32) || defined(__MACH__)
+#if defined(__MACH__)
   #include "MP3ImporterPatch.h"
 #endif
 
@@ -181,11 +184,12 @@ void init(char f) {
 			areNamesTimesFound = TRUE;
 			stout = FALSE;
 		}
+#if defined(__MACH__)
 		if (!areNamesTimesFound && isMP3PatchLoaded) {
 			fprintf(stderr, "\n\nPlease quit CLAN, re-start it, then run fixmp3s again\n");
 			cutt_exit(0);
 		}
-
+#endif
 	}
 }
 
@@ -202,9 +206,13 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	CLAN_PROG_NUM = FIXMP3;
 	OnlydataLimit = 0;
 	UttlineEqUtterance = TRUE;
-	bmain(argc,argv,NULL);
+#if defined(__MACH__)
+	bmain(argc, argv, NULL);
 	writeOutNamesTimes(rootNameTime);
 	CleanupNamesTimes(rootNameTime);
+#else
+	fprintf(stderr, "FIXBULETS command is not implemented on PC\n");
+#endif
 }
 		
 void getflag(char *f, char *f1, int *i) {
@@ -238,6 +246,8 @@ static long fixmp3s_conv_from_msec_MP3(long num, double ts) {
 }
 
 static void getSampleRate(FNType *FileName, double *oldSNDrate, double *newSNDrate) {
+//#if defined(_WIN32) || defined(__MACH__)
+#if defined(__MACH__)
 	char oldIsMP3PatchLoaded;
 	Media  theSoundMedia;
 	Handle hSys7SoundData;
@@ -250,10 +260,8 @@ static void getSampleRate(FNType *FileName, double *oldSNDrate, double *newSNDra
 	if (strrchr(FileName, '.') == NULL)
 		strcat(mFileName, ".mp3");
 
-#if defined(_WIN32) || defined(__MACH__)
 	if (areNamesTimesFound && !isMP3PatchLoaded)
 		MP3ImporterPatch_DoRegister();
-#endif
 
 	oldIsMP3PatchLoaded = isMP3PatchLoaded;
 	isMP3PatchLoaded = true;
@@ -266,7 +274,6 @@ static void getSampleRate(FNType *FileName, double *oldSNDrate, double *newSNDra
 		cutt_exit(0);
 	}
 	isMP3PatchLoaded = oldIsMP3PatchLoaded;
-
 	if (!areNamesTimesFound) {
 		addNameTiime(mFileName, GetMediaDuration(theSoundMedia));
 	} else {
@@ -278,7 +285,7 @@ static void getSampleRate(FNType *FileName, double *oldSNDrate, double *newSNDra
 
 	if (hSys7SoundData)
 		DisposeHandle(hSys7SoundData);
-	return;
+#endif
 }
 
 static char getNewTime(double oldSNDrate, double newSNDrate, long *Beg, long *End) {
@@ -345,6 +352,7 @@ void call() {
 
 	isMediaHeaderFound = FALSE;
 	Beg = End = 0L;
+	oldSNDrate = newSNDrate = 0.0;
 	oldFname[0] = EOS;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);

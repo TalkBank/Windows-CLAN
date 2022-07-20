@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -25,97 +25,181 @@
 #define CURLINE '\003'
 #define OTHLINE '\004'
 
-#define REP struct rep_s
-REP {
+struct rep_s {
 	char *word;
 	unsigned int count;
-	REP  *next_rep;
+	struct rep_s  *nextRep;
 };
 
-struct modrep_tnode {
+struct mod_s {
 	char *word;
-	REP  *rep;
+	struct rep_s  *reps;
 	unsigned int count;
-	struct modrep_tnode *left;
-	struct modrep_tnode *right;
+	struct mod_s *left;
+	struct mod_s *right;
 } ;
 
+#define SPEAKERS struct speakers
+SPEAKERS {
+	char *sp;
+	struct mod_s *mods;
+	SPEAKERS *nextSpeaker;
+} ;
+
+#define KEYWDROW struct keywdrows
+KEYWDROW {
+	char *fname;
+	char *sp;
+	char *keyword;
+	int  count;
+	int  rowCnt;
+	KEYWDROW *nextRow;
+} ;
+
+#define EXCELROW struct excelrows
+EXCELROW {
+	int count;
+	int rowCnt;
+	EXCELROW *nextRow;
+} ;
+
+#define EXCELCOL struct excelcols
+EXCELCOL {
+	char *keyword;
+	KEYWDROW *keyrows;
+	EXCELROW *rows;
+	EXCELCOL *nextCol;
+} ;
+
+extern char GExt[];
+extern char Preserve_dir;
+extern char stin_override;
 extern struct IDtype *IDField;
 extern struct IDtype *SPRole;
 
+static int  ExcelCnt;
 static char modrep_ftime, mor_specified;
+static char isExcel;
 static char isSort = FALSE;
+static char isCombineSpeakers = FALSE;
 static char ModWord[BUFSIZ], RepWord[BUFSIZ];
 static char *OtherUtt, *OrgScopTier;
 static char tf, *mainTierselected, ModLine[SPEAKERLEN], RepLine[SPEAKERLEN];
 static char WordMode_b;
 static char WordMode_c;
-static struct modrep_tnode *modrep_root;
 static IEWORDS *wdptr_b;
 static IEWORDS *wdptr_c;
-
-/*  *************** modrep prototypes **************** */
-
-void modrep_overflow(void);
-void modrep_treeprint(struct modrep_tnode *p);
-void modrep_pr_result(void);
-void AddRepWord(struct modrep_tnode *p, char *rw);
-void ProcessLines(char WhichLine, char OtherSP, char zeroLine);
-void ChoseProcessor(char WhichLine, char OtherSP, char zeroLine);
-void getrefrange(int p1, char w);
-void modrep_pars(char w, char *st, int p2, int p4);
-void comppos(char, char *, int, int, int, int, int, int, int, int, int, int);
-void maketree(char w, char *tu, char *ts, char *wd, int mid);
-void modrep_shiftr(char *st, int num);
-void setdot(char *s, int *b1, int *b2, char frstnum, char numf);
-void free_modrep_tree(struct modrep_tnode *p);
-void modrep_tree_cleanup(void);
-char *modrep_MkStr(char *s);
-char *getfirst(int p2, int p4, char *wd, char **kwd);
-char *modrep_MkStrAndShift(char *s, int shift);
-char *getnum(char *st, int *u, int *w, int *s);
-int  modrep_exclude(char *word, IEWORDS *wdptr, char WordMode);
-int  getneww(register char *word, register int i);
-int  locword(char,char *,int,int,int,int,int,int,int,int,char *,int,int);
-int  modrep_isskip(char *line, int pos, char MBC);
-IEWORDS *modrep_addwdptr(char opt, char ch, char *wd, IEWORDS *wdptr, char *WordMode);
-struct modrep_tnode *modrep_talloc(char *mw, char *rw);
-struct modrep_tnode *modrep_tree(struct modrep_tnode *p, char *mw, char *rw);
-
-/*  ********************************************************* */
+static SPEAKERS *rootspeaker;
+static EXCELCOL *rootexcel;
 
 void usage() {
-   puts("MODREP matches words on the %mod line to replicas on the %pho line");
-   printf("Usage: modrep [bS cS nS oS %s] filename(s)\n", mainflgs());
-   printf("+bS: set model tier name to S, i.e. +b*CHI or +b%%hes\n");
-   printf("     S = \"*\", if you want to use \"+t@ID=\" option for speaker names\n");
-   printf("+cS: set replica tier name to S, i.e. +c*CHI or +c%%hes\n");
-   printf("     S = \"*\", if you want to use \"+t@ID=\" option for speaker names\n");
-   printf("+oS: word(s) S or in file @S included in an output assiciated with +b\n");
-   printf("+nS: word(s) S or in file @S included in an output assiciated with +c\n");
-   printf("+qS: word(s) S or in file @S included in an input\n");
-   printf("-qS: word(s) S or in file @S excluded from an input\n");
-   printf("+s : sort output by descending frequency\n");
-   mainusage(TRUE);
+	puts("MODREP matches words on the %mod line to replicas on the %pho line");
+	printf("Usage: modrep [a bS cS nS oS sS %s] filename(s)\n", mainflgs());
+	printf("+a : sort output by descending frequency\n");
+	printf("+bS: set model tier name to S, i.e. +b*CHI or +b%%hes\n");
+	printf("     S = \"*\", if you want to use \"+t@ID=\" option for speaker names\n");
+	printf("+cS: set replica tier name to S, i.e. +c*CHI or +c%%hes\n");
+	printf("     S = \"*\", if you want to use \"+t@ID=\" option for speaker names\n");
+	printf("+d : outputs in SPREADSHEET format\n");
+	printf("+nS: word S or in file @S included in an output assiciated with +c\n");
+	printf("+oS: word S or in file @S included in an output assiciated with +b\n");
+	printf("+o3: combine selected speakers from each file into one results list for that file\n");
+	printf("+sS: word S or in file @S included in an input\n");
+	printf("-sS: word S or in file @S excluded from an input\n");
+	mainusage(TRUE);
+}
+
+static void free_modrep_tree(struct mod_s *p) {
+	struct mod_s *t;
+	struct rep_s *r, *tr;
+
+	if (p != NULL) {
+		free_modrep_tree(p->left);
+		do {
+			r = p->reps;
+			while (r != NULL) {
+				tr = r;
+				r = r->nextRep;
+				if (tr->word)
+					free(tr->word);
+				free(tr);
+			}
+			if (p->right == NULL)
+				break;
+			if (p->right->left != NULL) {
+				free_modrep_tree(p->right);
+				break;
+			}
+			t = p;
+			p = p->right;
+			if (t->word) free(t->word);
+			free(t);
+		} while (1);
+		if (p->word)
+			free(p->word);
+		free(p);
+	}
+
+}
+
+static SPEAKERS *modrep_speakers_cleanup(SPEAKERS *p) {
+	SPEAKERS *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->nextSpeaker;
+		if (t->sp != NULL)
+			free(t->sp);
+		if (t->mods != NULL)
+			free_modrep_tree(t->mods);
+		free(t);
+	}
+	return(NULL);
 }
 
 static void modrepError(void) {
 	wdptr_b = freeIEWORDS(wdptr_b);
 	wdptr_c = freeIEWORDS(wdptr_c);
-	free(OtherUtt); free(OrgScopTier);
-	modrep_tree_cleanup();
+	free(OtherUtt);
+	free(OrgScopTier);
+	rootspeaker = modrep_speakers_cleanup(rootspeaker);
 	cutt_exit(0);
+}
+
+static void modrep_err(char *s, const char *s1) {
+	s--;
+	if (s1 != NULL)
+		fprintf(stderr,"%s in: %s\n",s1,s);
+	else
+		fprintf(stderr,"Illegal location representation: %s\n",s);
+	modrepError();
+}
+
+static void modrep_cleanup_excel(EXCELCOL *p) {
+	EXCELCOL *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->nextCol;
+		if (t->keyword)
+			free(t->keyword);
+		free(t);
+	}
 }
 
 void init(char first) {
 	if (first) {
+		ExcelCnt = 0;
+		isExcel = FALSE;
 		isSort = FALSE;
 		mor_specified = FALSE;
 		modrep_ftime = TRUE;
 		mainTierselected = NULL;
+		isCombineSpeakers = FALSE;
 		*ModLine = EOS;
 		*RepLine = EOS;
-		modrep_root = NULL;
+		rootexcel = NULL;
+		rootspeaker = NULL;
 		wdptr_b = NULL;
 		wdptr_c = NULL;
 		WordMode_b = '\0';
@@ -169,14 +253,47 @@ void init(char first) {
 					maketierchoice(RepLine,'+',FALSE);
 			} else
 				maketierchoice(RepLine,'+',FALSE);
+			if (isExcel) {
+				stout = TRUE;
+			}
 		}
 	}
 
-	if (!combinput || first)
-		modrep_root = NULL;
+	if (!combinput)
+		rootspeaker = NULL;
 }
 
-IEWORDS *modrep_addwdptr(char opt, char ch, char *wd, IEWORDS *wdptr, char *WordMode) {
+static SPEAKERS *FindSpeaker(char *spname) {
+	SPEAKERS *tsp;
+
+	if (rootspeaker == NULL) {
+		if ((rootspeaker=NEW(SPEAKERS)) == NULL)
+			out_of_mem();
+		tsp = rootspeaker;
+	} else {
+		tsp = rootspeaker;
+		while (1) {
+			if (!strcmp(spname,tsp->sp))
+				return(tsp);
+			if (tsp->nextSpeaker == NULL)
+				break;
+			tsp = tsp->nextSpeaker;
+		}
+		if ((tsp->nextSpeaker=NEW(SPEAKERS)) == NULL)
+			out_of_mem();
+		tsp = tsp->nextSpeaker;
+	}
+	tsp->sp = (char *)malloc((size_t)strlen(spname)+1);
+	if (tsp->sp == NULL) {
+		printf("No more memory.\n"); cutt_exit(1);
+	}
+	strcpy(tsp->sp, spname);
+	tsp->mods = NULL;
+	tsp->nextSpeaker = NULL;
+	return(tsp);
+}
+
+static IEWORDS *modrep_addwdptr(char opt, char ch, char *wd, IEWORDS *wdptr, char *WordMode) {
 	register int i;
 	char plus = FALSE;
 	IEWORDS *tempwd;
@@ -226,7 +343,8 @@ static IEWORDS *modrep_rdexclf(char opt, char ch, FNType *fname, IEWORDS *wdptr,
 	if (*fname == '+') {
 		*wd = '+';
 		fname++;
-	} else *wd = ' ';
+	} else
+		*wd = ' ';
 
 	if (*fname == EOS) {
 		fprintf(stderr, "No file name for the +o option specified!\n");
@@ -245,48 +363,18 @@ static IEWORDS *modrep_rdexclf(char opt, char ch, FNType *fname, IEWORDS *wdptr,
 		SetNewVol(od_dir);
 #endif
 	while (fgets_cr(wd+1, 511, efp)) {
-		if (uS.isUTF8(wd+1) || uS.partcmp(wd+1, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(wd+1) || uS.isInvisibleHeader(wd+1))
+			continue;
+		if (wd[1] == ';' && wd[2] == '%' && wd[3] == '*' && wd[4] == ' ')
+			continue;
+		if (wd[1] == '#' && wd[2] == ' ')
 			continue;
 		wdptr = modrep_addwdptr(opt, ch, wd, wdptr, WordMode);
 	}
 	return(wdptr);
 }
 
-void free_modrep_tree(struct modrep_tnode *p) {
-	struct modrep_tnode *t;
-	REP *r, *tr;
-
-	if (p != NULL) {
-		free_modrep_tree(p->left);
-		do {
-			r = p->rep;
-			while (r != NULL) {
-				tr = r;
-				r = r->next_rep;
-				if (tr->word) free(tr->word);
-				free(tr);
-			}
-			if (p->right == NULL) break;
-			if (p->right->left != NULL) {
-				free_modrep_tree(p->right);
-				break;
-			}
-			t = p;
-			p = p->right;
-			if (t->word) free(t->word);
-			free(t);
-		} while (1);
-		if (p->word) free(p->word);
-		free(p);
-	}
-}
-
-void modrep_tree_cleanup() {
-	free_modrep_tree(modrep_root);
-	modrep_root = NULL;
-}
-
-int modrep_exclude(char *word, IEWORDS *wdptr, char WordMode) {
+static int modrep_exclude(char *word, IEWORDS *wdptr, char WordMode) {
 	IEWORDS *twd;
 
 	for (twd=wdptr; twd != NULL; twd = twd->nextword) {
@@ -304,118 +392,240 @@ int modrep_exclude(char *word, IEWORDS *wdptr, char WordMode) {
 }
 
 			/* allocate space for string of text */
-char *modrep_MkStr(char *s) {
+static char *modrep_MkStr(char *s) {
 	char *p;
 
-	if ((p = (char *)malloc(strlen(s)+1)) != NULL) strcpy(p, s);
-	else modrep_overflow();
+	if ((p = (char *)malloc(strlen(s)+1)) != NULL)
+		strcpy(p, s);
+	else
+		out_of_mem();
 	return(p);
 }
 
-void AddRepWord(struct modrep_tnode *p, char *rw) {
-	REP *t;
+static void AddRepWord(struct mod_s *p, char *rw) {
+	struct rep_s *t;
 
 	p->count++;
-	t = p->rep;
+	t = p->reps;
 	while (1) {
 		if (!strcmp(t->word,rw)) {
 			t->count++;
 			return;
 		}
-		if (t->next_rep == NULL) break;
-		t = t->next_rep;
+		if (t->nextRep == NULL)
+			break;
+		t = t->nextRep;
 	}
-	if ((t->next_rep=NEW(REP)) == NULL) modrep_overflow();
-	t = t->next_rep;
+	if ((t->nextRep=NEW(struct rep_s)) == NULL)
+		out_of_mem();
+	t = t->nextRep;
 	t->word = modrep_MkStr(rw);
 	t->count = 1;
-	t->next_rep = NULL;
+	t->nextRep = NULL;
 }
 
-void modrep_overflow() {
-	fprintf(stderr,"Modrep: no more core available.\n");
-	cutt_exit(1);
-}
+static struct mod_s *modrep_talloc(char *mw, char *rw) {
+	struct mod_s *p;
 
-struct modrep_tnode *modrep_talloc(char *mw, char *rw) {
-	struct modrep_tnode *p;
-
-	if ((p = NEW(struct modrep_tnode)) == NULL) modrep_overflow();
+	if ((p = NEW(struct mod_s)) == NULL)
+		out_of_mem();
 	p->word = mw;
 	p->count = 1;
-	if ((p->rep=NEW(REP)) == NULL) modrep_overflow();
-	p->rep->word  = rw;
-	p->rep->count = 1;
-	p->rep->next_rep = NULL;
+	if ((p->reps=NEW(struct rep_s)) == NULL)
+		out_of_mem();
+	p->reps->word  = rw;
+	p->reps->count = 1;
+	p->reps->nextRep = NULL;
 	return(p);
 }
 
-struct modrep_tnode *modrep_tree(struct modrep_tnode *p, char *mw, char *rw) {
+static struct mod_s *modrep_tree(struct mod_s *p, char *mw, char *rw) {
 	int cond;
-	struct modrep_tnode *t = p;
+	struct mod_s *t = p;
 
 	 if (p == NULL) {
 		p = modrep_talloc(modrep_MkStr(mw),modrep_MkStr(rw));
 		p->left = p->right = NULL;
-	} else if ((cond=strcmp(mw,p->word)) == 0) AddRepWord(p,rw);
-	else if (cond < 0) p->left = modrep_tree(p->left, mw, rw);
+	} else if ((cond=strcmp(mw,p->word)) == 0)
+		AddRepWord(p,rw);
+	else if (cond < 0)
+		p->left = modrep_tree(p->left, mw, rw);
 	else {
-		while ((cond=strcmp(mw,p->word)) > 0 && p->right != NULL) p=p->right;
-		if (cond == 0) AddRepWord(p,rw);
-		else if (cond < 0) p->left = modrep_tree(p->left, mw, rw);
-		else p->right = modrep_tree(p->right, mw, rw);
+		while ((cond=strcmp(mw,p->word)) > 0 && p->right != NULL)
+			p=p->right;
+		if (cond == 0)
+			AddRepWord(p,rw);
+		else if (cond < 0)
+			p->left = modrep_tree(p->left, mw, rw);
+		else
+			p->right = modrep_tree(p->right, mw, rw);
 		return(t);
 	}
 	return(p);
 }
 
-		/* write tree onto fp file stream */
-void modrep_treeprint(struct modrep_tnode *p) {
-	struct modrep_tnode *t;
-	REP *r, *tr;
+static void addExcelSp_KeywordRows(char *fnameOrg, char *sp, char *keyword, int count) {
+	char *fname;
+	KEYWDROW *r;
 
-	if (p != NULL) {
-		modrep_treeprint(p->left);
-		do {
-			fprintf(fpout,"%3u %s\n", p->count, p->word);
-			r = p->rep;
-			while (r != NULL) {
-				fprintf(fpout,"    %3u %s\n", r->count, r->word);
-				tr = r;
-				r = r->next_rep;
-				if (tr->word) free(tr->word);
-				free(tr);
+	if (rootexcel == NULL) {
+		rootexcel = NEW(EXCELCOL);
+		if (rootexcel == NULL)
+			out_of_mem();
+		rootexcel->keyword = NULL;
+		rootexcel->keyrows = NEW(KEYWDROW);
+		rootexcel->rows = NULL;
+		rootexcel->nextCol = NULL;
+		r = rootexcel->keyrows;
+	} else {
+		for (r=rootexcel->keyrows; r->nextRow != NULL; r=r->nextRow) ;
+		r->nextRow = NEW(KEYWDROW);
+		r = r->nextRow;
+	}
+	if (r == NULL)
+		out_of_mem();
+// ".xls"
+	fname = strrchr(fnameOrg, PATHDELIMCHR);
+	if (fname != NULL)
+		fname = fname + 1;
+	else
+		fname = fnameOrg;
+	r->fname = (char *)malloc((size_t) strlen(fname)+1);
+	if (r->fname == NULL)
+		out_of_mem();
+	strcpy(r->fname, fname);
+	r->sp = (char *)malloc((size_t) strlen(sp)+1);
+	if (r->sp == NULL)
+		out_of_mem();
+	strcpy(r->sp, sp);
+	r->keyword = (char *)malloc((size_t) strlen(keyword)+1);
+	if (r->keyword == NULL)
+		out_of_mem();
+	strcpy(r->keyword, keyword);
+	r->count = count;
+	r->rowCnt = ExcelCnt;
+	r->nextRow = NULL;
+}
+
+static EXCELROW *addExcelRows(EXCELROW *root, int count) {
+	EXCELROW *p;
+
+	if (root == NULL) {
+		root = NEW(EXCELROW);
+		p = root;
+	} else {
+		for (p=root; p->nextRow != NULL; p=p->nextRow) ;
+		p->nextRow = NEW(EXCELROW);
+		p = p->nextRow;
+	}
+	if (p == NULL)
+		out_of_mem();
+	p->count = count;
+	p->rowCnt = ExcelCnt;
+	p->nextRow = NULL;
+	return(root);
+}
+
+static void addExcelCols_Rows(char *keyword, int count) {
+	EXCELCOL *tkey, *tkey2, *new_key;
+
+	if (rootexcel->nextCol == NULL) {
+		rootexcel->nextCol = NEW(EXCELCOL);
+		if (rootexcel->nextCol == NULL)
+			out_of_mem();
+		tkey = rootexcel->nextCol;
+		tkey->keyrows = NULL;
+		tkey->rows = NULL;
+		tkey->nextCol = NULL;
+	} else {
+		tkey = rootexcel->nextCol;
+		tkey2 = NULL;
+		while (1) {
+			if (!strcmp(keyword, tkey->keyword)) {
+				tkey->rows = addExcelRows(tkey->rows, count);
+				return;
 			}
-			if (p->right == NULL) break;
-			if (p->right->left != NULL) {
-				modrep_treeprint(p->right);
+			if (strcmp(keyword,tkey->keyword) < 0) {
+				if ((new_key=NEW(EXCELCOL)) == NULL)
+					out_of_mem();
+				new_key->keyrows = NULL;
+				new_key->rows = NULL;
+				new_key->nextCol = tkey;
+				if (tkey2 == NULL)
+					rootexcel->nextCol = new_key;
+				else
+					tkey2->nextCol = new_key;
+				tkey = new_key;
 				break;
 			}
-			t = p;
+			if (tkey->nextCol == NULL) {
+				if ((tkey->nextCol=NEW(EXCELCOL)) == NULL)
+					out_of_mem();
+				tkey = tkey->nextCol;
+				tkey->keyrows = NULL;
+				tkey->rows = NULL;
+				tkey->nextCol = NULL;
+				break;
+			}
+			tkey2 = tkey;
+			tkey = tkey->nextCol;
+		}
+	}
+	tkey->keyword = (char *)malloc((size_t) strlen(keyword)+1);
+	if (tkey->keyword == NULL)
+		out_of_mem();
+	strcpy(tkey->keyword, keyword);
+	tkey->rows = addExcelRows(tkey->rows, count);
+}
+
+static void modrep_treeprint(struct mod_s *p, char *sp) {
+	struct rep_s *r, *tr;
+
+	if (p != NULL) {
+		modrep_treeprint(p->left, sp);
+		do {
+			if (!isExcel)
+				fprintf(fpout,"%3u %s\n", p->count, p->word);
+			else
+				addExcelSp_KeywordRows(oldfname, sp, p->word, p->count);
+			r = p->reps;
+			while (r != NULL) {
+				if (!isExcel)
+					fprintf(fpout,"    %3u %s\n", r->count, r->word);
+				else
+					addExcelCols_Rows(r->word, r->count);
+				tr = r;
+				r = r->nextRep;
+			}
+			if (isExcel)
+				ExcelCnt++;
+			if (p->right == NULL)
+				break;
+			if (p->right->left != NULL) {
+				modrep_treeprint(p->right, sp);
+				break;
+			}
 			p = p->right;
-			if (t->word) free(t->word);
-			free(t);
 		} while (1);
-		if (p->word) free(p->word);
-		free(p);
 	}
 }
 
-static struct modrep_tnode *modrep_salloc(char *mw, unsigned int count, REP *rep) {
-	struct modrep_tnode *p;
+static struct mod_s *modrep_salloc(char *mw, unsigned int count, struct rep_s *rep) {
+	struct mod_s *p;
 
-	if ((p = NEW(struct modrep_tnode)) == NULL) modrep_overflow();
+	if ((p = NEW(struct mod_s)) == NULL)
+		out_of_mem();
 	p->word = mw;
 	p->count = count;
-	p->rep = rep;
+	p->reps = rep;
 	return(p);
 }
 
-static struct modrep_tnode *modrep_stree(struct modrep_tnode *p, struct modrep_tnode *m) {
-	struct modrep_tnode *t = p;
+static struct mod_s *modrep_stree(struct mod_s *p, struct mod_s *m) {
+	struct mod_s *t = p;
 
 	if (p == NULL) {
-		p = modrep_salloc(modrep_MkStr(m->word), m->count, m->rep);
+		p = modrep_salloc(modrep_MkStr(m->word), m->count, m->reps);
 		p->left = p->right = NULL;
 	} else if (p->count < m->count)
 		p->left = modrep_stree(p->left, m);
@@ -431,28 +641,34 @@ static struct modrep_tnode *modrep_stree(struct modrep_tnode *p, struct modrep_t
 	return(p);
 }
 
-static void modrep_sorttree(struct modrep_tnode *p) {
+static void modrep_sorttree(struct mod_s *p, SPEAKERS *tsp) {
 	if (p != NULL) {
-		modrep_sorttree(p->left);
-		modrep_root = modrep_stree(modrep_root,p);
-		modrep_sorttree(p->right);
+		modrep_sorttree(p->left, tsp);
+		tsp->mods = modrep_stree(tsp->mods,p);
+		modrep_sorttree(p->right, tsp);
 		free(p->word);
 		free(p);
 	}
 }
 
-void modrep_pr_result(void) {
-	if (isSort) {
-		struct modrep_tnode *p;
-		p = modrep_root;
-		modrep_root = NULL;
-		modrep_sorttree(p);
-		modrep_treeprint(modrep_root);
-	} else
-		modrep_treeprint(modrep_root);
+static void modrep_pr_result(void) {
+	SPEAKERS *tsp;
+
+	for (tsp=rootspeaker; tsp != NULL; tsp=tsp->nextSpeaker) {
+		if (isSort) {
+			struct mod_s *p;
+			p = tsp->mods;
+			tsp->mods = NULL;
+			modrep_sorttree(p, tsp);
+		}
+		if (!isExcel && !isCombineSpeakers)
+			fprintf(fpout,"Speaker %s:\n", tsp->sp);
+		modrep_treeprint(tsp->mods, tsp->sp);
+	}
+	rootspeaker = modrep_speakers_cleanup(rootspeaker);
 }
 
-int getneww(register char *word, register int i) {
+static int getneww(register char *word, register int i) {
 	register char sq;
 
 	while ((*word=OtherUtt[i++]) != EOS && uS.isskip(OtherUtt,i-1,&dFnt,MBF) && !uS.isRightChar(OtherUtt, i-1, '[', &dFnt, MBF)) ;
@@ -467,7 +683,7 @@ int getneww(register char *word, register int i) {
 	return(i);
 }
 
-void ProcessLines(char WhichLine, char OtherSP, char zeroLine) {
+static void ProcessLines(SPEAKERS *tsp, char WhichLine, char OtherSP, char zeroLine) {
 	const char *punc;
 	int wi1 = 0L, wi2 = 0L;
 
@@ -538,45 +754,15 @@ void ProcessLines(char WhichLine, char OtherSP, char zeroLine) {
 		uS.remblanks(ModWord);
 		uS.remblanks(RepWord);
 		if (modrep_exclude(ModWord, wdptr_b, WordMode_b) && modrep_exclude(RepWord, wdptr_c, WordMode_c)) {
-			modrep_root = modrep_tree(modrep_root, ModWord, RepWord);
+			tsp->mods = modrep_tree(tsp->mods, ModWord, RepWord);
 		}
 	}
 }
 
-void modrep_shiftr(char *st, int num) {
-	register int i;
- 
-	for (i=strlen(st); i >= 0; i--) st[i+num] = st[i];
-}
-
-void maketree(char w, char *tu, char *ts, char *wd, int mid) {
-	if (mid == -1)
-		tu = modrep_MkStrAndShift(tu,0);
-	else {
-		tu = modrep_MkStrAndShift(tu,1);
-		if (mid > (int)strlen(tu)) mid = strlen(tu);
-		modrep_shiftr(tu+mid,1);
-		tu[mid] = '|';
-	}
-	if (w == MODLINE) {
-		uS.remblanks(wd);
-		uS.remblanks(tu);
-		if (modrep_exclude(wd, wdptr_b, WordMode_b) && modrep_exclude(tu, wdptr_c, WordMode_c)) {
-			modrep_root = modrep_tree(modrep_root, wd, tu);
-		}
-	} else {
-		uS.remblanks(tu);
-		uS.remblanks(wd);
-		if (modrep_exclude(tu, wdptr_b, WordMode_b) && modrep_exclude(wd, wdptr_c, WordMode_c)) {
-			modrep_root = modrep_tree(modrep_root, tu, wd);
-		}
-	}
-}
- 
-char *modrep_MkStrAndShift(char *s, int shift) {
+static char *modrep_MkStrAndShift(char *s, int shift) {
 	int i, col;
 	char *p;
- 
+
 	if ((p = (char *)malloc(strlen(s)+1+shift)) != NULL) {
 		i = 0;
 		col = 0;
@@ -597,8 +783,32 @@ char *modrep_MkStrAndShift(char *s, int shift) {
 	} else out_of_mem();
 	return(p);
 }
- 
-char *getfirst(int p2, int p4, char *wd, char **kwd) {
+
+static void maketree(char w, char *tu, char *ts, char *wd, int mid, SPEAKERS *tsp) {
+	if (mid == -1)
+		tu = modrep_MkStrAndShift(tu,0);
+	else {
+		tu = modrep_MkStrAndShift(tu,1);
+		if (mid > (int)strlen(tu)) mid = strlen(tu);
+		uS.shiftright(tu+mid,1);
+		tu[mid] = '|';
+	}
+	if (w == MODLINE) {
+		uS.remblanks(wd);
+		uS.remblanks(tu);
+		if (modrep_exclude(wd, wdptr_b, WordMode_b) && modrep_exclude(tu, wdptr_c, WordMode_c)) {
+			tsp->mods = modrep_tree(tsp->mods, wd, tu);
+		}
+	} else {
+		uS.remblanks(tu);
+		uS.remblanks(wd);
+		if (modrep_exclude(tu, wdptr_b, WordMode_b) && modrep_exclude(wd, wdptr_c, WordMode_c)) {
+			tsp->mods = modrep_tree(tsp->mods, tu, wd);
+		}
+	}
+}
+
+static char *getfirst(int p2, int p4, char *wd, char **kwd) {
 	int f1, l1, t;
 	char *ts, s;
  
@@ -674,12 +884,13 @@ char *getfirst(int p2, int p4, char *wd, char **kwd) {
 	return(ts);
 }
 
-int modrep_isskip(char *line, int pos, char MBC) {
-	if (uS.IsUtteranceDel(line, pos)) return(1);
+static int modrep_isskip(char *line, int pos, char MBC) {
+	if (uS.IsUtteranceDel(line, pos))
+		return(1);
 	return(uS.isskip(line, pos, &dFnt, MBC));
 }
 
-int locword(char w, char *ts, 
+static int locword(SPEAKERS *tsp, char w, char *ts,
 			int u1, int w1, int s1, int b1, int u2, int w2, int s2, int b2, 
 			char *wd, int p2, int p4) {
 	int f1, l1, mid = -1;
@@ -817,25 +1028,16 @@ nextcom:
 	if (*wd == '$' && !tf) {
 		tf = 1;
 		kts = modrep_MkStrAndShift(ts,0);
-		maketree(w,OtherUtt+f1,ts,wd,mid);
-		if (kwd != wd) maketree(w,OtherUtt+f1,kts,kwd,mid);
-	} else maketree(w,OtherUtt+f1,ts,wd,mid);
+		maketree(w,OtherUtt+f1,ts,wd,mid,tsp);
+		if (kwd != wd)
+			maketree(w,OtherUtt+f1,kts,kwd,mid,tsp);
+	} else
+		maketree(w,OtherUtt+f1,ts,wd,mid,tsp);
 	OtherUtt[l1] = s;
 	return(TRUE);
 }
  
-static void modrep_err(char *s, const char *s1) {
-	s--;
-	if (s1 != NULL) fprintf(stderr,"%s in: %s\n",s1,s);
-	else fprintf(stderr,"Illegal location representation: %s\n",s);
-	wdptr_b = freeIEWORDS(wdptr_b);
-	wdptr_c = freeIEWORDS(wdptr_c);
-	free(OtherUtt); free(OrgScopTier);
-	modrep_tree_cleanup();
-	cutt_exit(0);
-}
- 
-void comppos(char w, char *s, int u1, int w1, int s1, int b1, 
+static void comppos(SPEAKERS *tsp, char w, char *s, int u1, int w1, int s1, int b1,
 					int u2, int w2, int s2, int b2, int p2, int p4) {
 	if (u2 != 0) {
 		if (u1 == 0) u1 = 1;
@@ -866,7 +1068,7 @@ printf("ModWord=%s; OrgScopTier+p2=%sOrgScopTier+p4=%s\n",
 	ModWord, OrgScopTier+p2, OrgScopTier+p4);
 puts("*****");
 */
-	if (!locword(w,NULL,u1,w1,s1,b1,u2,w2,s2,b2,ModWord,p2,p4)) {
+	if (!locword(tsp,w,NULL,u1,w1,s1,b1,u2,w2,s2,b2,ModWord,p2,p4)) {
 		if (s[strlen(s)-1] == '\n')
 			s[strlen(s)-1] = EOS;
 		fprintf(stderr,"ERROR in scoping of: %s\n    to line: %s", s-1, OtherUtt);
@@ -874,7 +1076,7 @@ puts("*****");
 	}
 }
  
-char *getnum(char *st, int *u, int *w, int *s) {
+static char *getnum(char *st, int *u, int *w, int *s) {
 	char *f, *l, t, *dot, sf = 0, uf = 0;
 	int lev = 0;
  
@@ -929,17 +1131,25 @@ char *getnum(char *st, int *u, int *w, int *s) {
 	else return(st);
 }
  
-void setdot(char *s, int *b1, int *b2, char frstnum, char numf) {
+static void setdot(char *s, int *b1, int *b2, char frstnum, char numf) {
 	if (frstnum) {
-		if (*b1) modrep_err(s,"Only one dot '.' allowed");
-		if (!numf) *b1 = 1; else *b1 = 2;
+		if (*b1)
+			modrep_err(s,"Only one dot '.' allowed");
+		if (!numf)
+			*b1 = 1;
+		else
+			*b1 = 2;
 	} else {
-		if (*b2) modrep_err(s,"Only one dot '.' allowed");
-		if (!numf) *b2 = 1; else *b2 = 2;
+		if (*b2)
+			modrep_err(s,"Only one dot '.' allowed");
+		if (!numf)
+			*b2 = 1;
+		else
+			*b2 = 2;
 	}
 }
  
-void modrep_pars(char w, char *st, int p2, int p4) {
+static void modrep_pars(SPEAKERS *tsp, char w, char *st, int p2, int p4) {
 	char cf = 0, numf = 0, frstnum = 1;
 	char *s;
 	int u1, w1, s1, b1, u2, w2, s2, b2;
@@ -969,47 +1179,48 @@ void modrep_pars(char w, char *st, int p2, int p4) {
 						modrep_err(s,NULL);
 				}
 			} else {
-				if (*st == '.') setdot(s,&b1,&b2,frstnum,numf);
-				else
-				if (*st == '-') {
+				if (*st == '.')
+					setdot(s,&b1,&b2,frstnum,numf);
+				else if (*st == '-') {
 					if (!numf) 
 						modrep_err(s,"No position representation found");
 					numf = 0;
-					if (frstnum) frstnum = 0;
-					else modrep_err(s,"Too many '-' symbols");
-				} else
-				if (*st == ',') {
+					if (frstnum)
+						frstnum = 0;
+					else
+						modrep_err(s,"Too many '-' symbols");
+				} else if (*st == ',') {
 					if (!numf) 
 						modrep_err(s,"No position representation found");
-					comppos(w,s,u1,w1,s1,b1,u2,w2,s2,b2,p2,p4);
+					comppos(tsp,w,s,u1,w1,s1,b1,u2,w2,s2,b2,p2,p4);
 					numf = 0; frstnum = 1;
 					u1=0; w1=0; s1 = 0; b1 = 0; u2=0; w2 = 0; s2 = 0; b2 = 0;
-				} else
-				if (*st == 'a' && *(st+1) == 'f' && *(st+2) == 't') {
-					if (numf) modrep_err(s,"<aft> can't be after any number");
+				} else if (*st == 'a' && *(st+1) == 'f' && *(st+2) == 't') {
+					if (numf)
+						modrep_err(s,"<aft> can't be after any number");
 					numf = 1;
 					setdot(s,&b1,&b2,frstnum,numf);
 					st += 2;
-				} else
-				if (*st == 'b' && *(st+1) == 'e' && *(st+2) == 'f') {
+				} else if (*st == 'b' && *(st+1) == 'e' && *(st+2) == 'f') {
 					setdot(s,&b1,&b2,frstnum,numf);
 					numf = 1;
 					st += 2;
-				} else
-				if (*st == '$' && *(st+1) == '/' && *(st+2) == '=') {
+				} else if (*st == '$' && *(st+1) == '/' && *(st+2) == '=') {
 /* interturn = 1; */
 					st += 2;
-				} else
-				if (*st != ' ' && *st != '\t' && *st != '\n') cf = 1;
+				} else if (*st != ' ' && *st != '\t' && *st != '\n')
+					cf = 1;
 				st++;
 			}
 		}
-		if (!numf) modrep_err(s,"No position representation found");
-	} else s = st;
-	comppos(w,s,u1,w1,s1,b1,u2,w2,s2,b2,p2,p4);
+		if (!numf)
+			modrep_err(s,"No position representation found");
+	} else
+		s = st;
+	comppos(tsp,w,s,u1,w1,s1,b1,u2,w2,s2,b2,p2,p4);
 }
  
-void getrefrange(int p1, char w) {
+static void getrefrange(SPEAKERS *tsp, int p1, char w) {
 	int i, p2, p3, p4;
 	char wf = 0;
 
@@ -1020,8 +1231,10 @@ void getrefrange(int p1, char w) {
 		for (p4=p1+1; OrgScopTier[p4] != EOS && OrgScopTier[p4] != '<'; p4++) ;
 		if (OrgScopTier[p1] == '<') {
 			for (p2=p1+1; OrgScopTier[p2] != '>' && p2<p4; p2++) ;
-			if (OrgScopTier[p2] == '>') p2++;
-		} else p2 = p1;
+			if (OrgScopTier[p2] == '>')
+				p2++;
+		} else
+			p2 = p1;
 		p3 = p2 - 1;
 		do {
 			for (p3++; uttline[p3] != '$' && p3 < p4; p3++) ;
@@ -1036,20 +1249,24 @@ void getrefrange(int p1, char w) {
 printf("p1=%d; p2=%d; p3=%d; p4=%d; i=%d; wf=%d;\n", p1, p2, p3, p4, i, wf);
 */
 			if (i >= p2 && i < p4) {
-				if ((i=getword(utterance->speaker, uttline, ModWord, NULL, i)) == 0) break;
-				while (uS.isskip(OrgScopTier,i,&dFnt,MBF) && i < p3) i++;
+				if ((i=getword(utterance->speaker, uttline, ModWord, NULL, i)) == 0)
+					break;
+				while (uS.isskip(OrgScopTier,i,&dFnt,MBF) && i < p3)
+					i++;
 /*
 printf("st=%s; p3=%d; i=%d; word=%s;\n", OrgScopTier+p3, p3, i, word);
 */
 				if (i <= p3) {
-					if (*ModWord != '$') wf = 1;
+					if (*ModWord != '$')
+						wf = 1;
 					else {
-						modrep_pars(w,OrgScopTier+p1,p2,p4);
+						modrep_pars(tsp,w,OrgScopTier+p1,p2,p4);
 						wf = 0;
 					}
 				}
 				if (i >= p3) {
-					if (wf) modrep_pars(w,OrgScopTier+p1,p2,p4);
+					if (wf)
+						modrep_pars(tsp,w,OrgScopTier+p1,p2,p4);
 					wf = 0;
 					if (OrgScopTier[p3] != '$') {
 						tf = 0;
@@ -1060,20 +1277,24 @@ printf("st=%s; p3=%d; i=%d; word=%s;\n", OrgScopTier+p3, p3, i, word);
 						} while (!uS.isskip(uttline,p3-1,&dFnt,MBF) && uttline[p3]=='$') ;
 					}
 					if (uttline[p3] == '$') {
-						while (!uS.isskip(uttline,p3,&dFnt,MBF) && p3 < p4) p3++;
-						while (uS.isskip(uttline,p3,&dFnt,MBF) && p3 < p4) p3++;
+						while (!uS.isskip(uttline,p3,&dFnt,MBF) && p3 < p4)
+							p3++;
+						while (uS.isskip(uttline,p3,&dFnt,MBF) && p3 < p4)
+							p3++;
 					}
 				}
 			} else {
-				if (wf) modrep_pars(w,OrgScopTier+p1,p2,p4);
-				if (OrgScopTier[p4] != EOS) getrefrange(p4, w);
+				if (wf)
+					modrep_pars(tsp,w,OrgScopTier+p1,p2,p4);
+				if (OrgScopTier[p4] != EOS)
+					getrefrange(tsp, p4, w);
 				break;
 			}
 		}
 	}
 }
  
-void ChoseProcessor(char WhichLine, char OtherSP, char zeroLine) {
+static void ChoseProcessor(SPEAKERS *tsp, char WhichLine, char OtherSP, char zeroLine) {
 	char *s, *ScopTier = NULL;
 	char ab, sf, ScopFound;
 
@@ -1123,22 +1344,25 @@ void ChoseProcessor(char WhichLine, char OtherSP, char zeroLine) {
 	if (ScopFound || ScopTier != NULL) {
 		if (ScopTier == NULL) {
 			strcpy(OrgScopTier, utterance->line);
-			getrefrange(0, WhichLine);
+			getrefrange(tsp, 0, WhichLine);
 		} else {
 			ScopTier = uttline;
 			uttline  = OtherUtt;
 			OtherUtt = ScopTier;
-			getrefrange(0, WhichLine);
+			getrefrange(tsp, 0, WhichLine);
 			OtherUtt = uttline;
 			uttline  = ScopTier;
 		}
 	} else
-		ProcessLines(WhichLine, OtherSP, zeroLine);
+		ProcessLines(tsp, WhichLine, OtherSP, zeroLine);
 }
 
 void call() {
-	char OtherSP;
+	int  i;
+	char spname[SPEAKERLEN];
+	char OtherSP = 0;
 	char WhichLine = NONLINE, zeroLine = NONLINE;
+	SPEAKERS *tsp;
 
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
@@ -1152,14 +1376,25 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			zeroLine = NONLINE;
 			*OtherUtt = EOS;
 			*OrgScopTier = EOS;
+			if (isCombineSpeakers) {
+				strcpy(spname, "*COMBINED*");
+			} else {
+				strcpy(spname,utterance->speaker);
+			}
+			i = strlen(spname);
+			for (; spname[i] != ':'; i--) ;
+			spname[i] = EOS;
+			uS.uppercasestr(spname, &dFnt, MBF);
+			tsp = FindSpeaker(spname);
 		}
 		strcpy(templineC,utterance->speaker);
 		uS.uppercasestr(templineC, &dFnt, MBF);
-		if (uS.partcmp(templineC,ModLine,FALSE,FALSE)) {
+		if (tsp == NULL) {
+		} else if (uS.partcmp(templineC,ModLine,FALSE,FALSE)) {
 			if (WhichLine != NONLINE && WhichLine != MODLINE) {
 				if (*utterance->speaker == '*' && *utterance->line == '0' && (utterance->line[1] == '.' || utterance->line[1] == EOS))
 					zeroLine = CURLINE;
-				ChoseProcessor(WhichLine, OtherSP, zeroLine);
+				ChoseProcessor(tsp, WhichLine, OtherSP, zeroLine);
 			} else {
 				WhichLine = MODLINE;
 				OtherSP = *utterance->speaker;
@@ -1172,7 +1407,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			if (WhichLine != NONLINE && WhichLine != REPLINE) {
 				if (*utterance->speaker == '*' && *utterance->line == '0' && (utterance->line[1] == '.' || utterance->line[1] == EOS))
 					zeroLine = CURLINE;
-				ChoseProcessor(WhichLine, OtherSP, zeroLine);
+				ChoseProcessor(tsp, WhichLine, OtherSP, zeroLine);
 			} else {
 				WhichLine = REPLINE;
 				OtherSP = *utterance->speaker;
@@ -1183,12 +1418,17 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			}
 		}
 	}
-	if (!combinput) modrep_pr_result();
+	if (!combinput)
+		modrep_pr_result();
 }
 
 void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
+		case 'a':
+			isSort = TRUE;
+			no_arg_option(f);
+			break;
 		case 'b':
 			if (!*f) {
 				fprintf(stderr,"Tier name expected after %s option.\n", f-2);
@@ -1247,24 +1487,9 @@ void getflag(char *f, char *f1, int *i) {
 				mor_specified = TRUE;
 			strcat(RepLine, f);
 			break;
-		case 'o':
-			if (*f) {
-				if (*f == '@') {
-					f++;
-					wdptr_b = modrep_rdexclf('o', 'i', f, wdptr_b, &WordMode_b);
-				} else {
-					if (*f == '\\' && *(f+1) == '@')
-						f++;
-					wdptr_b = modrep_addwdptr('o', 'i', f, wdptr_b, &WordMode_b);
-				}
-			} else {
-				fprintf(stderr,"String expected after %s option.\n", f-2);
-				modrepError();
-			}
-			break;
-		case 's':
-			isSort = TRUE;
+		case 'd':
 			no_arg_option(f);
+			isExcel = TRUE;
 			break;
 		case 'n':
 			if (*f) {
@@ -1281,7 +1506,24 @@ void getflag(char *f, char *f1, int *i) {
 				modrepError();
 			}
 			break;
-		case 'q':
+		case 'o':
+			if (*f) {
+				if (*f == '3' && *(f+1) == EOS) {
+					isCombineSpeakers = TRUE;
+				} else if (*f == '@') {
+					f++;
+					wdptr_b = modrep_rdexclf('o', 'i', f, wdptr_b, &WordMode_b);
+				} else {
+					if (*f == '\\' && *(f+1) == '@')
+						f++;
+					wdptr_b = modrep_addwdptr('o', 'i', f, wdptr_b, &WordMode_b);
+				}
+			} else {
+				fprintf(stderr,"String expected after %s option.\n", f-2);
+				modrepError();
+			}
+			break;
+		case 's':
 			if (!*f) {
 				fprintf(stderr,"String expected after \"%s\" option\n",f-2);
 				modrepError();
@@ -1332,7 +1574,52 @@ void getflag(char *f, char *f1, int *i) {
 	}
 }
 
+static void modrep_pr_Excel(FILE *StatFpOut, EXCELCOL *cols) {
+	int rowCount;
+	EXCELCOL *col;
+	KEYWDROW *twdr;
+	EXCELROW *tr;
+
+	if (cols == NULL)
+		return;
+	fprintf(StatFpOut, "%c%c%c", 0xef, 0xbb, 0xbf); // BOM UTF8
+	fprintf(StatFpOut, "%s,%s,%s,%s", "file name", "speaker", "keyword", "count");
+	for (col=cols->nextCol; col != NULL; col=col->nextCol) {
+		outputStringForExcel(StatFpOut, col->keyword, -1);
+	}
+	fprintf(StatFpOut, "\n");
+	for (rowCount=0; rowCount < ExcelCnt; rowCount++) {
+		col = cols;
+		if (col->keyrows != NULL && col->keyrows->rowCnt == rowCount) {
+			fprintf(StatFpOut, "%s,%s,%s,%d", col->keyrows->fname, col->keyrows->sp, col->keyrows->keyword, col->keyrows->count);
+			twdr = col->keyrows;
+			col->keyrows = col->keyrows->nextRow;
+			if (twdr->fname != NULL)
+				free(twdr->fname);
+			if (twdr->sp != NULL)
+				free(twdr->sp);
+			if (twdr->keyword != NULL)
+				free(twdr->keyword);
+			free(twdr);
+		}
+		for (col=col->nextCol; col != NULL; col=col->nextCol) {
+			if (col->rows != NULL && col->rows->rowCnt == rowCount) {
+				fprintf(StatFpOut, ",%d", col->rows->count);
+				tr = col->rows;
+				col->rows = col->rows->nextRow;
+				free(tr);
+			} else
+				fprintf(StatFpOut, ",-");
+		}
+		fprintf(StatFpOut, "\n");
+	}
+}
+
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
+	FNType *fn;
+	FNType StatName[FNSize];
+	FILE *StatFpOut = NULL;
+
 	isWinMode = IS_WIN_MODE;
 	CLAN_PROG_NUM = MODREP;
 	chatmode = CHAT_MODE;
@@ -1341,5 +1628,34 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	bmain(argc,argv,modrep_pr_result);
 	wdptr_b = freeIEWORDS(wdptr_b);
 	wdptr_c = freeIEWORDS(wdptr_c);
-	free(OtherUtt); free(OrgScopTier); 
+	free(OtherUtt);
+	free(OrgScopTier);
+	if (rootexcel != NULL) {
+		AddCEXExtension = ".xls";
+		if (Preserve_dir)
+			strcpy(StatName, wd_dir);
+		else
+			strcpy(StatName, od_dir);
+		addFilename2Path(StatName, "stat.mdrep");
+		strcat(StatName, GExt);
+		parsfname(StatName, FileName1, "");
+		if ((StatFpOut=openwfile(StatName, FileName1, NULL)) == NULL) {
+			fprintf(stderr,"Can't create file \"%s\", perhaps it is opened by another application\n",FileName1);
+		}
+		modrep_pr_Excel(StatFpOut, rootexcel);
+		fclose(StatFpOut);
+		if (Preserve_dir) {
+			fn = strrchr(FileName1, PATHDELIMCHR);
+			if (fn == NULL)
+				fn = FileName1;
+			else
+				fn++;
+		} else
+			fn = FileName1;
+		if (!stin_override)
+			fprintf(stderr,"Output file <%s>\n", fn);
+		else
+			fprintf(stderr,"Output file \"%s\"\n", fn);
+		modrep_cleanup_excel(rootexcel);
+	}
 }

@@ -31,24 +31,34 @@ static void ResetWin(void) {
 	}
 	global_df->top_win = p;
 	if (i > 0L) global_df->row_win -= i;
-	global_df->lineno = 1L;
-	for (p=ToNextRow(global_df->head_text, FALSE); p != global_df->row_txt; p=ToNextRow(p,FALSE)) global_df->lineno++;
+	global_df->lineno  = 1L;
+	global_df->wLineno = 1L;
+	for (p=ToNextRow(global_df->head_text, FALSE); p != global_df->row_txt; p=ToNextRow(p,FALSE)) {
+		if (isNL_CFound(p))
+			global_df->lineno++;
+		global_df->wLineno++;
+	}
 }
 
 static void ResetTiers(void) {
 	ROWS *p;
-	long len;
+	long wLen, len;
 
 	p = global_df->head_text->next_row;
-	len = 0L;
+	len  = 0L;
+	wLen = 0L;
 	while (p != global_df->tail_text) {
 		TRUE_VIS_ID(p->flag);
-		len++;
-		if (p == global_df->row_txt)
+		if (isNL_CFound(p))
+			len++;
+		wLen++;
+		if (p == global_df->row_txt) {
+			global_df->wLineno = wLen;
 			global_df->lineno = len;
+		}
 		p = p->next_row;
 	}
-	global_df->numberOfRows = len;
+	global_df->numberOfRows = wLen;
 	ResetWin();
 }
 
@@ -59,8 +69,10 @@ static void LocateNewRow_txt(void) {
 			ResetTiers();
 			strcpy(global_df->err_message, "+No tiers were selected.");
 			return;
-		} else global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-	} else global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
+		} else
+			global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
+	} else
+		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
 	ResetWin();
 }
 
@@ -83,24 +95,24 @@ static int checktier(unCH *s) {
 	return(TRUE);
 }
 
-static char SelectedTier(unCH *sp) {
+static char SelectedTier(myFInfo *df, unCH *sp) {
 	if (*sp == '@') {
 		if (checktier(sp))
 			return(TRUE);
-	} else if (global_df->rightspeaker || *sp == '*') {
+	} else if (df->rightspeaker || *sp == '*') {
 		if (checktier(sp)) {
-			global_df->rightspeaker = TRUE;
+			df->rightspeaker = TRUE;
 /*			if (*sp != '*' || !nomain) */
 				return(TRUE);
 		} else if (*sp == '*') {
-			global_df->rightspeaker = FALSE;
+			df->rightspeaker = FALSE;
 			return(FALSE);
 		}
 	}
 	return(FALSE);
 }
 
-static char makeTiersChoice(unCH *SpId, char inc) {
+static int makeTiersChoice(unCH *SpId, char inc) {
 	unCH *t;
 	TIERS *nt, *tnt;
 	register int l1;
@@ -108,7 +120,7 @@ static char makeTiersChoice(unCH *SpId, char inc) {
 
 	if (inc == '-' && !strcmp(SpId,"*")) {
 /*		nomain = 1; */
-		return(TRUE);
+		return(1);
 	}
 	l1 = strlen(SpId);
 	if ((t=(unCH *)malloc((l1+2)*sizeof(unCH))) == NULL) {
@@ -131,11 +143,21 @@ static char makeTiersChoice(unCH *SpId, char inc) {
 		tnt= global_df->headtier;
 		nt = global_df->headtier;
 		while (1) {
-			if (nt == NULL) break;
+			if (nt == NULL)
+				break;
 			else if (uS.partcmp(SpId,nt->tcode,FALSE,FALSE)) {
 				l2 = strlen(nt->tcode);
-				if (l1 > l2) break;
-				else return(TRUE);
+				if (l1 > l2)
+					break;
+				else {
+					if (nt->include == TRUE && inc == '-') {
+						return(2);
+					} else if (nt->include == FALSE && inc != '-') {
+						return(2);
+					} else {
+						return(1);
+					}
+				}
 			}
 			tnt = nt;
 			nt = nt->nexttier;
@@ -177,7 +199,7 @@ static char makeTiersChoice(unCH *SpId, char inc) {
 		else
 			global_df->tcs = TRUE;
 	}
-	return(TRUE);
+	return(1);
 }
 
 void ShowAllTiers(int i) {
@@ -200,7 +222,7 @@ void ShowAllTiers(int i) {
 }
 
 int SelectTiers(int i) {
-	int len;
+	int len, res;
 	long cntline;
 	ROWS *p;
 	char inc;
@@ -215,9 +237,12 @@ int SelectTiers(int i) {
 		strcpy(sp,"Show, hide or reset tiers? (s/h/r): ");
 		len = strlen(sp);
 		if(!new_getstr(sp,len,NULL)) {strcpy(global_df->err_message,DASHES); return(65);}
-		if (sp[len] == 's' || sp[len] == 'S') break;
-		else if (sp[len] == 'h' || sp[len] == 'H') break;
-		else if (sp[len] == 'r' || sp[len] == 'R') break;
+		if (sp[len] == 's' || sp[len] == 'S')
+			break;
+		else if (sp[len] == 'h' || sp[len] == 'H')
+			break;
+		else if (sp[len] == 'r' || sp[len] == 'R')
+			break;
 	} while (1) ;
 	if (sp[len] == 'r' || sp[len] == 'R') {
 		ShowAllTiers(0);
@@ -259,8 +284,13 @@ int SelectTiers(int i) {
 		for (e=s; !isSpace(*e) && *e!= ',' && *e!= ';' && *e!= '.' && *e; e++) ;
 		len = (int)*e;
 		*e = EOS;
-		if (!makeTiersChoice(s, inc))
-			return(65); 
+		res = makeTiersChoice(s, inc);
+		if (res == 0) {
+			return(65);
+		} else if (res == 2) {
+			ShowAllTiers(0);
+			goto cont;
+		}
 		*e = (char)len;
 		s = e;
 	}
@@ -274,8 +304,10 @@ int SelectTiers(int i) {
 			s = p->line;
 			for (e=sp; (*e=*s) && *s != ':'; s++, e++) ;
 			*++e = EOS;
-			if (SelectedTier(sp)) inc = TRUE;
-			else inc = FALSE;
+			if (SelectedTier(global_df, sp))
+				inc = TRUE;
+			else
+				inc = FALSE;
 		}
 		if (inc) {
 			cntline++;
@@ -327,9 +359,9 @@ void checkForTiersToHide(myFInfo *df, char error) {
 	inc = '-';
 
 	while (fgets_cr(ced_lineC, UTTLINELEN, fp) != NULL) {
-		if (uS.isUTF8(ced_lineC) || uS.partcmp(ced_lineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(ced_lineC) || uS.isInvisibleHeader(ced_lineC))
 			continue;
-		if (ced_lineC[0] == ';' || (ced_lineC[0] == '%' && isSpace(ced_lineC[1])))
+		if (ced_lineC[0] == '#')
 			continue;
 		uS.remblanks(ced_lineC);
 		if (ced_lineC[0] == EOS)
@@ -357,7 +389,7 @@ void checkForTiersToHide(myFInfo *df, char error) {
 			s = p->line;
 			for (e=sp; (*e=*s) && *s != ':'; s++, e++) ;
 			*++e = EOS;
-			if (SelectedTier(sp))
+			if (SelectedTier(df, sp))
 				inc = TRUE;
 			else {
 #ifdef _MAC_CODE

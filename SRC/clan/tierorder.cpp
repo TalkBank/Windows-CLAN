@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -234,7 +234,9 @@ static void readtiers(void) {
 
 	isTierOderFound = TRUE;
 	while (fgets_cr(templineC, 255, fdic)) {
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
+			continue;
+		if (templineC[0] == '#')
 			continue;
 		uS.remblanks(templineC);
 		if (templineC[0] == EOS)

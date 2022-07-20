@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -148,8 +148,60 @@ int make_multi_categ(char* initial_string, char* &st )
 	return 1;
 }
 
-int split_with_b(char* line, char** words, char* res, const char* seps, const char* sepskeep, int maxofwords, int maxofres );
-char* mortag_to_string_filtered_in( mortag* mt, char* storage );
+static int split_with_b(char* line, char** words, char* res, const char* seps, const char* sepskeep, int maxofwords, int maxofres )
+{
+	char element [2048];
+	int i = strsplitsepnosep( line, 0, element, seps, sepskeep, 1024 );
+	int n = 0;
+	while ( i != -1 ) {
+		if ( strlen(element) >= maxofres ) return n;
+
+		strcpy( res, element );
+		words[n++] = res;
+		res += strlen(element)+1;
+		maxofres -= strlen(element)+1;
+
+		if (n>=maxofwords) return n;
+
+		i = strsplitsepnosep( line, i, element, seps, sepskeep, 1024 );
+
+	}
+	return n;
+}
+
+static char* mortag_to_string_filtered_in( mortag* mt, char* storage )
+{
+	int k;
+	if ( !mt || !mt->MT ) {
+		strcpy( storage, "0" );
+		return storage;
+	}
+	storage[0] = '\0';
+	for ( k=0; k<mt->nSP ; k++) {
+		if ( mt->SPt[k] == MorTagComplementsPrefix && filter_ok(mt->SP[k]) ) {
+			char s[2];
+			s[0] = mt->SPt[k];
+			s[1] = '\0';
+			strcat( storage, mt->SP[k] );
+			strcat( storage , s ) ;
+		}
+	}
+	strcat( storage, mt->MT );
+	if ( mt->GR && filter_ok(mt->GR)) {
+		strcat( storage , "|" ) ;
+		strcat( storage, mt->GR );
+	}
+	for ( k=0; k<mt->nSP ; k++) {
+		if ( mt->SPt[k] != MorTagComplementsPrefix && filter_ok(mt->SP[k]) ) {
+			char s[2];
+			s[0] = mt->SPt[k];
+			s[1] = '\0';
+			strcat( storage , s ) ;
+			strcat( storage, mt->SP[k] );
+		}
+	}
+	return storage;
+}
 
 /*
 int split_multiple_mortag_single(char* initial_string, char** &st, int withtagsuffix);
@@ -160,7 +212,7 @@ int split_multiple_mortag_single(char* initial_string, char** &st, int withtagsu
 */
 int make_multi_categ_single(char* initial_string, char* &st)
 {
-	char *parts[MaxParts];
+	char *parts[MaxParts], *prefs;
 	char new_string[2048];
 	int n = split_with_b(initial_string, parts, new_string, " ", TagGroups, MaxParts, sizeof(new_string) );
 	if (n==1) {
@@ -178,11 +230,24 @@ int make_multi_categ_single(char* initial_string, char* &st)
 	
 	int s=0;
 	for (int i=0; i<n ; i+=2) {
-		s += strlen(parts[i])*2+1;
+		s += (strlen(parts[i]) * 2) + 1;
 	}
 
 	st = (char*)dynalloc( (s+1+strlen(MultiCategory))*sizeof(char) );
-	strcpy(st, MultiCategory );
+	st[0] = EOS;
+// lxs change 2016-10-13 grandmother's
+	prefs = NULL;
+	if (n > 1) {
+		prefs = strrchr(parts[0], MorTagComplementsPrefix);
+//		if (prefs != NULL) {
+//			*prefs = EOS;
+//			strcat(st, parts[0]);
+//			strcat(st, "#");
+//			*prefs = '#';
+//		}
+	}
+// lxs change 2016-10-13 grandmother's
+	strcat(st, MultiCategory );
 	
 	// first copy all category names, including filtered suffixes
 	// int make_mortag(char* str, mortag* mt)
@@ -191,24 +256,27 @@ int make_multi_categ_single(char* initial_string, char* &st)
 		mortag mt;
 		char str1[MaxSzTag];
 		char str2[MaxSzTag];
-		strcpy(str1, parts[i]);
+		if (i == 0 && prefs != NULL)
+			strcpy(str1, prefs+1);
+		else
+			strcpy(str1, parts[i]);
 		make_mortag( str1, &mt);
 		mortag_to_string_filtered_in( &mt, str2 );
 		char* p = strchr( str2, '|' );
-		if (p) *p = '-';
+		if (p)
+			*p = '-';
 		// strcpy( str2, mortag_to_string( &mt ) );
 #ifdef dbg_xml0
-	{
-		msg("(%s) (%s)\n", parts[i], str2 );
-	}
+		if (i == 0 && prefs != NULL)
+			msg("(%s) (%s)\n", prefs+1, str2 );
+		else
+			msg("(%s) (%s)\n", parts[i], str2 );
 #endif
 		strcat( st, "/" );
 		strcat( st, str2 );
 	}
 #ifdef dbg_xml0
-	{
-		msg("!!%s!!\n", st);
-	}
+	msg("!!%s!!\n", st);
 #endif
 	
 	// next copy all rest of words
@@ -220,9 +288,7 @@ int make_multi_categ_single(char* initial_string, char* &st)
 		strcat( st, parts[i] );
 	}
 #ifdef dbg_xml0
-	{
-		msg("    @@%s@@\n", st);
-	}
+	msg("    @@%s@@\n", st);
 #endif
 	/**** version that does not keep information about separators
 	
@@ -322,7 +388,8 @@ int split_mortag(char* mortag, char* &maintag, char** subparts, char* subpartsty
 		genericroot = 0;
 		// find prefixes.
 		char* pref[32];
-		int np = split_with(mortag, pref, MorTagComplementsPrefixes, 32 );
+//		int np = split_with(mortag, pref, MorTagComplementsPrefixes, 32 );
+		int np = split_Prefixes(mortag, pref, 32 );
 		if (np>1) {
 			int i;
 			for (i=0;i<np-1;i++) {
@@ -335,7 +402,7 @@ int split_mortag(char* mortag, char* &maintag, char** subparts, char* subpartsty
 		return n;
 	}
 
-	int sepa = *p2;	// remember wich sepa we found.
+	char sepa = *p2;	// remember wich sepa we found.
 	*p2 = '\0';
 	p2++;	// gets the rest of the line after the sepa
 	maintag = mortag;
@@ -348,7 +415,8 @@ int split_mortag(char* mortag, char* &maintag, char** subparts, char* subpartsty
 		// first find prefixes.
 		char* pref[32];
 		int i;
-		int np = split_with(maintag, pref, MorTagComplementsPrefixes, 32 );
+//		int np = split_with(maintag, pref, MorTagComplementsPrefixes, 32 );
+		int np = split_Prefixes(maintag, pref, 32 );
 		if (np>1) {
 			for (i=0;i<np-1;i++) {
 				subpartstype[n] = MorTagComplementsPrefix;
@@ -428,6 +496,23 @@ int split_with(char* line, char** words, const char* seps, int maxofwords)
 	return n;
 }
 
+// lxs change 2016-10-13 grandmother's
+int split_Prefixes(char* line, char** words, int maxofwords)
+{
+	int n = 0;
+	char *s;
+
+	s = strtok( line, MorTagComplementsPrefixes );
+	while ( s ) {
+		words[n++] = s;
+		if (n>=maxofwords)
+			return n;
+		s = strtok( NULL, MorTagComplementsPrefixes );
+	}
+	return n;
+}
+// lxs change 2016-10-13 grandmother's
+
 /*	In this function separators from the parameter 'seps' are lost from the original string after segmentation
 	and separators from the parameters sepskeep remain in the original string after segmentation.
 	The output string can be longer than the original string, as a NULL character is added for
@@ -484,27 +569,6 @@ int split_with_a(char* line, char** words, char* res, const char* seps, const ch
 		if (n>=maxofwords) return n;
 
 		i = strsplitsepnosep( line, i, element, seps, sk, 1024 );
-
-	}
-	return n;
-}
-
-int split_with_b(char* line, char** words, char* res, const char* seps, const char* sepskeep, int maxofwords, int maxofres )
-{
-	char element [2048];
-	int i = strsplitsepnosep( line, 0, element, seps, sepskeep, 1024 );
-	int n = 0;
-	while ( i != -1 ) {
-		if ( strlen(element) >= maxofres ) return n;
-
-		strcpy( res, element );
-		words[n++] = res;
-		res += strlen(element)+1;
-		maxofres -= strlen(element)+1;
-
-		if (n>=maxofwords) return n;
-
-		i = strsplitsepnosep( line, i, element, seps, sepskeep, 1024 );
 
 	}
 	return n;
@@ -743,7 +807,7 @@ void gb_filter_init_from_file(FNType* gb_filter_name, char** &gb_filter_ok, int 
 		char w[256];
 		int n;
 
-		if (strncmp(line, "@UTF8", 5) == 0 || strncmp(line, "@Font:", 6) == 0)
+		if (strncmp(line, UTF8HEADER, 5) == 0 || strncmp(line, WINDOWSINFO, 8) == 0 || strncmp(line, FONTHEADER, 6) == 0)
 			continue;
 		n = sscanf( line, "%s", w );
 		if (w[0] == MorTagComment ) continue;
@@ -899,13 +963,15 @@ void gbout_filter_free()
 // Test if a string correspond to a subclass tag (and so should be kept in MORTAGS). ONLY for input.
 int filter_ok( char* sp )
 {
+	int i;
 //	if (!gb_filter_ok)
 //		gb_filter_init();
 
 	if (gbin_filter_nb==0) return 0;
-	for (int i=0;i<gbin_filter_nb;i++)
-		if ( !_stricmp( sp, gbin_filter_ok[i] ) ) return 1;
-	
+	for (i=0;i<gbin_filter_nb;i++) {
+		if ( !_stricmp( sp, gbin_filter_ok[i] ) )
+			return 1;
+	}
 	return 0;
 }
 
@@ -943,40 +1009,6 @@ char* mortag_to_string_filtered( mortag* mt, char* storage )
 	}
 	for ( k=0; k<mt->nSP ; k++) {
 		if ( mt->SPt[k] != MorTagComplementsPrefix && filter_ok_out(mt->SP[k]) ) {
-			char s[2];
-			s[0] = mt->SPt[k];
-			s[1] = '\0';
-			strcat( storage , s ) ;
-			strcat( storage, mt->SP[k] );
-		}
-	}
-	return storage;
-}
-
-char* mortag_to_string_filtered_in( mortag* mt, char* storage )
-{
-	int k;
-	if ( !mt || !mt->MT ) {
-		strcpy( storage, "0" );
-		return storage;
-	}
-	storage[0] = '\0';
-	for ( k=0; k<mt->nSP ; k++) {
-		if ( mt->SPt[k] == MorTagComplementsPrefix && filter_ok(mt->SP[k]) ) {
-			char s[2];
-			s[0] = mt->SPt[k];
-			s[1] = '\0';
-			strcat( storage, mt->SP[k] );
-			strcat( storage , s ) ;
-		}
-	}
-	strcat( storage, mt->MT );
-	if ( mt->GR && filter_ok(mt->GR)) {
-		strcat( storage , "|" ) ;
-		strcat( storage, mt->GR );
-	}
-	for ( k=0; k<mt->nSP ; k++) {
-		if ( mt->SPt[k] != MorTagComplementsPrefix && filter_ok(mt->SP[k]) ) {
 			char s[2];
 			s[0] = mt->SPt[k];
 			s[1] = '\0';
@@ -1242,11 +1274,14 @@ void print_mortag( FILE* out, mortag* mt )
 
 void print_ambmortag( FILE* out, ambmortag* amt )
 {
+	int  j;
+
 	msgfile( out, "(%d ", amt->nA );
-	for ( int j = 0; j < amt->nA ; j++ ) {
+	for ( j = 0; j < amt->nA ; j++ ) {
 		msgfile( out, "{%d} ", j+1 );
 		print_mortag( out, &amt->A[j] );
-		if (j!=amt->nA-1) msgfile( out, " " );
+		if (j!=amt->nA-1)
+			msgfile( out, " " );
 	}
 	msgfile( out, " )" );
 }
@@ -1529,21 +1564,29 @@ int strsplitsepnosep(char* MAIN, int start, char* element, const char* sepskip, 
 
 */
 
-void stripchatcode(char* s, char* a)
+static void stripchatcode(char* s, char* a)
 {
 	a[0] = '\0';
 	int na = 0;
 	int cp = 1;
 	for ( int i = 0 ; i < strlen(s) ; i++ ) {
 		char x = s[i];
-		if ( x == '<' || x == '>' || x == ',' || x == ';' ) continue;
+		if ( x == '<' || x == '>' ||/* x == ',' ||*/ x == ';' )
+			continue;
 		if ( x == '#' || x == '@' ) {
 			while ( s[i] && !strchrConst(" \t\r\n", s[i]) ) i++;
 			continue;
 		}
-		if ( x == '[' )  { cp --; continue; }
-		if ( x == ']' )  { cp ++; continue; }
-		if ( cp<1 ) continue;
+		if ( x == '[' )  {
+			cp --;
+			continue;
+		}
+		if ( x == ']' )  {
+			cp ++;
+			continue;
+		}
+		if ( cp<1 )
+			continue;
 
 //		if ( x == '-' || x] == '\'' ) x = ' ';
 

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -153,7 +153,7 @@ typedef struct _curses_win_ {
 	int  winPixelSize;
     int  textOffset;
     short LT_row, LT_col;
-    unsigned short *lineno;
+    unsigned long *lineno;
     FONTINFO **RowFInfo;
     char reverse;
 	char isUTF;
@@ -168,7 +168,9 @@ extern "C"
 extern NewFontInfo cedDFnt;
 
 #ifndef UNX
+#ifndef _COCOA_APP
 extern char SetKeywordsColor(COLORTEXTLIST *lRootColorText, int cCol, RGBColor *theColor);
+#endif
 #endif
 extern WINDOW *newwin(int num_rows, int num_cols, int LT_row, int LT_col, int tOff);
 extern COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, AttTYPE *sAtts,unCH *sData,int lnoff,int ecol,COLORTEXTLIST *cl);
@@ -194,7 +196,7 @@ extern void touchwin(WINDOW *w);
 extern void sp_touchwin(WINDOW *w);
 extern void wrefresh(WINDOW *w);
 extern void wmove(WINDOW *w, long row_win, long col_win);
-extern void wsetlineno(WINDOW *w, int row, unsigned short lineno);
+extern void wsetlineno(WINDOW *w, int row, unsigned long lineno);
 extern void mvwaddstr(WINDOW *w, int row, int col, unCH *s);
 extern void waddstr(WINDOW *w, unCH *s);
 extern void waddch(WINDOW *w, unCH c, AttTYPE *att, long col_chr, AttTYPE att1);

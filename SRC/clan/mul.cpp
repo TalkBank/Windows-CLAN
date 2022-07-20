@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -7,7 +7,9 @@
 /* multiple version mul.c */
 
 #if !defined(UNX)
+#ifndef _COCOA_APP
 #include "ced.h"
+#endif
 #endif
 #include "cu.h"
 #include <setjmp.h>
@@ -17,7 +19,7 @@ char skip_prog = 0;
 
 int isKillProgram;
 
-/* constants for all the programs */
+/* constants for all the commands */
 
 const char *clan_name[LAST_CLAN_PROG];
 
@@ -59,6 +61,12 @@ void chat2anvil_getflag(char *f,char *f1, int *i);
 void chat2anvil_init(char c);
 void chat2anvil_call(void);
 
+void Chat2Conll_main(int argc, char *argv[]);
+void Chat2Conll_usage(void);
+void Chat2Conll_getflag(char *f,char *f1, int *i);
+void Chat2Conll_init(char c);
+void Chat2Conll_call(void);
+
 void chat2elan_main(int argc, char *argv[]);
 void chat2elan_usage(void);
 void chat2elan_getflag(char *f,char *f1, int *i);
@@ -70,6 +78,12 @@ void chat2praat_usage(void);
 void chat2praat_getflag(char *f,char *f1, int *i);
 void chat2praat_init(char c);
 void chat2praat_call(void);
+
+void chat2srt_main(int argc, char *argv[]);
+void chat2srt_usage(void);
+void chat2srt_getflag(char *f,char *f1, int *i);
+void chat2srt_init(char c);
+void chat2srt_call(void);
 
 void chat2xmar_main(int argc, char *argv[]);
 void chat2xmar_usage(void);
@@ -95,6 +109,24 @@ void chstring_getflag(char *f,char *f1, int *i);
 void chstring_init(char c);
 void chstring_call(void);
 			
+void c_nnla_main(int argc, char *argv[]);
+void c_nnla_usage(void);
+void c_nnla_getflag(char *f,char *f1, int *i);
+void c_nnla_init(char c);
+void c_nnla_call(void);
+
+void codes_main(int argc, char *argv[]);
+void codes_usage(void);
+void codes_getflag(char *f,char *f1, int *i);
+void codes_init(char c);
+void codes_call(void);
+
+void Conll2Chat_main(int argc, char *argv[]);
+void Conll2Chat_usage(void);
+void Conll2Chat_getflag(char *f,char *f1, int *i);
+void Conll2Chat_init(char c);
+void Conll2Chat_call(void);
+
 void combo_main(int argc, char *argv[]);
 void combo_usage(void);
 void combo_getflag(char *f,char *f1, int *i);
@@ -113,11 +145,23 @@ void cooccur_getflag(char *f,char *f1, int *i);
 void cooccur_init(char c);
 void cooccur_call(void);
 
+void corelex_main(int argc, char *argv[]);
+void corelex_usage(void);
+void corelex_getflag(char *f,char *f1, int *i);
+void corelex_init(char c);
+void corelex_call(void);
+
 void cptoutf_main(int argc, char *argv[]);
 void cptoutf_usage(void);
 void cptoutf_getflag(char *f,char *f1, int *i);
 void cptoutf_init(char c);
 void cptoutf_call(void);
+
+void c_qpa_main(int argc, char *argv[]);
+void c_qpa_usage(void);
+void c_qpa_getflag(char *f,char *f1, int *i);
+void c_qpa_init(char c);
+void c_qpa_call(void);
 
 void dates_main(int argc, char *argv[]);
 void dates_usage(void);
@@ -143,12 +187,6 @@ void dist_getflag(char *f,char *f1, int *i);
 void dist_init(char c);
 void dist_call(void);
 
-void d2u_main(int argc, char *argv[]);
-void d2u_usage(void);
-void d2u_getflag(char *f,char *f1, int *i);
-void d2u_init(char c);
-void d2u_call(void);
-
 void dss_main(int argc, char *argv[]);
 void dss_usage(void);
 void dss_getflag(char *f,char *f1, int *i);
@@ -173,35 +211,19 @@ void fixbullets_getflag(char *f,char *f1, int *i);
 void fixbullets_init(char c);
 void fixbullets_call(void);
 
-void fixca_main(int argc, char *argv[]);
-void fixca_usage(void);
-void fixca_getflag(char *f,char *f1, int *i);
-void fixca_init(char c);
-void fixca_call(void);
-
 void fixit_main(int argc, char *argv[]);
 void fixit_usage(void);
 void fixit_getflag(char *f,char *f1, int *i);
 void fixit_init(char c);
 void fixit_call(void);
 
-void fixlang_main(int argc, char *argv[]);
-void fixlang_usage(void);
-void fixlang_getflag(char *f,char *f1, int *i);
-void fixlang_init(char c);
-void fixlang_call(void);
-
+#ifndef _COCOA_APP
 void fixMP3s_main(int argc, char *argv[]);
 void fixMP3s_usage(void);
 void fixMP3s_getflag(char *f,char *f1, int *i);
 void fixMP3s_init(char c);
 void fixMP3s_call(void);
-
-void fixoverlapsyms_main(int argc, char *argv[]);
-void fixoverlapsyms_usage(void);
-void fixoverlapsyms_getflag(char *f,char *f1, int *i);
-void fixoverlapsyms_init(char c);
-void fixoverlapsyms_call(void);
+#endif
 
 void flo_main(int argc, char *argv[]);
 void flo_usage(void);
@@ -209,17 +231,17 @@ void flo_getflag(char *f,char *f1, int *i);
 void flo_init(char c);
 void flo_call(void);
 
+void flucalc_main(int argc, char *argv[]);
+void flucalc_usage(void);
+void flucalc_getflag(char *f,char *f1, int *i);
+void flucalc_init(char c);
+void flucalc_call(void);
+
 void freq_main(int argc, char *argv[]);
 void freq_usage(void);
 void freq_getflag(char *f,char *f1, int *i);
 void freq_init(char c);
 void freq_call(void);
-
-void freqmerge_main(int argc, char *argv[]);
-void freqmerge_usage(void);
-void freqmerge_getflag(char *f,char *f1, int *i);
-void freqmerge_init(char c);
-void freqmerge_call(void);
 
 void freqpos_main(int argc, char *argv[]);
 void freqpos_usage(void);
@@ -245,11 +267,11 @@ void gemlist_getflag(char *f,char *f1, int *i);
 void gemlist_init(char c);
 void gemlist_call(void);
 
-void imdi_main(int argc, char *argv[]);
-void imdi_usage(void);
-void imdi_getflag(char *f,char *f1, int *i);
-void imdi_init(char c);
-void imdi_call(void);
+void cmdi_main(int argc, char *argv[]);
+void cmdi_usage(void);
+void cmdi_getflag(char *f,char *f1, int *i);
+void cmdi_init(char c);
+void cmdi_call(void);
 
 void indentoverlap_main(int argc, char *argv[]);
 void indentoverlap_usage(void);
@@ -257,23 +279,11 @@ void indentoverlap_getflag(char *f,char *f1, int *i);
 void indentoverlap_init(char c);
 void indentoverlap_call(void);
 
-void insert_main(int argc, char *argv[]);
-void insert_usage(void);
-void insert_getflag(char *f,char *f1, int *i);
-void insert_init(char c);
-void insert_call(void);
-
 void ipsyn_main(int argc, char *argv[]);
 void ipsyn_usage(void);
 void ipsyn_getflag(char *f,char *f1, int *i);
 void ipsyn_init(char c);
 void ipsyn_call(void);
-
-void joinitems_main(int argc, char *argv[]);
-void joinitems_usage(void);
-void joinitems_getflag(char *f,char *f1, int *i);
-void joinitems_init(char c);
-void joinitems_call(void);
 
 void keymap_main(int argc, char *argv[]);
 void keymap_usage(void);
@@ -299,6 +309,12 @@ void lab2chat_getflag(char *f,char *f1, int *i);
 void lab2chat_init(char c);
 void lab2chat_call(void);
 
+void lena2chat_main(int argc, char *argv[]);
+void lena2chat_usage(void);
+void lena2chat_getflag(char *f,char *f1, int *i);
+void lena2chat_init(char c);
+void lena2chat_call(void);
+
 void lipp2chat_main(int argc, char *argv[]);
 void lipp2chat_usage(void);
 void lipp2chat_getflag(char *f,char *f1, int *i);
@@ -317,12 +333,6 @@ void lowcase_getflag(char *f,char *f1, int *i);
 void lowcase_init(char c);
 void lowcase_call(void);
 
-void makedata_main(int argc, char *argv[]);
-void makedata_usage(void);
-void makedata_getflag(char *f,char *f1, int *i);
-void makedata_init(char c);
-void makedata_call(void);
-
 void makemod_main(int argc, char *argv[]);
 void makemod_usage(void);
 void makemod_getflag(char *f,char *f1, int *i);
@@ -335,11 +345,11 @@ void maxwd_getflag(char *f,char *f1, int *i);
 void maxwd_init(char c);
 void maxwd_call(void);
 
-void measures_main(int argc, char *argv[]);
-void measures_usage(void);
-void measures_getflag(char *f,char *f1, int *i);
-void measures_init(char c);
-void measures_call(void);
+void medialine_main(int argc, char *argv[]);
+void medialine_usage(void);
+void medialine_getflag(char *f,char *f1, int *i);
+void medialine_init(char c);
+void medialine_call(void);
 
 void megrasp_main(int argc, char *argv[]);
 void megrasp_usage(void);
@@ -401,6 +411,12 @@ void postmortem_getflag(char *f,char *f1, int *i);
 void postmortem_init(char c);
 void postmortem_call(void);
 
+void play2chat_main(int argc, char *argv[]);
+void play2chat_usage(void);
+void play2chat_getflag(char *f,char *f1, int *i);
+void play2chat_init(char c);
+void play2chat_call(void);
+
 void praat2chat_main(int argc, char *argv[]);
 void praat2chat_usage(void);
 void praat2chat_getflag(char *f,char *f1, int *i);
@@ -431,23 +447,25 @@ void retrace_getflag(char *f,char *f1, int *i);
 void retrace_init(char c);
 void retrace_call(void);
 
-void rtfin_main(int argc, char *argv[]);
-void rtfin_usage(void);
-void rtfin_getflag(char *f,char *f1, int *i);
-void rtfin_init(char c);
-void rtfin_call(void);
+void rtf2chat_main(int argc, char *argv[]);
+void rtf2chat_usage(void);
+void rtf2chat_getflag(char *f,char *f1, int *i);
+void rtf2chat_init(char c);
+void rtf2chat_call(void);
 
-void saltin_main(int argc, char *argv[]);
-void saltin_usage(void);
-void saltin_getflag(char *f,char *f1, int *i);
-void saltin_init(char c);
-void saltin_call(void);
+void salt2chat_main(int argc, char *argv[]);
+void salt2chat_usage(void);
+void salt2chat_getflag(char *f,char *f1, int *i);
+void salt2chat_init(char c);
+void salt2chat_call(void);
 
+#ifndef _COCOA_APP
 void silence_main(int argc, char *argv[]);
 void silence_usage(void);
 void silence_getflag(char *f,char *f1, int *i);
 void silence_init(char c);
 void silence_call(void);
+#endif
 
 void script_main(int argc, char *argv[]);
 void script_usage(void);
@@ -455,29 +473,23 @@ void script_getflag(char *f,char *f1, int *i);
 void script_init(char c);
 void script_call(void);
 
-void spreadsheet_main(int argc, char *argv[]);
-void spreadsheet_usage(void);
-void spreadsheet_getflag(char *f,char *f1, int *i);
-void spreadsheet_init(char c);
-void spreadsheet_call(void);
+void srt2chat_main(int argc, char *argv[]);
+void srt2chat_usage(void);
+void srt2chat_getflag(char *f,char *f1, int *i);
+void srt2chat_init(char c);
+void srt2chat_call(void);
 
-void subtitles_main(int argc, char *argv[]);
-void subtitles_usage(void);
-void subtitles_getflag(char *f,char *f1, int *i);
-void subtitles_init(char c);
-void subtitles_call(void);
+void sugar_main(int argc, char *argv[]);
+void sugar_usage(void);
+void sugar_getflag(char *f,char *f1, int *i);
+void sugar_init(char c);
+void sugar_call(void);
 
-void syncoding_main(int argc, char *argv[]);
-void syncoding_usage(void);
-void syncoding_getflag(char *f,char *f1, int *i);
-void syncoding_init(char c);
-void syncoding_call(void);
-
-void textin_main(int argc, char *argv[]);
-void textin_usage(void);
-void textin_getflag(char *f,char *f1, int *i);
-void textin_init(char c);
-void textin_call(void);
+void text2chat_main(int argc, char *argv[]);
+void text2chat_usage(void);
+void text2chat_getflag(char *f,char *f1, int *i);
+void text2chat_init(char c);
+void text2chat_call(void);
 
 void time_main(int argc, char *argv[]);
 void time_usage(void);
@@ -509,11 +521,11 @@ void uniq_getflag(char *f,char *f1, int *i);
 void uniq_init(char c);
 void uniq_call(void);
 
-void utftocp_main(int argc, char *argv[]);
-void utftocp_usage(void);
-void utftocp_getflag(char *f,char *f1, int *i);
-void utftocp_init(char c);
-void utftocp_call(void);
+void usedlex_main(int argc, char *argv[]);
+void usedlex_usage(void);
+void usedlex_getflag(char *f,char *f1, int *i);
+void usedlex_init(char c);
+void usedlex_call(void);
 
 void vocd_main(int argc, char *argv[]);
 void vocd_usage(void);
@@ -526,7 +538,6 @@ void wdlen_usage(void);
 void wdlen_getflag(char *f,char *f1, int *i);
 void wdlen_init(char c);
 void wdlen_call(void);
-
 
 void compound_main(int argc, char *argv[]);
 void compound_usage(void);
@@ -559,18 +570,7 @@ void posttrain_init(char c);
 void posttrain_call(void);
 
 
-/* all TEMP?? */
-void usedlex_main(int argc, char *argv[]);
-void usedlex_usage(void);
-void usedlex_getflag(char *f,char *f1, int *i);
-void usedlex_init(char c);
-void usedlex_call(void);
-
-void Connl2Chat_main(int argc, char *argv[]);
-void Connl2Chat_usage(void);
-void Connl2Chat_getflag(char *f,char *f1, int *i);
-void Connl2Chat_init(char c);
-void Connl2Chat_call(void);
+// all TEMP??
 
 void temp_main(int argc, char *argv[]);
 void temp_usage(void);
@@ -578,11 +578,11 @@ void temp_getflag(char *f,char *f1, int *i);
 void temp_init(char c);
 void temp_call(void);
 
-void ca2xml_main(int argc, char *argv[]);
-void ca2xml_usage(void);
-void ca2xml_getflag(char *f,char *f1, int *i);
-void ca2xml_init(char c);
-void ca2xml_call(void);
+void d2u_main(int argc, char *argv[]);
+void d2u_usage(void);
+void d2u_getflag(char *f,char *f1, int *i);
+void d2u_init(char c);
+void d2u_call(void);
 
 void lines_main(int argc, char *argv[]);
 void lines_usage(void);
@@ -601,7 +601,8 @@ void gps_usage(void);
 void gps_getflag(char *f,char *f1, int *i);
 void gps_init(char c);
 void gps_call(void);
-/* all TEMP?? */
+
+// all TEMP??
 
 /*
 void _main(int argc, char *argv[]);
@@ -653,6 +654,18 @@ void func_init(void) {
 	clan_init[CHIP]			= chip_init;
 	clan_call[CHIP]			= chip_call;
 
+	clan_main[C_NNLA]		= c_nnla_main;
+	clan_usage[C_NNLA]		= c_nnla_usage;
+	clan_getflag[C_NNLA]	= c_nnla_getflag;
+	clan_init[C_NNLA]		= c_nnla_init;
+	clan_call[C_NNLA]		= c_nnla_call;
+
+	clan_main[CODES_P]		= codes_main;
+	clan_usage[CODES_P]		= codes_usage;
+	clan_getflag[CODES_P]	= codes_getflag;
+	clan_init[CODES_P]		= codes_init;
+	clan_call[CODES_P]		= codes_call;
+
 	clan_main[COMBO]		= combo_main;
 	clan_usage[COMBO] 		= combo_usage;
 	clan_getflag[COMBO]		= combo_getflag;
@@ -664,6 +677,12 @@ void func_init(void) {
 	clan_getflag[COOCCUR]	= cooccur_getflag;
 	clan_init[COOCCUR]		= cooccur_init;
 	clan_call[COOCCUR]		= cooccur_call;
+
+	clan_main[CORELEX]		= corelex_main;
+	clan_usage[CORELEX]		= corelex_usage;
+	clan_getflag[CORELEX]	= corelex_getflag;
+	clan_init[CORELEX]		= corelex_init;
+	clan_call[CORELEX]		= corelex_call;
 
 	clan_main[DIST]			= dist_main;
 	clan_usage[DIST] 		= dist_usage;
@@ -682,18 +701,18 @@ void func_init(void) {
 	clan_getflag[EVAL]		= eval_getflag;
 	clan_init[EVAL]			= eval_init;
 	clan_call[EVAL]			= eval_call;
-	
+
+	clan_main[FLUCALC]		= flucalc_main;
+	clan_usage[FLUCALC] 	= flucalc_usage;
+	clan_getflag[FLUCALC]	= flucalc_getflag;
+	clan_init[FLUCALC]		= flucalc_init;
+	clan_call[FLUCALC]		= flucalc_call;
+
 	clan_main[FREQ]			= freq_main;
 	clan_usage[FREQ] 		= freq_usage;
 	clan_getflag[FREQ]		= freq_getflag;
 	clan_init[FREQ]			= freq_init;
 	clan_call[FREQ]			= freq_call;
-
-	clan_main[FREQMERGE]	= freqmerge_main;
-	clan_usage[FREQMERGE] 	= freqmerge_usage;
-	clan_getflag[FREQMERGE]	= freqmerge_getflag;
-	clan_init[FREQMERGE]	= freqmerge_init;
-	clan_call[FREQMERGE]	= freqmerge_call;
 
 	clan_main[FREQPOS]		= freqpos_main;
 	clan_usage[FREQPOS] 	= freqpos_usage;
@@ -721,7 +740,7 @@ void func_init(void) {
 
 	clan_main[IPSYN]		= ipsyn_main;
 	clan_usage[IPSYN]		= ipsyn_usage;
-	clan_getflag[IPSYN]	= ipsyn_getflag;
+	clan_getflag[IPSYN]		= ipsyn_getflag;
 	clan_init[IPSYN]		= ipsyn_init;
 	clan_call[IPSYN]		= ipsyn_call;
 
@@ -732,7 +751,7 @@ void func_init(void) {
 	clan_call[KEYMAP]		= keymap_call;
 
 	clan_main[KIDEVAL]		= kideval_main;
-	clan_usage[KIDEVAL]	= kideval_usage;
+	clan_usage[KIDEVAL]		= kideval_usage;
 	clan_getflag[KIDEVAL]	= kideval_getflag;
 	clan_init[KIDEVAL]		= kideval_init;
 	clan_call[KIDEVAL]		= kideval_call;
@@ -821,6 +840,12 @@ void func_init(void) {
 	clan_init[POSTTRAIN]	= posttrain_init;
 	clan_call[POSTTRAIN]	= posttrain_call;
 
+	clan_main[C_QPA]		= c_qpa_main;
+	clan_usage[C_QPA]		= c_qpa_usage;
+	clan_getflag[C_QPA]		= c_qpa_getflag;
+	clan_init[C_QPA]		= c_qpa_init;
+	clan_call[C_QPA]		= c_qpa_call;
+
 	clan_main[RELY]			= rely_main;
 	clan_usage[RELY] 		= rely_usage;
 	clan_getflag[RELY]		= rely_getflag;
@@ -832,6 +857,12 @@ void func_init(void) {
 	clan_getflag[SCRIPT_P]	= script_getflag;
 	clan_init[SCRIPT_P]		= script_init;
 	clan_call[SCRIPT_P]		= script_call;
+
+	clan_main[SUGAR]		= sugar_main;
+	clan_usage[SUGAR]		= sugar_usage;
+	clan_getflag[SUGAR]		= sugar_getflag;
+	clan_init[SUGAR]		= sugar_init;
+	clan_call[SUGAR]		= sugar_call;
 
 	clan_main[TIMEDUR]		= time_main;
 	clan_usage[TIMEDUR] 	= time_usage;
@@ -876,6 +907,12 @@ void func_init(void) {
 	clan_init[CHAT2CA]		= toCA_init;
 	clan_call[CHAT2CA]		= toCA_call;
 
+	clan_main[CHAT2CONLL]	= Chat2Conll_main;
+	clan_usage[CHAT2CONLL]	= Chat2Conll_usage;
+	clan_getflag[CHAT2CONLL]= Chat2Conll_getflag;
+	clan_init[CHAT2CONLL]	= Chat2Conll_init;
+	clan_call[CHAT2CONLL]	= Chat2Conll_call;
+
 	clan_main[CHAT2ELAN]	= chat2elan_main;
 	clan_usage[CHAT2ELAN]	= chat2elan_usage;
 	clan_getflag[CHAT2ELAN]	= chat2elan_getflag;
@@ -888,17 +925,29 @@ void func_init(void) {
 	clan_init[CHAT2PRAAT]	= chat2praat_init;
 	clan_call[CHAT2PRAAT]	= chat2praat_call;
 
+	clan_main[CHAT2SRT]		= chat2srt_main;
+	clan_usage[CHAT2SRT]	= chat2srt_usage;
+	clan_getflag[CHAT2SRT]	= chat2srt_getflag;
+	clan_init[CHAT2SRT]		= chat2srt_init;
+	clan_call[CHAT2SRT]		= chat2srt_call;
+
 	clan_main[CHAT2XMAR]	= chat2xmar_main;
 	clan_usage[CHAT2XMAR]	= chat2xmar_usage;
 	clan_getflag[CHAT2XMAR]	= chat2xmar_getflag;
 	clan_init[CHAT2XMAR]	= chat2xmar_init;
 	clan_call[CHAT2XMAR]	= chat2xmar_call;
 
-	clan_main[CHECK]		= check_main;
-	clan_usage[CHECK] 		= check_usage;
-	clan_getflag[CHECK]		= check_getflag;
-	clan_init[CHECK]		= check_init;
-	clan_call[CHECK]		= check_call;
+	clan_main[CHECK_P]		= check_main;
+	clan_usage[CHECK_P] 	= check_usage;
+	clan_getflag[CHECK_P]	= check_getflag;
+	clan_init[CHECK_P]		= check_init;
+	clan_call[CHECK_P]		= check_call;
+
+	clan_main[CONLL2CHAT]	= Conll2Chat_main;
+	clan_usage[CONLL2CHAT]	= Conll2Chat_usage;
+	clan_getflag[CONLL2CHAT]= Conll2Chat_getflag;
+	clan_init[CONLL2CHAT]	= Conll2Chat_init;
+	clan_call[CONLL2CHAT]	= Conll2Chat_call;
 
 	clan_main[COMBTIER]		= combtier_main;
 	clan_usage[COMBTIER]	= combtier_usage;
@@ -954,17 +1003,13 @@ void func_init(void) {
 	clan_init[FIXIT]		= fixit_init;
 	clan_call[FIXIT]		= fixit_call;
 
-	clan_main[FIXLANG]		= fixlang_main;
-	clan_usage[FIXLANG]		= fixlang_usage;
-	clan_getflag[FIXLANG]	= fixlang_getflag;
-	clan_init[FIXLANG]		= fixlang_init;
-	clan_call[FIXLANG]		= fixlang_call;
-
+#ifndef _COCOA_APP
 	clan_main[FIXMP3]		= fixMP3s_main;
 	clan_usage[FIXMP3]		= fixMP3s_usage;
 	clan_getflag[FIXMP3]	= fixMP3s_getflag;
 	clan_init[FIXMP3]		= fixMP3s_init;
 	clan_call[FIXMP3]		= fixMP3s_call;
+#endif
 
 	clan_main[FLO]			= flo_main;
 	clan_usage[FLO] 		= flo_usage;
@@ -972,11 +1017,11 @@ void func_init(void) {
 	clan_init[FLO]			= flo_init;
 	clan_call[FLO]			= flo_call;
 
-	clan_main[IMDI_P]		= imdi_main;
-	clan_usage[IMDI_P]		= imdi_usage;
-	clan_getflag[IMDI_P]	= imdi_getflag;
-	clan_init[IMDI_P]		= imdi_init;
-	clan_call[IMDI_P]		= imdi_call;
+	clan_main[CMDI_P]		= cmdi_main;
+	clan_usage[CMDI_P]		= cmdi_usage;
+	clan_getflag[CMDI_P]	= cmdi_getflag;
+	clan_init[CMDI_P]		= cmdi_init;
+	clan_call[CMDI_P]		= cmdi_call;
 
 	clan_main[INDENT]		= indentoverlap_main;
 	clan_usage[INDENT]		= indentoverlap_usage;
@@ -984,23 +1029,17 @@ void func_init(void) {
 	clan_init[INDENT]		= indentoverlap_init;
 	clan_call[INDENT]		= indentoverlap_call;
 
-	clan_main[INSERT]		= insert_main;
-	clan_usage[INSERT]		= insert_usage;
-	clan_getflag[INSERT]	= insert_getflag;
-	clan_init[INSERT]		= insert_init;
-	clan_call[INSERT]		= insert_call;
-
-	clan_main[JOINITEMS]	= joinitems_main;
-	clan_usage[JOINITEMS]	= joinitems_usage;
-	clan_getflag[JOINITEMS]	= joinitems_getflag;
-	clan_init[JOINITEMS]	= joinitems_init;
-	clan_call[JOINITEMS]	= joinitems_call;
-
 	clan_main[LAB2CHAT]		= lab2chat_main;
 	clan_usage[LAB2CHAT]	= lab2chat_usage;
 	clan_getflag[LAB2CHAT]	= lab2chat_getflag;
 	clan_init[LAB2CHAT]		= lab2chat_init;
 	clan_call[LAB2CHAT]		= lab2chat_call;
+
+	clan_main[LENA2CHAT]	= lena2chat_main;
+	clan_usage[LENA2CHAT]	= lena2chat_usage;
+	clan_getflag[LENA2CHAT]	= lena2chat_getflag;
+	clan_init[LENA2CHAT]	= lena2chat_init;
+	clan_call[LENA2CHAT]	= lena2chat_call;
 
 	clan_main[LIPP2CHAT]	= lipp2chat_main;
 	clan_usage[LIPP2CHAT]	= lipp2chat_usage;
@@ -1026,6 +1065,12 @@ void func_init(void) {
 	clan_init[MAKEMOD]		= makemod_init;
 	clan_call[MAKEMOD]		= makemod_call;
 
+	clan_main[MEDIALINE]	= medialine_main;
+	clan_usage[MEDIALINE]	= medialine_usage;
+	clan_getflag[MEDIALINE]= medialine_getflag;
+	clan_init[MEDIALINE]	= medialine_init;
+	clan_call[MEDIALINE]	= medialine_call;
+
 	clan_main[OLAC_P]		= olac_main;
 	clan_usage[OLAC_P]		= olac_usage;
 	clan_getflag[OLAC_P]	= olac_getflag;
@@ -1037,6 +1082,12 @@ void func_init(void) {
 	clan_getflag[ORT]		= ort_getflag;
 	clan_init[ORT]			= ort_init;
 	clan_call[ORT]			= ort_call;
+
+	clan_main[PLAY2CHAT]	= play2chat_main;
+	clan_usage[PLAY2CHAT]	= play2chat_usage;
+	clan_getflag[PLAY2CHAT]	= play2chat_getflag;
+	clan_init[PLAY2CHAT]	= play2chat_init;
+	clan_call[PLAY2CHAT]	= play2chat_call;
 
 	clan_main[PRAAT2CHAT]	= praat2chat_main;
 	clan_usage[PRAAT2CHAT]	= praat2chat_usage;
@@ -1062,47 +1113,37 @@ void func_init(void) {
 	clan_init[RETRACE]		= retrace_init;
 	clan_call[RETRACE]		= retrace_call;
 
-	clan_main[RTFIN]		= rtfin_main;
-	clan_usage[RTFIN] 		= rtfin_usage;
-	clan_getflag[RTFIN]		= rtfin_getflag;
-	clan_init[RTFIN]		= rtfin_init;
-	clan_call[RTFIN]		= rtfin_call;
+	clan_main[RTF2CHAT]		= rtf2chat_main;
+	clan_usage[RTF2CHAT] 	= rtf2chat_usage;
+	clan_getflag[RTF2CHAT]	= rtf2chat_getflag;
+	clan_init[RTF2CHAT]		= rtf2chat_init;
+	clan_call[RTF2CHAT]		= rtf2chat_call;
 
-	clan_main[SALTIN]		= saltin_main;
-	clan_usage[SALTIN] 		= saltin_usage;
-	clan_getflag[SALTIN]	= saltin_getflag;
-	clan_init[SALTIN]		= saltin_init;
-	clan_call[SALTIN]		= saltin_call;
+	clan_main[SALT2CHAT]	= salt2chat_main;
+	clan_usage[SALT2CHAT] 	= salt2chat_usage;
+	clan_getflag[SALT2CHAT]	= salt2chat_getflag;
+	clan_init[SALT2CHAT]	= salt2chat_init;
+	clan_call[SALT2CHAT]	= salt2chat_call;
 
+#ifndef _COCOA_APP
 	clan_main[SILENCE_P]	= silence_main;
 	clan_usage[SILENCE_P]	= silence_usage;
 	clan_getflag[SILENCE_P]	= silence_getflag;
 	clan_init[SILENCE_P]	= silence_init;
 	clan_call[SILENCE_P]	= silence_call;
+#endif
 
-	clan_main[SPREADSH]		= spreadsheet_main;
-	clan_usage[SPREADSH]	= spreadsheet_usage;
-	clan_getflag[SPREADSH]	= spreadsheet_getflag;
-	clan_init[SPREADSH]		= spreadsheet_init;
-	clan_call[SPREADSH]		= spreadsheet_call;
+	clan_main[SRT2CHAT]		= srt2chat_main;
+	clan_usage[SRT2CHAT]	= srt2chat_usage;
+	clan_getflag[SRT2CHAT]	= srt2chat_getflag;
+	clan_init[SRT2CHAT]		= srt2chat_init;
+	clan_call[SRT2CHAT]		= srt2chat_call;
 
-	clan_main[SUBTITLES]	= subtitles_main;
-	clan_usage[SUBTITLES]	= subtitles_usage;
-	clan_getflag[SUBTITLES]	= subtitles_getflag;
-	clan_init[SUBTITLES]	= subtitles_init;
-	clan_call[SUBTITLES]	= subtitles_call;
-
-	clan_main[SYNCODING]	= syncoding_main;
-	clan_usage[SYNCODING]	= syncoding_usage;
-	clan_getflag[SYNCODING]	= syncoding_getflag;
-	clan_init[SYNCODING]	= syncoding_init;
-	clan_call[SYNCODING]	= syncoding_call;
-
-	clan_main[TEXTIN]		= textin_main;
-	clan_usage[TEXTIN] 		= textin_usage;
-	clan_getflag[TEXTIN]	= textin_getflag;
-	clan_init[TEXTIN]		= textin_init;
-	clan_call[TEXTIN]		= textin_call;
+	clan_main[TEXT2CHAT]	= text2chat_main;
+	clan_usage[TEXT2CHAT] 	= text2chat_usage;
+	clan_getflag[TEXT2CHAT]	= text2chat_getflag;
+	clan_init[TEXT2CHAT]	= text2chat_init;
+	clan_call[TEXT2CHAT]	= text2chat_call;
 
 	clan_main[TIERORDER]	= tierorder_main;
 	clan_usage[TIERORDER] 	= tierorder_usage;
@@ -1122,19 +1163,25 @@ void func_init(void) {
 	clan_init[UNIQ]			= uniq_init;
 	clan_call[UNIQ]			= uniq_call;
 
-	clan_main[TEMP01]		= usedlex_main;
-	clan_usage[TEMP01]		= usedlex_usage;
-	clan_getflag[TEMP01]	= usedlex_getflag;
-	clan_init[TEMP01]		= usedlex_init;
-	clan_call[TEMP01]		= usedlex_call;
-
-	clan_main[TEMP02]		= Connl2Chat_main;
-	clan_usage[TEMP02]		= Connl2Chat_usage;
-	clan_getflag[TEMP02]	= Connl2Chat_getflag;
-	clan_init[TEMP02]		= Connl2Chat_init;
-	clan_call[TEMP02]		= Connl2Chat_call;
+	clan_main[USEDLEX]		= usedlex_main;
+	clan_usage[USEDLEX]		= usedlex_usage;
+	clan_getflag[USEDLEX]	= usedlex_getflag;
+	clan_init[USEDLEX]		= usedlex_init;
+	clan_call[USEDLEX]		= usedlex_call;
 
 /*
+	clan_main[TEMP01]		= _main;
+	clan_usage[TEMP01]		= _usage;
+	clan_getflag[TEMP01]	= _getflag;
+	clan_init[TEMP01]		= _init;
+	clan_call[TEMP01]		= _call;
+
+	clan_main[TEMP02]		= _main;
+	clan_usage[TEMP02]		= _usage;
+	clan_getflag[TEMP02]	= _getflag;
+	clan_init[TEMP02]		= _init;
+	clan_call[TEMP02]		= _call;
+
 	clan_main[TEMP03]		= _main;
 	clan_usage[TEMP03]		= _usage;
 	clan_getflag[TEMP03]	= _getflag;
@@ -1196,18 +1243,6 @@ void func_init(void) {
 	clan_init[DOS2UNIX]		= d2u_init;
 	clan_call[DOS2UNIX]		= d2u_call;
 
-	clan_main[FIXCA]		= fixca_main;
-	clan_usage[FIXCA] 		= fixca_usage;
-	clan_getflag[FIXCA]		= fixca_getflag;
-	clan_init[FIXCA]		= fixca_init;
-	clan_call[FIXCA]		= fixca_call;
-
-	clan_main[FIXOVLPSYM]	= fixoverlapsyms_main;
-	clan_usage[FIXOVLPSYM]	= fixoverlapsyms_usage;
-	clan_getflag[FIXOVLPSYM]= fixoverlapsyms_getflag;
-	clan_init[FIXOVLPSYM]	= fixoverlapsyms_init;
-	clan_call[FIXOVLPSYM]	= fixoverlapsyms_call;
-
 	clan_main[GPS]			= gps_main;
 	clan_usage[GPS]			= gps_usage;
 	clan_getflag[GPS]		= gps_getflag;
@@ -1228,17 +1263,20 @@ void func_init(void) {
 
 
 	clan_name[CHAINS]		= "chains";
-	clan_name[CHAT2CA]		= "chat2ca";
 	clan_name[CHIP]			= "chip";
+	clan_name[C_NNLA]		= "c-nnla";
+	clan_name[C_QPA]		= "c-qpa";
+	clan_name[CODES_P]		= "codes";
 	clan_name[COMBO]		= "combo";
 	clan_name[COMPOUND]		= "compound";
 	clan_name[COOCCUR]		= "cooccur";
+	clan_name[CORELEX]		= "corelex";
 	clan_name[DATES]		= "dates";
 	clan_name[DIST]			= "dist";
 	clan_name[DSS]			= "dss";
 	clan_name[EVAL]			= "eval";
+	clan_name[FLUCALC]		= "flucalc";
 	clan_name[FREQ]			= "freq";
-	clan_name[FREQMERGE]	= "freqmerg";
 	clan_name[FREQPOS]		= "freqpos";
 	clan_name[GEM]			= "gem";
 	clan_name[GEMFREQ]		= "gemfreq";
@@ -1255,6 +1293,7 @@ void func_init(void) {
 	clan_name[PHONFREQ]		= "phonfreq";
 	clan_name[RELY]			= "rely";
 	clan_name[SCRIPT_P]		= "script";
+	clan_name[SUGAR]		= "sugar";
 	clan_name[TIMEDUR]		= "timedur";
 	clan_name[VOCD]			= "vocd";
 	clan_name[WDLEN]		= "wdlen";
@@ -1272,10 +1311,14 @@ void func_init(void) {
 	clan_name[CHSTRING]		= "chstring";
 	clan_name[ANVIL2CHAT]	= "anvil2chat";
 	clan_name[CHAT2ANVIL]	= "chat2anvil";
+	clan_name[CHAT2CA]		= "chat2ca";
+	clan_name[CHAT2CONLL]	= "chat2conll";
 	clan_name[CHAT2ELAN]	= "chat2elan";
 	clan_name[CHAT2PRAAT]	= "chat2praat";
+	clan_name[CHAT2SRT]		= "chat2srt";
 	clan_name[CHAT2XMAR]	= "chat2xmar";
-	clan_name[CHECK]		= "check";
+	clan_name[CHECK_P]		= "check";
+	clan_name[CONLL2CHAT]	= "conll2chat";
 	clan_name[COMBTIER]		= "combtier";
 	clan_name[CP2UTF]		= "cp2utf";
 	clan_name[DATACLEANUP]	= "dataclean";
@@ -1283,52 +1326,44 @@ void func_init(void) {
 	clan_name[ELAN2CHAT]	= "elan2chat";
 	clan_name[FIXBULLETS]	= "fixbullets";
 	clan_name[FIXIT]		= "fixit";
-	clan_name[FIXLANG]		= "fixlang";
+#ifndef _COCOA_APP
 	clan_name[FIXMP3]		= "fixmp3s";
+#endif
 	clan_name[FLO]			= "flo";
-	clan_name[IMDI_P]		= "imdi";
+	clan_name[CMDI_P]		= "cmdi";
 	clan_name[INDENT]		= "indent";
-	clan_name[INSERT]		= "insert";
-	clan_name[JOINITEMS]	= "joinitems";
 	clan_name[LAB2CHAT]		= "lab2chat";
+	clan_name[LENA2CHAT]	= "lena2chat";
 	clan_name[LIPP2CHAT]	= "lipp2chat";
 	clan_name[LONGTIER]		= "longtier";
 	clan_name[LOWCASE]		= "lowcase";
 	clan_name[MAKEMOD]		= "makemod";
+	clan_name[MEDIALINE]	= "medialine";
 	clan_name[OLAC_P]		= "olac";
 	clan_name[ORT]			= "ort";
+	clan_name[PLAY2CHAT]	= "play2chat";
 	clan_name[PRAAT2CHAT]	= "praat2chat";
 	clan_name[QUOTES]		= "quotes";
 	clan_name[REPEAT]		= "repeat";
 	clan_name[RETRACE]		= "retrace";
-	clan_name[RTFIN]		= "rtfin";
-	clan_name[SALTIN]		= "saltin";
+	clan_name[RTF2CHAT]		= "rtf2chat";
+	clan_name[SALT2CHAT]	= "salt2chat";
+#ifndef _COCOA_APP
 	clan_name[SILENCE_P]	= "silence";
-	clan_name[SPREADSH]		= "spreadsheet";
-	clan_name[SUBTITLES]	= "subtitles";
-	clan_name[SYNCODING]	= "syncoding";
-	clan_name[TEXTIN]		= "textin";
+#endif
+	clan_name[SRT2CHAT]		= "srt2chat";
+	clan_name[TEXT2CHAT]	= "text2chat";
 	clan_name[TIERORDER]	= "tierorder";
 	clan_name[TRNFIX]		= "trnfix";
 	clan_name[UNIQ]			= "uniq";
+	clan_name[USEDLEX]		= "usedlex";
 
 
-	clan_name[TEMP01]		= "usedlex";
-	clan_name[TEMP02]		= "connl2chat";
-	clan_name[TEMP03]		= "";
-	clan_name[TEMP04]		= "";
-	clan_name[TEMP05]		= "";
-	clan_name[TEMP06]		= "";
-	clan_name[TEMP07]		= "";
-	clan_name[TEMP08]		= "";
-	clan_name[TEMP09]		= "";
-	clan_name[TEMP10]		= "";
+	clan_name[TEMPLATE]		= "";
 	clan_name[TEMP]			= "temp";
 
 
 	clan_name[DOS2UNIX]		= "dos2unix";
-	clan_name[FIXCA]		= "fixca";
-	clan_name[FIXOVLPSYM]	= "fixoverlapsyms";
 	clan_name[GPS]			= "gps";
 	clan_name[LINES_P]		= "lines";
 	clan_name[PP]			= "pp";
@@ -1358,7 +1393,9 @@ void main_clan(int argc, char *argv[]) {
 	int n;
 	int jmp_return;
 #ifdef _MAC_CODE
+#ifndef _COCOA_APP
 	GrafPtr savePort;
+#endif
 #endif
 	func_init();
 
@@ -1367,10 +1404,12 @@ void main_clan(int argc, char *argv[]) {
 		if (n >= 0) {
 		 	CLAN_PROG_NUM = n;
 #ifdef _MAC_CODE
+#ifndef _COCOA_APP
 			DrawMouseCursor(2);
 			GetPort(&savePort);
 #endif
-			expandedArgv = NULL;
+#endif
+//			expandedArgv = NULL;
 			skip_prog = -1;
 
 			jmp_return = setjmp(my_jmp_buf);
@@ -1385,15 +1424,21 @@ void main_clan(int argc, char *argv[]) {
 				fprintf(stderr, "\n\nProgram \"%s\" aborted by the user.\n", argv[0]);
 				isKillProgram = 1;			
 			}
-			if (expandedArgv != NULL) {
+/*
+ 			if (expandedArgv != NULL) {
 				free(expandedArgv);
 				expandedArgv = NULL;
 			}
+*/
 #ifdef _MAC_CODE
+#ifndef _COCOA_APP
 			SetPort(savePort);
 #endif
+#endif
 			skip_prog = 0;
+#ifndef _COCOA_APP
 			freeXML_Elements();
+#endif
 		} else {
 		 	fprintf(stderr,"Unknown command: %s\n",argv[0]);
 			show_info(1);
@@ -1404,7 +1449,9 @@ void main_clan(int argc, char *argv[]) {
 #if !defined(UNX)
 void myjmp(int jval) {
 	if (jval > 0) {
+#ifndef _COCOA_APP
 		Quit_CED(jval);
+#endif
 	} else if (jval < 0) {
 		isKillProgram = 2;
 	} else {
@@ -1416,6 +1463,7 @@ void myjmp(int jval) {
 static void pretty_list(const char *s_list[], int num, int maxcols) {
 	register int i, k, ncols;
 	int longest_name = 0;
+	BOOL isCRAdded;
 
 	for (i=0; i < num; i++) {
 		if ((k=strlen(s_list[i])) > longest_name)
@@ -1426,14 +1474,19 @@ static void pretty_list(const char *s_list[], int num, int maxcols) {
 	if (!ncols)
 		ncols = 1;
 
+	isCRAdded = false;
 	k = 0;
 	for (i=0; i < num; i++) {
-		if (!(++k % ncols))
+		if (!(++k % ncols)) {
+			isCRAdded = true;
 			fprintf(stdout,"%-*s\n",longest_name,s_list[i]);
-		else
+		} else {
+			isCRAdded = false;
 			fprintf(stdout,"%-*s  ",longest_name,s_list[i]);
+		}
 	}
-	fprintf(stdout,"\n");
+	if (isCRAdded == false)
+		fprintf(stdout,"\n");
 }
 
 static int insertSorted(const char *temp[], int k, const char *newName) {
@@ -1451,35 +1504,68 @@ static int insertSorted(const char *temp[], int k, const char *newName) {
 	return(k+1);		
 }
 
+static char isDisplayInInfo(int i, char isAll) {
+	if (isAll == 2)
+		return(TRUE);
+	if (i == CMDI_P || i == OLAC_P || i == UNIQ ||
+		i == COMPOUND  || i == DATACLEANUP || i == FIXMP3 || i == ORT || i == PHONFREQ || i == USEDLEX) {
+		return(FALSE);
+	}
+	return(TRUE);
+}
+
 void ListAvailable(char isAll) {
-	register int i, k;
+	int i, k;
 	const char *temp[512];
 
 	func_init();
 
-	fprintf(stdout,"\nYou can run any of the following CLAN analysis programs:\n");
-	for (i=k=0; i < MEGRASP; i++) {
-		if (clan_main[i] && clan_name[i][0] != EOS)
+	fprintf(stdout,"\nYou can run any of the following CLAN analysis commands:\n");
+	for (i=k=0; i < C_NNLA; i++) {
+		if (clan_main[i] && clan_name[i][0] != EOS && isDisplayInInfo(i, isAll))
 		   k = insertSorted(temp, k, clan_name[i]);
 	}
 	pretty_list(temp,k,80);
 
-	fprintf(stdout,"\nOr any of these CLAN programs for morphosyntactic coding:\n");
-	for (i=MEGRASP, k=0; i < CHSTRING; i++) {
-		if (clan_main[i] && clan_name[i][0] != EOS)
+	fprintf(stdout,"\nAny of these commands for computing profiles:\n");
+	for (i=C_NNLA, k=0; i < MEGRASP; i++) {
+		if (clan_main[i] && clan_name[i][0] != EOS && isDisplayInInfo(i, isAll))
 			k = insertSorted(temp, k, clan_name[i]);
 	}
 	pretty_list(temp,k,80);
 
-	fprintf(stdout,"\nOr any of the following CLAN utility programs:\n");
-	for (i=CHSTRING, k=0; i < TEMP; i++) {
-		if (clan_main[i] && clan_name[i][0] != EOS)
-		   k = insertSorted(temp, k, clan_name[i]);
+	fprintf(stdout,"\nAny of these commands for morphosyntactic coding:\n");
+	for (i=MEGRASP, k=0; i < ANVIL2CHAT; i++) {
+		if (clan_main[i] && clan_name[i][0] != EOS && isDisplayInInfo(i, isAll))
+			k = insertSorted(temp, k, clan_name[i]);
+	}
+	pretty_list(temp,k,80);
+
+	fprintf(stdout,"\nAny of these format conversion commands:\n");
+	for (i=ANVIL2CHAT, k=0; i < CHSTRING; i++) {
+		if (clan_main[i] && clan_name[i][0] != EOS && isDisplayInInfo(i, isAll))
+			k = insertSorted(temp, k, clan_name[i]);
+	}
+	k = insertSorted(temp, k, "chat2text");
+	pretty_list(temp,k,80);
+
+	fprintf(stdout,"\nAny of these reformatting commands:\n");
+	for (i=CHSTRING, k=0; i < COMBTIER; i++) {
+		if (clan_main[i] && clan_name[i][0] != EOS && isDisplayInInfo(i, isAll))
+			k = insertSorted(temp, k, clan_name[i]);
+	}
+	k = insertSorted(temp, k, "trim");
+	pretty_list(temp,k,80);
+
+	fprintf(stdout,"\nOr any of these format repair commands\n");
+	for (i=COMBTIER, k=0; i < TEMP; i++) {
+		if (clan_main[i] && clan_name[i][0] != EOS && isDisplayInInfo(i, isAll))
+			k = insertSorted(temp, k, clan_name[i]);
 	}
 	pretty_list(temp,k,80);
 
 	if (isAll == 2) {
-		fprintf(stdout,"\nOr any of the following extra utility programs:\n");
+		fprintf(stdout,"\nOr any of the following extra utility commands:\n");
 		for (i=TEMP, k=0; i < LAST_CLAN_PROG; i++) {
 			if (clan_main[i] && clan_name[i][0] != EOS)
 			   k = insertSorted(temp, k, clan_name[i]);

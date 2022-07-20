@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -46,9 +46,6 @@ static HEADT *HeadTier;
 extern struct tier *defheadtier;
 extern char OverWriteFile;
 
-
-/* ******************** fixit prototypes ********************** */
-/* *********************************************************** */
 
 void usage() {
    puts("FIXIT converts tiers with multiple utterances to single.");
@@ -132,24 +129,28 @@ static char fixit_err(const char *s, const char *s1) {
 	HEADT *TH;
 
 	if (!check_mode) {
-		fprintf(fpout,"*** File \"%s\": line %ld.\n", oldfname, lineno);
-		fprintf(stderr,"**** ERROR: On tier starting on line %ld\n", lineno);
-		if (s1 != NULL) fprintf(stderr,"%s in:\n    %s\n",s1,s);
-		else fprintf(stderr,"Illegal location representation: %s\n",s);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
+		if (s1 != NULL)
+			fprintf(stderr,"%s in:\n    %s\n",s1,s);
+		else
+			fprintf(stderr,"Illegal location representation: %s\n",s);
 		free(temp_uttline);
 		free_tiers();
 		while (HeadTier != NULL) {
 			TH = HeadTier;
 			HeadTier = HeadTier->NextCode;
-			free(TH->type); free(TH->code);
+			free(TH->type);
+			free(TH->code);
 			free(TH);
 		}
 		unlink(newfname);
 		cutt_exit(0);
 	} else {
-		fprintf(fpout,"**** ERROR: On tier starting on line %ld\n", lineno);
-		if (s1 != NULL) fprintf(fpout,"%s in:\n    %s\n",s1,s);
-		else fprintf(fpout,"Illegal location representation: %s\n",s);
+		fprintf(fpout,"*** File \"%s\": line %ld.\n", oldfname, lineno);
+		if (s1 != NULL)
+			fprintf(fpout,"%s in:\n    %s\n",s1,s);
+		else
+			fprintf(fpout,"Illegal location representation: %s\n",s);
 	}
 	return(0);
 }
@@ -393,13 +394,18 @@ static char ParsScope(char *st, char *text) {
 				if (*st == '.') {
 					if (!fixit_setdot(s,&b1,&b2,frstnum,numf)) return(0);
 				} else if (*st == '-') {
-					if (!numf) return(fixit_err(s,"No position representation found"));
+					if (!numf)
+						return(fixit_err(s,"No position representation found"));
 					numf = 0;
-					if (frstnum) frstnum = 0;
-					else return(fixit_err(s,"Too many '-' symbols"));
+					if (frstnum)
+						frstnum = 0;
+					else
+						return(fixit_err(s,"Too many '-' symbols"));
 				} else if (*st == ',') {
-					if (!numf) return(fixit_err(s,"No position representation found"));
-					if (!fixit_comppos(s,u1,w1,s1,b1,u2,w2,s2,b2,text)) return(0);
+					if (!numf)
+						return(fixit_err(s,"No position representation found"));
+					if (!fixit_comppos(s,u1,w1,s1,b1,u2,w2,s2,b2,text))
+						return(0);
 					numf = 0; frstnum = 1;
 					u1= 0; w1= 0; s1= 0; b1= 0; u2= 0; w2= 0; s2= 0; b2= 0;
 				} else if (*st == 'a' && *(st+1) == 'f' && *(st+2) == 't') {
@@ -426,8 +432,8 @@ static char ParsScope(char *st, char *text) {
 					st += 2;
 				} else if (*st == '$' && *(st+1) == '/' && *(st+2) == '=') {
 					return(fixit_err(s,"<$/=n> is not implemented"));
-					fixit_interturn = 1;
-					st += 2;
+//					fixit_interturn = 1;
+//					st += 2;
 				} else if (*st != ' ' && *st != '\t' && *st != '\n') cf = 1;
 				st++;
 			}
@@ -443,7 +449,8 @@ static void fixit_pr_result() {
 	CODES *c;
 
 	if (RootTier == NULL) {
-		if (*OldSpeaker != EOS && !check_mode) fprintf(fpout,"%s\n", OldSpeaker);
+		if (*OldSpeaker != EOS && !check_mode)
+			fprintf(fpout,"%s\n", OldSpeaker);
 	} else {
 			if (!check_mode) {
 			for (t=RootTier; t != NULL; t=t->NextTier) {
@@ -456,12 +463,12 @@ static void fixit_pr_result() {
 	}
 	while (HeadTier != NULL) {
 		if (!check_mode) {
-			fputs(HeadTier->type,fpout);
-			fputs(HeadTier->code,fpout);
+			printout(HeadTier->type, HeadTier->code, NULL, NULL, TRUE);
 		}
 		TH = HeadTier;
 		HeadTier = HeadTier->NextCode;
-		free(TH->type); free(TH->code);
+		free(TH->type);
+		free(TH->code);
 		free(TH);
 	}
 	HeadTier = NULL;
@@ -828,13 +835,16 @@ static void AddToHead() {
 		for (TH=HeadTier; TH->NextCode != NULL; TH=TH->NextCode) ;
 		TH->NextCode = NEW(HEADT);
 		TH = TH->NextCode;
-		if (TH == NULL) fixit_overflow();
+		if (TH == NULL)
+			fixit_overflow();
 	}
 	TH->type = (char *)malloc(strlen(utterance->speaker)+1);
-	if (TH->type == NULL) fixit_overflow();
+	if (TH->type == NULL)
+		fixit_overflow();
 	strcpy(TH->type,utterance->speaker);
 	TH->code = (char *)malloc(strlen(utterance->line)+1);
-	if (TH->code == NULL) fixit_overflow();
+	if (TH->code == NULL)
+		fixit_overflow();
 	strcpy(TH->code,utterance->line);
 	TH->NextCode = NULL;
 }
@@ -842,21 +852,25 @@ static void AddToHead() {
 void call() {
 	char res, lTempline[SPEAKERLEN], PassThrough = 0;
 
-		currentatt = 0;
+	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
 /*
 printf("sp=%s; uttline=%s", utterance->speaker, uttline);
 if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 */
+/* 2018-03-28
 		if (lineno % 200 == 0)
 			fprintf(stderr,"\r%ld ", lineno);
+*/
 		if (*utterance->speaker == '@') {
 			AddToHead();
 		} else if (*utterance->speaker == '*') {
-			if (*OldSpeaker != EOS || HeadTier != NULL) fixit_pr_result();
+			if (*OldSpeaker != EOS || HeadTier != NULL)
+				fixit_pr_result();
 			strcpy(OldSpeaker, utterance->speaker);
-			if (!Duplicate_Scoping()) continue;
+			if (!Duplicate_Scoping())
+				continue;
 			PassThrough = BreakTier();
 		} else {
 			fixit_remblanks(utterance->speaker);
@@ -881,8 +895,9 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			}
 		}
 	}
-	fprintf(stderr,"\n");
-	if (*OldSpeaker != EOS || HeadTier != NULL) fixit_pr_result();
+// 2018-03-28	fprintf(stderr,"\n");
+	if (*OldSpeaker != EOS || HeadTier != NULL)
+		fixit_pr_result();
 }
 
 void getflag(char *f, char *f1, int *i) {

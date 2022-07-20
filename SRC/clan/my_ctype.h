@@ -1,8 +1,10 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
+#ifndef MY_CTYPE
+#define MY_CTYPE
 
 #include <ctype.h>
 /*
@@ -28,18 +30,20 @@ extern char my_toupper(char c);
 	#define isdigit(x) (x >= '0' && x <= '9')
 #elif defined(_MAC_CODE)
 	#include <wctype.h>
+
 /*
   extern "C"
   {
-	_MSL_IMP_EXP_C int      _MSL_CDECL iswalnum(wchar_t);
-	_MSL_IMP_EXP_C int      _MSL_CDECL iswalpha(wchar_t);
-	_MSL_IMP_EXP_C int 		_MSL_CDECL iswdigit(wchar_t);
-	_MSL_IMP_EXP_C int 		_MSL_CDECL iswspace(wchar_t);
-	_MSL_IMP_EXP_C int 		_MSL_CDECL iswlower(wchar_t);
-	_MSL_IMP_EXP_C int 		_MSL_CDECL iswupper(wchar_t);
-	_MSL_IMP_EXP_C wchar_t 	_MSL_CDECL towlower(wchar_t);
-	_MSL_IMP_EXP_C wchar_t 	_MSL_CDECL towupper(wchar_t);
+	_MSL_IMP_EXP_C int      _MSL_CDECL iswalnum(unCH);
+	_MSL_IMP_EXP_C int      _MSL_CDECL iswalpha(unCH);
+	_MSL_IMP_EXP_C int 		_MSL_CDECL iswdigit(unCH);
+	_MSL_IMP_EXP_C int 		_MSL_CDECL iswspace(unCH);
+	_MSL_IMP_EXP_C int 		_MSL_CDECL iswlower(unCH);
+	_MSL_IMP_EXP_C int 		_MSL_CDECL iswupper(unCH);
+	_MSL_IMP_EXP_C unCH 	_MSL_CDECL towlower(unCH);
+	_MSL_IMP_EXP_C unCH 	_MSL_CDECL towupper(unCH);
   }	
 */
 #endif /* else _WIN32 */
 
+#endif // MY_CTYPE

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -8,6 +8,9 @@
 #define COMMONDEF
 
 #if defined(_MAC_CODE)
+#ifdef _COCOA_APP
+	#include <MacTypes.h>
+#endif
 	#include "0global.h"
 #endif
 
@@ -35,7 +38,7 @@ extern "C"
 	#define isFontEqual(x, y) (strcmp(x, y) == 0)
 	typedef unsigned char Str255[256];
 
-	#define INSIDE_STRINGPARSER
+//	#define INSIDE_STRINGPARSER
 #endif
 
 #ifndef NEW
@@ -79,18 +82,33 @@ struct redirects {
 
 #define SPECIALTEXTFILESTR "lXs Special Text file saves all fonts LxS"
 #define SPECIALTEXTFILESTRLEN 41
-#define ERRMESSAGELEN 2048
-#define SPEAKERLEN 1024		 /* max len of the code part of the turn */
-#define UTTLINELEN 18000L		 /* max len of the line part of the turn */
-#define TEMPWLEN   30000L
-#define FONTMARKER		"[%fnt: "
-#define FONTHEADER		"@Font:"
-#define MEDIAHEADER		"@Media:"
-#define CKEYWORDHEADER	"@Color words:"
+#define ERRMESSAGELEN	2048
+#define SPEAKERLEN		1024		 /* max len of the code part of the turn */
+#define UTTLINELEN		18000L		 /* max len of the line part of the turn */
+#define TEMPWLEN		30000L
 #define UTF8HEADER		"@UTF8"
-#define SOUNDTIER	"%snd:"
-#define PICTTIER	"%pic:"
-#define TEXTTIER	"%txt:"
+#define PIDHEADER		"@PID:"
+#define CKEYWORDHEADER	"@Color words:"
+#define WINDOWSINFO		"@Window:"
+#define FONTHEADER		"@Font:"
+#define FONTMARKER		"[%fnt: "
+#define MEDIAHEADER		"@Media:"
+#define SOUNDTIER		"%snd:"
+#define PICTTIER		"%pic:"
+#define TEXTTIER		"%txt:"
+#define CMDIPIDHEADER	"CMDI_PID"
+#ifdef _COCOA_APP
+#define UTF8HEADERLEN	5
+#define PIDHEADERLEN	5
+#define CKEYWORDHEADERLEN 13
+#define WINDOWSINFOLEN	8
+#define FONTHEADERLEN	6
+#define MEDIAHEADERLEN	7
+#define SOUNDTIERLEN	5
+#define PICTTIERLEN		5
+#define TEXTTIERLEN		5
+#define CMDIPIDHEADERLEN 8
+#endif
 
 
 #define REMOVEMOVIETAG	"%mov:"
@@ -101,7 +119,6 @@ struct redirects {
 #define AttTYPE unsigned short
 
 #define isSpace(c)	 ((c) == (unCH)' ' || (c) == (unCH)'\t')
-#define isBreakInLine(c) ((c) == (unCH)' ' || (c) == (unCH)'\t' || (c) == NL_C || (c) == SNL_C || (c) == EOS) 
 #define isSpeaker(c) ((c) == (unCH)'@' || (c) == (unCH)'%' || (c) == (unCH)'*')
 #define isMainSpeaker(c) ((c) == (unCH)'*')
 #define NSCRIPT		0
@@ -146,15 +163,18 @@ struct redirects {
 	extern short my_FontToScript(short fName, int charSet);
 	extern void gettyp(const FNType *fn, long *type, long *creator);
 	extern void settyp(const FNType *fn, long type, long creator, char isForce);
+	extern void my_CFStringGetBytes(CFStringRef theString, char *buf, CFIndex maxBufLen);
+#ifdef _COCOA_APP
+	extern void do_warning_sheet(const char *str, NSWindow *window); // 2019-12-05
+#endif
+	extern CFStringRef my_CFStringCreateWithBytes(const char *bytes);
 	extern OSStatus my_FSPathMakeRef(const char *path, FSRef *ref);
 	extern OSStatus my_FSRefMakePath(const FSRef *ref, char *path, UInt32 maxPathSize);
-	extern void my_CFStringGetBytes(CFStringRef theString, char *buf, CFIndex maxBufLen);
-	extern CFStringRef my_CFStringCreateWithBytes(const char *bytes);
 #else
 	#define SetNewVol(name) chdir(name)
 	#define isRefEQZero(ref) (ref[0] != '/')
 	#ifndef DEPDIR
-	  #define DEPDIR  "../lib/"
+		#define DEPDIR  "../lib/"
 	#endif
 	#define PATHDELIMCHR '/'		/* Path delimiter on Unix 		 */
 	#define PATHDELIMSTR "/"		/* Path delimiter on Unix 		 */
@@ -162,19 +182,20 @@ struct redirects {
 
 extern char spareTier1[];
 extern char spareTier2[];
+extern char spareTier3[];
 extern unCH templine[];
 extern unCH templine1[];
 extern unCH templine2[];
 extern unCH templine3[];
 extern unCH templine4[];
+extern unCH templineW[];
+extern unCH templineW1[];
 extern char templineC[];
 extern char templineC1[];
 extern char templineC2[];
 extern char templineC3[];
 extern char templineC4[];
 extern AttTYPE tempAtt[];
-extern wchar_t templineW[];
-extern wchar_t templineW1[];
 extern FNType DirPathName[];
 extern FNType FileName1[];
 extern FNType FileName2[];
@@ -188,12 +209,12 @@ extern struct redirects redirect_out;
 
 extern int  LocateDir(const char *prompt, FNType *currentDir, char noDefault);
 extern int  QueryDialog(const char *st, short id);
-extern int  wpathcmp(const wchar_t *path1, const wchar_t *path2);
+extern int  wpathcmp(const unCH *path1, const unCH *path2);
 extern int  pathcmp(const FNType *path1, const FNType *path2);
 extern int  my_isatty(FILE *fp);
 extern int  my_feof(FILE *fp);
 extern int  my_getc(FILE *fp);
-extern char *my_gets(char *st);
+//extern char *my_gets(char *st);
 extern char SetTextAtt(char *st, unCH c, AttTYPE *att);
 extern void addFilename2Path(FNType *path, const FNType *filename);
 extern char extractPath(FNType *DirPathName, FNType *file_path);

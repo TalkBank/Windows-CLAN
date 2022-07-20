@@ -5,6 +5,7 @@
 #include "cu.h"
 #include "w95_commands.h"
 #include "w95_cl_eval.h"
+#include "w95_cl_kideval.h"
 #include "w95_cl_tiers.h"
 #include "w95_cl_search.h"
 
@@ -27,20 +28,53 @@ static char  *clan_commands[NUM_COMMANDS];
 static short curCommand;
 
 short lastCommand;
-long  ClanWinRowLim = 500L;
+long  ClanWinRowLim = 1000L;
 long  lineNumOverride;
 char  *lineNumFname;
+char  isSpOverride;
 char  *clanBuf, clanRun;
 char  ClanAutoWrap = TRUE;
 FNType wd_dir[FNSize], od_dir[FNSize];
 CClanWindow *clanDlg = NULL;
+FONTINFO cmdFnt; // 2016-03-29
 
 extern int  F_numfiles;
 extern int  cl_argc;
 extern char *cl_argv[];
 extern char *nameOverride, *pathOverride;
+extern float scalingSize;
 extern long option_flags[];
 extern struct DefWin ClanWinSize;
+
+extern "C"
+{
+	extern void CleanUpAll(char all);
+}
+
+bool isAtOnCommandLineFound(unCH *s) {
+	int  i;
+	unCH qf;
+
+	if (F_numfiles <= 0)
+		return(false);
+
+	qf = FALSE;
+	for (i = 0; s[i] != EOS; i++) {
+		if (s[i] == '@') {
+			if (!qf && i > 0) {
+				if (isSpace(s[i - 1]) && (isSpace(s[i + 1]) || s[i + 1] == EOS))
+					return(true);
+			}
+		} else if (s[i] == '\'' || s[i] == '"') {
+			if (!qf) {
+				qf = s[i];
+			} else if (qf == s[i]) {
+				qf = FALSE;
+			}
+		}
+	}
+	return(false);
+}
 
 char isFindFile(int ProgNum) {
 	int		i, j, len;
@@ -54,7 +88,7 @@ char isFindFile(int ProgNum) {
 		} else {
 			if (!strcmp(cl_argv[i], "@")) {
 				for (j=1; j <= F_numfiles; j++) {
-					get_selected_file(j, FileName1);
+					get_selected_file(j, FileName1, FNSize);
 					fpT = fopen(FileName1, "r");
 					if (fp != NULL) {
 						fclose(fpT);
@@ -111,7 +145,9 @@ char isFindFile(int ProgNum) {
 CClanWindow::CClanWindow(CWnd* pParent /*=NULL*/)
 	: CDialog(CClanWindow::IDD, pParent)
 {
-	wchar_t ts[256];
+	unCH ts[256];
+	short size;
+	float tf;
 
 	//{{AFX_DATA_INIT(CClanWindow)
 	u_strcpy(t_st, lib_dir, FNSize);
@@ -145,13 +181,24 @@ CClanWindow::CClanWindow(CWnd* pParent /*=NULL*/)
 	ASSERT(hTemplate != NULL);
 	LPCDLGTEMPLATE lpDialogTemplate = (LPCDLGTEMPLATE)LockResource(hTemplate);
 	CDialogTemplate dlgTemp(lpDialogTemplate);
-	if (!strcmp(dFnt.fontName, "Courier") ||
-			(!strcmp(dFnt.fontName, "Courier New") && dFnt.CharSet <= 1))
-		dlgTemp.SetFont(_T("MS Sans Serif"), (WORD)dFnt.fontSize); // 8
-	else if (!strcmp(dFnt.fontName, "CAfont"/*UNICODEFONT*/) && dFnt.fontSize > -16)
-		dlgTemp.SetFont(u_strcpy(ts, dFnt.fontName, 256), (WORD)-16);
-	else
-		dlgTemp.SetFont(u_strcpy(ts, dFnt.fontName, 256), (WORD)dFnt.fontSize);
+// 2016-03-29
+	if (!strcmp(cmdFnt.FName, "Courier") ||
+		(!strcmp(cmdFnt.FName, "Courier New") && cmdFnt.CharSet <= 1)) {
+		tf = (float)cmdFnt.FSize;
+		tf = tf / scalingSize;
+		size = (short)tf;
+		dlgTemp.SetFont(_T("MS Sans Serif"), (WORD)size); // 8
+	} else if (!strcmp(cmdFnt.FName, "CAfont") && cmdFnt.FSize > -16) {
+		tf = -16;
+		tf = tf / scalingSize;
+		size = (short)tf;
+		dlgTemp.SetFont(u_strcpy(ts, cmdFnt.FName, 256), (WORD)size);
+	} else {
+		tf = (float)cmdFnt.FSize;
+		tf = tf / scalingSize;
+		size = (short)tf;
+		dlgTemp.SetFont(u_strcpy(ts, cmdFnt.FName, 256), (WORD)size); // lxslxslxs
+	}
 	HGLOBAL hTemplate2 = dlgTemp.Detach();
 	if (hTemplate2 != NULL)
 		lpDialogTemplate = (DLGTEMPLATE*)GlobalLock(hTemplate2);
@@ -248,11 +295,13 @@ void CClanWindow::SetClanWinIcons(void) {
 			InitOptions();
 			if (ProgNum == EVAL) {
 				SetDlgItemText(IDC_CLAN_FILEIN, cl_T("Option"));
+			} else if (ProgNum == KIDEVAL) {
+				SetDlgItemText(IDC_CLAN_FILEIN, cl_T("Option"));
 			} else {
 				SetDlgItemText(IDC_CLAN_FILEIN, cl_T("File In"));
 			}
 			fileinButtonCTRL.ShowWindow(SW_SHOW);
-			if (option_flags[ProgNum] & T_OPTION && ProgNum != EVAL) {
+			if (option_flags[ProgNum] & T_OPTION && ProgNum != EVAL && ProgNum != KIDEVAL) {
 				optionsButtonCTRL.ShowWindow(SW_SHOW);
 			} else
 				optionsButtonCTRL.ShowWindow(SW_HIDE);
@@ -267,12 +316,41 @@ void CClanWindow::SetClanWinIcons(void) {
 	}
 }
 
-void CClanWindow::createPopupProgsMenu(void) {
-	int err, pi;
+static int poup_insertSorted(const char *temp[], int k, const char *newName) {
+	int i, j;
+
+	for (i = 0; i < k; i++) {
+		if (strcmp(temp[i], newName) == 0)
+			return(k);
+		else if (strcmp(temp[i], newName) > 0)
+			break;
+	}
+	for (j = k; j > i; j--)
+		temp[j] = temp[j - 1];
+	temp[i] = newName;
+	return(k+1);
+}
+
+void CClanWindow::createPopupProgMenu(void) {
+	int err, pi, cnt;
+	const char *temp[512];
+	ALIASES_LIST *al;
+	extern ALIASES_LIST *aliases;
+
+	cnt = 0;
+	for (al=aliases; al != NULL; al = al->next_alias) {
+		if (al->isPullDownC == 1) {
+			cnt = poup_insertSorted(temp, cnt, al->alias);
+		}
+	}
+	for (pi=0; pi < MEGRASP; pi++) {
+		if (clan_name[pi][0] != EOS)
+			cnt = poup_insertSorted(temp, cnt, clan_name[pi]);
+	}
 
 	err = m_ProgsCtrl.InsertString(0, cl_T("Progs"));
-	for (pi=0; pi < MEGRASP; pi++) {
-		err = m_ProgsCtrl.InsertString(-1, cl_T(clan_name[pi]));
+	for (pi=0; pi < cnt; pi++) {
+		err = m_ProgsCtrl.InsertString(-1, cl_T(temp[pi]));
 	}
 	m_ProgsCtrl.SetCurSel(0);
 }
@@ -284,7 +362,8 @@ BOOL CClanWindow::OnInitDialog() {
 	HideClanWinIcons();
 
 	func_init();
-	createPopupProgsMenu();
+	readAliases(1);
+	createPopupProgMenu();
 	m_Commands = _T("");
 	UpdateData(FALSE);
 	GotoDlgCtrl(GetDlgItem(IDC_CLAN_COMMANDS));
@@ -305,7 +384,6 @@ BOOL CClanWindow::OnInitDialog() {
 	if (lpRect.right == lpRect.left) {
 		AfxGetApp()->m_pMainWnd->MessageBox(cl_T("Please use \"View->Set Commands Font\" menu to choose different font"), NULL, MB_ICONWARNING);
 	}
-	readAliases(1);
 	return 0;
 }
 
@@ -380,7 +458,13 @@ void CClanWindow::RecallCommand(short type) {
 
 void CClanWindow::OnCancel() {
 	CRect lpRect;
+	extern char isMORXiMode;
 
+	isMORXiMode = FALSE;
+	StdInWindow = NULL;
+	StdInErrMessage = NULL;
+	StdDoneMessage = NULL;
+	CleanUpAll(TRUE);
 	this->GetWindowRect(&lpRect);
 	ClanWinSize.top = lpRect.top;
 	ClanWinSize.left = lpRect.left;
@@ -398,7 +482,13 @@ void CClanWindow::OnCancel() {
 void CClanWindow::OnDestroy() 
 {
 	CRect lpRect;
+	extern char isMORXiMode;
 
+	isMORXiMode = FALSE;
+	StdInWindow = NULL;
+	StdInErrMessage = NULL;
+	StdDoneMessage = NULL;
+	CleanUpAll(TRUE);
 	this->GetWindowRect(&lpRect);
 	ClanWinSize.top = lpRect.top;
 	ClanWinSize.left = lpRect.left;
@@ -418,11 +508,12 @@ void CClanWindow::OnClanProgs()
 	int len;
 	int item;
 
-	item = m_ProgsCtrl.GetCurSel();
+	item = m_ProgsCtrl.
+		GetCurSel();
 	m_ProgsCtrl.SetCurSel(0);
 	UpdateData(TRUE);
 	if (item > 0) {
-		u_strcpy(ced_line, clan_name[item-1], UTTLINELEN);
+		m_ProgsCtrl.GetLBText(item, ced_line);
 		m_Commands = ced_line;
 		m_Commands = m_Commands + " ";
 		UpdateData(FALSE);
@@ -640,6 +731,7 @@ void CClanWindow::OnClanFilein()
 	s = strchr(com, ' ');
 	if (s != NULL)
 		*s = EOS;
+
 	if (getAliasProgName(com, progName, 512)) {
 		if (s != NULL)
 			*s = ' ';
@@ -652,7 +744,22 @@ void CClanWindow::OnClanFilein()
 		DWORD cPos = m_CommandsControl.GetSel();
 		EvalDialog(templineW);
 		if (templineW[0] != EOS) {
-			strcpy(fbufferU,templineW);
+			strcpy(fbufferU, templineW);
+			len = strlen(fbufferU);
+			m_Commands = fbufferU;
+			UpdateData(FALSE);
+			SetClanWinIcons();
+			GotoDlgCtrl(GetDlgItem(IDC_CLAN_COMMANDS));
+			m_CommandsControl.SetSel(len, len, FALSE);
+		} else {
+			GotoDlgCtrl(GetDlgItem(IDC_CLAN_COMMANDS));
+			m_CommandsControl.SetSel(cPos, FALSE);
+		}
+	} else if (ProgNum == KIDEVAL) {
+		DWORD cPos = m_CommandsControl.GetSel();
+		KidevalDialog(templineW);
+		if (templineW[0] != EOS) {
+			strcpy(fbufferU, templineW);
 			len = strlen(fbufferU);
 			m_Commands = fbufferU;
 			UpdateData(FALSE);
@@ -672,12 +779,7 @@ void CClanWindow::OnClanFilein()
 			if (i > 0L)
 				strcpy(fbufferU, fbufferU+i);
 			len = strlen(fbufferU);
-			for (i=0; fbufferU[i] != EOS; i++) {
-				if (isSpace(fbufferU[i]) && fbufferU[i+1] == '@' && 
-					(isSpace(fbufferU[i+2]) || fbufferU[i+2] == EOS))
-					break;
-			}
-			if (fbufferU[i] == EOS) {
+			if (!isAtOnCommandLineFound(fbufferU)) {
 				strcat(fbufferU, " @");
 				len += 2;
 			}
@@ -885,7 +987,7 @@ extern struct DefWin RecallWinSize;
 CClanRecall::CClanRecall(CWnd* pParent /*=NULL*/)
 	: CDialog(CClanRecall::IDD, pParent)
 {
-	m_isInited = false;
+
 }
 
 void CClanRecall::DoDataExchange(CDataExchange* pDX)
@@ -923,7 +1025,6 @@ BOOL CClanRecall::OnInitDialog() {
 		lpRect.left = RecallWinSize.left;
 		lpRect.right = RecallWinSize.width;
 		AdjustWindowSize(&lpRect);
-		m_isInited = true;
 		this->MoveWindow(&lpRect, FALSE);
 	}
 
@@ -931,13 +1032,13 @@ BOOL CClanRecall::OnInitDialog() {
 	for (i=0; i < total_commands; i++) {
 		command = getRecallCommand(i);
 		if (command != NULL && *command != EOS) {
-			m_ClanRecallListControl.AddString(cl_T(command));
+			u_strcpy(templineW, command, UTTLINELEN);
+			m_ClanRecallListControl.AddString(templineW);
 		}
 	}
 	i = getCurRecallCommands();
 	m_ClanRecallListControl.SetCurSel(i);
 	m_ClanRecallListControl.GetText(i, ced_line);
-	m_isInited = true;
 	return TRUE;
 }
 
@@ -999,8 +1100,6 @@ void CClanRecall::ResizeRecallWindow(int cx, int cy) {
 	UINT buttonsHight, buttonsWidth;
 	CWnd *pw_OK, *pw_cancel, *pw_ListBox;
 
-	if (!m_isInited)
-		return;
 	pw_OK=this->GetDlgItem(IDOK);
 	pw_cancel=this->GetDlgItem(IDCANCEL);
 	pw_ListBox=this->GetDlgItem(IDC_CLAN_RECALLS);

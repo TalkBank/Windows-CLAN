@@ -4,10 +4,11 @@
 #include "MMedia.h"
 #include "my_ctype.h"
 #include "ids.h"
+/* // NO QT
 #ifdef _WIN32
 	#include <TextUtils.h>
 #endif
-
+*/
 #if !defined(KEY_BACKSPACE)
 #define KEY_BACKSPACE	8
 #endif
@@ -46,8 +47,8 @@ struct func_info_s {
 	/* 7*/ { Replace,				"string-replace"} ,
 	/* 8*/ { EndCurTierGotoNext,	"coding-finish-current-tier-goto-next"} ,
 	/* 9*/ { ToTopLevel,			"coding-finish-current-code-or-tier"} ,
-	/*10*/ { ToUpperCase,			"covert-regin-to-upper-case"} ,
-	/*11*/ { ToLowerCase,			"covert-regin-to-lower-case"} ,
+	/*10*/ { ToUpperCase,			"convert-regin-to-upper-case"} ,
+	/*11*/ { ToLowerCase,			"convert-regin-to-lower-case"} ,
 	/*12*/ { GotoLine,				"goto-line"} ,
 	/*13*/ { DescribeKey,			"commands-describe-key"} ,
 	/*14*/ { CursorsCommand,		""} ,
@@ -70,7 +71,7 @@ struct func_info_s {
 	/*31*/ { PrevPage,				"cursor-previous-page"} ,
 	/*32*/ { DeleteNextChar,		"delete-next-character"} ,
 	/*33*/ { KillLine,				"delete-line"} ,
-	/*34*/ { YankKilled,			"deleted-restore"} ,
+	/*34*/ { YankKilled,			"delete-restore"} ,
 	/*35*/ { DeleteNextWord,		"delete-next-word"} ,
 	/*36*/ { DeletePrevWord,		"delete-previous-word"} ,
 	/*37*/ { GoToNextMainSpeaker,	"goto-next-speaker"} ,
@@ -122,7 +123,7 @@ struct func_info_s {
 	/*83*/ { PlayStepBackward,		"play-current-walker-step"} ,
 	/*84*/ { Redo,					"redo-undo-command"} ,
 	/*85*/ { ColorKeywords,			"color-text-keywords"} ,// "#lxs-mode"} ,
-	/*86*/ { ReplaceAndFind,		"string-replace-and-find"} ,
+	/*86*/ { IllegalFunction,		""} ,
 	/*87*/ { IllegalFunction,		""} ,
 	/*88*/ { MovieToTextSync,		"find-text-associated-with-movie"} ,
 	/*89*/ { QuickTrinscribeMedia,	"transcribe-from-now-on"} ,
@@ -433,12 +434,8 @@ int DisplayCommands(WINDOW *w, char *st, char ch) {
 				for (j=0; stt[j] == s[j] && stt[j]; j++) ;
 			stt[j] = EOS;
 		} else {
-#ifdef _UNICODE
 			strcpy(templine4, s);
 			mvwaddstr(w,row,0,templine4);
-#else
-			mvwaddstr(w,row,0,s);
-#endif
 			wclrtoeol(w, true);
 			if ((row=RowCheck(w,++row,FALSE,&c)) == -1)
 				break;
@@ -516,7 +513,7 @@ void init_keys(FNType *fname, FNType *cname) {
 
     norm_key[CTRL('I')]		= (FUNC_INFO *)&all_func[1];
     norm_key[CTRL('X')]		= (FUNC_INFO *)&all_func[2];
-    norm_key[CTRL('[')]		= (FUNC_INFO *)&all_func[3];
+    norm_key[27/*CTRL('[')*/]= (FUNC_INFO *)&all_func[3];
     norm_key[' ']			= (FUNC_INFO *)&all_func[5];
     norm_key['\t']			= (FUNC_INFO *)&all_func[5];
     norm_key[CTRL('T')]		= (FUNC_INFO *)&all_func[8];
@@ -551,7 +548,8 @@ void init_keys(FNType *fname, FNType *cname) {
     F_keys[7]				= (FUNC_INFO *)&all_func[83];
     F_keys[8]				= (FUNC_INFO *)&all_func[91];
     F_keys[9]				= (FUNC_INFO *)&all_func[81];
-    
+	F_keys[19]				= (FUNC_INFO *)&all_func[96];
+
 
 #ifdef VT200
     norm_key[KEY_ARROW_DOWN]	= (FUNC_INFO *)&all_func[16];
@@ -608,7 +606,7 @@ void init_keys(FNType *fname, FNType *cname) {
     ESC_key['d']		= (FUNC_INFO *)&all_func[35];
     ESC_key['D']		= (FUNC_INFO *)&all_func[35];
     ESC_key[CTRL('H')]	= (FUNC_INFO *)&all_func[36];
-    ESC_key[27]			= (FUNC_INFO *)&all_func[37];
+//    ESC_key[27]			= (FUNC_INFO *)&all_func[37];
     ESC_key['s']		= (FUNC_INFO *)&all_func[40];
     ESC_key['S']		= (FUNC_INFO *)&all_func[40];
     ESC_key['<']		= (FUNC_INFO *)&all_func[44];
@@ -630,30 +628,31 @@ void init_keys(FNType *fname, FNType *cname) {
     ESC_key['n']		= (FUNC_INFO *)&all_func[61];
     ESC_key['N']		= (FUNC_INFO *)&all_func[61];
     ESC_key['0']		= (FUNC_INFO *)&all_func[63];
-	ESC_key[224]		= (FUNC_INFO *)&all_func[63];
+    ESC_key[224]		= (FUNC_INFO *)&all_func[63];
     ESC_key['1']		= (FUNC_INFO *)&all_func[49];
-	ESC_key[38]			= (FUNC_INFO *)&all_func[49];
+    ESC_key[38]			= (FUNC_INFO *)&all_func[49];
     ESC_key['4']		= (FUNC_INFO *)&all_func[65];
-	ESC_key[39]			= (FUNC_INFO *)&all_func[65];
+    ESC_key[39]			= (FUNC_INFO *)&all_func[65];
     ESC_key['3']		= (FUNC_INFO *)&all_func[67];
-	ESC_key[34]			= (FUNC_INFO *)&all_func[67];
+    ESC_key[34]			= (FUNC_INFO *)&all_func[67];
     ESC_key['2']		= (FUNC_INFO *)&all_func[69];
-	ESC_key[233]		= (FUNC_INFO *)&all_func[69];
+    ESC_key[233]		= (FUNC_INFO *)&all_func[69];
     ESC_key['8']		= (FUNC_INFO *)&all_func[71];
-	ESC_key[33]			= (FUNC_INFO *)&all_func[71];
+    ESC_key[33]			= (FUNC_INFO *)&all_func[71];
     ESC_key['l']		= (FUNC_INFO *)&all_func[72];
     ESC_key['L']		= (FUNC_INFO *)&all_func[72];
     ESC_key['a']		= (FUNC_INFO *)&all_func[73];
+    ESC_key['A']		= (FUNC_INFO *)&all_func[73];
     ESC_key['g']		= (FUNC_INFO *)&all_func[74];
     ESC_key['G']		= (FUNC_INFO *)&all_func[74];
     ESC_key['7']		= (FUNC_INFO *)&all_func[78];
-	ESC_key[232]		= (FUNC_INFO *)&all_func[78];
+    ESC_key[232]		= (FUNC_INFO *)&all_func[78];
     ESC_key['6']		= (FUNC_INFO *)&all_func[79];
-	ESC_key[167]		= (FUNC_INFO *)&all_func[79];
+    ESC_key[167]		= (FUNC_INFO *)&all_func[79];
     ESC_key['5']		= (FUNC_INFO *)&all_func[80];
-	ESC_key[40]			= (FUNC_INFO *)&all_func[80];
-	ESC_key['9']		= (FUNC_INFO *)&all_func[97];
-	ESC_key[231]		= (FUNC_INFO *)&all_func[97];
+    ESC_key[40]			= (FUNC_INFO *)&all_func[80];
+    ESC_key['9']		= (FUNC_INFO *)&all_func[97];
+    ESC_key[231]		= (FUNC_INFO *)&all_func[97];
 
 #if !defined(_WIN32)
     X_key[CTRL('C')]	= (FUNC_INFO *)&all_func[82];
@@ -681,7 +680,7 @@ int WriteState(int d) {
 	i = 0;
 	strcpy(fileName, defaultPath);
 	addFilename2Path(fileName, KEYS_BIND_FILE);
-  	if (!myNavPutFile(fileName, "Save Program State as:", 'TEXT', nil)) {
+  	if (!myNavPutFile(fileName, "Save Program State as:", 'TEXT', NULL)) {
 		strcpy(global_df->err_message, DASHES);
 		return(54);
   	}
@@ -689,7 +688,7 @@ int WriteState(int d) {
     OPENFILENAME	ofn;
 	unCH			szFile[FILENAME_MAX];
 	unCH			*szFilter;
-	wchar_t			wDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 
 	i = 0;
 	szFilter = _T("Utility Files (*.cut)\0*.cut\0All files (*.*)\0*.*\0\0");
@@ -838,7 +837,7 @@ int AproposFile(int d) {
 #ifdef _MAC_CODE
 	strcpy(fileName, defaultPath);
 	addFilename2Path(fileName, "keys_list.cut");
-	if (!myNavPutFile(fileName, "Save Keys Bindings as:", 'TEXT', nil)) { 
+	if (!myNavPutFile(fileName, "Save Keys Bindings as:", 'TEXT', NULL)) {
 		if (d > -1)
 			strcpy(global_df->err_message, DASHES);
 		return(47);
@@ -847,7 +846,7 @@ int AproposFile(int d) {
     OPENFILENAME	ofn;
 	unCH			szFile[FILENAME_MAX];
 	unCH			*szFilter;
-	wchar_t			wDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 
 	i = 0;
 	szFilter = _T("All files (*.*)\0*.*\0\0");
@@ -909,10 +908,6 @@ int CloseCurrentWindow(int i) {
 }
 
 int ExecCommand(int d) {
-	register int i;
-	register int j;
-	char st[SPEAKERLEN], fn[SPEAKERLEN];
-
 #ifdef _MAC_CODE
 	DrawSoundCursor(0);
 	RemoveLastUndo();
@@ -920,6 +915,9 @@ int ExecCommand(int d) {
 	return(55);
 #endif
 #if defined(_WIN32)
+	register int i;
+	register int j;
+	char st[SPEAKERLEN], fn[SPEAKERLEN];
 	CHelpWindow dlg;
 	int sl[256];
 	
@@ -945,8 +943,10 @@ int ExecCommand(int d) {
 		strcpy(global_df->err_message,DASHES);
 		return(55);
 	}
-#endif
-	if (st[j] == EOS) { strcpy(global_df->err_message,DASHES); return(55); }
+	if (st[j] == EOS) {
+		strcpy(global_df->err_message,DASHES);
+		return(55);
+	}
 	uS.uppercasestr(st+j, &dFnt, FALSE);
 	for (i=0; all_func[i].func_ptr != NULL; i++) {
 		strcpy(fn, all_func[i].func_name);
@@ -959,11 +959,13 @@ int ExecCommand(int d) {
 				all_func[i].func_ptr != HandleCTRLX &&
 				all_func[i].func_ptr != ExecCommand)
 				return((*all_func[i].func_ptr)(1));
-			else return(55);
+			else
+				return(55);
 		}
 	}
 	strcpy(global_df->err_message, "+Command not found!");
 	return(55);
+#endif
 }
 
 /* begin commands */
@@ -1020,6 +1022,7 @@ static int ShowAscii(WINDOW *w, unCH *st, unCH ch) {
 	SetPortWindowPort(global_df->wind);
 	TextFont(global_df->row_txt->Font.FName);
 	TextSize(global_df->row_txt->Font.FSize);
+	tTextWinSize = global_df->TextWinSize-global_df->row_txt->Font.FHeight;
 	while (let < 256) {
 		w->num_rows = t;
 		if (row == 0)
@@ -1042,12 +1045,8 @@ static int ShowAscii(WINDOW *w, unCH *st, unCH ch) {
 			let++;
 			i = strlen(s);
 		}
-#ifdef _UNICODE
 		strcpy(templine4, s);
 		mvwaddstr(w,row,0,templine4);
-#else
-		mvwaddstr(w,row,0,s);
-#endif
 		wclrtoeol(w, true);
 CheckRowNum:
 		if ((row=RowCheck(w,++row,FALSE,&c)) == -1)
@@ -1286,7 +1285,7 @@ int DescribeKey(int i) {
 	strcpy(global_df->err_message, "-Press key to test");
 	draw_mid_wm(); 
 	i = wgetch(global_df->w1);
-	sprintf(global_df->err_message, "-key=%c (%d, %o);", i, i, i);
+	sprintf(global_df->err_message, "-key=%c (dec=%d, oct=%o, 0x%x)", i, i, i, i);
 	draw_mid_wm(); 
 #endif
 #if defined(_WIN32)
@@ -1314,179 +1313,6 @@ int ChatModeSet(int d) {
 	RefreshAllTextWindows(TRUE);
 	return(58);
 }
-
-#ifndef _UNICODE
-static char ANSIToUTF8(ROWS *row) {
-#if defined(_MAC_CODE)
-	OSStatus err = noErr;
-#if (TARGET_API_MAC_CARBON == 1)
-	long i, len, indx;
-	TECObjectRef ec;
-	TextEncoding utf8Encoding;
-	TextEncoding MacRomanEncoding;
-	unsigned long ail, aol;
-
-	if (global_df->cur_line == row)
-		ChangeCurLineAlways(1);
-	row->Font.Encod = my_FontToScript(row->Font.FName, row->Font.CharSet);
-	MacRomanEncoding = CreateTextEncoding(row->Font.Encod, kTextEncodingDefaultVariant, kTextEncodingDefaultFormat );
-	utf8Encoding = CreateTextEncoding( kTextEncodingUnicodeDefault, kTextEncodingDefaultVariant, kUnicodeUTF8Format );
-	if ((err=TECCreateConverter(&ec, MacRomanEncoding, utf8Encoding)) != noErr) {
-		goto end;
-	}
-
-	if (row->att == NULL) {
-		len = strlen(row->line);
-		if ((err=TECConvertText(ec, (ConstTextPtr)row->line, len, &ail, (TextPtr)templine, UTTLINELEN, &aol)) != noErr) {
-			goto end;
-		}
-	} else {
-		indx = 0L;
-		templine[0]  = EOS;
-		templine2[0] = EOS;
-		templine3[0] = EOS;
-		for (len=0L; row->line[len]; len++) {
-			if ((err=TECConvertText(ec, (ConstTextPtr)row->line+len, 1, &ail, (TextPtr)templine2, UTTLINELEN, &aol)) != noErr) {
-				goto end;
-			}
-			if (ail < 1) {
-				goto end;
-			}
-			for (i=0L; i < aol; i++, indx++) {
-				templine[indx] = templine2[i];
-				templine3[indx] = row->att[len];
-			}
-		}
-		aol = indx;
-		ail = len = 1;
-	}
-	err = TECDisposeConverter(ec);
-	if (ail < len) {
-		goto end;
-	}
-	free(row->line);
-	if (row->att != NULL) {
-		free(row->att);
-		row->att = (AttTYPE *)malloc((aol+1)*sizeof(AttTYPE));
-	}
-	row->line = (unCH *)malloc((aol+1)*sizeof(unCH));
-	if (row->line == NULL) {
-//		row->line = "";
-		mem_err(TRUE, global_df);
-	}
-	for (i=0; i < aol; i++) {
-		row->line[i] = templine[i];
-		if (row->att != NULL)
-			row->att[i] = templine3[i];
-	}
-	row->line[aol] = EOS;
-end:
-	if (global_df->cur_line == row)
-		ChangeCurLineAlways(2);
-	if (err != noErr)
-		do_warning("Please do NOT save this file. Unable to change current file to UTF encoding.", 0);
-#endif
-	return(err != noErr);
-
-#elif defined(_WIN32)
-
-	char err;
-	short orgEncod;
-	long len, i, indx;
-	long wchars;
-	long uchars;
-	LPVOID hwText;
-	LPWSTR lpwText;
-	LPSTR lpuText, lpuText2;
-
-	if (global_df->cur_line == row)
-		ChangeCurLineAlways(1);
-
-	err = FALSE;
-	lpuText  = NULL;
-	lpuText2 = NULL;
-	orgEncod = GetEncode("Win95:", row->Font.FName, WIN95cour, row->Font.CharSet, FALSE);
-	if (row->att == NULL) {
-		len = strlen(row->line);
-		wchars=MultiByteToWideChar(orgEncod,0,(const char*)row->line,len,NULL,0);
-		hwText = LocalAlloc(LMEM_MOVEABLE, (wchars+1)*2);
-		lpwText = (LPWSTR)LocalLock(hwText);
-		MultiByteToWideChar(orgEncod,0,(const char*)row->line,len,lpwText,wchars);
-
-		uchars=WideCharToMultiByte(CP_UTF8,0,lpwText,wchars,NULL,0,NULL,NULL);
-		lpuText = (LPSTR)malloc(uchars+1);
-		if (lpuText == NULL) {
-			err = TRUE;
-			goto end;
-		}
-		WideCharToMultiByte(CP_UTF8,0,lpwText,wchars,lpuText,uchars,NULL,NULL);
-		lpuText[uchars] = '\0';
-	} else {
-		len = strlen(row->line);
-		wchars=MultiByteToWideChar(orgEncod,0,(const char*)row->line,len,NULL,0);
-		hwText = LocalAlloc(LMEM_MOVEABLE, (wchars+1)*2);
-		lpwText = (LPWSTR)LocalLock(hwText);
-		MultiByteToWideChar(orgEncod,0,(const char*)row->line,len,lpwText,wchars);
-
-		uchars=WideCharToMultiByte(CP_UTF8,0,lpwText,wchars,NULL,0,NULL,NULL);
-		lpuText = (LPSTR)malloc(uchars+1);
-		if (lpuText == NULL) {
-			err = TRUE;
-			goto end;
-		}
-		lpuText2 = (LPSTR)malloc(uchars+1);
-		if (lpuText2 == NULL) {
-			err = TRUE;
-			goto end;
-		}
-		indx = 0L;
-		templine[0] = EOS;
-		for (len=0L; row->line[len]; len++) {
-			wchars=MultiByteToWideChar(orgEncod,0,(const char*)row->line+len,1,NULL,0);
-			MultiByteToWideChar(orgEncod,0,(const char*)row->line+len,1,lpwText,wchars);
-			uchars=WideCharToMultiByte(CP_UTF8,0,lpwText,wchars,NULL,0,NULL,NULL);
-			WideCharToMultiByte(CP_UTF8,0,lpwText,wchars,templine,uchars,NULL,NULL);
-			templine[uchars] = '\0';
-			for (i=0L; i < uchars; i++, indx++) {
-				lpuText[indx]  = templine[i];
-				lpuText2[indx] = row->att[len];
-			}
-		}
-		uchars = indx;
-	}
-	free(row->line);
-	if (row->att != NULL) {
-		free(row->att);
-		row->att = (AttTYPE *)malloc((uchars+1)*sizeof(AttTYPE));
-	}
-	row->line = (char *)malloc(uchars+1);
-	if (row->line == NULL) {
-		row->line = "";
-		mem_err(TRUE, global_df);
-	}
-	for (i=0; i < uchars; i++) {
-		row->line[i] = lpuText[i];
-		if (row->att != NULL)
-			row->att[i] = lpuText2[i];
-	}
-	row->line[uchars] = EOS;
-
-end:
-	if (lpuText2)
-		free(lpuText2);
-	if (lpuText)
-		free(lpuText);
-
-	LocalUnlock(hwText);
-	HLOCAL LocalFree(hwText);
-	if (global_df->cur_line == row)
-		ChangeCurLineAlways(2);
-	if (err != noErr)
-		do_warning(cl_T("Please do NOT save this file. Unable to change current file to UTF encoding."), 0);
-	return(err);
-#endif
-}
-#endif // _UNICODE
 
 int PercentOfFile(int d) {
 	RemoveLastUndo();
@@ -1903,10 +1729,10 @@ int HandleESC(int i) {
 			draw_mid_wm();
 		if (global_df->row_win2 || global_df->col_win2 != -2)
 			global_df->LeaveHighliteOn = TRUE;
-			globalWhichInput = 3;
-			return(3);
-		} else {
-			globalWhichInput = 0;
+		globalWhichInput = 3;
+		return(3);
+	} else {
+		globalWhichInput = 0;
 	}
 	if (i < 524) {
 		strcpy(global_df->err_message, DASHES);
@@ -2023,8 +1849,6 @@ int ExitCED(int i) {
 			}
 		}
 		t = RootWind;
-		if (res == 'y')
-			setCursorPos(t->wind);
 		global_df = t->windRec->FileInfo;
 		SetPBCglobal_df(true, 0L);
 		FreeFileInfo(t->windRec->FileInfo);
@@ -2065,11 +1889,13 @@ int SelectAll(int i) {
 	long tn;
     ROWS *rt;
 
-	global_df->row_win = global_df->lineno - 1L;
+	global_df->row_win = global_df->wLineno - 1L;
 	global_df->window_rows_offset = global_df->row_win;
 	while (!AtBotEnd(global_df->row_txt, global_df->tail_text, FALSE)) {
 		global_df->row_win++;
-		global_df->lineno++;
+		if (isNL_CFound(global_df->row_txt))
+			global_df->lineno++;
+		global_df->wLineno++;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
 	}
 	if (global_df->row_txt == global_df->cur_line)
@@ -2094,7 +1920,8 @@ int SelectAll(int i) {
 		tn = global_df->col_chr; global_df->col_chr = global_df->col_chr2; global_df->col_chr2 = tn;
 
 		global_df->row_txt = ToNextRow(global_df->head_text, FALSE);
-		global_df->lineno = 1L;
+		global_df->lineno  = 1L;
+		global_df->wLineno = 1L;
 		global_df->window_rows_offset = 0L;
 		if (global_df->row_txt == global_df->cur_line) 
 			global_df->col_txt = global_df->head_row->next_char;
@@ -2344,7 +2171,7 @@ void DoStdInput(char *st) {
 		} else if (globalWhichInput) {
 			SaveUndoState(all_func[globalWhichInput].func_ptr == Undo);
 			if (all_func[globalWhichInput].func_ptr == MoveDown ||
-				  all_func[globalWhichInput].func_ptr == MoveUp) {
+				all_func[globalWhichInput].func_ptr == MoveUp) {
 				if (global_df->cursorCol == 0L)
 					global_df->cursorCol = global_df->col_win;
 			} else
@@ -2461,7 +2288,7 @@ void DoStdInput(char *st) {
 #endif
 
 static int callExecKey(unsigned int c, unsigned int arg, char isAllFunc) {
-	int LastCommand;
+	int LastCommand = 0;
 
 	if (globalWhichInput) {
 		SaveUndoState(all_func[globalWhichInput].func_ptr == Undo);
@@ -2489,8 +2316,7 @@ static int callExecKey(unsigned int c, unsigned int arg, char isAllFunc) {
 			if (c >= 50) {
 			} else {
 				SaveUndoState(F_keys[c]->func_ptr == Undo);
-				if (F_keys[c]->func_ptr == MoveDown ||
-					  F_keys[c]->func_ptr == MoveUp) {
+				if (F_keys[c]->func_ptr == MoveDown || F_keys[c]->func_ptr == MoveUp) {
 					if (global_df->cursorCol == 0L)
 						global_df->cursorCol = global_df->col_win;
 				} else
@@ -2827,6 +2653,7 @@ void PrepWindow(short id) {
 void mac_call(void) {
 	register int c;
 	GrafPtr oldPort;
+	extern char  isMORXiMode;
 	extern SInt16 currentKeyScript;
 
 	InKey = 0;
@@ -2841,9 +2668,18 @@ void mac_call(void) {
 		if (InKey) {
 			c = InKey;
 			InKey = 0;
-		} else if (global_df == NULL) c = wgetch(NULL);
-		else c = wgetch(global_df->w1);
+		} else if (global_df == NULL)
+			c = wgetch(NULL);
+		else
+			c = wgetch(global_df->w1);
 		NonModal = 1;
+		if (isMORXiMode) {
+			if (isPlayS == 6) {
+				isPlayS = 0;
+				do_warning(StdDoneMessage, -1);
+				continue;
+			}
+		}
 		if (global_df == NULL) {
 			if (ExitCED(1) == 0)
 				return;

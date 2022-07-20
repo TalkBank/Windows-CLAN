@@ -10,12 +10,17 @@
 #undef THIS_FILE
 static char THIS_FILE[] = __FILE__;
 #endif
+
+//#define RGB(r,g,b)          ((COLORREF)(((BYTE)(r)|((WORD)((BYTE)(g))<<8))|(((DWORD)(BYTE)(b))<<16)))
+
 extern struct DefWin PictWinSize;
 
 char pictName[_MAX_PATH+_MAX_FNAME];
 char isShowPict = FALSE;
 char isOverRidePicName = FALSE;
 CPict *pictDial = NULL;
+
+
 /////////////////////////////////////////////////////////////////////////////
 // CPict dialog
 
@@ -25,10 +30,11 @@ CPict::CPict(CString pathName, CWnd* pParent /*=NULL*/)
 	//{{AFX_DATA_INIT(CPict)
 		// NOTE: the ClassWizard will add member initialization here
 	//}}AFX_DATA_INIT
-	cgp = NULL;
-	setSize = FALSE;
-	gImporter = NULL;
-	u_strcpy(fname, pathName, _MAX_PATH+_MAX_FNAME);
+	myPict = NULL;
+	filename = pathName;
+	m_isPictureLoadFailed = TRUE;
+	m_isFirstPaint = TRUE;
+	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 	Create(IDD, pParent);
 }
 
@@ -51,14 +57,18 @@ BEGIN_MESSAGE_MAP(CPict, CDialog)
 END_MESSAGE_MAP()
 
 BOOL CPict::OnInitDialog() {
+	HRESULT	hr;
 
 	CDialog::OnInitDialog();
 
+	SetIcon(m_hIcon, TRUE);			// Set big icon
+	SetIcon(m_hIcon, FALSE);		// Set small icon
 	if (PictWinSize.top || PictWinSize.width || PictWinSize.height || PictWinSize.left) {
 		CRect lpRect;
+
 		long width, hight;
 
-		this->GetWindowRect(&lpRect);
+		GetWindowRect(&lpRect);
 		width = lpRect.right - lpRect.left;
 		hight = lpRect.bottom - lpRect.top;
 		lpRect.top = PictWinSize.top;
@@ -66,24 +76,36 @@ BOOL CPict::OnInitDialog() {
 		lpRect.left = PictWinSize.left;
 		lpRect.right = lpRect.left + width;
 		AdjustWindowSize(&lpRect);
-		this->MoveWindow(&lpRect, FALSE);
+		MoveWindow(&lpRect, TRUE);
+
+/*
+		lpRect.top = PictWinSize.top;
+		lpRect.bottom = PictWinSize.height;
+		lpRect.left = PictWinSize.left;
+		lpRect.right = PictWinSize.width;
+		MoveWindow(&lpRect, TRUE);
+*/
 	}
-	GrafPort *gp=CreatePortAssociation (m_hWnd, NULL,0);
-	cgp=(CGrafPort *)GetWindowPort(gp);
-	SetGWorld(cgp, NULL);
 	isOverRidePicName = FALSE;
 	if (PlayingContMovie)
 		isShowPict = TRUE;
+	myPict = new CImage();
+	if (myPict != NULL) {
+		hr = myPict->Load(filename);
+		if (hr == S_OK)
+			m_isPictureLoadFailed = FALSE;
+		else
+			m_isPictureLoadFailed = TRUE;
+	}
+	Invalidate(TRUE);
 	return TRUE;
 }
 
 BOOL CPict::DestroyWindow() 
 {
-	if (gImporter != NULL)
-		CloseComponent(gImporter);
-	if (cgp != NULL) {
-		DestroyPortAssociation (cgp);
-		cgp = NULL;
+	if (myPict != NULL) {
+		delete myPict;
+		myPict = NULL;
 	}
 	isOverRidePicName = FALSE;
 	isShowPict = FALSE;
@@ -95,26 +117,12 @@ void CPict::OnCancel() {
 
 	this->GetWindowRect(&lpRect);
 	DestroyWindow();
-	if (pictDial != NULL) {
-		delete pictDial;
-		pictDial = NULL;
-	}
-	pictName[0] = EOS;
-	isOverRidePicName = FALSE;
-	isShowPict = FALSE;
-	PictWinSize.top = lpRect.top;
-	PictWinSize.left = lpRect.left;
-	PictWinSize.width = lpRect.right;
-	PictWinSize.height = lpRect.bottom;
-	WriteCedPreference();
 }
 
 void CPict::OnDestroy() 
 {
 	CRect lpRect;
 
-	if (gImporter != NULL)
-		CloseComponent(gImporter);
 	this->GetWindowRect(&lpRect);
 	CDialog::OnDestroy();
 	if (pictDial != NULL) {
@@ -133,117 +141,80 @@ void CPict::OnDestroy()
 
 void CPict::OnPaint() 
 {
-	CPaintDC dc(this); // device context for painting
-	FSSpec  	  sfFile;
-	double		  h, v, r;
-	unsigned long myCount,
-				  myIndex;
-	Str255		  filename;
-	ComponentResult isErr;
-	CRect		  lpRect;
-	Handle		  myHandle = NULL;
-	Size		  mySize = 0;
+//	CPaintDC	dc(this); // device context for painting
+	long		heightDiff, widthDiff;
+	CRect		cRect, wRect;
+	double		ratio, iWidth, iHeight, wWidth, wHeight;
+	CDC*		pDC;
+	HRESULT		hr;
 
-	this->GetWindowRect(&lpRect);
-	// TODO: Add extra initialization here
+	if (IsIconic()) {
+		CPaintDC dc(this); // device context for painting
 
-	if (!setSize) {
-		if (gImporter != NULL)
-			CloseComponent(gImporter);
-		c2pstrcpy (filename, fname);                          
-		FSMakeFSSpec(0, 0L, (const unsigned char*)filename, &sfFile);
-		if (GetGraphicsImporterForFile(&sfFile, &gImporter) != noErr) {
-			setSize = TRUE;
-			return;
-		}
-	}
-	if (gImporter == NULL)
-		return;
-	if (GraphicsImportGetImageCount(gImporter, &myCount) != noErr)
-		return;
-	if (myCount < 1 || myCount > 1)
-		return;
+		SendMessage(WM_ICONERASEBKGND, (WPARAM)dc.GetSafeHdc(), 0);
 
-	for (myIndex=1; myIndex <= myCount; myIndex++) {
-		if (GraphicsImportSetImageIndex(gImporter, myIndex) != noErr)
-			return;
-		if (!setSize) {
-			if (GraphicsImportGetNaturalBounds(gImporter, &myRect) != noErr)
-				return;
-			setSize = TRUE;
-			h = myRect.right  - myRect.left;
-			v = myRect.bottom - myRect.top;
-			if (PictWinSize.width != 0) {
-				if (h > PictWinSize.width) {
-					r = (h / v);
-					myRect.top = 0;
-					myRect.right = PictWinSize.width - PictWinSize.left;
-					myRect.left = 0;
-					h = myRect.right;
-					h /= r;
-					myRect.bottom = (int)h;
-				}
-			} else if (v > lpRect.bottom-lpRect.top) {
-				r = (h / v);
-				myRect.top = 0;
-				myRect.bottom = lpRect.bottom-lpRect.top;
-				myRect.left = 0;
-				v = myRect.bottom;
-				v *= r;
-				myRect.right = (int)v;
-			}
-			isErr = GraphicsImportSetBoundsRect(gImporter, &myRect);
-			SizeWindow((WindowPtr)cgp, myRect.right, myRect.bottom,true);
+		// Center icon in client rectangle
+		int cxIcon = GetSystemMetrics(SM_CXICON);
+		int cyIcon = GetSystemMetrics(SM_CYICON);
+		CRect rect;
+		GetClientRect(&rect);
+		int x = (rect.Width() - cxIcon + 1) / 2;
+		int y = (rect.Height() - cyIcon + 1) / 2;
+
+		// Draw the icon
+		dc.DrawIcon(x, y, m_hIcon);
+	} else if (m_isPictureLoadFailed == FALSE) {
+		pDC = CWnd::GetDC();
+		GetWindowRect(&wRect);
+		GetClientRect(&cRect);
+		heightDiff = (wRect.bottom - wRect.top) - (cRect.bottom - cRect.top);
+		widthDiff = (wRect.right - wRect.left) - (cRect.right - cRect.left);
+		if (m_isFirstPaint == TRUE) {
+			cRect.right = myPict->GetWidth();
+			cRect.bottom = myPict->GetHeight();
+			m_isFirstPaint = FALSE;
 		} else {
-			isErr = GraphicsImportSetBoundsRect(gImporter, &myRect);
+			iWidth = (double)myPict->GetWidth();
+			iHeight = (double)myPict->GetHeight();
+			ratio = iWidth / iHeight;
+			wWidth = (double)cRect.right;
+			wHeight = wWidth / ratio;
+//			if (wHeight <= (double)iRect.bottom) {
+			cRect.bottom = (long)wHeight;
+//			} else {
+//				wHeight = (double)iRect.bottom;
+//				wWidth = wHeight * ratio;
+//				iRect.right = (long)wWidth;
+//			}
 		}
-		isErr = GraphicsImportSetGWorld(gImporter, cgp, NULL);		
-		isErr = GraphicsImportDraw(gImporter);
-	}
-	CDialog::OnPaint();
+		wRect.bottom = wRect.top + cRect.bottom + heightDiff;
+		wRect.right = wRect.left + cRect.right + widthDiff;
+		//	CalcWindowRect(&wRect);
+		MoveWindow(&wRect, FALSE);
+		hr = myPict->Draw(pDC->m_hDC, CRect(&cRect));
+		CDialog::OnPaint();
+	} else
+		CDialog::OnPaint();
 }
 
 void CPict::OnSize(UINT nType, int cx, int cy) 
 {
+	CRect lpRect;
+
 	CDialog::OnSize(nType, cx, cy);
-	
-	double	h, v, r;
-	int oldH, oldV;
-
-	if (gImporter == NULL)
-		return;
-
-	oldH = myRect.right  - myRect.left;
-	oldV = myRect.bottom - myRect.top;
-	if (GraphicsImportGetNaturalBounds(gImporter, &myRect) != noErr)
-		return;		
-
-	h = myRect.right  - myRect.left;
-	v = myRect.bottom - myRect.top;
-	r = (h / v);
-
-	if (oldH == cx && oldV != cy) {
-		h = cy;
-		h /= r;
-		cx = (int)h;
+//	UpdateData(FALSE);
+/*
+	if (m_isUserResize == TRUE) {
+		UpdateData(TRUE);
+		GetWindowRect(&lpRect);
+		PictWinSize.top = lpRect.top;
+		PictWinSize.left = lpRect.left;
+		PictWinSize.width = lpRect.right;
+		PictWinSize.height = lpRect.bottom;
+		WriteCedPreference();
+		UpdateData(FALSE);
 	}
-
-	myRect.top = 0;
-	myRect.right = cx;
-	myRect.left = 0;
-	h = myRect.right;
-	h /= r;
-	myRect.bottom = (int)h;
-
-	GraphicsImportSetBoundsRect(gImporter, &myRect);
-	SizeWindow((WindowPtr)cgp, myRect.right, myRect.bottom,true);
-	GraphicsImportSetGWorld(gImporter, cgp, NULL);		
-	GraphicsImportDraw(gImporter);
-
-	PictWinSize.width  = PictWinSize.left + myRect.right;
-	PictWinSize.height = PictWinSize.top + myRect.bottom;
-
-	WriteCedPreference();
+*/
 }
 
 int DisplayPhoto(char *fname) {

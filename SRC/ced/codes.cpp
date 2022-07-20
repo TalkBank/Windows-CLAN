@@ -675,6 +675,7 @@ static void getFileInfo(ROWS *row_txt) {
 static void FindNextGivenTier(char *st) {
 	LINE *tc;
 	unCH *l;
+	char isAddLineno;
 	const char *p;
 
 	global_df->redisplay = 0;
@@ -742,8 +743,14 @@ static void FindNextGivenTier(char *st) {
 		}
 		if (AtBotEnd(global_df->row_txt, global_df->tail_text, FALSE))
 			break;
+		if (isNL_CFound(global_df->row_txt))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-		global_df->lineno++;
+		if (isAddLineno)
+			global_df->lineno++;
+		global_df->wLineno++;
 		if (global_df->row_win < (long)global_df->EdWinSize)
 			global_df->row_win++;
 	}
@@ -822,8 +829,10 @@ static int CaretMatched(char isBeg) {
 }
 
 static int FindCaretOnMor(void) {
+	char isAddLineno;
 	long old_row_win = global_df->row_win;
-	long old_lineno = global_df->lineno;
+	long old_lineno  = global_df->lineno;
+	long old_wLineno = global_df->wLineno;
 	ROWS *old_row_txt = global_df->row_txt;
 
 	GetCurCode();
@@ -833,8 +842,14 @@ static int FindCaretOnMor(void) {
 			DisplayRow(FALSE);
 			return(1);
 		} else {
+			if (isNL_CFound(global_df->row_txt))
+				isAddLineno = TRUE;
+			else
+				isAddLineno = FALSE;
 			global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-			global_df->lineno++;
+			if (isAddLineno)
+				global_df->lineno++;
+			global_df->wLineno++;
 			if (global_df->row_win < (long)global_df->EdWinSize)
 				global_df->row_win++;
 		}
@@ -853,15 +868,21 @@ static int FindCaretOnMor(void) {
 			DisplayRow(FALSE);
 			return(1);
 		}
+		if (isNL_CFound(global_df->row_txt))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
 		if (global_df->row_txt == global_df->tail_text)
 			break;
-		global_df->lineno++;
+		if (isAddLineno)
+			global_df->lineno++;
+		global_df->wLineno++;
 		if (global_df->row_win < (long)global_df->EdWinSize)
 			global_df->row_win++;
 		if (global_df->row_txt == global_df->cur_line) {
 			if (isSpeaker(global_df->head_row->next_char->c))
-			FindNextGivenTier(DisTier);
+				FindNextGivenTier(DisTier);
 		} else {
 			if (isSpeaker(*global_df->row_txt->line))
 				FindNextGivenTier(DisTier);
@@ -873,6 +894,7 @@ static int FindCaretOnMor(void) {
 	global_df->row_txt = old_row_txt;
 	global_df->row_win = old_row_win;
 	global_df->lineno  = old_lineno;
+	global_df->wLineno = old_wLineno;
 	return(0);
 }
 
@@ -1196,6 +1218,25 @@ void FindLastPage(int wsize) {
 	}
 }
 
+static void replaceSpaces(unCH *code, int ThisLevel) {
+	int  i, end;
+
+	i = ThisLevel;
+	if (code[i] == '"') {
+		for (i++; isSpace(code[i]); i++) ;
+	}
+	if ((ThisLevel == 1 && code[i] == '$') || (ThisLevel > 1 && code[i] == ':' && i == ThisLevel)) {
+		end = strlen(code) - 1;
+		while (end >= 0 && (isSpace(code[end]) || code[end] == '\n' || code[end] == '\r'))
+			end--;
+		end++;
+		for (; code[i] != EOS && i < end; i++) {
+			if (isSpace(code[i]))
+				code[i] = '_';
+		}
+	}
+}
+
 static CODES *FillInCodes(FILE *fp, int LastLevel, int *end, int *index, long *ln) {
 	unsigned long cnt;
 	int ThisLevel, offset, LocMaxNumOfCodes = 1;
@@ -1216,11 +1257,18 @@ static CODES *FillInCodes(FILE *fp, int LastLevel, int *end, int *index, long *l
 	RootCode->NextCode = NULL;
 	CurCode = RootCode;
 	while (fgets_ced(ced_lineC, UTTLINELEN, fp, &cnt)) {
-#ifdef _UNICODE
+		for (ThisLevel=0; isSpace(ced_lineC[ThisLevel]); ThisLevel++) {
+			if (ced_lineC[ThisLevel] == '\t') {
+				sprintf(global_df->err_message, "+ERROR: Tab character is found on line %ld in codes file.", *ln);
+				return(NULL);
+			}
+		}
+		if (ThisLevel == 1 && ced_lineC[ThisLevel] == '"' && ced_lineC[ThisLevel+1] == '$') {
+			uS.shiftright(ced_lineC+ThisLevel+1, 1);
+			ced_lineC[ThisLevel+1] = ' ';
+			cnt++;
+		}
 		UTF8ToUnicode((unsigned char *)ced_lineC, cnt, ced_line, NULL, UTTLINELEN);
-#else
-		strcpy(ced_line, ced_lineC);
-#endif
 		(*ln)++;
 		do {
 			for (offset=0; isSpace(ced_line[offset]) || ced_line[offset] == '\n'; offset++) ;
@@ -1229,11 +1277,7 @@ static CODES *FillInCodes(FILE *fp, int LastLevel, int *end, int *index, long *l
 			(*ln)++;
 			if (!fgets_ced(ced_lineC, UTTLINELEN, fp, &cnt))
 				goto contfill;
-#ifdef _UNICODE
 			UTF8ToUnicode((unsigned char *)ced_lineC, cnt, ced_line, NULL, UTTLINELEN);
-#else
-			strcpy(ced_line, ced_lineC);
-#endif
 		} while (1) ;
 		offset = strlen(ced_line) - 1;
 		if (offset >= WO) {
@@ -1248,6 +1292,7 @@ static CODES *FillInCodes(FILE *fp, int LastLevel, int *end, int *index, long *l
 				return(NULL);
 			}
 		}
+		replaceSpaces(ced_line, ThisLevel);
 /*
 printf("ced_line=%s; ThisLevel=%d;LastLevel=%d\n",ced_line,ThisLevel,LastLevel);
 */
@@ -1319,7 +1364,7 @@ void MapArrToList(CODES *CurCode) {
 +xS: disambiguate tier S (default %s)", DisTier - "%MOR:"
 
 */
-int init_codes(const FNType *fname, const FNType *cname) {
+int init_codes(const FNType *fname, const FNType *cname, char *fontName) {
 	int end, index;
 	int tFreqCountLimit;
 	unsigned long cnt;
@@ -1346,7 +1391,9 @@ int init_codes(const FNType *fname, const FNType *cname) {
 	if (fp != NULL) {
 		last_cr_char = 0;
 		while ((res=fgets_ced(ced_lineC, UTTLINELEN, fp, &cnt)) != NULL) {
-			if (!uS.isUTF8(ced_lineC) && !uS.partcmp(ced_lineC, FONTHEADER, FALSE, FALSE))
+			if (!uS.isUTF8(ced_lineC) && !uS.isInvisibleHeader(ced_lineC) &&
+				strncmp(ced_lineC, SPECIALTEXTFILESTR, SPECIALTEXTFILESTRLEN) != 0 &&
+				ced_lineC[0] != ';' && ced_lineC[0] != '#' && ced_lineC[0] != '\n' && ced_lineC[0] != EOS)
 				break;
 		}
 		if (res != NULL) {
@@ -1358,6 +1405,12 @@ int init_codes(const FNType *fname, const FNType *cname) {
 					while (isSpace(ced_lineC[end]))
 						end++;
 					if (ced_lineC[end] == '-' || ced_lineC[end] == '+') {
+						if (fontName != NULL) {
+							if (ced_lineC[end+1] == 'f') {
+								strcpy(fontName, ced_lineC+end+2);
+								uS.remblanks(fontName);
+							}
+						}
 						ced_getflag(ced_lineC+end);
 					}
 					while (!isSpace(ced_lineC[end]) && ced_lineC[end])
@@ -1402,33 +1455,34 @@ NoCodesFound:
 	ln = 0;
 	while ((res=fgets_ced(ced_lineC, UTTLINELEN, fp, &cnt)) != NULL) {
 		ln++;
-		if (!uS.isUTF8(ced_lineC) && !uS.partcmp(ced_lineC, FONTHEADER, FALSE, FALSE))
+		if (!uS.isUTF8(ced_lineC) && !uS.isInvisibleHeader(ced_lineC) &&
+			strncmp(ced_lineC, SPECIALTEXTFILESTR, SPECIALTEXTFILESTRLEN) != 0 &&
+			ced_lineC[0] != ';' && ced_lineC[0] != '#' && ced_lineC[0] != '\n' && ced_lineC[0] != EOS)
 			break;
 	}
 	if (res != NULL) {
-#ifdef _UNICODE
 		UTF8ToUnicode((unsigned char *)ced_lineC, cnt, ced_line, NULL, UTTLINELEN);
-#else
-		strcpy(ced_line, ced_lineC);
-#endif
 		if (*ced_line == '\\') {
 			while (1) {
 				if (fgets_ced(ced_lineC, UTTLINELEN, fp, &cnt) == NULL) {
 					fclose(fp);
 					goto NoCodesFound;
 				} else {
-#ifdef _UNICODE
-					UTF8ToUnicode((unsigned char *)ced_lineC, cnt, ced_line, NULL, UTTLINELEN);
-#else
-					strcpy(ced_line, ced_lineC);
-#endif
-					for (end=0; isSpace(ced_line[end]); end++) ;
-					if (ced_line[end] != EOS && ced_line[end] != '\n')
-						break;
+					if (ced_lineC[0] != ';' && ced_lineC[0] != '#') {
+						UTF8ToUnicode((unsigned char *)ced_lineC, cnt, ced_line, NULL, UTTLINELEN);
+						for (end=0; isSpace(ced_line[end]); end++) ;
+						if (ced_line[end] != EOS && ced_line[end] != '\n')
+							break;
+					}
 				}
 			}
 		}
-		ced_line[strlen(ced_line)-1] = EOS;
+		end = strlen(ced_line) - 1;
+		ced_line[end] = EOS;
+		if (end > 0) {
+			if (ced_line[end-1] != '\t')
+				strcat(ced_line, "\t");
+		}
 		for (end=0; isSpace(ced_line[end]); end++) ;
 		if (end != 0) {
 			strcpy(global_df->err_message, "+Wrong code format - top line.");
@@ -1468,7 +1522,10 @@ getchar();
 int GetNewCodes(int i) {
 	int len;
 	FNType sfFile[FNSize];
+	char fontName[512];
+	WINDOW *w;
 #ifdef _MAC_CODE
+	short FName;
 
 	DrawSoundCursor(0);
 #endif
@@ -1479,17 +1536,19 @@ int GetNewCodes(int i) {
 	OSType typeList[1];
 	typeList[0] = 'TEXT';
 	sfFile[0] = EOS;
-	if (myNavGetFile("Please locate codes file", -1, typeList, nil, sfFile)) {
+	if (myNavGetFile("Please locate codes file", -1, typeList, NULL, sfFile)) {
 	} else {
 		strcpy(global_df->err_message, DASHES);
-		if (i > 0) return(67);
-		else return(0);
+		if (i > 0)
+			return(67);
+		else
+			return(0);
 	}
 #elif defined(_WIN32) // _MAC_CODE
 	OPENFILENAME	ofn;
 	unCH			szFile[FILENAME_MAX];
 	unCH			*szFilter;
-	wchar_t			wDirPathName[FNSize];
+	unCH			wDirPathName[FNSize];
 
 	szFilter = _T("Utility Files (*.cut)\0*.cut\0All files (*.*)\0*.*\0\0");
 	strcpy(szFile, "codes.cut");
@@ -1555,9 +1614,37 @@ int GetNewCodes(int i) {
 	global_df->CodeWinStart = 0;
 	ResetUndos();
 	FreeCodesMem();
-	if (init_codes(global_df->cod_fname,uS.str2FNType(sfFile, 0L, ""))) {
+	fontName[0] = EOS;
+	uS.str2FNType(sfFile, 0L, "");
+	if (init_codes(global_df->cod_fname, sfFile, fontName)) {
 		if (!init_windows(true, 1, false))
 			mem_err(TRUE, global_df);
+		if (fontName[0] != EOS) {
+#ifdef _MAC_CODE
+			FName = 0;
+			if (GetFontNumber(fontName, &FName)) {
+				if (global_df != NULL)
+					w = global_df->w2;
+				else
+					w = NULL;
+				if (w != NULL) {
+					for (i=0; i < w->num_rows; i++) {
+						w->RowFInfo[i]->FName = FName;
+					}
+				}
+			}
+#elif defined(_WIN32) // _MAC_CODE
+			if (global_df != NULL)
+				w = global_df->w2;
+			else
+				w = NULL;
+			if (w != NULL) {
+				for (i = 0; i < w->num_rows; i++) {
+					strcpy(w->RowFInfo[i]->FName, fontName);
+				}
+			}
+#endif
+		}
 	} else
 		strcpy(global_df->err_message, "+Can't open codes file");
 	return(67);

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -52,13 +52,14 @@ struct tierS {
 typedef struct tierS Tier;
 */
 struct  Speaker_type {
-   char  *IDs;
-   char *code;  /* null terminated speaker code     */
-   char isUsed;
-   Line *firstline;           /* first line                       */
-   Line *lastline;            /* last line in the list            */
-   double denom_d_optimum;
-   double d_optimum;
+	char *fname;
+	char *IDs;
+	char *code;  /* null terminated speaker code     */
+	char isUsed;
+	Line *firstline;           /* first line                       */
+	Line *lastline;            /* last line in the list            */
+	double denom_d_optimum;
+	double d_optimum;
 };
 typedef struct Speaker_type VOCDSP;
 

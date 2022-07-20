@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -28,24 +28,28 @@
 #define DICNAME "caps.cut"
 #define PERIOD 50
 
-static char lowcase_ftime, isFWord, isMakeBold;
-static FNType lc_dicname[FNSize];
-static char isChangeToUpper;
-
-static struct words {
-	char *word;
-	struct words *next;
-} *lowcase_head;
-
-
 extern struct tier *defheadtier;
 extern char OverWriteFile;
+
+struct lowcase_tnode		/* binary lowcase_tree for word and count */
+{
+	char *word;
+	int count;
+	struct lowcase_tnode *left;
+	struct lowcase_tnode *right;
+};
+
+static int  arrCnt;
+static char **lowcase_array;
+static char lowcase_ftime, isFWord, isMakeBold, isMorEnabled, isCapsSpecified, isChangeToUpper;
+static FNType lc_dicname[FNSize];
+static struct lowcase_tnode *lowcase_root;
 
 void usage() {
 	puts("LOWCASE converts all words to lower case except those specified as pronouns.");
 	printf("Usage: lowcase [b c d iF %s] filename(s)\n", mainflgs());
 	puts("+b : mark upper case letters as bold, then convert them to lower case");
-	puts("+c : convert the first word on tier only to lower case");
+	puts("+c : convert only the first word on a tier to lower case");
 	fprintf(stdout, "+d : do NOT change words from \"%s\" file, lower case the rest\n", DICNAME);
 	fprintf(stdout, "+d1: capitalize words from \"%s\" file, do NOT change the rest\n", DICNAME);
 	fprintf(stdout, "+iF: file F with capitalize words (default: %s)\n", DICNAME);
@@ -55,29 +59,177 @@ void usage() {
 	mainusage(TRUE);
 }
 
-static struct words *lowcase_makenewsym(char *word) {
-	struct words *nextone;
+static void free_lowcase_array(void) {
+	int i;
 
-	if (lowcase_head == NULL) {
-		lowcase_head = NEW(struct words);
-		nextone = lowcase_head;
-	} else {
-		nextone = lowcase_head;
-		while (nextone->next != NULL) nextone = nextone->next;
-		nextone->next = NEW(struct words);
-		nextone = nextone->next;
+	if (lowcase_array == NULL)
+		return;
+	for (i=0; i < arrCnt; i++) {
+		free(lowcase_array[i]);
 	}
-	nextone->word = (char *)malloc(strlen(word)+1);
-	strcpy(nextone->word, word);
-	nextone->next = NULL;
-	return(nextone);
+	free(lowcase_array);
 }
+
+static void free_lowcase_root(struct lowcase_tnode *p) {
+	struct lowcase_tnode *t;
+
+	if (p != NULL) {
+		free_lowcase_root(p->left);
+		do {
+			if (p->right == NULL)
+				break;
+			if (p->right->left != NULL) {
+				free_lowcase_root(p->right);
+				break;
+			}
+			t = p;
+			p = p->right;
+			free(t);
+		} while (1);
+		free(p);
+	}
+}
+
+static void lowcase_overflow(char isMem) {
+	if (isMem)
+		fprintf(stderr,"Uniq: no more core available.\n");
+	free_lowcase_root(lowcase_root);
+	free_lowcase_array();
+	cutt_exit(0);
+}
+
+static void initArray(void) {
+	int i;
+
+	if (arrCnt > 0) {
+		lowcase_array = (char **) malloc (arrCnt * sizeof(char *));
+		if (lowcase_array == NULL)
+			lowcase_overflow(TRUE);
+		for (i=0; i < arrCnt; i++)
+			lowcase_array[i] = NULL;
+	}
+}
+
+static void addWordToArray(char *w) {
+	int i;
+
+	for (i=0; i < arrCnt; i++) {
+		if (lowcase_array[i] == NULL) {
+			lowcase_array[i] = w;
+			return;
+		}
+	}
+	fprintf(stderr, "\n\n\t Internal Error\n\n");
+	lowcase_overflow(FALSE);
+}
+
+static void createSortedArray(struct lowcase_tnode *p) {
+	struct lowcase_tnode *t;
+
+	if (p != NULL) {
+		createSortedArray(p->left);
+		do {
+			addWordToArray(p->word);
+			if (p->right == NULL)
+				break;
+			if (p->right->left != NULL) {
+				createSortedArray(p->right);
+				break;
+			}
+			t = p;
+			p = p->right;
+		} while (1);
+	}
+}
+
+static struct lowcase_tnode *lowcase_talloc(void) {
+	struct lowcase_tnode *p;
+
+	if ((p=NEW(struct lowcase_tnode)) == NULL)
+		lowcase_overflow(TRUE);
+	return(p);
+}
+
+static char *lowcase_strsave(char *s) {
+	char *p;
+
+	if ((p=(char *)malloc(strlen(s)+1)) == NULL)
+		lowcase_overflow(TRUE);
+	strcpy(p, s);
+	return(p);
+}
+
+static struct lowcase_tnode *lowcase_tree(struct lowcase_tnode *p, char *w) {
+	int cond;
+	struct lowcase_tnode *t = p;
+
+	if (p == NULL) {
+		arrCnt++;
+		p = lowcase_talloc();
+		p->word = lowcase_strsave(w);
+		p->count = 1;
+		p->left = p->right = NULL;
+	} else if ((cond=strcmp(w, p->word)) == 0) {
+		p->count++;
+	} else if (cond < 0) {
+		p->left = lowcase_tree(p->left, w);
+	} else {
+		for (; (cond=strcmp(w, p->word)) > 0 && p->right != NULL; p=p->right) ;
+		if (cond == 0)
+			p->count++;
+		else if (cond < 0)
+			p->left = lowcase_tree(p->left, w);
+		else
+			p->right = lowcase_tree(p->right, w);
+		return(t);
+	}
+	return(p);
+}
+
+static void read_file(FILE *fdic) {
+	int  i;
+
+	while (fgets_cr(templineC4, UTTLINELEN, fdic)) {
+		if (uS.isUTF8(templineC4) || uS.isInvisibleHeader(templineC4))
+			continue;
+		for (i=0; isSpace(templineC4[i]) || templineC4[i] == '\n' || templineC4[i] == '\r'; i++) ;
+		if (i > 0)
+			strcpy(templineC4, templineC4+i);
+		for (i=0; templineC4[i] != EOS && templineC4[i] != '\t' && templineC4[i] != '\n'; i++);
+		templineC4[i] = EOS;
+		uS.remblanks(templineC4);
+		if (templineC4[0] != EOS) {
+			uS.uppercasestr(templineC4, &dFnt, C_MBF);
+			lowcase_root = lowcase_tree(lowcase_root, templineC4);
+		}
+	}
+}
+
+static void OpenBriCaps(FNType *mFileName) {
+	int  index, t, len;
+	FNType tFName[FNSize];
+	FILE *bricaps;
+
+	index = 1;
+	t = strlen(mFileName);
+	while ((index=Get_File(tFName, index)) != 0) {
+		len = strlen(tFName) - 4;
+		if (tFName[0] != '.' && len >= 0 && uS.FNTypeicmp(tFName+len, ".cut", 0) == 0) {
+			addFilename2Path(mFileName, tFName);
+			if ((bricaps=fopen(mFileName, "r"))) {
+				fprintf(stderr,"\rUsing BriCaps: %s.\n", mFileName);
+				read_file(bricaps);
+				fclose(bricaps);
+				bricaps = NULL;
+			}
+			mFileName[t] = EOS;
+		}
+	}
+}
+
 
 static void lowcase_readdict() {
 	FILE *fdic;
-	char chrs;
-	int index = 0;
-	struct words *nextone;
 	FNType mFileName[FNSize];
 
 	if (*lc_dicname == EOS) {
@@ -85,35 +237,40 @@ static void lowcase_readdict() {
 		cutt_exit(0);
 		fdic = NULL;
 	} else if ((fdic=OpenGenLib(lc_dicname,"r",TRUE,TRUE,mFileName)) == NULL) {
-		fprintf(stderr, "Warning: Can't open either one of the dep-files:\n\t\"%s\", \"%s\"\n", lc_dicname, mFileName);
+		if (isCapsSpecified) {
+			fprintf(stderr, "ERROR: Can't open either one of the dep-files:\n\t\"%s\"\n\t\"%s\"\n", lc_dicname, mFileName);
+			lowcase_overflow(FALSE);
+		} else
+			fprintf(stderr, "Warning: Can't open either one of the dep-files:\n\t\"%s\"\n\t\"%s\"\n", lc_dicname, mFileName);
 	}
+	arrCnt = 0;
 	if (fdic != NULL) {
-		for (chrs=getc_cr(fdic,NULL);!feof(fdic) && (chrs==' ' || chrs=='\n');chrs=getc_cr(fdic,NULL)) ;
-		while (!feof(fdic)) {
-			if (chrs == ' ' || chrs == '\t' || chrs == '\n') {
-				templineC4[index] = EOS;
-				if (templineC4[0] != EOS) {
-					uS.uppercasestr(templineC4, &dFnt, C_MBF);
-					nextone = lowcase_makenewsym(templineC4);
-					templineC4[0] = EOS;
-					index = 0;
-				}
-			} else
-				templineC4[index++] = chrs;
-			chrs = getc_cr(fdic, NULL);
-		}
+		fprintf(stderr, "Using dep-files \"%s\"\n", mFileName);
+		read_file(fdic);
 		fclose(fdic);
 	}
+	strcpy(mFileName,lib_dir);
+	addFilename2Path(mFileName, "Bricaps");
+	if (!SetNewVol(mFileName)) {
+		OpenBriCaps(mFileName);
+	}
+	SetNewVol(wd_dir);
+	initArray();
+	createSortedArray(lowcase_root);
+	free_lowcase_root(lowcase_root);
 }
 
 void init(char f) {
 	if (f) {
 		lowcase_ftime = TRUE;
+		isMorEnabled = FALSE;
 		isChangeToUpper = 10;
 		isFWord = FALSE;
+		isCapsSpecified = FALSE;
 		isMakeBold = FALSE;
 		stout = FALSE;
-		lowcase_head = NULL;
+		lowcase_array = NULL;
+		lowcase_root = NULL;
 		uS.str2FNType(lc_dicname, 0L, DICNAME);
 		onlydata = 1;
 		OverWriteFile = TRUE;
@@ -131,17 +288,7 @@ void init(char f) {
 	} else if (lowcase_ftime) {
 		lowcase_readdict();
 		lowcase_ftime = FALSE;
-	}
-}
-
-static void free_head(struct words *lowcase_head) {
-	struct words *t;
-	
-	while (lowcase_head != NULL) {
-		t = lowcase_head;
-		lowcase_head = lowcase_head->next;
-		free(t->word);
-		free(t);
+		
 	}
 }
 
@@ -152,18 +299,40 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	OnlydataLimit = 0;
 	UttlineEqUtterance = FALSE;
 	bmain(argc,argv,NULL);
-	free_head(lowcase_head);
+	free_lowcase_array();
 }
 
-static int gotmatch(char *word) {
-	struct words *nextone;
+static char gotmatch(char *word) {
+	int i, cond, e;
+	long low, high, mid;
 
 	strcpy(templineC4,word);
+	i = 0;
+	while (templineC4[i] != EOS) {
+		if ((e=uS.HandleCAChars(templineC4+i, NULL)) != 0) {
+			strcpy(templineC4+i, templineC4+i+e);
+		} else
+			i++;
+	}
 	uS.uppercasestr(templineC4, &dFnt, MBF);
-	nextone = lowcase_head;
-	while (nextone != NULL) {
-		if (strcmp(templineC4,nextone->word) == 0) return(TRUE);
-		nextone = nextone->next;
+	e = strlen(templineC4) - 1;
+	if (e < 0)
+		return(FALSE);
+	if (templineC4[e-1] == 'S' && templineC4[e] == '\'')
+		templineC4[e] = EOS;
+	else if (templineC4[e-1] == '\'' && templineC4[e] == 'S')
+		templineC4[e-1] = EOS;
+	low = 0;
+	high = arrCnt - 1;
+	while (low <= high) {
+		mid = (low+high) / 2;
+		if ((cond=strcmp(templineC4,lowcase_array[mid])) < 0)
+			high = mid - 1;
+		else if (cond > 0)
+			low = mid + 1;
+		else {
+			return(TRUE);
+		}
 	}
 	return(FALSE);
 }
@@ -449,134 +618,6 @@ void call() {
 		fprintf(stderr,"**+ %ld changes made in this file\n", isFound);
 	else
 		fprintf(stderr,"**- NO changes made in this file\n");
-
-/*
-	char utsym, word[WORDLEN], done, isThisFirstWord, isSq, *line;
-	int  index, pos;
-
-	line = utterance->line;
-	if (!chatmode) {
-		fprintf(stderr,"This program does NOT work in this mode.\n");
-		cutt_exit(0);
-	}
-	lowcase_count = 0;
-	inlinenum = 0;
-	while ((lowcase_chrs=getnchr(fpin)) == ' ' || lowcase_chrs == '\t') ;
-	while (!feof(fpin)) {
-		utsym = 0;
-		index = 0;
-		while (lowcase_chrs != ':' && lowcase_chrs != '\n' && !feof(fpin)) {
-			if (index < WORDLEN) speaker[index++] = lowcase_chrs;
-			else {
-				fprintf(stderr,"Error: line %d is longer than %d\n",inlinenum,WORDLEN);
-				cutt_exit(1);
-			}
-			lowcase_chrs = getnchr(fpin);
-		}
-		if (lowcase_chrs == '\n' || feof(fpin)) {
-			if (index < WORDLEN)
-				speaker[index] = EOS;
-			else {
-				fprintf(stderr,"Error: line %d is longer than %d\n",inlinenum,WORDLEN);
-				cutt_exit(1);
-			}
-			fprintf(fpout,"%s\n",speaker);
-			if (!feof(fpin))
-				lowcase_chrs = getnchr(fpin);
-		} else { // if (lowcase_chrs == '\n' || feof(fpin)) 
-			if (index < WORDLEN)
-				speaker[index++] = lowcase_chrs;
-			else {
-				fprintf(stderr,"Error: line %d is longer than %d\n",inlinenum,WORDLEN);
-				cutt_exit(1);
-			}
-			if (index < WORDLEN)
-				speaker[index] = EOS;
-			else {
-				fprintf(stderr,"Error: line %d is longer than %d\n",inlinenum,WORDLEN);
-				cutt_exit(1);
-			}
-			utsym = checktier(speaker);
-			lowcase_chrs = getnchr(fpin);
-			if (!utsym)
-				fprintf(fpout,"%s",speaker);
-			while (lowcase_chrs == ' ' || lowcase_chrs == '\t') {
-				if (!utsym)
-					putc(lowcase_chrs,fpout);
-				lowcase_chrs = getnchr(fpin);
-			}
-			done = FALSE;
-			index = 0;
-			line[0] = EOS;
-			pos = 0;
-			*utterance->speaker = *speaker;
-			isSq = FALSE;
-			isThisFirstWord = TRUE;
-			while (!done) {
-				word[index++] = lowcase_chrs;
-				if (word[index-1] == '[') {
-					isSq = TRUE;
-					lowcase_chrs = getnchr(fpin);
-				} else if (word[index-1] == ']') {
-					isSq = FALSE;
-					lowcase_chrs = getnchr(fpin);
-				} else if (!uS.isskip(word, index-1, &dFnt, MBF) || isSq) {
-					lowcase_chrs = getnchr(fpin);
-				} else {
-					word[index-1] = EOS;
-					index = 0;
-					if (*word != EOS) {
-						if (utsym) {
-							if (gotmatch(word)) {
-								if (*word >= 'a' && *word <= 'z') 
-										*word -= ('a' - 'A');
-							} else {
-								if (*word=='I' &&
-									(word[1]==EOS || word[1]=='\'')) ;
-								else
-								if (*word=='i' && 
-									(word[1]==EOS || word[1]=='\''))
-									*word -= ('a' - 'A');
-								else if ((!isFWord || isThisFirstWord) && *word != '[')
-									uS.lowercasestr(word, &dFnt, MBF);
-//26-9-02						if (*word >= 'A' && *word <= 'Z') 
-//									*word += ('a' - 'A');
-							}
-							line[pos] = EOS;
-							strcat(line,word);
-							pos += strlen(word);
-							isThisFirstWord = FALSE;
-						} else
-							fprintf(fpout,"%s",word);
-						word[0] = EOS;
-					}
-					if (lowcase_chrs == '\n') {
-						if (!utsym) putc(lowcase_chrs,fpout);
-						else line[pos++] = ' ';
-						lowcase_chrs=getnchr(fpin);
-						if (lowcase_chrs != ' ' && lowcase_chrs != '\t') done = TRUE;
-						while (lowcase_chrs == ' ' || lowcase_chrs == '\t') {
-							if (!utsym) putc(lowcase_chrs,fpout);
-							lowcase_chrs=getnchr(fpin);
-						}
-					} else { // if (lowcase_chrs == '\n')  
-						if (utsym) line[pos++] = lowcase_chrs;
-						else putc(lowcase_chrs,fpout);
-						lowcase_chrs = getnchr(fpin);
-					}
-				} // else to  if (!uS.isskip(lowcase_chrs))
-				if (feof(fpin))
-					done = TRUE;
-			} // while (!done)
-			if (utsym) {
-				line[pos] = EOS;
-				lowcase_remblanks(line);
-				printout(speaker,line,NULL,NULL,TRUE);
-			}
-		} // else to if (lowcase_chrs == '\n' || feof(fpin))
-	} // while (!feof(fpin))
-	if (!stout) printf("\n");
-*/
 }
 
 
@@ -602,6 +643,7 @@ void getflag(char *f, char *f1, int *i) {
 				break;
 
 		case 'i':
+				isCapsSpecified = TRUE;
 				uS.str2FNType(lc_dicname, 0L, getfarg(f,f1,i));
 				break;
 #ifdef UNX

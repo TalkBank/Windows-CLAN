@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -48,7 +48,6 @@ markPostARules(void) {
 
 BOOL
 read_arules(FILE *rulefile, FNType *fname) {
-	extern int DEBUG_CLAN;
 	ARULE_FILE_PTR c_ar_file, new_ar_file;
 	ARULES_PTR cur_rule;
 	ARULE_CLAUSE_PTR cur_clause;
@@ -159,11 +158,11 @@ read_arules(FILE *rulefile, FNType *fname) {
 					cur_allo = cur_clause->allos;
 				else
 					mor_mem_error(FAIL,"can't malloc space for arules, quitting");
-				else /* next allo for this clause */
-					if ((cur_allo->next_allo = m_allo_node()) != NULL)
-						cur_allo = cur_allo->next_allo;
-					else
-						mor_mem_error(FAIL,"can't malloc space for arules, quitting");
+			else /* next allo for this clause */
+				if ((cur_allo->next_allo = m_allo_node()) != NULL)
+					cur_allo = cur_allo->next_allo;
+				else
+					mor_mem_error(FAIL,"can't malloc space for arules, quitting");
 		} /* end ALLO: */
 		
 		else if (strncmp(keyword,"POST",4) == 0){
@@ -556,8 +555,8 @@ clause_loop:
 			/* check conditions on surface */
 			//lxslxs UTF lxs
 			if ((lex_tmp->surf_cond == NULL) ||
-				  ((lex_tmp->cond_type == LEXSURF_CHK) && (match_word(surface,lex_tmp->surf_cond,0) == SUCCEED)) ||
-				  ((lex_tmp->cond_type == LEXSURF_NOT) && (match_word(surface,lex_tmp->surf_cond,0) == FAIL))) {
+				((lex_tmp->cond_type == LEXSURF_CHK) && (match_word(surface,lex_tmp->surf_cond,0) == SUCCEED)) ||
+				((lex_tmp->cond_type == LEXSURF_NOT) && (match_word(surface,lex_tmp->surf_cond,0) == FAIL))) {
 				/* matched conditions of rule */
 				/* apply rule */
 				if (lex_tmp->surf_cond != NULL)
@@ -586,7 +585,7 @@ clause_loop:
 							fprintf(stderr, "\tstem=%s\n", stem);
 							fprintf(stderr, "\ttrans=%s\n", trans);
 							fprintf(stderr, "\tcomp=%s\n", comp);
-							CleanUpAll();
+							CleanUpAll(TRUE);
 							CloseFiles();
 							cutt_exit(0);
 						}
@@ -603,7 +602,7 @@ clause_loop:
 						/* unless stem pattern is specified in the allo rule */
 						if ((allo_tmp->stem_template == NULL) && (*stem == EOS)
 							//							 && (strcmp(allo_surface,surface) != 0)
-						   )
+							)
 							strcpy(result_list[rt_index].stem,surface);
 					} else
 						return(-1);  /* if couldn't generate surface-  will this happen? */
@@ -779,7 +778,7 @@ clause_loop:
 								fprintf(stderr, "\tstem=%s\n", stem);
 								fprintf(stderr, "\ttrans=%s\n", trans);
 								fprintf(stderr, "\tcomp=%s\n", comp);
-								CleanUpAll();
+								CleanUpAll(TRUE);
 								CloseFiles();
 								cutt_exit(0);
 							}
@@ -895,7 +894,7 @@ ARULES_PTR m_arule_node(STRING *rulename) {
 	new_node = (ARULES_PTR) malloc((size_t) sizeof(ARULES));
 	mem_ctr++;
 	if (new_node != NULL) {
-		new_node->name =  (STRING *) malloc((size_t) (sizeof(char) * (strlen(rulename)+1)));
+		new_node->name = (STRING *) malloc((size_t) (sizeof(char) * (strlen(rulename)+1)));
 		mem_ctr++;
 		if (new_node->name != NULL)
 			strcpy(new_node->name,rulename);

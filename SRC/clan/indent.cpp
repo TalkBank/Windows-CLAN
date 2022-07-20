@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -410,23 +410,12 @@ static char handlePrevOV(I_UTT *tCloseOvUtt) {
 
 void call() {
 	int  i;
-	char ftime = TRUE;
 	short tierCnt;
 	I_UTT *cUT, *nextUtt;
 
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
-		if (ftime) {
-			if (!uS.partcmp(utterance->speaker,FONTHEADER,FALSE, TRUE)) {
-#ifdef _WIN32 
-				addUtt(FONTHEADER, "Win95:CAfont:-15:0\n", NULL, NULL, 0L);
-#else
-				addUtt(FONTHEADER, "CAfont:13:7\n", NULL, NULL, 0L);
-#endif
-			}
-			ftime = FALSE;
-		}
 		addUtt(utterance->speaker, utterance->line, utterance->attSp, utterance->attLine, lineno);
 	}
 beginAgain:
@@ -448,8 +437,6 @@ beginAgain:
 					cUT->sp[i+1] = EOS;
 				}
 			}
-//if (cUT->ln == 144)
-//ftime = FALSE;
 			tierCnt = 0;
 			indexOV = 0;
 			creatNewOV(cUT);

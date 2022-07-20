@@ -4,17 +4,13 @@
 #include "common.h"
 
 #if defined(_MAC_CODE)
+#ifndef _COCOA_APP
 	#include <Movies.h>
+#endif
 
-  #ifdef _UNICODE
 	#define	DEFAULT_FONT	defFontName()
 	#define	DEFAULT_ID		defFontID()
 	#define	DEFAULT_SIZE	defFontSize()
-  #else
-	#define	DEFAULT_FONT	"Monaco"
-	#define	DEFAULT_ID		4
-	#define	DEFAULT_SIZE	9
-  #endif
 	#define	DEFAULT_FACE	0
 	#define FLINESPACE		1
 
@@ -45,13 +41,8 @@
 //	typedef CRect			Rect;
 //	typedef BOOL			Boolean;
 
-#ifdef _UNICODE
 	#define	DEFAULT_FONT	defFontName()
 	#define	DEFAULT_SIZE	defFontSize()
-#else
-	#define	DEFAULT_FONT	m_lfDefFont.lfFaceName
-	#define	DEFAULT_SIZE	m_lfDefFont.lfHeight
-#endif
 	#define	DEFAULT_ID		0
 	#define FLINESPACE		0
 
@@ -70,11 +61,11 @@ extern "C"
 #include "c_curses.h"
 
 #define CHECK_IN_TIERS struct check_in_tiers
+#define TCODES struct templates
 #define TPLATES struct templates
 #define ERRLIST struct errlst
-#define SP_LIST struct speakers
 #define BE_TIERS struct templates
-#define TCODES struct templates
+#define SPLIST struct speakers
 
 #ifndef EOS			/* End Of String marker			 */
 	#define EOS 0 // '\0'
@@ -128,8 +119,13 @@ extern "C"
 
 #define	OLD_CED_PREF_FILE	"CED.Prefs"
 #define	OLD_CLAN_PREF_FILE	"CLAN.Prefs"
+#ifdef _COCOA_APP
+#define	CED_PREF_FILE		"CED.CPrefs"
+#define	CLAN_PREF_FILE		"CLAN.CPrefs"
+#else
 #define	CED_PREF_FILE		"CED.UPrefs"
 #define	CLAN_PREF_FILE		"CLAN.UPrefs"
+#endif
 
 #define CONSOLE_ID 129
 #define CODES_FILE "codes.cut"
@@ -150,6 +146,7 @@ extern "C"
 //#define CMP_CHECK_ID2(n)	(n & (char)0x2)
 //#define FALSE_CHECK_ID2(n)	(n = (char)(n & (char)0xfd))
 
+#ifndef _COCOA_APP
 #define boxWidth(box) ((box).right - (box).left)
 #define boxHeight(box) ((box).bottom - (box).top)
 #if (TARGET_API_MAC_CARBON == 1)
@@ -162,7 +159,7 @@ extern "C"
 		EventRecord inEvent;
 		int numDel;
 		unsigned long len;
-		wchar_t unicodeInputString[kMaxUnicodeInputStringLength+10];
+		unCH unicodeInputString[kMaxUnicodeInputStringLength+10];
 	} UnicodeInput;
 
 	extern UnicodeInput UniInputBuf;
@@ -189,7 +186,7 @@ extern "C"
 	#undef GetDialogPort
 	#define GetDialogPort(dialog) ((GrafPtr)dialog)
 #endif // (TARGET_API_MAC_CARBON == 1)
-#ifdef _UNICODE
+#endif // _COCOA_APP
 	extern char *defFontName(void);
 	extern short defFontID(void);
   #if defined(_MAC_CODE)
@@ -197,7 +194,6 @@ extern "C"
   #else
 	extern long  defFontSize(void);
   #endif
-#endif
 
 #define MID_WIN_SIZE 1
 #define COM_WIN_SIZE (global_df->total_num_rows - global_df->CodeWinStart)
@@ -210,12 +206,36 @@ enum {
 	Size_Menu_ID,
 	Tier_Menu_ID,
 	Mode_Menu_ID,
-	Windows_Menu_ID
+	Windows_Menu_ID,
+	MOR_Grammar_ID
+//	KIDEVAL_DB_ID
 } ;
+
+enum { /* MOR_Graamar */
+	English_Item = 1,
+	Cantonese_Item,
+	Chinese_Item,
+	Danish_Item,
+	Dutch_Item,
+	French_Item,
+	German_Item,
+	Hebrew_Item,
+	Italian_Item,
+	Japanese_Item,
+	Spanish_Item
+};
+
+enum { /* MOR_Graamar, KIDEVAL_DB menu */
+	English_fp_Item = 1,
+	Chinese_md_Item
+};
+
 
 enum { /* file menu */
 	New_Item = 1,
 	Open_Item,
+	MOR_Grammar_item,
+//	KIDEVAL_DB_item,
 	Select_Media,
 	Close_Item,
 	Blank1_Item,
@@ -241,7 +261,8 @@ enum {
 	Font_Underline,
 	Font_Italic,
 	Font_Bold,
-	Font_Color_Keywords
+	Font_Color_Keywords,
+	Font_Color_Red // 2019-04-17 ESC-C - color Red
 // 18-07-2008	Font_Color_Words
 };
 
@@ -265,7 +286,6 @@ enum { /* edit menu */
 	enterselct_id,
 	findsame_id,
 	replace_id,
-	replacefind_id,
 	goto_id,
 	line3_id,
 	toupper_id,
@@ -275,9 +295,9 @@ enum { /* edit menu */
 	setdefsndana_id,
 	setF5option_id,
 	setlinenumsize_id,
-	setURLaddress_id,
+//	setURLaddress_id,
 	setThumbnails_id,
-	setStreamingSpeed_id,
+//	setStreamingSpeed_id,
 	resetAllOptions_id,
 	LASTEDIT_ID
 } ;
@@ -322,6 +342,9 @@ struct text_s {
 #define CODES struct codes_s
 struct codes_s {
     unCH *code;
+#ifdef _COCOA_APP
+    CGRect stringRect;
+#endif
     CODES *subcodes;
     CODES *NextCode;
 } ;
@@ -345,6 +368,9 @@ struct undo_s {
     char  key;
     unCH  *str;
     long  lineno;
+#ifndef _COCOA_APP
+    long  wLineno;
+#endif
     UNDO  *NextUndo;
     UNDO  *PrevUndo;
 } ;
@@ -374,6 +400,8 @@ enum {
 	isVideo,
 	isPict,
 	isText,
+	isAllType,
+	isPictText
 } ;
 
 #define sndInfo struct SOUNDINFO
@@ -414,13 +442,28 @@ struct SOUNDINFO {
 #endif
 #ifdef _MAC_CODE
 	OSType SFileType;
-#endif
 	struct S_MP3 {
-		Media  theSoundMedia;
+#ifndef _COCOA_APP
+ 		Media  theSoundMedia;
+#endif
 		Handle hSys7SoundData;
 		double ts;
 	} mp3;
+#endif
 } ;
+
+#ifndef _COCOA_APP
+#define WindowInfo struct WindowsInfo
+WindowInfo {
+	long topC;
+	long skipTop;
+	long pos1C;
+	long skipP1;
+	long pos2C;
+	long skipP2;
+} ;
+#endif
+
 
 #define webMFile struct WEBMEDIAFILES
 struct WEBMEDIAFILES {
@@ -430,24 +473,29 @@ struct WEBMEDIAFILES {
 
 typedef struct {
 	FNType fileName[FNSize];
-	ROWS *head_text, *tail_text, *top_win, *row_txt, *cur_line;
+	ROWS *head_text, *tail_text, *top_win, *row_txt, *cur_line, *curRowLimit;
 	LINE *head_row, *tail_row, *col_txt;
 	UNDO *UndoList;
 	WINDOW *w1, *w2, *wm, *SoundWin;
 	WINDOW *RootWindow, *RdW;
-	wchar_t mediaFileName[FILENAME_MAX];
+	unCH mediaFileName[FILENAME_MAX];
 	long  row_win, row_win2, col_win, col_win2, col_chr, col_chr2, head_row_len;
 	long  fake_row_win, fake_row_win2, fake_col_win, fake_col_win2;
 	long  LeftCol;
 	long  cursorCol;
 	long  lineno;
+#ifndef _COCOA_APP
+	long  wLineno;
+#endif
 	long  window_rows_offset;
 	long  numberOfRows;
 	long  RowLimit;
 	long  Ltik;
 	long  KBSize, KBIndex;
 	unCH  *KillBuff;
+	char  checkMessCnt;
 	char  isUTF;
+	char  isOutputScrolledOff;
 	char  isErrorFindPict;
 	char  dontAskDontTell;
 	char  NoCodes;
@@ -471,6 +519,9 @@ typedef struct {
 	int   EditorMode;
 	int   UndoCounter;
 	int   FreqCount;
+#ifndef _COCOA_APP
+	int   winWidthOffset;
+#endif
 	int   TextWinSize;
 	int   EdWinSize;
 	int   CodeWinStart;
@@ -485,8 +536,10 @@ typedef struct {
 	int   mainVScale;
 	int   CurSpLen;
 	long  SLtik;
-	unCH  *SpeakerNames[10];
 	unCH  OldCode[SPEAKERLEN];
+	unCH  *SpeakerNames[10];
+	unCH  VideosNameExts[10][128];
+	int   VideosNameIndex;
 	FNType  *cod_fname;
 	char  rightspeaker;
 	char  tcs;	/* 1- if all non-specified speaker tier should be selected*/
@@ -511,6 +564,10 @@ typedef struct {
 	short winID;
 	short platform;
 	short MinFontSize;
+	char *PIDs;
+#ifndef _COCOA_APP
+	WindowInfo winInfo;
+#endif
 	webMFile *webMFiles;
 	pctInfo PcTr;
 	txtInfo TxTr;
@@ -520,21 +577,16 @@ typedef struct {
 	COLORWORDLIST *RootColorWord;
 	COLORTEXTLIST *RootColorText;
 	TIERS *headtier;
-	ERRLIST *headerr;
-	SP_LIST *headsp;
-	BE_TIERS *head_bg;
-	TCODES *headcodes;
-	CHECK_IN_TIERS *headt, *maint, *codet;
 	CODES *RootCodes, *CurCode;
 	CODES **StartCodeArr, **EndCodeArr, **RootCodesArr;
 	CODES *FirstCodeOfPrevLevel, *CurFirstCodeOfPrevLevel;
 
-#ifdef _WIN32
-#endif
 #ifdef _MAC_CODE
 	WindowPtr wind;
-	ControlRef VScrollHnd;
-	ControlRef HScrollHnd;
+#ifndef _COCOA_APP
+ 	ControlRef VScrollHnd;
+ 	ControlRef HScrollHnd;
+#endif
 #endif
 } myFInfo;
 
@@ -544,7 +596,7 @@ typedef struct {
 	char  type;
 	long  val;
 	short selBeg,
-		  selEnd;
+	selEnd;
 	short which;
 } MovieUndo;
 
@@ -564,7 +616,10 @@ typedef struct {
 	Rect			Save;
 	Rect			Repeat;
 	Rect			help;
-	Movie			MvMovie;
+#ifndef _COCOA_APP
+ 	Movie			MvMovie;
+ 	MovieController	MvController;
+#endif
 	TimeValue		MDur;
 	TimeValue		MBeg;
 	TimeValue		MEnd;
@@ -572,9 +627,7 @@ typedef struct {
 	short			undoIndex;
 	myFInfo			*df;
 	WindowPtr		win;
-	MovieController	MvController;
 } MovieInfo;
-#endif // _MAC_CODE
 
 #define MovieTNInfo struct MMoviePics
 struct MMoviePics {
@@ -608,13 +661,13 @@ struct TMoviePics {
 	MovieTXTInfo *nextPict;
 } ;
 
-#ifdef _MAC_CODE
 typedef struct {
 	myFInfo		*FileInfo;
 	short		id;
 	unsigned int Offset;
 	FNType		wname[FNSize];
 	UInt32		fileDate;
+#ifndef _COCOA_APP
 	ControlRef VScrollHnd;
 	ControlRef HScrollHnd;
 #if (TARGET_API_MAC_CARBON == 1)
@@ -623,6 +676,7 @@ typedef struct {
 	EventHandlerRef mouseEventHandler, textEventHandler;
 #endif
 	short		(*EventProc)(WindowPtr, EventRecord *);
+#endif // _COCOA_APP
 	void		(*UpdateProc)(WindowPtr);
 	void		(*CloseProc)(WindowPtr);
 } WindowProcRec;
@@ -656,25 +710,51 @@ struct SelectedFilesList {
 		Boolean hasColorQD;
 	} ;
 
+
+#ifdef _COCOA_APP
+	extern NSWindow *getWindow(unsigned short wID);
+#else
+	extern EventRecord *gCurrentEvent;
+	extern int  OpenWindow(short,FNType *,long,char,char,short (*EP)(WindowPtr,EventRecord *),void (*UP)(WindowPtr),void (*CL)(WindowPtr));
+	extern void Do_A_ScrollBar(short code,ControlRef theControl,Point myPt);
+	extern void SelectCursorPosition(EventRecord *event, int extend);
+	extern void getPrefCursor(FNType *name);
+	extern void SetCurrentEventRecord(EventRecord *theEvent);
+	extern void ControlCTRL(WindowPtr win, SInt32 id, short toDo, ControlPartCode val);
+	extern void HandleVScrollBar(short code, ControlRef theControl,Point myPt);
+	extern void HandleHScrollBar(short code, ControlRef theControl, Point myPt);
+	extern void HandleWebVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
+	extern void HandleProgsVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
+	extern void HandleFoldersVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
+	extern void HandleCharsVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
+	extern void HandleHlpVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
+	extern void HandleRecallVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
+	extern void HandleThumbVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
+	extern void HandleTextVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
+	extern short MainTextEvent(WindowPtr wind, EventRecord *event);
+	extern EventRecord *GetCurrentEventRecord(void);
+	extern ControlRef GetWindowItemAsControl(WindowPtr myDlg, SInt32 id);
+#endif
+
 	extern char isAjustCursor;
 	extern struct MacWorld theWorld;
 	extern FNType defaultPath[];
 	extern FNType webDownLoadDir[];
 	extern Point SFGwhere;
-	extern EventRecord *gCurrentEvent;
 	extern CFByteOrder byteOrder;
 	extern MovieInfo *theMovie;
 	extern MovieTNInfo *moviePics;
 	extern struct SelectedFilesList *SelectedFiles;
 
-	extern int  OpenWindow(short,FNType *,long,char,char,short (*EP)(WindowPtr,EventRecord *),void (*UP)(WindowPtr),void (*CL)(WindowPtr));
 	extern int  TotalNumOfRows(WindowProcRec *windProc);
+	extern int  NumOfRowsInAWindow(WindowPtr wp, int *char_height, int offset);
 	extern char isInsideTotalScreen(Rect *r);
 	extern char isInsideScreen(short top, short left, Rect *res);
 	extern char GetFontOfTEXT(char *buf, FNType *fname);
-	extern char DownloadURL(char *url,unsigned long maxSize,char *memBuf,int memBufLen,char *fname,char isRunIt,char isRawUrl);
+	extern char DownloadURL(char *url,unsigned long maxSize,char *memBuf,int memBufLen,char *fname,char isRunIt,char isRawUrl,const char *mess);
+	extern char getPrefWin(short id, FNType *name, long *height, long *width, long *top, long *left);
+	extern void setPrefWin(WindowPtr wp);
 	extern void MacintoshInit(void);
-	extern void Do_A_ScrollBar(short code,ControlRef theControl,Point myPt); 
 	extern void EnableDItem(DialogPtr dial, short which, short enable);
 	extern void UpdateMainText(WindowPtr wind);
 	extern void RestoreWindA4(PrepareStruct *rec);
@@ -690,27 +770,15 @@ struct SelectedFilesList {
 	extern void changeCommandFolder(int which, FNType *text);
 	extern void addToFolders(int which, FNType *dir);
 	extern void mac_call(void);
-	extern void SelectCursorPosition(EventRecord *event, int extend);
 	extern void setCursorPos(WindowPtr wind);
 	extern void ajustCursorPos(FNType *name);
-	extern void SetCurrentEventRecord(EventRecord *theEvent);
-	extern void ControlCTRL(WindowPtr win, SInt32 id, short toDo, ControlPartCode val);
-	extern void HandleVScrollBar(short code, ControlRef theControl,Point myPt);
-	extern void HandleHScrollBar(short code, ControlRef theControl, Point myPt);
-	extern void HandleWebVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
-	extern void HandleProgsVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
-	extern void HandleFoldersVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
-	extern void HandleCharsVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
-	extern void HandleHlpVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
-	extern void HandleRecallVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
-	extern void HandleThumbVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
-	extern void HandleTextVScrollBar(WindowPtr win, short code, ControlRef theControl, Point myPt);
 	extern void GetWindTopLeft(WindowPtr in_wind, short *left, short *top);
 	extern void initFavFont(void);
 	extern void addToFavFont(char *fontName, char isSavePrefs);
 	extern void write_FavFonts_2014(FILE *fp);
+	extern void delay_mach(Size num);
+	extern void mCloseWindow(WindowPtr wind);
 	extern short DoEdit(short theItem, WindowProcRec *windProc);
-	extern short MainTextEvent(WindowPtr wind, EventRecord *event);
 	extern short DoCommand(long key, WindowProcRec *windProc);
 	extern short RealMainEvent(int *key);
 	extern myFInfo *WindowFromGlobal_df(myFInfo *df);
@@ -721,9 +789,8 @@ struct SelectedFilesList {
 	extern WindowPtr FindAWindowNamed(FNType *name);
 	extern WindowPtr FindAWindowID(short id);
 	extern WindowProcRec *WindowProcs(WindowPtr wind);
-	extern EventRecord *GetCurrentEventRecord(void);
-	extern ControlRef GetWindowItemAsControl(WindowPtr myDlg, SInt32 id);
 	extern short GetFontHeight(FONTINFO *fontInfo, NewFontInfo *finfo, WindowPtr wind);
+	extern myFInfo *InitFileInfo(FNType *fname, long lLen, WindowPtr wind, short id, char *isUTF8Header);
 #endif // _MAC_CODE
 
 #if defined(_WIN32)
@@ -739,14 +806,29 @@ struct SelectedFilesList {
 	extern void HandleHScrollBar(UINT nSBCode, UINT nPos, CWnd* win);
 	extern void StartSelectCursorPosition(CPoint point, int extend);
 	extern void EndSelectCursorPosition(CPoint point, int extend);
-	extern void AdjustName(wchar_t *toSt, wchar_t *fromSt, int WinLim);
+	extern void delay_mach(DWORD num);
+	extern void AdjustName(unCH *toSt, unCH *fromSt, int WinLim);
 	extern int  MidSelectCursorPosition(CPoint point, int extend);
+	extern int  DisplayFileText(char *justFname);
 	extern short GetFontHeight(FONTINFO *fontInfo, NewFontInfo *finfo);
+	extern myFInfo *InitFileInfo(FNType *fname, long lLen, short id, char *isUTF8Header);
 #endif /* else _WIN32 */
 
 
+#ifdef _COCOA_APP
+extern unCH NextTierName[];
+#else
+extern unCH NextTierName[80];
+extern struct DefWin defWinSize;
+extern char isCursorPosRestore;
+#endif 
 extern char defUniFontName[];
+extern char isAjustCursor;
 extern long defUniFontSize;
+extern long stickyFontSize;
+extern short ArialUnicodeFOND;
+extern short SecondDefUniFOND;
+
 
 extern int  FreqCountLimit;
 extern int  isPlayS;
@@ -778,7 +860,6 @@ extern char PlayingSound;
 extern char PlayingContSound;
 extern char PlayingContMovie;
 extern char MakeBackupFile;
-extern unCH NextTierName[80];
 extern char StartInEditorMode;
 extern char ShowPercentOfFile;
 extern char doMixedSTWave;
@@ -801,20 +882,54 @@ extern FNType STATEFNAME[];
 extern myFInfo *global_df;
 extern myFInfo *lastGlobal_df;
 
+#ifndef _COCOA_APP
+extern int  BeginningOfLine(int i);
+extern int  FindRightCode(int disp);
+extern int  SaveToFile(char *fn, char isGiveErrorMessage);
+extern int  MorDisambiguate(int i);
+extern int  EditMode(int i);
+extern int  GetFakeCursorCode(int i);
+extern int  GetNewCodes(int i);
+extern int  MoveCodeCursorUp(int i);
+extern int  MoveCodeCursorDown(int i);
+extern int  MoveCodeCursorLeft(int i);
+extern int  MoveCodeCursorRight(int i);
+extern int  EndOfLine(int i);
+extern int  ToTopLevel(int i);
+extern int  GetCursorCode(int i);
+extern int  init_codes(const FNType *fname, const FNType *cname, char *fontName);
+extern long countLines(ROWS *row_txt);
+extern char UpdateCodesCursorPos(int c_row, int c_col);
+extern char FindFileLine(char isTest, char *text);
+extern char isNL_CFound(ROWS *tr);
+extern char Re_WrapLines(char (*finLine)(ROWS *, unCH tierType, void *),long,char,void *);
+extern void GetCurCode(void);
+extern void AddCodeTier(unCH *code, char real_code);
+extern void MoveToSubcode(void);
+extern void FindLastPage(int wsize);
+extern void DisplayCursor(int wsize);
+extern void MapArrToList(CODES *CurCode);
+extern void FreeCodesMem(void);
+extern void getTextCursor(myFInfo *g_df, WindowInfo *wi);
+extern void setTextCursor(myFInfo *g_df, WindowInfo *wi);
+extern CODES **DisplayCodes(int wsize);
+#else
+extern int  SaveToFile(char *fn);
+extern char FindFileLine(char isTest, char *fPath, unCH *text);
+extern char GetPrefSize(short id, FNType *name, long *height, long *width, long *top, long *left);
+extern char Re_WrapLines(char (*finLine)(ROWS *, unCH tierType, void *), long max, char isResize, void *data);
+#endif
+
 extern int  ced_getc(void);
 extern int  proccessKeys(unsigned int c);
 extern int  FindTextCodeLine(unCH *code, unCH *CodeMatch);
-extern int  NumOfRowsInAWindow(WindowPtr wp, int *char_height, int offset);
 extern int  NumOfRowsOfDefaultWindow(void);
 extern int  getNumberOffset(void);
 extern int  WindowPageWidth(void);
 extern int  WindowPageLength(int *size);
 extern int  NewLine(int i);
 extern int  new_getstr(unCH *st, int len, int (* fn)(WINDOW *w,unCH *st,unCH c));
-extern int  BeginningOfLine(int i);
 extern int  MoveDown(int i);
-extern int  FindRightCode(int disp);
-extern int  SaveToFile(char *fn);
 extern int  GetCurHidenCode(char move, unCH *CodeMatch);
 extern int  SoundMode(int i);
 extern int  PlayMedia(int i);
@@ -853,28 +968,19 @@ extern int  Check(int d);
 extern int  DeleteNextChar(int i);
 extern int  DeletePrevChar(int i);
 extern int  VisitFile(int i);
-extern int  GetNewCodes(int i);
-extern int  MoveCodeCursorUp(int i);
-extern int  MoveCodeCursorDown(int i);
-extern int  MoveCodeCursorLeft(int i);
-extern int  MoveCodeCursorRight(int i);
 extern int  MoveUp(int i);
 extern int  MoveLineUp(int i);
 extern int  MoveLineDown(int i);
 extern int  MoveRight(int i);
 extern int  MoveLeft(int i);
 extern int  BeginningOfWindow(int i);
-extern int  EndOfLine(int i);
 extern int  EndOfWindow(int i);
-extern int  MorDisambiguate(int i);
 extern int  ExitCED(int i);
-extern int  EditMode(int i);
 extern int  Space(int i);
 extern int  KillLine(int i);
 extern int  YankKilled(int i);
 extern int  DeleteNextWord(int i);
 extern int  DeletePrevWord(int i);
-extern int  GetFakeCursorCode(int i);
 extern int  SetNextTierName(int d);
 extern int  EndCurTierGotoNext(int i);
 extern int  GoToNextMainSpeaker(int i);
@@ -891,9 +997,7 @@ extern int  Undo(int i);
 extern int  Redo(int i);
 extern int  HandleESC(int i);
 extern int  HandleCTRLX(int i);
-extern int  ToTopLevel(int i);
 extern int  IllegalFunction(int i);
-extern int  GetCursorCode(int i);
 extern int  ShowParagraphMarks(int d);
 extern int  DoConstantString(void);
 extern int  SelectAll(int i);
@@ -901,7 +1005,6 @@ extern int  FindSame(int i);
 extern int  DisplayText(FNType *fname);
 extern int  NONEXISTANT(int i);
 extern int  RefreshScreen(int i);
-extern int  init_codes(const FNType *fname, const FNType *cname);
 extern int  ContPlayPause(void);
 extern int  clGetVersion(int d);
 extern int  clWriteFile(int i);
@@ -914,14 +1017,16 @@ extern long ComColChr(unCH *line, long col_w);
 extern long ComColWin(char isIgnoreBullets, unCH *line, long col_c);
 extern long DealWithAtts(unCH *line, long i, AttTYPE att, AttTYPE oldAtt, char isJustStats);
 extern long AlignMultibyteMediaStream(long num, char dir);
-extern long UnicodeToUTF8(wchar_t *UniStr, unsigned long actualStringLength, unsigned char *UTF8str, unsigned long *actualUT8Len, unsigned long MaxLen);
-extern long UnicodeToANSI(wchar_t *UniStr, unsigned long actualStringLength, unsigned char *ANSIstr, unsigned long *actualANSILen, unsigned long MaxLen, short script);
-extern long UTF8ToUnicode(unsigned char *UTF8str, unsigned long actualUT8Len, wchar_t *UniStr, unsigned long *actualUnicodeLength, unsigned long MaxLen);
+extern long UnicodeToUTF8(const unCH *UniStr, unsigned long actualStringLength, unsigned char *UTF8str, unsigned long *actualUT8Len, unsigned long MaxLen);
+extern long UnicodeToANSI(unCH *UniStr, unsigned long actualStringLength, unsigned char *ANSIstr, unsigned long *actualANSILen, unsigned long MaxLen, short script);
+extern long UTF8ToUnicode(unsigned char *UTF8str, unsigned long actualUT8Len, unCH *UniStr, unsigned long *actualUnicodeLength, unsigned long MaxLen);
 extern long UTF8ToANSI(unsigned char *UTF8str, unsigned long actualUT8Len, unsigned char *ANSIstr, unsigned long *actualANSILen, unsigned long MaxLen, short script);
 extern long ANSIToUTF8(unsigned char *ANSIstr, unsigned long actualANSILen, unsigned char *UTF8str, unsigned long *actualUT8Len, unsigned long MaxLen, short script);
-extern long ANSIToUnicode(unsigned char *ANSIstr, unsigned long actualANSILen, wchar_t *UniStr, unsigned long *actualStringLength, unsigned long MaxLen, short script);
+extern long ANSIToUnicode(unsigned char *ANSIstr, unsigned long actualANSILen, unCH *UniStr, unsigned long *actualStringLength, unsigned long MaxLen, short script);
 extern long roundUp(double num);
 extern short DoFile(short theItem);
+extern short DoMORGrammar(short theItem);
+extern short DoKidevalDB(short theItem);
 extern short IsGSet(short which);
 extern char SetNewFont(char *st, char ec, NewFontInfo *finfo);
 extern char isCHATFile(FNType *fname);
@@ -931,13 +1036,12 @@ extern char issoundwin(void);
 extern char isKeyEqualCommand(int key, int commNum);
 extern char QuitDialog(FNType *st);
 extern char UpdateCLANDialog(FNType *st);
-extern char UpdateCodesCursorPos(int c_row, int c_col);
+
 extern char AdjustSound(int row, int col, int ext, Size right_lim);
 extern char AllocConstString(char *st, int sp);
 extern char AllocSpeakerNames(unCH *st, int sp);
 extern char GetSpeakerNames(unCH *st, int num, unsigned long size);
 extern char ShowGRA();
-extern char FindFileLine(char isTest, char *text);
 extern char OpenProgressDialog(const char *str);
 extern char UpdateProgressDialog(short percentFilled);
 extern char DoURLFileName(char *tName);
@@ -949,9 +1053,7 @@ extern char AtTopEnd(ROWS *p, ROWS *head, char all);
 extern char AtBotEnd(ROWS *p, ROWS *tail, char all);
 extern char CheckLeftCol(long i);
 extern char init_windows(int com, char refresh, char isJustTextWin);
-extern char GetPrefSize(short id, FNType *name, long *height, long *width, long *top, long *left);
 extern char AddLineToRow(ROWS *, unCH tierType, void *data);
-extern char Re_WrapLines(char (*finLine)(ROWS *, unCH tierType, void *),long,char,void *);
 extern char doCopy(void);
 extern char getFileDate(FNType *fn, UInt32 *date);
 extern void setFileDate(FNType *fn, UInt32 date);
@@ -969,7 +1071,6 @@ extern void resetOptions(void);
 extern void myget(void);
 extern void doCut(void);
 extern void doPaste(void);
-extern void GetCurCode(void);
 extern void draw_mid_wm(void);
 extern void PositionCursor(void);
 extern void SetTextKeyScript(char isForce);
@@ -986,17 +1087,16 @@ extern void SaveUndoState(char isDummy);
 extern void RemoveLastUndo(void);
 extern void AddConstString(int sp);
 extern void AddSpeakerNames(int sp);
-extern void AddCodeTier(unCH *code, char real_code);
 extern void InitFileDialog(void);
 extern void InitSelectedTiers(void);
 extern void InitEvalOptions(void);
+extern void InitKidevalOptions(void);
 extern void InitSelectedSearch(void);
-extern void get_selected_file(int fnum, FNType *s);
+extern void get_selected_file(int fnum, FNType *s, int max);
 extern void CpCur_lineAttToHead_rowAtt(ROWS *cl);
 extern void CpCur_lineToHead_row(ROWS *cl);
 extern void PutCursorInWindow(WINDOW *w);
 extern void UpdateWindowNamed(FNType *name);
-extern void mCloseWindow(WindowPtr wind);
 extern void CloseAllWindows(void);
 extern void InitMyWindows(void);
 extern void set_folders(int which, FNType *text);
@@ -1023,10 +1123,9 @@ extern void DoString(unCH *code);
 extern void ExecSoundCom(int c);
 extern void ced_getflag(char *f);
 extern void DisplayRow(char isShift);
-extern void MoveToSubcode(void);
+extern void MoveToSpeaker(long num, char refresh);
 extern void MoveToLine(long num, char refresh);
 extern void PrepWindow(short id);
-extern void FindLastPage(int wsize);
 extern void FinishMainLoop(void);
 extern void DoDefContStrings(void);
 extern void DoCEDOptions(void);
@@ -1047,14 +1146,11 @@ extern void ControlAllControls(int on, short id);
 extern void ced_check_init(char first);
 extern void main_check_init(void);
 extern void init_keys(FNType *fname, FNType *cname);
-extern void DisplayCursor(int wsize);
 extern void DisplayEndF(char all);
-extern void MapArrToList(CODES *CurCode);
 extern void SetUpParticipants(void);
 extern void SaveCKPFile(char isask);
 extern void AboutCLAN(char isNear);
 extern void InitRedirects(void);
-extern void delay_mach(Size num);
 extern void PutSoundStats(Size ws);
 extern void OpenCommandsWindow(char reOpen);
 extern void PlaybackControlWindow(void);
@@ -1063,15 +1159,14 @@ extern void ChangeSpeakerMenuItem(void);
 extern void CloseProgressDialog(void);
 extern void getTextAndSendToSoundAnalyzer(void);
 extern void checkForTiersToHide(myFInfo *df, char error);
-extern void FreeCodesMem(void);
 extern void SortCommands(int *sl, const char *pat, char ch);
 extern void AddKeysToCommand(unsigned int cm, char *st);
+extern void SetUpVideos(void);
+extern void getVideosExt(int key);
 extern ROWS *ToNextRow(ROWS *p, char all);
 extern ROWS *ToPrevRow(ROWS *p, char all);
-extern CODES **DisplayCodes(int wsize);
-extern wchar_t Char2SpChar(int key, char num);
+extern unCH Char2SpChar(int key, char num);
 extern FONTINFO *GetTextFont(myFInfo *df);
-extern myFInfo *InitFileInfo(FNType *fname, long lLen, WindowPtr wind, short id, char *isUTF8Header);
 }
 
 #endif /* _C_CED_ */

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2015 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -113,6 +113,11 @@ struct Path_Tree {
 	struct Path_Tree *child;
 	struct Path_Tree *sibling;
 } ;
+
+static int lxs_max, lxs_total;
+static FNType lxs_fname[FNSize];
+static char lxs_name[1025];
+
 
 #define TOTANUMLANGS 64
 
@@ -1250,6 +1255,7 @@ static void createSessionIMDIFile(PATHTREE *p, char *wd_cur, METADATA *cmdata) {
 	IDSTYPE *rootIDs, *tID;
 	FILE *fp;
 
+	lxs_total = 0;
 	cln++;
 	if (cln > tln) {
 		tln = cln + 200;
@@ -1361,6 +1367,7 @@ static void createSessionIMDIFile(PATHTREE *p, char *wd_cur, METADATA *cmdata) {
 						templineC[j] = t;
 						i = j;
 					}
+					lxs_total++;
 				} else if (uS.partcmp(templineC,"@Recording Quality:",FALSE,FALSE)) {
 					for (i=strlen("@Recording Quality:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
@@ -1374,10 +1381,12 @@ static void createSessionIMDIFile(PATHTREE *p, char *wd_cur, METADATA *cmdata) {
 						strcpy(fquality, "4");
 					else if (uS.mStricmp(templineC+i, "excellent") == 0 || uS.mStricmp(templineC+i, "5") == 0)
 						strcpy(fquality, "5");
+					lxs_total++;
 				} else if (uS.partcmp(templineC,"@Recording Quality:",FALSE,FALSE)) {
 					for (i=strlen("@Recording Quality:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
 					strcpy(ftimepos, templineC+i);
+					lxs_total++;
 				} else if (uS.partcmp(templineC,"@Languages:",FALSE,FALSE)) {
 					for (i=strlen("@Languages:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
@@ -1409,12 +1418,14 @@ static void createSessionIMDIFile(PATHTREE *p, char *wd_cur, METADATA *cmdata) {
 							}
 						}
 					}
+					lxs_total++;
 				} else if (uS.partcmp(templineC, "@L1 of ", FALSE, FALSE)) {
 					uS.extractString(templineC2, templineC, "@L1 of ", ':');
 					for (i=strlen("@L1 of "); templineC[i] != ':' && templineC[i] != EOS; i++) ;
 					if (templineC[i] == ':') {
 						for (i++; isSpace(templineC[i]); i++) ;
 						rootIDs = add_to_IDs(rootIDs, cmdata, FileName2, ln, NULL, NULL, templineC2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, templineC+i, NULL);
+						lxs_total++;
 					}
 				} else if (uS.partcmp(templineC, "@Birthplace of ", FALSE, FALSE)) {
 					uS.extractString(templineC2, templineC, "@Birthplace of ", ':');
@@ -1422,51 +1433,60 @@ static void createSessionIMDIFile(PATHTREE *p, char *wd_cur, METADATA *cmdata) {
 					if (templineC[i] == ':') {
 						for (i++; isSpace(templineC[i]); i++) ;
 						rootIDs = add_to_IDs(rootIDs, cmdata, FileName2, ln, NULL, NULL, templineC2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, templineC+i);
+						lxs_total++;
 					}
 				} else if (uS.partcmp(templineC, "@ID:", FALSE, FALSE)) {
 					for (i=strlen("@ID:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
 					rootIDs = handleIDs(rootIDs, cmdata, FileName2, ln, templineC+i);
+					lxs_total++;
 				} else if (uS.partcmp(templineC, "@Participants:", FALSE, FALSE)) {
 					for (i=strlen("@Participants:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
 					rootIDs = handleParticipants(rootIDs, cmdata, FileName2, ln, templineC+i);
+					lxs_total++;
 				} else if (uS.partcmp(templineC, "@Birth of ", FALSE, FALSE)) {
 					uS.extractString(templineC2, templineC, "@Birth of ", ':');
 					for (i=strlen("@Birth of "); templineC[i] != ':' && templineC[i] != EOS; i++) ;
 					if (templineC[i] == ':') {
 						for (i++; isSpace(templineC[i]); i++) ;
 						rootIDs = add_to_IDs(rootIDs, cmdata, FileName2, ln, NULL, NULL, templineC2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, templineC+i, NULL, NULL);
+						lxs_total++;
 					}
 				} else if (uS.partcmp(templineC, "@Date:", FALSE, FALSE)) {
 					for (i=strlen("@Date:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
 					if (tdate[0] == EOS)
 						convertDate(tdate, templineC+i);
+					lxs_total++;
 				} else if (uS.partcmp(templineC, "@Transcriber:", FALSE, FALSE)) {
 					for (i=strlen("@Transcriber:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
 					filterTextForXML(templineC2, templineC+i);
 					strncpy(ttranscriber, templineC2, 255);
 					ttranscriber[255] = EOS;
+					lxs_total++;
 				} else if (uS.partcmp(templineC, "@Transcription:", FALSE, FALSE)) {
 					for (i=strlen("@Transcription:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
 					filterTextForXML(templineC2, templineC+i);
 					strncpy(ttranscription, templineC2, 255);
 					ttranscription[255] = EOS;
+					lxs_total++;
 				} else if (uS.partcmp(templineC, "@Number:", FALSE, FALSE)) {
 					for (i=strlen("@Number:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
 					filterTextForXML(templineC2, templineC+i);
 					strncpy(tnumber, templineC2, 49);
 					tnumber[49] = EOS;
+					lxs_total++;
 				} else if (uS.partcmp(templineC, "@Interaction Type:", FALSE, FALSE)) {
 					for (i=strlen("@Interaction Type:"); isSpace(templineC[i]); i++) ;
 					uS.remblanks(templineC+i);
 					filterTextForXML(templineC2, templineC+i);
 					strncpy(tinteraction, templineC2, 49);
 					tinteraction[49] = EOS;
+					lxs_total++;
 				}
 				if (templineC1[0] == '*' || templineC1[0] == '%')
 					break;
@@ -1484,60 +1504,88 @@ static void createSessionIMDIFile(PATHTREE *p, char *wd_cur, METADATA *cmdata) {
 	strcat(FileName1, ".imdi");
 	if (!isJustTest) {
 		for (m=cmdata; m != NULL; m=m->next) {
-			if (!strcmp(m->tag, "Title"))
+			if (!strcmp(m->tag, "Title")) {
 				mTitle = m;
-			else if (!strcmp(m->tag, "Description"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "Description")) {
 				mDescr = m;
-			else if (!strcmp(m->tag, "Subject"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "Subject")) {
 				mSubj = m;
-			else if (!strcmp(m->tag, "Publisher"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "Publisher")) {
 				mPubl = m;
-			else if (!strcmp(m->tag, "Creator"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "Creator")) {
 				mCreator = m;
-			else if (!strcmp(m->tag, "Contributor"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "Contributor")) {
 				mContributor = m;
-			else if (!strcmp(m->tag, "Date"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "Date")) {
 				mDate = m;
-			else if (!strcmp(m->tag, "Type.olac:discourse-type"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "Type.olac:discourse-type")) {
 				mDiscourse = m;
-			else if (!strcmp(m->tag, "Identifier"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "Identifier")) {
 				mId = m;
-			else if (!strcmp(m->tag, "IMDI_Genre"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_Genre")) {
 				iGenre = m;
-			else if (!strcmp(m->tag, "IMDI_Interactivity"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_Interactivity")) {
 				iInteractivity = m;
-			else if (!strcmp(m->tag, "IMDI_PlanningType"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_PlanningType")) {
 				iPlanningType = m;
-			else if (!strcmp(m->tag, "IMDI_Involvement"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_Involvement")) {
 				iInvolvement = m;
-			else if (!strcmp(m->tag, "IMDI_SocialContext"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_SocialContext")) {
 				iSocialContext = m;
-			else if (!strcmp(m->tag, "IMDI_EventStructure"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_EventStructure")) {
 				iEventStructure = m;
-			else if (!strcmp(m->tag, "IMDI_Channel"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_Channel")) {
 				iChannel = m;
-			else if (!strcmp(m->tag, "IMDI_Task"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_Task")) {
 				iTask = m;
-			else if (!strcmp(m->tag, "IMDI_Modalities"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_Modalities")) {
 				iModalities = m;
-			else if (!strcmp(m->tag, "IMDI_Subject"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_Subject")) {
 				iSubject = m;
-			else if (!strcmp(m->tag, "IMDI_EthnicGroup"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_EthnicGroup")) {
 				iEthnicGroup = m;
-			else if (!strcmp(m->tag, "IMDI_RecordingConditions"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_RecordingConditions")) {
 				iRecordingConditions = m;
-			else if (!strcmp(m->tag, "IMDI_AccessAvailability"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_AccessAvailability")) {
 				iAccess = m;
-			else if (!strcmp(m->tag, "IMDI_Continent"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_Continent")) {
 				iContinent = m;
-			else if (!strcmp(m->tag, "IMDI_Country"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_Country")) {
 				iCountry = m;
-			else if (!strcmp(m->tag, "IMDI_WrittenResourceSubType"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_WrittenResourceSubType")) {
 				iWrittenSubtype = m;
-			else if (!strcmp(m->tag, "IMDI_ProjectDescription"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_ProjectDescription")) {
 				iProjectDescr = m;
-			else if (!strcmp(m->tag, "IMDI_MediaFileDescription"))
+				lxs_total++;
+			} else if (!strcmp(m->tag, "IMDI_MediaFileDescription")) {
 				iMediaFileDescr = m;
+				lxs_total++;
+			}
 		}
 		fp = fopen(FileName1, "w");
 		if (fp == NULL) {
@@ -2180,6 +2228,12 @@ static void createSessionIMDIFile(PATHTREE *p, char *wd_cur, METADATA *cmdata) {
 		fprintf(fp, "</METATRANSCRIPT>\n");
 		fclose(fp);
 	}
+	if (lxs_total > lxs_max) {
+		lxs_max = lxs_total;
+		strcpy(lxs_fname, wd_cur);
+		strncpy(lxs_name, p->name, 1024);
+		lxs_name[1024] = EOS;
+	}
 }
 
 static void writingTree(PATHTREE *p, char *wd_cur, METADATA *cmdata) {
@@ -2331,6 +2385,9 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	ftimeAdjust = TRUE;
 	missingLangsIndex = 0;
 	initLanguages();
+	lxs_max = 0;
+	lxs_name[0] = EOS;
+	lxs_fname[0] = EOS;
 	bmain(argc,argv,NULL);
 #if !defined(CLAN_SRV)
 	fprintf(stderr,"\r%ld ", cln);
@@ -2346,6 +2403,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 #if !defined(CLAN_SRV)
 	fprintf(stderr,"\r%ld ", cln);
 #endif
+	fprintf(stderr, "\n\nmax=%d; file=%s; name=%s;\n\n\n", lxs_max, lxs_fname, lxs_name);
 	if (!isJustTest)
 		fprintf(stderr, "\nDone writing data\n");
 	else

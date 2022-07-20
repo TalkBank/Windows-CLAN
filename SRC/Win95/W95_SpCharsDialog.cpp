@@ -11,6 +11,8 @@
 static char THIS_FILE[] = __FILE__;
 #endif
 
+extern struct DefWin SpCharsWinSize;
+
 CSpCharsDialog *spCharsDlg = NULL;
 /////////////////////////////////////////////////////////////////////////////
 // CSpCharsDialog dialog
@@ -40,6 +42,7 @@ BEGIN_MESSAGE_MAP(CSpCharsDialog, CDialog)
 	ON_LBN_SELCHANGE(IDC_CLAN_SP_CHARS, OnSelchangeClanSpChars)
 	ON_LBN_DBLCLK(IDC_CLAN_SP_CHARS, OnDblclkClanSpChars)
 	ON_WM_DESTROY()
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -47,7 +50,7 @@ END_MESSAGE_MAP()
 // CSpCharsDialog message handlers
 #define isHex(x) (x == 'A' || x == 'B' || x == 'C' || x == 'D' || x == 'E' || x == 'F')
 
-static void makeUnicodeString(wchar_t *dist, char *src) {
+static void makeUnicodeString(unCH *dist, char *src) {
 	long f, t, i;
 	unsigned long uc;
 	char hexStr[256];
@@ -73,8 +76,18 @@ static void makeUnicodeString(wchar_t *dist, char *src) {
 BOOL CSpCharsDialog::OnInitDialog() {
 	CDialog::OnInitDialog();
 
-#ifdef _UNICODE
-	wchar_t wbuf[256]; // CA CHARS
+	unCH wbuf[256]; // CA CHARS
+	CRect lpRect;
+	
+	if (SpCharsWinSize.top || SpCharsWinSize.width || SpCharsWinSize.height || SpCharsWinSize.left) {
+		this->GetWindowRect(&lpRect);
+		lpRect.top = SpCharsWinSize.top;
+		lpRect.bottom = SpCharsWinSize.height;
+		lpRect.left = SpCharsWinSize.left;
+		lpRect.right = SpCharsWinSize.width;
+		AdjustWindowSize(&lpRect);
+		this->MoveWindow(&lpRect, FALSE);
+	}
 
 	makeUnicodeString(wbuf, "0x2191 shift to high pitch; F1 up-arrow");
 	m_Sp_Chars_Control.AddString(wbuf);
@@ -205,6 +218,9 @@ BOOL CSpCharsDialog::OnInitDialog() {
 	makeUnicodeString(wbuf, "0x02CC lowered0x02CC stroke; F2 2");
 	m_Sp_Chars_Control.AddString(wbuf);
 
+	makeUnicodeString(wbuf, "0x02D0 length on the %pho line; F2 :");
+	m_Sp_Chars_Control.AddString(wbuf);
+
 	makeUnicodeString(wbuf, "0x2039 0x2039begin phono group0x203A marker; F2 <");
 	m_Sp_Chars_Control.AddString(wbuf);
 
@@ -229,21 +245,11 @@ BOOL CSpCharsDialog::OnInitDialog() {
 	makeUnicodeString(wbuf, "0x201D close 0x201Cquote0x201D; F2 \"");
 	m_Sp_Chars_Control.AddString(wbuf);
 
-	makeUnicodeString(wbuf, "0x2018 open 0x2018quote0x2019; F2 '");
-	m_Sp_Chars_Control.AddString(wbuf);
-
-	makeUnicodeString(wbuf, "0x2019 close 0x2018quote0x2019; F2 \"");
-	m_Sp_Chars_Control.AddString(wbuf);
-
 	makeUnicodeString(wbuf, "0x2260 0x2260row; F2 =");
 	m_Sp_Chars_Control.AddString(wbuf);
 
 	makeUnicodeString(wbuf, "0x21AB 0x21ABr-r0x21ABrabbit; F2 /");
 	m_Sp_Chars_Control.AddString(wbuf);
-
-#else // else _UNICODE
-	m_Sp_Chars_Control.AddString("This ONLY works in Unicode CLAN");
-#endif // else _UNICODE
 
 	UpdateData(FALSE);
 	ShowWindow(SW_SHOWNORMAL );
@@ -252,10 +258,9 @@ BOOL CSpCharsDialog::OnInitDialog() {
 
 void CSpCharsDialog::OnSelchangeClanSpChars() 
 {
-#ifdef _UNICODE
 /*
 	int i;
-	wchar_t wbuf[256];
+	unCH wbuf[256];
 
 	i = m_Sp_Chars_Control.GetCurSel();
 	if (i != LB_ERR) {
@@ -278,14 +283,12 @@ void CSpCharsDialog::OnSelchangeClanSpChars()
 		}
 	}
 */
-#endif
 }
 
 void CSpCharsDialog::OnDblclkClanSpChars() 
 {
-#ifdef _UNICODE
 	int i;
-	wchar_t wbuf[256];
+	unCH wbuf[256];
 
 	i = m_Sp_Chars_Control.GetCurSel();
 	if (i != LB_ERR) {
@@ -310,7 +313,6 @@ void CSpCharsDialog::OnDblclkClanSpChars()
 			}
 		}
 	}
-#endif	
 }
 
 void CSpCharsDialog::OnCancel() {
@@ -321,5 +323,37 @@ void CSpCharsDialog::OnCancel() {
 
 void CSpCharsDialog::OnDestroy() 
 {
+	CRect lpRect;
+
+	this->GetWindowRect(&lpRect);
+	SpCharsWinSize.top = lpRect.top;
+	SpCharsWinSize.left = lpRect.left;
+	SpCharsWinSize.width = lpRect.right;
+	SpCharsWinSize.height = lpRect.bottom;
+	WriteCedPreference();
 	CDialog::OnDestroy();
+}
+
+
+void CSpCharsDialog::ResizeSpCharWindow(int cx, int cy) {
+	RECT itemRect, winRect;
+	CWnd *pw_ListBox;
+
+	pw_ListBox = this->GetDlgItem(IDC_CLAN_SP_CHARS);
+	if (this == NULL || pw_ListBox == NULL)
+		return;
+	this->GetClientRect(&winRect);
+
+	pw_ListBox->GetWindowRect(&itemRect);
+	itemRect.top = winRect.top + 10;
+	itemRect.bottom = winRect.bottom - 17;
+	itemRect.left = winRect.left + 10;
+	itemRect.right = winRect.right - 10;
+	pw_ListBox->MoveWindow(&itemRect, true);
+}
+
+void CSpCharsDialog::OnSize(UINT nType, int cx, int cy) {
+	CDialog::OnSize(nType, cx, cy);
+
+	ResizeSpCharWindow(cx, cy);
 }

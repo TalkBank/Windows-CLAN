@@ -22,7 +22,7 @@ public:
 	CClanSearch(CWnd* pParent = NULL);   // standard constructor
 	int spItem;
 	int numberPresets;
-	wchar_t fname[FNSize];
+	unCH fname[FNSize];
 
 // Dialog Data
 	//{{AFX_DATA(CClanSearch)
@@ -104,6 +104,6 @@ protected:
 	void createPopupPresetsMenu();
 };
 
-extern void SearchDialog(wchar_t *str);
+extern void SearchDialog(unCH *str);
 
 #endif // !defined(AFX_W95_SEARCH_H__F3C36341_3B3C_11D1_8D74_00A02481E866__INCLUDED_)

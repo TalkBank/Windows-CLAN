@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -184,7 +184,6 @@ static void gpsSingleCall(int argc, char *argv[]) {
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	int   i;
 	char isFileFound;
-	extern void VersionNumber(char isshortfrmt, FILE *fp);
 
 	isWinMode = IS_WIN_MODE;
 	chatmode = CHAT_MODE;
@@ -193,16 +192,6 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	UttlineEqUtterance = TRUE;
 	if (argc < 2)
 		usage();
-	if (argc > 1) {
-		if (argv[1][0] == '-' || argv[1][0] == '+') {
-			if (argv[1][1] == 'v') {
-				if (argv[1][2] == EOS) {
-					VersionNumber(FALSE, stdout);
-					cutt_exit(0);
-				}
-			}
-		}
-	}
 	isFileFound = FALSE;
 	for (i=1; i < argc; i++) {
 		if (*argv[i] == '+'  || *argv[i] == '-')  {
@@ -288,6 +277,7 @@ static void doGPX(void) {
 	isWPT = FALSE;
 	isAddedCMT = FALSE;
 	isCMTFound = TRUE;
+	isRTEPT = FALSE;
 	while (!feof(fpin)) {
 		ln++;
 		if (fgets_cr(line, BUFSIZ, fpin) == NULL)

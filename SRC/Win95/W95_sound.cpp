@@ -1,23 +1,14 @@
 #include "cu.h"
 #include "ced.h"
 #include "Clan2Doc.h"
-#include "QTDlg.h"
+#include "w95_QTReplace.h"
 #include "w95AIFF.h"
 #include "c_clan.h"
-#include "mp3.h"
 #include "MMedia.h"
-#include "MpegWindow.h"
-#include "mediaplayer.h"
+#include "MpegDlg.h"
 #include "CedDlgs.h"
-#include "sound.h"
-#include "StandardFile.h"
-//#include "QuickTimeComponents.h"
 #include <mmsystem.h>
 #include <mmreg.h>
-
-extern char isWinSndPlayAborted;
-extern CMpegWindow *MPegDlg;
-extern CQTDlg *MovDlg;
 
 #define SCALE_TIME_LIMIT 100000
 #define SCROLLPERCENT 10
@@ -27,14 +18,14 @@ extern CQTDlg *MovDlg;
 #define EOS '\0'
 #endif
 
-extern int		sndCom;
-extern int		SndPlayLoopCnt;
 extern DWORD	walker_pause;
 
 static Size		NewF;
 static int		cm, left_lim, ScollValue;
+static int		SndPlayLoopCnt;
 static char		dir = 0;
 static char		isWinSndDonePlaying = 1;
+static char		isWinSndPlayAborted;
 static long		orgBeg;
 static BOOL		isCurSB1;
 static BOOL		gBufferDone = false;
@@ -46,27 +37,26 @@ static LPWAVEHDR	waveHdr2 = NULL;
 static LPWAVEHDR	cWaveHdr, tWaveHdr;
 
 HWAVEOUT	hWaveOut  = NULL;
-char 		quickTranscribe = FALSE;
-char leftChan = 1;
-char rightChan = 1;
+int		sndCom;
+char 	quickTranscribe = FALSE;
+char	leftChan = 1;
+char	rightChan = 1;
 
 void AdjustSoundScroll(int col, Size right_lim);
 
 Size conv_to_msec_MP3(long num) {
-	double res, num2;
+	double res, num2 = 1.0;
 
 		res = (double)num;
-		num2 = (double)global_df->SnTr.mp3.ts;
 		res /= num2;
 		res *= 1000.0000;
 	return(roundUp(res));
 }
 
 Size conv_from_msec_MP3(long num) {
-	double res, num2;
+	double res, num2 = 1.0;
 
 		res = (double)num;
-		num2 = (double)global_df->SnTr.mp3.ts;
 		res /= 1000.0000;
 		res *= num2;
 	return(roundUp(res));
@@ -385,59 +375,8 @@ char CheckRateChan(sndInfo *snd, char *errMess) {
 	snd->AIFFOffset = 0L;
 	snd->errMess = NULL;
 	snd->SNDformat = 0L;
+
 	if (snd->SFileType == 'MP3!') {
-		AudioCompressionAtomPtr	DA = NULL;
-		CmpSoundHeader			sndH;
-		UnsignedFixed isSignBitFound;
-		extern OSErr MyGetSoundDescriptionExtension(Media inMedia, AudioFormatAtomPtr *outAudioAtom, CmpSoundHeaderPtr outSoundHeader);
-
-		if (MyGetSoundDescriptionExtension(snd->mp3.theSoundMedia,(AudioFormatAtomPtr *)&DA,&sndH) == noErr) {
-			if (DA != NULL)
-				DisposePtr((Ptr)DA);
-			snd->SNDchan = (short)sndH.numChannels;
-			snd->SNDsample = sndH.sampleSize / 8;
-
-			isSignBitFound = (sndH.sampleRate & 0x80000000);
-			if (isSignBitFound)
-				sndH.sampleRate = sndH.sampleRate & 0x7fffffff;
-			snd->SNDrate = (double) Fix2X(sndH.sampleRate);
-			if (isSignBitFound)
-				snd->SNDrate += 32768L;
-
-			if (snd->SNDrate < 8000.00000 || snd->SNDrate > 49000.000000) {
-				if (sndH.sampleRate == rate48khz)
-					snd->SNDrate = 48000.00000;
-				else if (sndH.sampleRate == rate44khz)
-					snd->SNDrate = 44100.00000;
-				else if (sndH.sampleRate == rate32khz)
-					snd->SNDrate = 32000.00000;
-				else if (sndH.sampleRate == rate22050hz)
-					snd->SNDrate = 22050.00000;
-				else if (sndH.sampleRate == rate22khz)
-					snd->SNDrate = 22254.54545;
-				else if (sndH.sampleRate == rate16khz)
-					snd->SNDrate = 16000.00000;
-				else if (sndH.sampleRate == rate11khz)
-					snd->SNDrate = 11127.27273;
-				else if (sndH.sampleRate == rate11025hz)
-					snd->SNDrate = 11025.00000;
-				else if (sndH.sampleRate == rate8khz)
-					snd->SNDrate = 8000.00000;
-				else {
-					sprintf(errMess, "+In sonic only 8, 11, 16, 22, 24, 32, 44 and 48kHz rates supported.");
-					snd->errMess  = errMess+1;
-					return(0);
-				}
-			}
-
-			snd->isMP3 = TRUE;
-			snd->mp3.ts = GetMediaTimeScale (snd->mp3.theSoundMedia);
-			snd->SoundFileSize = conv_from_msec_rep(conv_to_msec_MP3(GetMediaDuration(snd->mp3.theSoundMedia)));
-		} else {
-			sprintf(errMess, "+Error reading sound file: %s. It is either corrupt or mislabeled with incorrect file extension", snd->rSoundFile);
-			snd->errMess = errMess+1;
-			return(0);
-		}
 	} else if (snd->SFileType == 'AIFF' || snd->SFileType == 'AIFC') {
 		long count;
 		long pos;
@@ -545,7 +484,7 @@ char CheckRateChan(sndInfo *snd, char *errMess) {
 				pos++;
 		}
 	} else if (snd->SFileType == 'WAVE') {
-		wchar_t			wrSoundFile[FNSize];
+		unCH			wrSoundFile[FNSize];
 		HMMIO          hmmio;
 		MMCKINFO       mmckinfoParent;
 		MMCKINFO       mmckinfoSubchunk;
@@ -694,15 +633,122 @@ char CheckRateChan(sndInfo *snd, char *errMess) {
 	return(1);
 }
 
+//lxs-mp3
+// #define GETMEDIAINFO
+#ifdef GETMEDIAINFO
+#include <mfidl.h>
+#include <mfapi.h>
+
+#pragma comment(lib, "mfplat.lib")
+#pragma comment(lib, "Mfuuid.lib")
+//#pragma comment(lib, "mf.lib")
+
+static long DisplayInfo(LPCWSTR url) {
+	HRESULT hr;
+	long dur;
+	UINT32 num;
+	UINT32 width, height;
+	UINT32 compressed;
+	UINT64 duration, j;
+	DWORD i, count;
+	bool video;
+	GUID major;
+
+	dur = 0L;
+	::MFStartup(MF_VERSION);
+
+	CComPtr<IMFSourceResolver> spResolver;
+	hr = ::MFCreateSourceResolver(&spResolver);
+	MF_OBJECT_TYPE type;
+	CComPtr<IUnknown> spUnkSource;
+	hr = spResolver->CreateObjectFromURL(url, MF_RESOLUTION_MEDIASOURCE, NULL, &type, &spUnkSource);
+	CComQIPtr<IMFMediaSource> spSource(spUnkSource);
+	CComPtr<IMFPresentationDescriptor> spDesc;
+	hr = spSource->CreatePresentationDescriptor(&spDesc);
+
+	spDesc->GetStreamDescriptorCount(&count);
+	for (i=0; i < count; i++) {
+		BOOL selected;
+		CComPtr<IMFStreamDescriptor> spStreamDesc;
+		hr = spDesc->GetStreamDescriptorByIndex(i, &selected, &spStreamDesc);
+		if (selected) {
+			CComPtr<IMFMediaTypeHandler> spHandler;
+			spStreamDesc->GetMediaTypeHandler(&spHandler);
+			CComPtr<IMFMediaType> spMediaType;
+			spHandler->GetCurrentMediaType(&spMediaType);
+			spMediaType->GetMajorType(&major);
+			if (major == MFMediaType_Audio)
+				video = false;
+			else if (major == MFMediaType_Video)
+				video = true;
+			else
+				continue;
+			hr = spMediaType->GetUINT32(MF_MT_COMPRESSED, &compressed);
+			if (hr == S_OK) {
+				//fprintf(stdout, "Compressed: %s\n", (compressed ? "True" : "False"));
+			}
+
+			if (video) {
+				hr = spMediaType->GetUINT32(MF_MT_AVG_BITRATE, &num);
+				if (hr == S_OK) {
+					//fprintf(stdout, "Average bitrate: %d Kbps\n", (num >> 10));
+				}
+				::MFGetAttributeSize(spMediaType, MF_MT_FRAME_SIZE, &width, &height);
+				//fprintf(stdout, "Frame size: %d X %d\n", width, height);
+				::MFGetAttributeRatio(spMediaType, MF_MT_FRAME_RATE, &width, &height);
+				//fprintf(stdout, "Frame rate: %d FPS\n", width / (float)height);
+			} else {
+				hr = spMediaType->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &num);
+				if (hr == S_OK) {
+					//fprintf(stdout, "Bits/sample: %d\n", num);
+				}
+				hr = spMediaType->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &num);
+				if (hr == S_OK) {
+					//fprintf(stdout, "# Channels: %d\n", num);
+				}
+				hr = spMediaType->GetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, &num);
+				if (hr == S_OK) {
+					//fprintf(stdout, "Average bytes/sec: %d\n", num);
+				}
+				hr = spMediaType->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &num);
+				if (hr == S_OK) {
+					//fprintf(stdout, "Samples/sec: %d\n", num);
+				}
+			}
+		}
+		hr = spDesc->GetUINT64(MF_PD_DURATION, &duration);
+		if (hr == S_OK) {
+			//fprintf(stdout, "Duration: %ld\n", duration);
+			j = duration / 10000L;
+		} else
+			j = 0L;
+		if (j > dur)
+			dur = (long)j;
+	}
+	::MFShutdown();
+	return(dur);
+}
+#endif //GETMEDIAINFO
+//lxs-mp3
+
+//#include <Mmsystem.h>
+//#include <mciapi.h>
+//these two headers are already included in the <Windows.h> header
+//#pragma comment(lib, "Winmm.lib")
+
+//#include <dshow.h>
+//#pragma comment(lib, "strmiids.lib") 
+
+
 int PlayMovie(movInfo *mvRec, myFInfo *t2, char isJustOpen) {
+//	BOOL isMP3;
 	int len;
 	char *ext;
-	wchar_t *t;
-	CString pathname,fname;
+	unCH *t;
+	CString fname;
 	CWaitCursor wait;
 	char MovieFileName[_MAX_PATH+FILENAME_MAX];
-	wchar_t wDirPathName[FNSize];
-	TimeValue dur;
+	unCH wDirPathName[FNSize];
 	extern long gCurF;
 
 	gCurF = 0L;
@@ -715,134 +761,197 @@ int PlayMovie(movInfo *mvRec, myFInfo *t2, char isJustOpen) {
 		strcat(MovieFileName, ".mov");
 		ext = strrchr(MovieFileName,'.');
 	}
+//	else if (uS.mStricmp(ext, ".mp3") == 0)
+//		isMP3 = true;
+//	else
+//		isMP3 = false;
 	u_strcpy(wDirPathName, MovieFileName, FNSize);
 	fname = wDirPathName;
 	long mode=isPlayS;
-	if (ext != NULL && (strcmp(ext, ".dat") == 0)) {
-		if (!PlayingContMovie || PlayingContMovie == '\003') {
-			FakeSelectWholeTier(F5Option == EVERY_LINE);
-			DrawFakeHilight(1);
-		}
-		if (MPegDlg == NULL){
-			MPegDlg = new CMpegWindow();
-			MPegDlg->Create(IDD_MPEG,AfxGetApp()->m_pMainWnd);
-		} else
-			MPegDlg->SetActiveWindow();
-		MPegDlg->textDC = GlobalDC;
-		MPegDlg->textDoc = GlobalDoc;
-		if (MPegDlg != NULL) {
-			if (fname.Find('\\')!=-1)
-				pathname=cl_T("");
-			else {
-				u_strcpy(wDirPathName, wd_dir, FNSize);
-				len = strlen(wd_dir) - 1;
-				if (wd_dir[len] != PATHDELIMCHR)
-					strcat(wDirPathName, PATHDELIMSTR);
-				pathname=wDirPathName;
-			}
-			if ((MPegDlg->m_player).GetOpenState()!=6) //not opened
-				(MPegDlg->m_player).SetFileName(pathname+fname);
-			MPegDlg->movieDuration = (MPegDlg->m_player).GetDuration() * 1000.0000;
-			if ((t=strrchr(wDirPathName, PATHDELIMCHR)) == NULL)
-				t = wDirPathName;
-			else
-				t++;
-			MPegDlg->SetWindowText(t);
-			if ((MPegDlg->m_player).GetPlayState()==2) //playing
-				(MPegDlg->m_player).Stop();
-			
-			MPegDlg->m_pos= mvRec->MBeg;
-			MPegDlg->m_from= mvRec->MBeg;
-			if (PlayingContMovie != '\003')
-				MPegDlg->m_to=mvRec->MEnd;
-			else
-				MPegDlg->m_to = MPegDlg->movieDuration;
-			MPegDlg->UpdateData(false);
-			MPegDlg->Play();
-		}
-	} else if (ext != NULL && true /*(strcmp(ext, ".mpg") == 0  ||
-							   strcmp(ext, ".mpeg") == 0 ||
-							   strcmp(ext, ".aiff") == 0 ||
-							   strcmp(ext, ".aif") == 0  ||
-							   strcmp(ext, ".avi") == 0  ||
-							   strcmp(ext, ".mov") == 0  ||
-							   strcmp(ext, ".mp4") == 0)*/) {
+
+//(strcmp(ext, ".mpg") == 0  ||
+// strcmp(ext, ".mpeg") == 0 ||
+// strcmp(ext, ".aiff") == 0 ||
+// strcmp(ext, ".aif") == 0  ||
+// strcmp(ext, ".avi") == 0  ||
+// strcmp(ext, ".mov") == 0  ||
+// strcmp(ext, ".mp4") == 0  ||
+// strcmp(ext, ".wmv") == 0)
+
+	if (ext != NULL && true /*(strcmp(ext, ".dat") == 0)*/)
+//	if (ext != NULL && strcmp(ext, ".mov") != 0) // .mov played by QuickTime
+//	if (ext != NULL && (strcmp(ext, ".dat") == 0)) // Original
+	{
 		if (!PlayingContMovie || (PBC.walk && PBC.enable))
 			;
 		else if (PlayingContMovie == '\003') {
 			FakeSelectWholeTier(F5Option == EVERY_LINE);
 			DrawFakeHilight(1);
 		}
+
+/* // NO QT
 		if (MovDlg != NULL) {
 			if (MovDlg->qt != NULL && !(MovDlg->qt)->IsQTMovieDone()) { //playing
 				StopMovie((MovDlg->qt)->theMovie);
 				(MovDlg->qt)->isPlaying = 0;
 			}
-			if (fname.Find('\\')!=-1)
+			MovDlg->doErase = false;
+			MovDlg->OnCancel();
+			MovDlg = NULL;
+		}
+*/
+		if (MpegDlg != NULL) {
+			if (MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->m_wmpControler != NULL) { //playing
+				(MpegDlg->mpeg)->StopMpegMovie();
+				(MpegDlg->mpeg)->isPlaying = 0;
+			}
+			if (fname.Find('\\') != -1)
 				*wDirPathName = EOS;
 			else
 				u_strcpy(wDirPathName, wd_dir, FNSize);
 			strcat(wDirPathName, fname);
-			if (wpathcmp(wDirPathName, MovDlg->pathname)) {
-				MovDlg->doErase = false;
-				MovDlg->OnCancel();
-				MovDlg = NULL;
+			if (wpathcmp(wDirPathName, MpegDlg->pathname)) {
+				MpegDlg->doErase = false;
+				MpegDlg->OnCancel();
+				MpegDlg = NULL;
 			}
 		}
-		if (MovDlg == NULL){			
-			MovDlg=new CQTDlg(AfxGetApp()->m_pMainWnd);
-			if (fname.Find('\\')!=-1)
-				MovDlg->pathname=cl_T("");
+		if (MpegDlg == NULL) {
+			MpegDlg = new CMpegDlg(AfxGetApp()->m_pMainWnd);
+			if (fname.Find('\\') != -1)
+				MpegDlg->pathname = cl_T("");
 			else {
 				u_strcpy(wDirPathName, wd_dir, FNSize);
 				len = strlen(wd_dir) - 1;
 				if (wd_dir[len] != PATHDELIMCHR)
 					strcat(wDirPathName, PATHDELIMSTR);
-				MovDlg->pathname=wDirPathName;
+				MpegDlg->pathname = wDirPathName;
 			}
-			MovDlg->pathname=MovDlg->pathname+fname;
-			MovDlg->Create(IDD_QT_DIALOG);
-			if (MovDlg->qt != NULL)
-				MovDlg->qt->Movie_Load(mvRec->MBeg, TRUE);
+			MpegDlg->pathname = MpegDlg->pathname + fname;
+			MpegDlg->Create(IDD_MPEG_DIALOG);
 			if (!PlayingContMovie || (PBC.walk && PBC.enable))
 				AfxGetApp()->m_pMainWnd->SetActiveWindow();
-			dur = MovDlg->qt->GetQTMovieDuration();
-			MovDlg->textDoc= GlobalDoc;
-			MovDlg->textDC = NULL; // GlobalDC;
+//			dur = (MpegDlg->mpeg)->GetMpegMovieDuration();
 		} else {
-			if (MovDlg->qt != NULL) {
-				MovDlg->qt->Movie_PreLoad(mvRec->MBeg);
-				dur = MovDlg->qt->GetQTMovieDuration();
-			} else
-				dur = 0;
-			MovDlg->m_to = dur;
 			if (!PlayingContMovie || (PBC.walk && PBC.enable))
 				;
-			else 
-				MovDlg->SetActiveWindow();
+			else
+				MpegDlg->SetActiveWindow();
+//			dur = (MpegDlg->mpeg)->GetMpegMovieDuration();
+//			MpegDlg->m_to = dur;
 		}
-		if (mvRec->MEnd > dur)
-			mvRec->MEnd = dur;
-
-		if (PlayingContMovie != '\003') {
-			MovDlg->m_to=mvRec->MEnd;
-			MovDlg->m_PlayToEnd = false;
+		if (MpegDlg->mpeg != NULL) {
+			(MpegDlg->mpeg)->isPlaying = 0;
+			(MpegDlg->mpeg)->m_wmpControler->pause();
 		}
-		MovDlg->m_from=mvRec->MBeg;
-		MovDlg->m_pos = MovDlg->m_from;
-		if ((t=strrchr(wDirPathName, '\\')) == NULL)
+		MpegDlg->mvRec = mvRec;
+		if (isJustOpen)
+			MpegDlg->isJustOpen = TRUE;
+		else
+			MpegDlg->isJustOpen = FALSE;
+		if ((t = strrchr(wDirPathName, '\\')) == NULL)
 			t = wDirPathName;
 		else
 			t++;
-		MovDlg->SetWindowText(t);
-		if (isJustOpen) {
-			MovDlg->m_from = 0;
-			MovDlg->m_pos = MovDlg->m_from;
-			MovDlg->m_to = 1;
-		}
-		MovDlg->MoviePlayLoopCnt = 1;
+		MpegDlg->SetWindowText(t);
+		MpegDlg->m_isUserResize = TRUE;
+		MpegDlg->MoviePlayLoopCnt = 1;
+#ifdef GETMEDIAINFO
+		long   lDur;
+		double dDur;
 
-		MovDlg->Play();
+		lDur = DisplayInfo(MpegDlg->pathname);
+		if (lDur > 0L) {
+			dDur = (double)lDur;
+			dDur = dDur / 1000;
+			MpegDlg->mpeg->SetRawDuration(dDur);
+			MpegDlg->mpeg->isMovieDurationSet = TRUE;
+			MpegDlg->mpeg->setVolume(100);
+		}
+#endif //GETMEDIAINFO
+		MpegDlg->textDoc = GlobalDoc;
+		MpegDlg->textDC = NULL; // GlobalDC;
+//		if (isMP3 == true) {
+//			unCH st[1024];
+
+//			MpegDlg->m_from -= 843;
+//			MpegDlg->m_to -= 1549; // 2021-05-07
+//			if (mvRec->MBeg > 843) mvRec->MBeg -= 843;
+//			if (mvRec->MEnd > 843) mvRec->MEnd -= 843;
+
+//			MCIERROR res;
+//			u_strcpy(st, "open \"C:\\USR\\PC-MP3\\cwsr059_42-m.mp3\" type mpegvideo alias mp3", 1023);
+//			res = mciSendString(st, NULL, 0, NULL);
+//			u_strcpy(st, "play mp3 from 22004 to 24326", 1023);
+//			res = mciSendString(st, NULL, 0, NULL);
+
+/*
+
+			// Visual C++ example
+			// For IID_IGraphBuilder, IID_IMediaControl, IID_IMediaEvent
+
+			LONGLONG beg, end;
+			// Obviously change this to point to a valid mp3 file.
+			const wchar_t* filePath = L"C:\\USR\\PC-MP3\\cwsr059_42-m.mp3";
+
+			IGraphBuilder *pGraph = NULL;
+			IMediaControl *pControl = NULL;
+			IMediaSeeking *pSeek = NULL;
+			IMediaEvent   *pEvent = NULL;
+
+			// Initialize the COM library.
+			HRESULT hr = ::CoInitialize(NULL);
+			if (FAILED(hr))
+			{
+				::printf("ERROR - Could not initialize COM library");
+				return 0;
+			}
+
+			// Create the filter graph manager and query for interfaces.
+			hr = ::CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC_SERVER,
+				IID_IGraphBuilder, (void **)&pGraph);
+			if (FAILED(hr))
+			{
+				::printf("ERROR - Could not create the Filter Graph Manager.");
+				return 0;
+			}
+
+			hr = pGraph->QueryInterface(IID_IMediaControl, (void **)&pControl);
+			hr = pGraph->QueryInterface(IID_IMediaSeeking, (void **)&pSeek);
+			hr = pGraph->QueryInterface(IID_IMediaEvent, (void **)&pEvent);
+
+			// Build the graph.
+			hr = pGraph->RenderFile(filePath, NULL);
+			if (SUCCEEDED(hr))
+			{
+				beg = mvRec->MBeg * 10000;
+				end = mvRec->MEnd * 10000;
+				const GUID pFormat = TIME_FORMAT_MEDIA_TIME;
+				hr = pSeek->SetTimeFormat(&pFormat);
+				hr = pSeek->SetPositions(&beg, AM_SEEKING_AbsolutePositioning, &end, AM_SEEKING_AbsolutePositioning);
+				if (SUCCEEDED(hr))
+				{
+					// Run the graph.
+					hr = pControl->Run();
+					if (SUCCEEDED(hr))
+					{
+						// Wait for completion.
+						long evCode;
+						pEvent->WaitForCompletion(INFINITE, &evCode);
+
+						// Note: Do not use INFINITE in a real application, because it
+						// can block indefinitely.
+					}
+				}
+			}
+			// Clean up in reverse order.
+			pEvent->Release();
+			pControl->Release();
+			pGraph->Release();
+			::CoUninitialize();
+*/
+//		}
+		MpegDlg->Play();
 	} else {
 		PlayingContMovie = FALSE;
 		do_warning("Unknown media type.", 0);
@@ -852,6 +961,15 @@ int PlayMovie(movInfo *mvRec, myFInfo *t2, char isJustOpen) {
 }
 
 void stopMoviePlaying(void) {
+	if (MpegDlg != NULL && MpegDlg->mpeg != NULL) {
+		if (!(MpegDlg->mpeg)->IsMpegMovieDone()) {
+			(MpegDlg->mpeg)->StopMpegMovie();
+		}
+		(MpegDlg->mpeg)->isPlaying = 0;
+		PBC.isPC = 0;
+		PBC.walk = 0;
+	}
+/* // NO QT
 	if (MovDlg != NULL) {
 		if (!(MovDlg->qt)->IsQTMovieDone()) {
 			StopMovie((MovDlg->qt)->theMovie);
@@ -860,55 +978,122 @@ void stopMoviePlaying(void) {
 		PBC.isPC = 0;
 		PBC.walk = 0;
 	}
+*/
 }
+
+void stopMovieIfPlaying(void) {
+	if (MpegDlg != NULL) {
+		if (!(MpegDlg->mpeg)->IsMpegMovieDone()) {
+			(MpegDlg->mpeg)->StopMpegMovie();
+		}
+		(MpegDlg->mpeg)->isPlaying = 0;
+		MpegDlg->DestroyWindow();
+		MpegDlg = NULL;
+	}
+/* // NO QT
+	if (MovDlg != NULL) {
+		if (!(MovDlg->qt)->IsQTMovieDone()) {
+			StopMovie((MovDlg->qt)->theMovie);
+		}
+		(MovDlg->qt)->isPlaying = 0;
+		MovDlg->DestroyWindow();
+		MovDlg = NULL;
+	}
+*/
+}
+
 
 void replayMovieWithOffset(int offset) {
 	long		t;
 
-	if (MovDlg == NULL || global_df == NULL)
+	if (global_df == NULL)
 		return;
-
-	if (offset < 0) {
-		t = (MovDlg->qt)->GetCurTime() - PBC.step_length;
-		if (t < 0L)
-			t = 0L;
-		global_df->MvTr.MBeg = t;
-		if (!(MovDlg->qt)->IsQTMovieDone()) {
-			StopMovie((MovDlg->qt)->theMovie);
-			(MovDlg->qt)->isPlaying = 0;
-		}
-		if (global_df->MvTr.MBeg >= (MovDlg->qt)->GetQTMovieDuration()) {
-			PBC.isPC = 0;
-			PBC.walk = 0;
-		} else {
-			global_df->MvTr.MEnd = global_df->MvTr.MBeg + PBC.step_length;
-			MovDlg->qt->Movie_PreLoad(global_df->MvTr.MBeg);
-			MovDlg->m_from=global_df->MvTr.MBeg;
-			MovDlg->m_pos = MovDlg->m_from;
-			MovDlg->m_to=global_df->MvTr.MEnd;
-			MovDlg->Play();
-		}
-	} else if (offset > 0) {
-		t = (MovDlg->qt)->GetCurTime() + PBC.step_length;
-		if (t < 0L)
-			t = 0L;
-		global_df->MvTr.MBeg = t;
-		if (!(MovDlg->qt)->IsQTMovieDone()) {
-			StopMovie((MovDlg->qt)->theMovie);
-			(MovDlg->qt)->isPlaying = 0;
-		}
-		if (global_df->MvTr.MBeg >= (MovDlg->qt)->GetQTMovieDuration()) {
-			PBC.isPC = 0;
-			PBC.walk = 0;
-		} else {
-			global_df->MvTr.MEnd = global_df->MvTr.MBeg + PBC.step_length;
-			MovDlg->qt->Movie_PreLoad(global_df->MvTr.MBeg);
-			MovDlg->m_from=global_df->MvTr.MBeg;
-			MovDlg->m_pos = MovDlg->m_from;
-			MovDlg->m_to=global_df->MvTr.MEnd;
-			MovDlg->Play();
+	if (MpegDlg != NULL) {
+		if (offset < 0) {
+			t = (MpegDlg->mpeg)->GetCurTime() - PBC.step_length;
+			if (t < 0L)
+				t = 0L;
+			global_df->MvTr.MBeg = t;
+			if (!(MpegDlg->mpeg)->IsMpegMovieDone()) {
+				(MpegDlg->mpeg)->StopMpegMovie();
+				(MpegDlg->mpeg)->isPlaying = 0;
+			}
+			if (global_df->MvTr.MBeg >= (MpegDlg->mpeg)->GetMpegMovieDuration()) {
+				PBC.isPC = 0;
+				PBC.walk = 0;
+			} else {
+				global_df->MvTr.MEnd = global_df->MvTr.MBeg + PBC.step_length;
+				MpegDlg->m_from = global_df->MvTr.MBeg;
+				MpegDlg->m_pos = MpegDlg->m_from;
+				MpegDlg->m_to = global_df->MvTr.MEnd;
+				MpegDlg->Play();
+			}
+		} else if (offset > 0) {
+			t = (MpegDlg->mpeg)->GetCurTime() + PBC.step_length;
+			if (t < 0L)
+				t = 0L;
+			global_df->MvTr.MBeg = t;
+			if (!(MpegDlg->mpeg)->IsMpegMovieDone()) {
+				(MpegDlg->mpeg)->StopMpegMovie();
+				(MpegDlg->mpeg)->isPlaying = 0;
+			}
+			if (global_df->MvTr.MBeg >= (MpegDlg->mpeg)->GetMpegMovieDuration()) {
+				PBC.isPC = 0;
+				PBC.walk = 0;
+			} else {
+				global_df->MvTr.MEnd = global_df->MvTr.MBeg + PBC.step_length;
+				MpegDlg->m_from = global_df->MvTr.MBeg;
+				MpegDlg->m_pos = MpegDlg->m_from;
+				MpegDlg->m_to = global_df->MvTr.MEnd;
+				MpegDlg->Play();
+			}
 		}
 	}
+/* // NO QT
+	else if (MovDlg != NULL) {
+		if (offset < 0) {
+			t = (MovDlg->qt)->GetCurTime() - PBC.step_length;
+			if (t < 0L)
+				t = 0L;
+			global_df->MvTr.MBeg = t;
+			if (!(MovDlg->qt)->IsQTMovieDone()) {
+				StopMovie((MovDlg->qt)->theMovie);
+				(MovDlg->qt)->isPlaying = 0;
+			}
+			if (global_df->MvTr.MBeg >= (MovDlg->qt)->GetQTMovieDuration()) {
+				PBC.isPC = 0;
+				PBC.walk = 0;
+			} else {
+				global_df->MvTr.MEnd = global_df->MvTr.MBeg + PBC.step_length;
+				MovDlg->qt->Movie_PreLoad(global_df->MvTr.MBeg);
+				MovDlg->m_from=global_df->MvTr.MBeg;
+				MovDlg->m_pos = MovDlg->m_from;
+				MovDlg->m_to=global_df->MvTr.MEnd;
+				MovDlg->Play();
+			}
+		} else if (offset > 0) {
+			t = (MovDlg->qt)->GetCurTime() + PBC.step_length;
+			if (t < 0L)
+				t = 0L;
+			global_df->MvTr.MBeg = t;
+			if (!(MovDlg->qt)->IsQTMovieDone()) {
+				StopMovie((MovDlg->qt)->theMovie);
+				(MovDlg->qt)->isPlaying = 0;
+			}
+			if (global_df->MvTr.MBeg >= (MovDlg->qt)->GetQTMovieDuration()) {
+				PBC.isPC = 0;
+				PBC.walk = 0;
+			} else {
+				global_df->MvTr.MEnd = global_df->MvTr.MBeg + PBC.step_length;
+				MovDlg->qt->Movie_PreLoad(global_df->MvTr.MBeg);
+				MovDlg->m_from=global_df->MvTr.MBeg;
+				MovDlg->m_pos = MovDlg->m_from;
+				MovDlg->m_to=global_df->MvTr.MEnd;
+				MovDlg->Play();
+			}
+		}
+	}
+*/
 }
 
 void getFileType(FNType *fn, unsigned long *type) {
@@ -930,7 +1115,7 @@ void getFileType(FNType *fn, unsigned long *type) {
 	else if (!uS.FNTypeicmp(s, ".mp4", 0L))
 		*type = 'MooV'; // 'mpg4'
 	else if (!uS.FNTypeicmp(s, ".m4v", 0L))
-		*type = 'MooV'; // 'mpg4'
+		*type = 'MooV'; // 'm4v'
 	else if (!uS.FNTypeicmp(s, ".flv", 0L))
 		*type = 'MooV'; // 'flv ';
 	else if (!uS.FNTypeicmp(s, ".dv", 0L))
@@ -941,7 +1126,9 @@ void getFileType(FNType *fn, unsigned long *type) {
 		*type = 'MPG ';
 	else if (!uS.FNTypeicmp(s, ".avi", 0L))
 		*type = 'MooV'; // 'AVI ';
-	else if (!uS.FNTypeicmp(s, ".txt", 0L)  || !uS.FNTypeicmp(s, ".cut", 0L) ||
+	else if (!uS.FNTypeicmp(s, ".wmv", 0L))
+		*type = 'MooV'; // 'wmv '
+	else if (!uS.FNTypeicmp(s, ".txt", 0L) || !uS.FNTypeicmp(s, ".cut", 0L) ||
 			 !uS.FNTypeicmp(s, ".cha", 0L)  || !uS.FNTypeicmp(s, ".ca", 0L))
 		*type = 'TEXT';
 	else if (!uS.FNTypeicmp(s, ".pict", 0L))
@@ -954,7 +1141,7 @@ void getFileType(FNType *fn, unsigned long *type) {
 		*type = 0L;
 }
 
-void CantFindMedia(char *err_message, unCH *fname) {
+void CantFindMedia(char *err_message, unCH *fname, char isOld) {
 	FNType *c;
 	FNType fileName[FNSize];
 	FNType tFileName[FNSize];
@@ -968,14 +1155,24 @@ void CantFindMedia(char *err_message, unCH *fname) {
 	strcpy(fileName, global_df->fileName);
 	c = strrchr(fileName, PATHDELIMCHR);
 	if (c == NULL) {
-		sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it into the folder which has your transcript or the \"media\" folder below the transcript and try again. Make sure that QuickTime is installed.", tFileName);
+		if (isOld)
+			sprintf(global_df->err_message, "+OLD BULLET FORMAT. Please locate the media file \"%s\" and move it into the folder which has your transcript or the \"media\" folder below the transcript and try again.", tFileName);
+		else
+			sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it into the folder which has your transcript or the \"media\" folder below the transcript and try again.", tFileName);
 		return;
 	}
 	*(c+1) = EOS;
 
-	sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it to the \"%s\" folder or the \"media\" folder inside of it and try again. Make sure that QuickTime is installed.", tFileName, fileName);
-	if (strlen(global_df->err_message) >= 300)
-		sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it into the folder which has your transcript or the \"media\" folder below the transcript and try again. Make sure that QuickTime is installed.", tFileName);
+	if (isOld)
+		sprintf(global_df->err_message, "+OLD BULLET FORMAT. Please locate the media file \"%s\" and move it to the \"%s\" folder or the \"media\" folder inside of it and try again.", tFileName, fileName);
+	else
+		sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it to the \"%s\" folder or the \"media\" folder inside of it and try again.", tFileName, fileName);
+	if (strlen(global_df->err_message) >= 300) {
+		if (isOld)
+			sprintf(global_df->err_message, "+OLD BULLET FORMAT. Please locate the media file \"%s\" and move it into the folder which has your transcript or the \"media\" folder below the transcript and try again.", tFileName);
+		else
+			sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it into the folder which has your transcript or the \"media\" folder below the transcript and try again.", tFileName);
+	}
 }
 
 static char isRightMediaFolder(FNType *sfFile, char *err_message) {
@@ -1009,9 +1206,9 @@ static char isRightMediaFolder(FNType *sfFile, char *err_message) {
 
 	strcpy(fileName2, sfFile);
 	extractPath(fileName1, global_df->fileName);
-	sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it to the \"%s\" folder or the \"media\" folder inside of it and try again. Make sure that QuickTime is installed.", fileName2, fileName1);
+	sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it to the \"%s\" folder or the \"media\" folder inside of it and try again.", fileName2, fileName1);
 	if (strlen(global_df->err_message) >= 300)
-		sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it into the folder which has your transcript or the \"media\" folder below the transcript and try again. Make sure that QuickTime is installed.", fileName2);
+		sprintf(global_df->err_message, "+Please locate the media file \"%s\" and move it into the folder which has your transcript or the \"media\" folder below the transcript and try again.", fileName2);
 	return(FALSE);
 }
 // select media dialog box BEGIN
@@ -1091,7 +1288,7 @@ static char strictMediaFileMatch(FNType *sTemp) {
 			!uS.FNTypeicmp(s, ".m4v", 0L)  || !uS.FNTypeicmp(s, ".flv", 0L)  ||
 			!uS.FNTypeicmp(s, ".mpeg", 0L) || !uS.FNTypeicmp(s, ".mpg", 0L)  ||
 			!uS.FNTypeicmp(s, ".avi", 0L)  || !uS.FNTypeicmp(s, ".dv", 0L)   || 
-			!uS.FNTypeicmp(s, ".dat", 0L) 		// vcd file
+			!uS.FNTypeicmp(s, ".wmv", 0L)   || !uS.FNTypeicmp(s, ".dat", 0L) // vcd file
 			) {
 			return(TRUE); /* show in box */
 		}
@@ -1191,20 +1388,23 @@ char LocateMediaFile(FNType *fname) {
 char GetNewMediaFile(char isCheckError, char isAllMedia) {
     OPENFILENAME	ofn;
 	unsigned long	SFileType;
-    wchar_t			szFile[FILENAME_MAX];
-    wchar_t			*szFilter;
-	wchar_t			wPrompt[256];
+    unCH			szFile[FILENAME_MAX];
+    unCH			*szFilter;
+	unCH			wPrompt[256];
 	FNType			*c, retFileName[FNSize];
 
-	if (isAllMedia == 0) {
+	if (isAllMedia == isAllType) {
 		strcpy(wPrompt, "Please locate movie, sound, picture or text file");
-		szFilter = _T("Media Files (*.aif,*.aiff,*.wav,*.mp3,*.mpg,*.mpeg,*.dat,*.mov,*.mp4,*.m4v)\0*.aif;*.aiff;*.wav;*.mp3;*.mpg;*.mpeg;*.dat;*.mov;*.mp4;*.m4v\0Picture and text (*.gif,*.jpg,*.jpeg,*.pict,*.txt,*.cut,*.cha,*.ca)\0*.gif;*.jpg;*.jpeg;*.pict;*.txt;*.cut;*.cha;*.ca\0All files (*.*)\0*.*\0\0");
+		szFilter = _T("Media Files (*.aif,*.aiff,*.wav,*.mp3,*.mpg,*.mpeg,*.dat,*.mov,*.mp4,*.m4v,*.wmv)\0*.aif;*.aiff;*.wav;*.mp3;*.mpg;*.mpeg;*.dat;*.mov;*.mp4;*.m4v;*.wmv\0Picture and text (*.gif,*.jpg,*.jpeg,*.pict,*.txt,*.cut,*.cha,*.ca)\0*.gif;*.jpg;*.jpeg;*.pict;*.txt;*.cut;*.cha;*.ca\0All files (*.*)\0*.*\0\0");
+	} else if (isAllMedia == isPictText) {
+		strcpy(wPrompt, "Please locate TEXT or JPEG file ONLY");
+		szFilter = _T("Sound Files (*.txt,*.cut,*.cdc,*.pict,*.jpg,*.jpeg,*.gif)\0*.txt;*.cut;*.cdc;*.pict;*.jpg;*.jpeg;*.gif\0All files (*.*)\0*.*\0\0");
 	} else if (isAllMedia == isAudio) {
 		strcpy(wPrompt, "Please locate sound file ONLY");
 		szFilter = _T("Sound Files (*.aif,*.aiff,*.wav,*.mp3)\0*.aif;*.aiff;*.wav;*.mp3\0All files (*.*)\0*.*\0\0");
 	} else {
 		strcpy(wPrompt, "Please locate movie or sound file ONLY");
-		szFilter = _T("Media Files (*.aif,*.aiff,*.wav,*.mp3,*.mpg,*.mpeg,*.dat,*.mov,*.mp4,*.m4v)\0*.aif;*.aiff;*.wav;*.mp3;*.mpg;*.mpeg;*.dat;*.mov;*.mp4;*.m4v\0All files (*.*)\0*.*\0\0");
+		szFilter = _T("Media Files (*.aif,*.aiff,*.wav,*.mp3,*.mpg,*.mpeg,*.dat,*.mov,*.mp4,*.m4v,*.wmv)\0*.aif;*.aiff;*.wav;*.mp3;*.mpg;*.mpeg;*.dat;*.mov;*.mp4;*.m4v;*.wmv\0All files (*.*)\0*.*\0\0");
 	}
 
 	szFile[0] = EOS;
@@ -1231,10 +1431,6 @@ char GetNewMediaFile(char isCheckError, char isAllMedia) {
 			global_df->SnTr.SoundFile[0] = EOS;
 			if (global_df->SnTr.isMP3 == TRUE) {
 				global_df->SnTr.isMP3 = FALSE;
-				if (global_df->SnTr.mp3.hSys7SoundData)
-					DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
-				global_df->SnTr.mp3.theSoundMedia = NULL;
-				global_df->SnTr.mp3.hSys7SoundData = NULL;
 			} else if (global_df->SnTr.SoundFPtr != 0) {
 				fclose(global_df->SnTr.SoundFPtr);
 			}
@@ -1254,10 +1450,6 @@ char GetNewMediaFile(char isCheckError, char isAllMedia) {
 			global_df->SnTr.SoundFile[0] = EOS;
 			if (global_df->SnTr.isMP3 == TRUE) {
 				global_df->SnTr.isMP3 = FALSE;
-				if (global_df->SnTr.mp3.hSys7SoundData)
-					DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
-				global_df->SnTr.mp3.theSoundMedia = NULL;
-				global_df->SnTr.mp3.hSys7SoundData = NULL;
 			} else if (global_df->SnTr.SoundFPtr != 0) {
 				fclose(global_df->SnTr.SoundFPtr);
 			}
@@ -1294,10 +1486,6 @@ char GetNewMediaFile(char isCheckError, char isAllMedia) {
 		}
 		if (global_df->SnTr.isMP3) {
 			global_df->SnTr.isMP3 = FALSE;
-			if (global_df->SnTr.mp3.hSys7SoundData)
-				DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
-			global_df->SnTr.mp3.theSoundMedia = NULL;
-			global_df->SnTr.mp3.hSys7SoundData = NULL;
 		} else if (global_df->SnTr.SoundFPtr != 0) {
 			fclose(global_df->SnTr.SoundFPtr);
 			global_df->SnTr.SoundFile[0] = EOS;
@@ -1309,15 +1497,30 @@ char GetNewMediaFile(char isCheckError, char isAllMedia) {
 		DrawSoundCursor(0);
 		global_df->SnTr.BegF = global_df->SnTr.EndF = 0L;
 		if (SFileType == 'MP3!') {
-			if (GetMovieMedia(retFileName,&global_df->SnTr.mp3.theSoundMedia,&global_df->SnTr.mp3.hSys7SoundData) != noErr) {
-				sprintf(global_df->err_message, "+Can't open sound file: %s. Perhaps it is already opened by other application or in another window.", retFileName);
-				global_df->SnTr.SoundFile[0] = EOS;
-				global_df->SnTr.SoundFPtr = 0;
-				if (global_df->SoundWin)
-					DisposeOfSoundWin();
+			extractFileName(FileName2, retFileName);
+			c = strrchr(FileName2, '.');
+			if (c != NULL && uS.mStricmp(c, ".mp3") == 0)
+				*c = EOS;
+			strcpy(FileName1, retFileName);
+			c = strrchr(FileName1, '.');
+			if (c != NULL && uS.mStricmp(c, ".mp3") == 0)
+				*c = EOS;
+			strcat(FileName1, ".wav");
+			if (global_df->SnTr.SoundFPtr != NULL)
+				fclose(global_df->SnTr.SoundFPtr);
+			strcpy(global_df->MvTr.rMovieFile, retFileName);
+			u_strcpy(global_df->MvTr.MovieFile, FileName2, FILENAME_MAX);
+			PlayMovie(&global_df->MvTr, global_df, TRUE);
+			SaveSoundMovieAsWAVEFile(retFileName, FileName1);
+			if (MpegDlg != NULL)
+				MpegDlg->OnCancel();
+			if ((global_df->SnTr.SoundFPtr = fopen(FileName1, "rb")) == NULL) {
 				return(0);
 			}
-			global_df->SnTr.isMP3 = TRUE;
+			global_df->MvTr.rMovieFile[0] = EOS;
+			global_df->MvTr.MovieFile[0] = EOS;
+			u_strcpy(global_df->SnTr.SoundFile, FileName2, FILENAME_MAX);
+			strcpy(retFileName, FileName1);
 		} else if ((global_df->SnTr.SoundFPtr=fopen(retFileName, "rb")) == NULL) {
 			sprintf(global_df->err_message, "+Can't open sound file: %s. Perhaps it is already opened by other application or in another window.", retFileName);
 			global_df->SnTr.SoundFile[0] = EOS;
@@ -1333,10 +1536,6 @@ char GetNewMediaFile(char isCheckError, char isAllMedia) {
 			global_df->SnTr.rSoundFile[0] = EOS;
 			if (global_df->SnTr.isMP3 == TRUE) {
 				global_df->SnTr.isMP3 = FALSE;
-				if (global_df->SnTr.mp3.hSys7SoundData)
-					DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
-				global_df->SnTr.mp3.theSoundMedia = NULL;
-				global_df->SnTr.mp3.hSys7SoundData = NULL;
 			} else {
 				fclose(global_df->SnTr.SoundFPtr);
 				global_df->SnTr.SoundFPtr = 0;
@@ -1361,10 +1560,6 @@ char GetNewMediaFile(char isCheckError, char isAllMedia) {
 			global_df->SnTr.SoundFile[0] = EOS;
 			if (global_df->SnTr.isMP3 == TRUE) {
 				global_df->SnTr.isMP3 = FALSE;
-				if (global_df->SnTr.mp3.hSys7SoundData)
-					DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
-				global_df->SnTr.mp3.theSoundMedia = NULL;
-				global_df->SnTr.mp3.hSys7SoundData = NULL;
 			} else if (global_df->SnTr.SoundFPtr != 0) {
 				fclose(global_df->SnTr.SoundFPtr);
 			}
@@ -1381,10 +1576,10 @@ char GetNewPictFile(FNType *fname) {
     OPENFILENAME	ofn;
 	FILE			*fptr;
 	FNType			fileName[FNSize];
-    wchar_t			tfname[FILENAME_MAX];
-    wchar_t			szFile[FILENAME_MAX];
-    wchar_t			*szFilter;
-	wchar_t			wDirPathName[FNSize];
+    unCH			tfname[FILENAME_MAX];
+    unCH			szFile[FILENAME_MAX];
+    unCH			*szFilter;
+	unCH			wDirPathName[FNSize];
 
 	szFilter = _T("Picture Files (*.gif,*.jpeg,*.jpg)\0*.gif;*.jpeg;*.jpg\0All files (*.*)\0*.*\0\0");
 	szFile[0] = EOS;
@@ -1436,10 +1631,10 @@ char GetNewTextFile(FNType *fname) {
     OPENFILENAME	ofn;
 	FILE			*fptr;
 	FNType			fileName[FNSize];
-    wchar_t			tfname[FILENAME_MAX];
-    wchar_t			szFile[FILENAME_MAX];
-    wchar_t			*szFilter;
-	wchar_t			wDirPathName[FNSize];
+    unCH			tfname[FILENAME_MAX];
+    unCH			szFile[FILENAME_MAX];
+    unCH			*szFilter;
+	unCH			wDirPathName[FNSize];
 
 	szFilter = _T("Text Files (*.txt,*.cut,*.cha,*.ca)\0*.txt;*.cut;*.cha;*.ca\0All files (*.*)\0*.*\0\0");
 	szFile[0] = EOS;
@@ -1685,9 +1880,8 @@ void PrintSoundWin(int col, int cm, Size cur) {
 	}
 	if (global_df->TopP1 && global_df->BotP1 && global_df->SnTr.WBegFM == global_df->SnTr.WBegF && global_df->SnTr.WEndFM == global_df->SnTr.WEndF) {
 		if (global_df->TopP1[0] == -1) {
-			if (global_df->SnTr.isMP3 == TRUE)
-				ReadMP3Sound(col, cm, cur);
-			else if (global_df->SnTr.SNDsample == 1)
+			if (global_df->SnTr.isMP3 == TRUE) {
+			}  else if (global_df->SnTr.SNDsample == 1)
 				ReadSound8bit(col, cm, cur);
 			else if (global_df->SnTr.SNDsample == 2)
 				ReadSound16bit(col, cm, cur);
@@ -1703,9 +1897,8 @@ void PrintSoundWin(int col, int cm, Size cur) {
 			PutSoundStats(global_df->SnTr.WEndF - global_df->SnTr.WBegF);
 		}
 	} else {
-		if (global_df->SnTr.isMP3 == TRUE)
-			ReadMP3Sound(col, cm, cur);
-		else if (global_df->SnTr.SNDsample == 1)
+		if (global_df->SnTr.isMP3 == TRUE) {
+		}  else if (global_df->SnTr.SNDsample == 1)
 			ReadSound8bit(col, cm, cur);
 		else if (global_df->SnTr.SNDsample == 2)
 			ReadSound16bit(col, cm, cur);
@@ -1750,11 +1943,13 @@ void DisplayEndF(char all) {
 	}
 }
 
-static void CheckNewF(Size NewF, char *dir, BOOL isDrawCursor) {
+static void CheckNewF(Size NewF, char *dir, bool isDrawCursor) {
 	Size t1, HalfF;
 
 	if (global_df->SnTr.EndF < global_df->SnTr.BegF && global_df->SnTr.EndF != 0L) {
-		t1 = global_df->SnTr.EndF; global_df->SnTr.EndF = global_df->SnTr.BegF; global_df->SnTr.BegF = t1;
+		t1 = global_df->SnTr.EndF;
+		global_df->SnTr.EndF = global_df->SnTr.BegF;
+		global_df->SnTr.BegF = t1;
 	}
 
 	if (global_df->SnTr.EndF == 0L || global_df->SnTr.BegF == global_df->SnTr.EndF) {
@@ -1764,7 +1959,8 @@ static void CheckNewF(Size NewF, char *dir, BOOL isDrawCursor) {
 		if (global_df->SnTr.BegF > NewF) {
 			global_df->SnTr.EndF = global_df->SnTr.BegF;
 			global_df->SnTr.BegF = NewF;
-		} else global_df->SnTr.EndF = NewF;
+		} else
+			global_df->SnTr.EndF = NewF;
 		if (isDrawCursor == true)
 			DrawSoundCursor(2);
 	} else if (NewF > global_df->SnTr.EndF) {
@@ -1774,7 +1970,8 @@ static void CheckNewF(Size NewF, char *dir, BOOL isDrawCursor) {
 			t1 = global_df->SnTr.EndF;
 		} else
 			t1 = global_df->SnTr.BegF;
-		global_df->SnTr.BegF = global_df->SnTr.EndF; global_df->SnTr.EndF = NewF;
+		global_df->SnTr.BegF = global_df->SnTr.EndF;
+		global_df->SnTr.EndF = NewF;
 		if (isDrawCursor == true)
 			DrawSoundCursor(2);
 		global_df->SnTr.BegF = t1;
@@ -1786,40 +1983,49 @@ static void CheckNewF(Size NewF, char *dir, BOOL isDrawCursor) {
 			t1 = global_df->SnTr.BegF;
 		} else
 			t1 = global_df->SnTr.EndF;
-		global_df->SnTr.EndF = global_df->SnTr.BegF; global_df->SnTr.BegF = NewF; 
+		global_df->SnTr.EndF = global_df->SnTr.BegF;
+		global_df->SnTr.BegF = NewF; 
 		if (isDrawCursor == true)
 			DrawSoundCursor(2);
 		global_df->SnTr.EndF = t1;
 		*dir = -1;
 	} else if (NewF > global_df->SnTr.BegF && NewF < global_df->SnTr.EndF && *dir == 1) {
-		t1 = global_df->SnTr.BegF; global_df->SnTr.BegF = NewF;
+		t1 = global_df->SnTr.BegF;
+		global_df->SnTr.BegF = NewF;
 		if (isDrawCursor == true)
 			DrawSoundCursor(2);
-		global_df->SnTr.BegF = t1; global_df->SnTr.EndF = NewF;
+		global_df->SnTr.BegF = t1;
+		global_df->SnTr.EndF = NewF;
 	} else if (NewF > global_df->SnTr.BegF && NewF < global_df->SnTr.EndF && *dir == -1) {
-		t1 = global_df->SnTr.EndF; global_df->SnTr.EndF = NewF;
+		t1 = global_df->SnTr.EndF;
+		global_df->SnTr.EndF = NewF;
 		if (isDrawCursor == true)
 			DrawSoundCursor(2);
-		global_df->SnTr.BegF = NewF; global_df->SnTr.EndF = t1;
+		global_df->SnTr.BegF = NewF;
+		global_df->SnTr.EndF = t1;
 	} else {
 		HalfF = (global_df->SnTr.EndF - global_df->SnTr.BegF) / 2;
 		if (NewF > global_df->SnTr.BegF && NewF < global_df->SnTr.BegF + HalfF) {
-			t1 = global_df->SnTr.EndF; global_df->SnTr.EndF = NewF;
+			t1 = global_df->SnTr.EndF;
+			global_df->SnTr.EndF = NewF;
 			if (isDrawCursor == true)
 				DrawSoundCursor(2);
-			global_df->SnTr.BegF = NewF; global_df->SnTr.EndF = t1;
+			global_df->SnTr.BegF = NewF;
+			global_df->SnTr.EndF = t1;
 			*dir = -1;
 		} else if (NewF > global_df->SnTr.BegF+HalfF && NewF < global_df->SnTr.EndF) {
-			t1 = global_df->SnTr.BegF; global_df->SnTr.BegF = NewF;
+			t1 = global_df->SnTr.BegF;
+			global_df->SnTr.BegF = NewF;
 			if (isDrawCursor == true)
 				DrawSoundCursor(2);
-			global_df->SnTr.BegF = t1; global_df->SnTr.EndF = NewF;
+			global_df->SnTr.BegF = t1;
+			global_df->SnTr.EndF = NewF;
 			*dir = 1;
 		}
 	}
 }
 
-void delay_mach(Size num) {
+void delay_mach(DWORD num) {
 	DWORD t;
 	
 	t = GetTickCount() + (num * 16.66);
@@ -1848,8 +2054,10 @@ char SetCurrSoundTier(void) {
 
 void AdjustSoundScroll(int col, Size right_lim) {
 	if (col < left_lim || col > right_lim) {
-		long t;
-		DWORD tDelay;
+		BOOL	isStillDown;
+		long	t;
+		DWORD	tDelay;
+		MSG		msg;
 
 		DrawSoundCursor(0);
 		NewF = ((Size)global_df->scale_row * (Size)global_df->SnTr.SNDsample) * ScollValue;
@@ -1869,7 +2077,8 @@ void AdjustSoundScroll(int col, Size right_lim) {
 			}
 //			MoveSoundWave(global_df->SoundWin, ScollValue, left_lim, right_lim-ScollValue);
 			if (global_df->SnTr.WBegF >= global_df->SnTr.BegF && global_df->SnTr.WBegF <= global_df->SnTr.EndF) {
-				t = global_df->SnTr.EndF; global_df->SnTr.EndF = global_df->SnTr.WBegF + NewF;
+				t = global_df->SnTr.EndF;
+				global_df->SnTr.EndF = global_df->SnTr.WBegF + NewF;
 //				DrawSoundCursor(2);
 				global_df->SnTr.EndF = t;
 			}
@@ -1932,13 +2141,17 @@ void AdjustSoundScroll(int col, Size right_lim) {
 		touchwin(global_df->SoundWin); wrefresh(global_df->SoundWin);
 		global_df->WinChange = TRUE;
 		DrawSoundCursor(2);
-		if (StillDown() == true) {
-			tDelay = GetTickCount() + 100;
-			do {  
-				if (GetTickCount() > tDelay)
-					break;		 
-			} while (StillDown() == true) ;
-		}
+		isStillDown = TRUE;
+		tDelay = GetTickCount() + 100;
+		do {
+			if (GetTickCount() > tDelay)
+				break;
+				if (PeekMessage(&msg, AfxGetApp()->m_pMainWnd->m_hWnd, 0, 0, PM_REMOVE)) {
+					if (msg.message != WM_LBUTTONDOWN && msg.message != WM_RBUTTONDOWN) {
+						isStillDown = FALSE;
+					}
+				}
+		} while (isStillDown) ;
 	} else {
 		NewF = global_df->SnTr.WBegF + ((col-left_lim) * global_df->scale_row * global_df->SnTr.SNDsample);
 		NewF = AlignMultibyteMediaStream(NewF, '-');
@@ -2017,7 +2230,12 @@ char AdjustSound(int row, int col, int ext, Size right_lim) {
 			global_df->SnTr.BegF = NewF;
 			global_df->SnTr.EndF = 0L;
 			if (syncAudioAndVideo(global_df->MvTr.MovieFile)) {
-				MovDlg->SetCurPosToValue(conv_to_msec_rep(NewF));
+				if (MpegDlg != NULL)
+					MpegDlg->SetCurPosToValue(conv_to_msec_rep(NewF));
+/* // NO QT
+				else if (MovDlg != NULL)
+					MovDlg->SetCurPosToValue(conv_to_msec_rep(NewF));
+*/
 			}
 		} else
 			CheckNewF(NewF, &dir, true);
@@ -2039,6 +2257,26 @@ int soundwindow(int TurnOn) {
 
 	if (TurnOn == 0) {
 		DisposeOfSoundWin();
+		if (MpegDlg != NULL) {
+			if (MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->m_wmpControler != NULL) { //playing
+				(MpegDlg->mpeg)->StopMpegMovie();
+				(MpegDlg->mpeg)->isPlaying = 0;
+			}
+			MpegDlg->doErase = false;
+			MpegDlg->OnCancel();
+			MpegDlg = NULL;
+		}
+/* // NO QT
+		if (MovDlg != NULL) {
+			if (MovDlg->qt != NULL && !(MovDlg->qt)->IsQTMovieDone()) { //playing
+				StopMovie((MovDlg->qt)->theMovie);
+				(MovDlg->qt)->isPlaying = 0;
+			}
+			MovDlg->doErase = false;
+			MovDlg->OnCancel();
+			MovDlg = NULL;
+		}
+*/
 		return(0);
 	}
 
@@ -2235,17 +2473,6 @@ void stopSoundIfPlaying(void) {
 	}
 }
 
-void stopMovieIfPlaying(void) {
-	if (MovDlg != NULL) {
-		MovDlg->DestroyWindow();
-		MovDlg = NULL;
-	}
-	if (MPegDlg != NULL) {
-		MPegDlg->DestroyWindow();
-		MPegDlg = NULL;
-	}
-}
-
 int play_sound(long int begin, long int end, int cont) {
 	SndPlayLoopCnt = 1;
 	if (!PlayBuffer(cont)) {
@@ -2255,10 +2482,6 @@ int play_sound(long int begin, long int end, int cont) {
 		global_df->SnTr.SoundFile[0] = EOS;
 		if (global_df->SnTr.isMP3 == TRUE) {
 			global_df->SnTr.isMP3 = FALSE;
-			if (global_df->SnTr.mp3.hSys7SoundData)
-				DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
-			global_df->SnTr.mp3.theSoundMedia = NULL;
-			global_df->SnTr.mp3.hSys7SoundData = NULL;
 		} else {
 			fclose(global_df->SnTr.SoundFPtr);
 		}
@@ -2276,9 +2499,9 @@ int play_sound(long int begin, long int end, int cont) {
 static DWORD ReadSound(HPSTR buf, DWORD max) {
 	register long i;
 	short  *tShort;
-	DWORD	bytesCount;
+	long	bytesCount;
 
-	bytesCount = MIN(max, (DWORD)(global_df->SnTr.EndF-CurF));
+	bytesCount = my_MIN(max, (DWORD)(global_df->SnTr.EndF-CurF));
 	if (CurF < global_df->SnTr.SoundFileSize) {
 		if (CurF+bytesCount >= global_df->SnTr.SoundFileSize)
 			bytesCount = global_df->SnTr.SoundFileSize - CurF;
@@ -2316,7 +2539,7 @@ void CALLBACK waveOutProc(HWAVEOUT hwo, UINT uMsg, DWORD dwUVar, DWORD dwP1, DWO
 }
 */
 
-char checkPCMSound(MSG* pMsg, char skipOnChar) {
+char checkPCMSound(MSG* pMsg, char skipOnChar, DWORD tickCount) {
 	long   CurFP;
 	MMTIME pmmt;
 
@@ -2330,71 +2553,104 @@ char checkPCMSound(MSG* pMsg, char skipOnChar) {
 		wmove(global_df->w1, global_df->row_win, global_df->col_win-global_df->LeftCol);
 		wrefresh(global_df->w1);
 	}
-	if (pMsg->message == WM_LBUTTONDOWN || pMsg->message == WM_RBUTTONDOWN) {
-		if (PlayingContSound || !PBC.enable) {
-			if (PlayingContSound)
-				PlayingContSound = '\003';
-			stopSoundIfPlaying();
-			isWinSndPlayAborted = 1;
-			skipOnChar = TRUE;
-		}
-	} else if (pMsg->message == WM_KEYDOWN) {
-		if (PlayingContSound == '\004') {
-			char res;
-			global_df->LeaveHighliteOn = TRUE;
-			if (pMsg->wParam == 'i' || pMsg->wParam == 'I' || pMsg->wParam == ' ') {
-				DrawCursor(2);
-				DrawSoundCursor(2);
-				ResetSelectFlag(0);
-				pmmt.wType = TIME_BYTES;
-				waveOutGetPosition(hWaveOut, &pmmt, sizeof(pmmt));
-				CurFP = (long)pmmt.u.cb + orgBeg + global_df->SnTr.AIFFOffset;
-				if (global_df->SnTr.BegF != CurFP && CurFP != 0L) {
-					global_df->row_win2 = 0L;
-					global_df->col_win2 = -2L;
-					global_df->col_chr2 = -2L;
-					if ((res=findStartMediaTag(TRUE, F5Option == EVERY_LINE)) != TRUE)
-						findEndOfSpeakerTier(res, F5Option == EVERY_LINE);
-					SaveUndoState(FALSE);
-					addBulletsToText(SOUNDTIER, global_df->SnTr.SoundFile, conv_to_msec_rep(global_df->SnTr.BegF), conv_to_msec_rep(CurFP));
-					if (FreqCountLimit > 0 && global_df->FreqCount <= FreqCountLimit)
-						global_df->FreqCount++;
-					global_df->SnTr.BegF = AlignMultibyteMediaStream(CurFP, '-');
-					if (global_df->SnTr.IsSoundOn)
+	if (pMsg != NULL) {
+		if (pMsg->message == WM_LBUTTONDOWN || pMsg->message == WM_RBUTTONDOWN) {
+			if (PlayingContSound || !PBC.enable) {
+				if (PlayingContSound)
+					PlayingContSound = '\003';
+				stopSoundIfPlaying();
+				isWinSndPlayAborted = 1;
+				skipOnChar = TRUE;
+			}
+		} else if (pMsg->message == WM_KEYDOWN) {
+			if (PlayingContSound == '\004') {
+				char res;
+				global_df->LeaveHighliteOn = TRUE;
+				if ((pMsg->wParam == VK_F5 || pMsg->wParam == VK_F1 || pMsg->wParam == VK_F2 || pMsg->wParam == VK_F3) && F5_Offset != 0L) {
+					DrawCursor(2);
+					DrawSoundCursor(2);
+					ResetSelectFlag(0);
+					pmmt.wType = TIME_BYTES;
+					waveOutGetPosition(hWaveOut, &pmmt, sizeof(pmmt));
+					CurFP = (long)pmmt.u.cb + orgBeg + global_df->SnTr.AIFFOffset;
+					if (global_df->SnTr.BegF != CurFP && CurFP != 0L) {
+						global_df->row_win2 = 0L;
+						global_df->col_win2 = -2L;
+						global_df->col_chr2 = -2L;
+						if ((res = findStartMediaTag(TRUE, F5Option == EVERY_LINE)) != TRUE)
+							findEndOfSpeakerTier(res, F5Option == EVERY_LINE);
+						SaveUndoState(FALSE);
+						addBulletsToText(SOUNDTIER, global_df->SnTr.SoundFile, conv_to_msec_rep(global_df->SnTr.BegF), conv_to_msec_rep(CurFP));
+						if (FreqCountLimit > 0 && global_df->FreqCount <= FreqCountLimit)
+							global_df->FreqCount++;
+						global_df->SnTr.BegF = AlignMultibyteMediaStream(CurFP, '-');
+						if (global_df->SnTr.IsSoundOn)
 							DisplayEndF(FALSE);
-					if (GlobalDoc && global_df->DataChanged)
-						GlobalDoc->SetModifiedFlag(TRUE);
+						if (GlobalDoc && global_df->DataChanged)
+							GlobalDoc->SetModifiedFlag(TRUE);
+					}
+					selectNextSpeaker();
+					strcpy(global_df->err_message, "-Transcribing, click mouse to stop");
+					draw_mid_wm();
+					strcpy(global_df->err_message, DASHES);
+					wmove(global_df->w1, global_df->row_win, global_df->col_win - global_df->LeftCol);
+					wrefresh(global_df->w1);
+					DrawSoundCursor(1);
+					DrawCursor(1);
+					isWinSndDonePlaying = 1;
+				} else if (pMsg->wParam == 'i' || pMsg->wParam == 'I' || pMsg->wParam == ' ') {
+					DrawCursor(2);
+					DrawSoundCursor(2);
+					ResetSelectFlag(0);
+					pmmt.wType = TIME_BYTES;
+					waveOutGetPosition(hWaveOut, &pmmt, sizeof(pmmt));
+					CurFP = (long)pmmt.u.cb + orgBeg + global_df->SnTr.AIFFOffset;
+					if (global_df->SnTr.BegF != CurFP && CurFP != 0L) {
+						global_df->row_win2 = 0L;
+						global_df->col_win2 = -2L;
+						global_df->col_chr2 = -2L;
+						if ((res = findStartMediaTag(TRUE, F5Option == EVERY_LINE)) != TRUE)
+							findEndOfSpeakerTier(res, F5Option == EVERY_LINE);
+						SaveUndoState(FALSE);
+						addBulletsToText(SOUNDTIER, global_df->SnTr.SoundFile, conv_to_msec_rep(global_df->SnTr.BegF), conv_to_msec_rep(CurFP));
+						if (FreqCountLimit > 0 && global_df->FreqCount <= FreqCountLimit)
+							global_df->FreqCount++;
+						global_df->SnTr.BegF = AlignMultibyteMediaStream(CurFP, '-');
+						if (global_df->SnTr.IsSoundOn)
+							DisplayEndF(FALSE);
+						if (GlobalDoc && global_df->DataChanged)
+							GlobalDoc->SetModifiedFlag(TRUE);
+					}
+					selectNextSpeaker();
+					strcpy(global_df->err_message, "-Transcribing, click mouse to stop");
+					draw_mid_wm();
+					strcpy(global_df->err_message, DASHES);
+					wmove(global_df->w1, global_df->row_win, global_df->col_win - global_df->LeftCol);
+					wrefresh(global_df->w1);
+					DrawSoundCursor(1);
+					DrawCursor(1);
 				}
-				selectNextSpeaker();
-				strcpy(global_df->err_message, "-Transcribing, click mouse to stop");
-				draw_mid_wm();
-				strcpy(global_df->err_message, DASHES);
-				wmove(global_df->w1, global_df->row_win, global_df->col_win-global_df->LeftCol);
-				wrefresh(global_df->w1);
-				DrawSoundCursor(1);
-				DrawCursor(1);
-			}
-		} else if (pMsg->wParam >= 32) {
-			if (PlayingContSound) {
-				PlayingContSound = '\003';
-				stopSoundIfPlaying();
-				isWinSndPlayAborted = 1;
-				skipOnChar = TRUE;
-			}
-			if (!PBC.enable || (pMsg->wParam >= VK_F1 && pMsg->wParam <= VK_F12)) {
-				stopSoundIfPlaying();
-				isWinSndPlayAborted = 1;
-				if (pMsg->wParam == VK_F7 && PBC.enable) {
-					isWinSndPlayAborted = 4; // F7
-				} else if (pMsg->wParam == VK_F9 && PBC.enable) {
-					isWinSndPlayAborted = 5; // F8
-				} else
+			} else if (pMsg->wParam >= 32) {
+				if (PlayingContSound) {
+					PlayingContSound = '\003';
+					stopSoundIfPlaying();
 					isWinSndPlayAborted = 1;
-				skipOnChar = TRUE;
+					skipOnChar = TRUE;
+				}
+				if (!PBC.enable || (pMsg->wParam >= VK_F1 && pMsg->wParam <= VK_F12)) {
+					stopSoundIfPlaying();
+					isWinSndPlayAborted = 1;
+					if (pMsg->wParam == VK_F7 && PBC.enable) {
+						isWinSndPlayAborted = 4; // F7
+					} else if (pMsg->wParam == VK_F9 && PBC.enable) {
+						isWinSndPlayAborted = 5; // F8
+					} else
+						isWinSndPlayAborted = 1;
+					skipOnChar = TRUE;
+				}
 			}
 		}
 	}
-
 	if (isWinSndDonePlaying)
 		stopSoundIfPlaying();
 
@@ -2406,7 +2662,7 @@ char checkPCMSound(MSG* pMsg, char skipOnChar) {
 		}
 		if (/*!isWinSndPlayAborted && */PBC.walk && PBC.backspace != PBC.step_length && global_df) {
 			long t;
-			extern TimeValue sEF;
+			extern SInt32 sEF;
 
 			SndPlayLoopCnt = 1;
 			DrawSoundCursor(0);
@@ -2472,7 +2728,7 @@ char checkPCMSound(MSG* pMsg, char skipOnChar) {
 
 			walker_pause = 0L;
 			if (!isWinSndPlayAborted && PBC.pause_len > 0L && !PlayingContSound) {
-				walker_pause = GetTickCount() + PBC.pause_len;
+				walker_pause = tickCount + PBC.pause_len;
 			} else if (isWinSndPlayAborted != 1) {
 				PlayBuffer(sndCom);
 			}
@@ -2554,6 +2810,7 @@ char checkPCMPlaybackBuffer(void) {
 
 static char PlayPCMSound(int com) {
 	WAVEFORMATEX	pFormat;
+	DWORD	tickCount, lastTickCount;
 
 	sndCom = com;
 	if (com == 'p' || global_df->SnTr.EndF == 0) {
@@ -2636,7 +2893,7 @@ static char PlayPCMSound(int com) {
 	waveHdr1->dwBufferLength = 0;
 	waveHdr1->dwFlags = 0L;
 	waveHdr1->dwLoops = 0L;
-	// waveHdr1->dwUser = (DWORD) lpYourData; // save instance data ptr
+// waveHdr1->dwUser = (DWORD) lpYourData; // save instance data ptr
 
 	waveHdr2 = (LPWAVEHDR)GlobalAllocPtr(GMEM_MOVEABLE | GMEM_SHARE,(DWORD)sizeof(WAVEHDR));
 	if (!waveHdr2) {
@@ -2758,9 +3015,18 @@ static char PlayPCMSound(int com) {
 	if (PlayingContSound || !PBC.isPC) {
 		char t = 0;
 		MSG msg;
+		tickCount = GetTickCount();
+		lastTickCount = tickCount;
 		while (hWaveOut != NULL) {
-			if (PeekMessage(&msg,AfxGetApp()->m_pMainWnd->m_hWnd,0,0,PM_REMOVE))
-				t = checkPCMSound(&msg, t);
+			if (tickCount - lastTickCount > 15) {
+				if (PeekMessage(&msg, AfxGetApp()->m_pMainWnd->m_hWnd, 0, 0, PM_REMOVE)) {
+					t = checkPCMSound(&msg, t, tickCount);
+				} else {
+					t = checkPCMSound(NULL, t, tickCount);
+				}
+				lastTickCount = tickCount;
+			}
+			tickCount = GetTickCount();
 			if (!checkPCMPlaybackBuffer())
 				return(0);
 		}
@@ -2771,15 +3037,11 @@ static char PlayPCMSound(int com) {
 }
 
 char PlayBuffer(int com) {
-	if (global_df->SnTr.isMP3 == TRUE)
-		return(PlayMP3Sound(com));
-	else {
-		if (global_df->SnTr.SoundFPtr == NULL && global_df->SnTr.rSoundFile[0] != EOS)
-			global_df->SnTr.SoundFPtr = fopen(global_df->SnTr.rSoundFile, "rb");
-		if (global_df->SnTr.SoundFPtr == NULL)
-			return(FALSE);
-		return(PlayPCMSound(com));
-	}
+	if (global_df->SnTr.SoundFPtr == NULL && global_df->SnTr.rSoundFile[0] != EOS)
+		global_df->SnTr.SoundFPtr = fopen(global_df->SnTr.rSoundFile, "rb");
+	if (global_df->SnTr.SoundFPtr == NULL)
+		return(FALSE);
+	return(PlayPCMSound(com));
 }
 /* Play sound End */
 
@@ -2839,177 +3101,19 @@ void WriteAIFFHeader(FILE *fpout, long numBytes, unsigned int frames, short numC
 		return;
 	}
 }
+//#pragma comment(lib, "mf.lib") 
 
-#define	MIN(x,y)		((x) < (y) ? (x) : (y))
+extern HRESULT CreateWavFile(const WCHAR *sURL, const WCHAR *sOutputFile);
+
+
+void SaveSoundMovieAsWAVEFile(FNType *inFile, FNType *outFile) {
+	HRESULT hr;
+	WCHAR wInFile[FNSize], wOutFile[FNSize];
+
+	u_strcpy(wInFile, inFile, FNSize);
+	u_strcpy(wOutFile, outFile, FNSize);
+	hr = CreateWavFile(wInFile, wOutFile);
+}
 
 void SaveSoundClip(sndInfo *SnTr, char isGetNewname) {
-	register long	i;
-	register long	j;
-	register char 	t0, t1;
-	UnsignedFixed	sampleRate;
-	unCH			*c;
-	short			myDstRefNum;
-	short			t, *t2;
-	long			CurF;
-	long			bytesCountW;
-	long			bytesCountR;
-    OPENFILENAME	ofn;
-    unCH			szFile[FILENAME_MAX];
-    unCH			*szFilter;
-	FSSpec  		sfFile;
-	Str255			filename;
-	OSErr			myErr = noErr;
-	FNType			mFileName[FNSize];
-
-	if (global_df->SnTr.isMP3 == TRUE) {
-		strcpy(global_df->err_message, "+This command doesn't work on MP3 files.");
-		return;
-	}
-	strcpy(templine1, global_df->SnTr.SoundFile);
-	if ((c=strrchr(templine1, '.')) != NULL && c != templine1)
-		*c = EOS;
-	if (isGetNewname) {
-		uS.sprintf(templine1+strlen(templine1), cl_T("_%d_%d.aif"),
-							conv_to_msec_rep(global_df->SnTr.BegF),
-							conv_to_msec_rep(global_df->SnTr.EndF));
-		szFilter = _T("All files (*.*)\0*.*\0\0");
-		strcpy(szFile, templine1);
-		ofn.lStructSize = sizeof(OPENFILENAME);
-		ofn.hwndOwner = AfxGetApp()->m_pMainWnd->m_hWnd;
-		ofn.lpstrFilter = szFilter;
-		ofn.lpstrCustomFilter = NULL;
-		ofn.nMaxCustFilter = 0L;
-		ofn.nFilterIndex = 1;
-		ofn.lpstrFile = szFile;
-		ofn.nMaxFile = sizeof(szFile);
-		ofn.lpstrFileTitle = NULL;
-		ofn.nMaxFileTitle = 0;
-		ofn.lpstrInitialDir = NULL;
-		ofn.lpstrTitle = _T("Write Sound File");
-		ofn.Flags = OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY;
-		ofn.nFileOffset = 0;
-		ofn.nFileExtension = 0;
-		ofn.lpstrDefExt = NULL;
-
-		DrawCursor(1);
-		if (GetSaveFileName(&ofn) == 0) {
-			DrawCursor(0);
-			return;
-		}
-		DrawCursor(0);
-	} else {
-		strcat(templine1, ".aif");
-		strcpy(szFile, templine1);
-	}
-	u_strcpy(mFileName, szFile, FNSize);
-	unlink(mFileName);
-	c2pstrcpy (filename, mFileName);
-	FSMakeFSSpec(0, 0L, (const unsigned char*)filename, &sfFile);
-	// create and open the output file
-	myErr = FSpCreate(&sfFile, FOUR_CHAR_CODE('TVOD'), kQTFileTypeAIFF, smSystemScript);
-	if (myErr != noErr) {
-		strcpy(global_df->err_message, "+Error creating file, possibly file is openned by another application.");
-		return;
-	}
-
-	myErr = FSpOpenDF(&sfFile, fsRdWrPerm, &myDstRefNum);
-	if (myErr != noErr) {
-		strcpy(global_df->err_message, "+Error creating file, possibly file is openned by another application.");
-		return;
-	}
-
-	if ((global_df->SnTr.SNDrate >= 48000.00 && global_df->SnTr.SNDrate < 49000.00))
-		sampleRate = rate48khz;
-	else if ((global_df->SnTr.SNDrate >= 44000.00 && global_df->SnTr.SNDrate < 45000.00))
-		sampleRate = rate44khz;
-	else if ((global_df->SnTr.SNDrate >= 32000.00 && global_df->SnTr.SNDrate < 33000.00))
-		sampleRate = rate32khz;
-	else if ((global_df->SnTr.SNDrate >= 22000.00 && global_df->SnTr.SNDrate < 22100.00))
-		sampleRate = rate22050hz;
-	else if ((global_df->SnTr.SNDrate >= 22100.00 && global_df->SnTr.SNDrate < 23000.00))
-		sampleRate = rate22khz;
-	else if ((global_df->SnTr.SNDrate >= 16000.00 && global_df->SnTr.SNDrate < 17000.00))
-		sampleRate = rate16khz;
-	else if ((global_df->SnTr.SNDrate >= 11100.00 && global_df->SnTr.SNDrate < 12000.00))
-		sampleRate = rate11khz;
-	else if ((global_df->SnTr.SNDrate >= 11000.00 && global_df->SnTr.SNDrate < 11100.00))
-		sampleRate = rate11025hz;
-	else if ((global_df->SnTr.SNDrate >= 8000.00 && global_df->SnTr.SNDrate < 9000.00))
-		sampleRate = rate8khz;
-	if (global_df->SnTr.SNDformat == WAVE_FORMAT_MULAW ||
-		global_df->SnTr.SNDformat == WAVE_FORMAT_ALAW)
-		myErr = SetupAIFFHeader(myDstRefNum,global_df->SnTr.SNDchan,sampleRate,
-								16,'NONE',0L,0L);
-	else
-		myErr = SetupAIFFHeader(myDstRefNum,global_df->SnTr.SNDchan,sampleRate,
-								global_df->SnTr.SNDsample * 8,'NONE',0L,0L);
-	if (myErr != noErr) {
-		strcpy(global_df->err_message, "+Error writting wound header.");
-		goto bail;
-	}
-
-	CurF = global_df->SnTr.BegF;
-	fseek(global_df->SnTr.SoundFPtr, CurF+global_df->SnTr.AIFFOffset, SEEK_SET);
-	while (CurF < global_df->SnTr.EndF) {
-		if (global_df->SnTr.SNDformat == WAVE_FORMAT_MULAW ||
-			global_df->SnTr.SNDformat == WAVE_FORMAT_ALAW) {
-			bytesCountR = MIN(UTTLINELEN/2, global_df->SnTr.EndF-CurF);
-			fread(templineC2, 1, bytesCountR, global_df->SnTr.SoundFPtr);
-			for (j=0L, i=0L; j < bytesCountR; j++, i+=2L) {
-				if (global_df->SnTr.SNDformat == WAVE_FORMAT_ALAW)
-					t = Alaw2Lin((unsigned char)templineC2[j]);
-				else
-					t = Mulaw2Lin((unsigned char)templineC2[j]);
-				flipShort(&t);
-				t2 = (short *)(templineC1+i);
-				*t2 = t;
-			}
-			bytesCountW = bytesCountR * 2L;
-		} else {
-			bytesCountR = MIN(UTTLINELEN, global_df->SnTr.EndF-CurF);
-			fread(templineC1, 1, bytesCountR, global_df->SnTr.SoundFPtr);
-			bytesCountW = bytesCountR;
-		}
-		if (global_df->SnTr.SFileType == 'WAVE' && global_df->SnTr.SNDsample == 2) {
-			for (i=0; i < bytesCountW; i+=2) {
-				t0 = templineC1[i];
-				t1 = templineC1[i+1];
-				templineC1[i+1] = t0;
-				templineC1[i] = t1;
-			}
-		}
-		if (global_df->SnTr.SNDformat == WAVE_FORMAT_MULAW ||
-			global_df->SnTr.SNDformat == WAVE_FORMAT_ALAW)
-			;
-		else if (!global_df->SnTr.DDsound && global_df->SnTr.SNDsample == 1) {
-			for (i=0; i < bytesCountW; i++) {
-				templineC1[i] -= (char)128;
-			}
-		}
-		myErr = FSWrite(myDstRefNum, (long *)&bytesCountW, templineC1);
-		if (myErr != noErr) {
-			strcpy(global_df->err_message, "+Error writting sound file.");
-			goto bail;
-		}
-		
-		CurF += bytesCountR;
-	}
-
-	myErr = SetFPos(myDstRefNum, fsFromStart, 0);
-	if (myErr != noErr) {
-		strcpy(global_df->err_message, "+Error setting file position.");
-		goto bail;
-	}
-
-	// update AIFF header
-	if (global_df->SnTr.SNDformat == WAVE_FORMAT_MULAW ||
-		global_df->SnTr.SNDformat == WAVE_FORMAT_ALAW)
-		myErr = SetupAIFFHeader(myDstRefNum,global_df->SnTr.SNDchan,sampleRate,16,'NONE',
-								(global_df->SnTr.EndF-global_df->SnTr.BegF)*2,0L);
-	else
-		myErr = SetupAIFFHeader(myDstRefNum,global_df->SnTr.SNDchan,sampleRate,
-								global_df->SnTr.SNDsample * 8,'NONE',
-								global_df->SnTr.EndF-global_df->SnTr.BegF,0L);
-bail:
-	FSClose(myDstRefNum);
 }

@@ -162,7 +162,6 @@ void cTextBullet::OnSize(UINT nType, int cx, int cy)
 
 // change this to "DisplayText"
 // and change "DisplayText" in file w95_TxtBullet.cpp to "DisplayFileText"
-extern int DisplayFileText(char *justFname);
 int DisplayFileText(char *justFname) {
 	if (!strcmp(textName, justFname))
 		return(0);

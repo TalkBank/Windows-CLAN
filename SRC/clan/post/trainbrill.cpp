@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -21,7 +21,7 @@ int train_brill( FNType* name, FNType* output_for_brill, int BrillStyle, int bri
 
 	int res;
 	FILE* outfile = stdout;
-#if UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#if defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 	res = strcmp(output_for_brill, "con");
 #else
 	res = uS.FNTypecmp(output_for_brill, "con", 0L);
@@ -51,7 +51,7 @@ int train_brill( FNType* name, FNType* output_for_brill, int BrillStyle, int bri
 	int n, y, L=-1;
 // 2006-02-20	char  pct_at_end = '\0';	// store a possible punctuation at the end of the sentence.
 	char* T;
-	long postLineno = 0L;
+	long32 postLineno = 0L;
 	char** temp_words = new char* [MaxNbWords];
 	int nbWrd = 0;
 	rightSpTier = 0;

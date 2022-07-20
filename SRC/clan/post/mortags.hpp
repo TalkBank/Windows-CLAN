@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -13,9 +13,11 @@
 
 #include "mor.hpp"
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=mac68k 
 #endif
+*/
 
 struct mortag {		// contains an tag coming from a %mor: line (with the word)
 	char*  MT;	// main tag
@@ -32,9 +34,11 @@ struct ambmortag {	// contains a set of mortags.
 	int	nA;	// size
 };
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=reset 
 #endif
+*/
 
 // this function decompose an mortag
 int split_mortag(char* strmortag, char* &maintag, char** subparts, char* subpartstype, char* &genericroot, int maxofsp, char* &translation);
@@ -83,6 +87,7 @@ void print_ambmortag_2( FILE* out, ambmortag* amt );
 // this function split a line into parts.
 int split_with(char* line, char** words, const char* seps, int maxofwords=4096);
 int split_with_a(char* line, char** words, char* res, const char* seps, const char* sepskeep, const char* sepskeepatend, int maxofwords=4096, int maxofres=4096 );
+int split_Prefixes(char* line, char** words, int maxofwords=4096);
 
 // these functions create multiple word categories
 int make_multi_categ(char* initial_string, char* &st);
@@ -91,7 +96,5 @@ int make_multi_categ_single(char* initial_string, char* &st);
 // these functions split multiple word tags into single word tags
 // int split_multiple_mortag(char* initial_string, char** &st, int withtagsuffix);
 // int split_multiple_mortag_single(char* initial_string, char** &st, int withtagsuffix);
-
-void stripchatcode(char* s, char* a);
 
 #endif

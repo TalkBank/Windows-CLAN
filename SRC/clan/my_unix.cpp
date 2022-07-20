@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -20,7 +20,7 @@
 #endif
 
 #if defined(_WIN32)
-	static wchar_t wDirPathName[FNSize];
+	static unCH wDirPathName[FNSize];
 #endif
 
 int my_chdir(const FNType *path) {
@@ -101,7 +101,7 @@ int my_rename(const FNType *f1, const FNType *f2) {
 	return(rename(f1, f2));
 
 #elif defined(_WIN32)
-	wchar_t wDirPathName2[FNSize];
+	unCH wDirPathName2[FNSize];
 
 	u_strcpy(wDirPathName,  f1, FNSize);
 	u_strcpy(wDirPathName2, f2, FNSize);
@@ -147,7 +147,7 @@ FILE *my_fopen(const FNType *name, const char *mode) {
 
 #elif defined(_WIN32)
 	int i;
-	wchar_t wMode[FNSize];
+	unCH wMode[FNSize];
 
 	if (name[0] == '\\' && name[1] != '\\')
 		i = 1;

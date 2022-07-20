@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -60,9 +60,10 @@ struct rely_tnode {
 static int  fTotalUtts, sTotalUtts;
 static int  targc;
 static char **targv;
-static char FirstFile;
+static char FirstFile, FirstArgsPrint;
 static char isCombineForAllFiles;
 static char isComputeAphasia;
+static char isComputeStudentCorrectness; // 2019-11-20
 static char isSOption;
 static char isAddTiersToMasterFile;
 static char isCompTiers;
@@ -70,9 +71,10 @@ static char isMerge;
 static char rely_FTime;
 static char isHeaderTierSpecified, isDepSpTierSpecified, isDepTierSpecified, isDepTierIncluded;
 static char includeBullets;
+static long controlItemCnt, studenItemCnt, studentItemsMatched, studentItemsNotInMaster;
 static float KappaCats, agreedNum, totalNum;
 static FNType OutFile[FNSize];
-static rely_tnode *words_root;
+static struct rely_tnode *rely_words_root;
 static struct files ffile, sfile;
 
 extern char OverWriteFile;
@@ -81,11 +83,12 @@ extern struct tier *defheadtier;
 
 void usage() {
 	puts("RELY ");
-	printf("Usage: rely [a b c d dN u m %s] master-filename second-filename\n", mainflgs());
-	puts("+a : add tiers from second file to first (master) file");
-	puts("+b : include BULLETS in string comparison between first and master files");
+	printf("Usage: rely [a b c d dN u m %s] control-filename second-filename\n", mainflgs());
+	puts("+a : add tiers from second file to first (control) file");
+	puts("+b : include BULLETS in string comparison between first and control files");
 	puts("+c : do not compare data on non-selected tier");
 	puts("+d : Compute percentage agreement coefficient.");
+	puts("+dmN: Compute student correctness. (+dm1 - first file is control, +dm2 second file is control)");
 	puts("+dN: Compute Cohen's kappa coefficient and specify number of possible categories.");
 	puts("+u : Compute Kappa across all pairs of files specified (default: for each individual pair).");
 	puts("+m : merge files and place error flags inside output file");
@@ -105,16 +108,16 @@ void init(char first) {
 		rely_FTime = TRUE;
 		isCombineForAllFiles = FALSE;
 		isComputeAphasia = FALSE;
+		isComputeStudentCorrectness = FALSE;
 		isSOption = FALSE;
 		KappaCats = 0.0;
 		agreedNum = 0.0;
 		totalNum = 0.0;
 		fTotalUtts = 0;
 		sTotalUtts = 0;
-		words_root = NULL;
+		rely_words_root = NULL;
 // defined in "mmaininit" and "globinit" - nomap = TRUE;
 		stout = FALSE;
-		onlydata = 1;
 		FilterTier = 0;
 		LocalTierSelect = TRUE;
 		OverWriteFile = TRUE;
@@ -138,7 +141,6 @@ void init(char first) {
 				addword('\0','\0',"+-*");
 				addword('\0','\0',"+#*");
 				addword('\0','\0',"+(*.*)");
-				addword('\0','\0',"+<\">");
 				FilterTier = 1;
 			} else {
 				for (i=0; GlobalPunctuation[i]; ) {
@@ -158,6 +160,18 @@ void init(char first) {
 				fprintf(stderr, "+d option can not be used with +a option\n");
 				cutt_exit(0);
 			}
+			if (isAddTiersToMasterFile && isComputeStudentCorrectness) {
+				fprintf(stderr, "+dm option can not be used with +a option\n");
+				cutt_exit(0);
+			}
+			if (isComputeStudentCorrectness && isSOption) {
+				fprintf(stderr, "+dm option can not be used with +s option\n");
+				cutt_exit(0);
+			}
+			if (KappaCats > 0.0 && isComputeStudentCorrectness) {
+				fprintf(stderr, "+dm option can not be used with +dN option\n");
+				cutt_exit(0);
+			}
 			if (fpin == stdin) {
 				fprintf(stderr, "Input must come from files\n");
 				cutt_exit(0);
@@ -166,6 +180,15 @@ void init(char first) {
 				isMerge = TRUE;
 			if (isMerge)
 				chatmode = 3;
+
+			if (isDepSpTierSpecified && !isHeaderTierSpecified) {
+				defheadtier = NEW(struct tier);
+				defheadtier->include = FALSE;
+				defheadtier->pat_match = FALSE;
+				strcpy(defheadtier->tcode,"@");
+				defheadtier->nexttier = NULL;
+			} else if (isHeaderTierSpecified && !isDepSpTierSpecified) {
+			}
 		}
 		if (KappaCats > 0.0) {
 			if (!isDepTierSpecified) {
@@ -177,8 +200,11 @@ void init(char first) {
 				totalNum = 0.0;
 			}
 			isCompTiers = FALSE;
-		} else if (isCombineForAllFiles && !isComputeAphasia) {
+		} else if (isCombineForAllFiles && !isComputeAphasia && !isDepTierIncluded) {
 			fprintf(stderr, "Please specify at least one dependent tier with +t option to compare\n");
+			cutt_exit(0);
+		} else if (isComputeStudentCorrectness && !isDepTierIncluded) {
+			fprintf(stderr, "Please specify the dependent tier with +t option to compare\n");
 			cutt_exit(0);
 		}
 	}
@@ -189,6 +215,7 @@ void getflag(char *f, char *f1, int *i) {
 	switch(*f++) {
 		case 'a':
 			isAddTiersToMasterFile = TRUE;
+			onlydata = 1;
 			no_arg_option(f);
 			break;
 		case 'b':
@@ -202,6 +229,15 @@ void getflag(char *f, char *f1, int *i) {
 		case 'd':
 			if (*f == EOS) {
 				isComputeAphasia = TRUE;
+			} else if (*f == 'm' || *f == 'M') {
+				if (*(f+1) == '2')
+					isComputeStudentCorrectness = 2;
+				else if (*(f+1) == EOS || *(f+1) == '1')
+					isComputeStudentCorrectness = 1;
+				else {
+					fprintf(stderr, "+dm optionmust be either +dm, +dm1 or +dm2\n");
+					cutt_exit(0);
+				}
 			} else {
 				KappaCats = atoi(f);
 				if (KappaCats <= 0.0) {
@@ -212,6 +248,7 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 		case 'm':
 			isMerge = TRUE;
+			onlydata = 1;
 			no_arg_option(f);
 			break;
 		case 'u':
@@ -257,7 +294,7 @@ static struct rtiers *FreeUpTiers(struct rtiers *p) {
 	return(NULL);
 }
 
-static void freeupcodes(struct code *p) {
+static struct code *freeupcodes(struct code *p) {
 	struct code *t;
 
 	while (p != NULL) {
@@ -266,6 +303,7 @@ static void freeupcodes(struct code *p) {
 		free(t->name);
 		free(t);
 	}
+	return(NULL);
 }
 
 static void rely_freetree(struct rely_tnode *p) {
@@ -285,7 +323,7 @@ static struct rely_tnode *rely_talloc(char *word, char *POS) {
 	
 	if ((p=NEW(struct rely_tnode)) == NULL) {
 		fputs("ERROR: Out of memory.\n",stderr);
-		rely_freetree(words_root);
+		rely_freetree(rely_words_root);
 		ffile.tiers = FreeUpTiers(ffile.tiers);
 		sfile.tiers = FreeUpTiers(sfile.tiers);
 		cutt_exit(0);
@@ -299,7 +337,7 @@ static struct rely_tnode *rely_talloc(char *word, char *POS) {
 	else {
 		free(p);
 		fputs("ERROR: Out of memory.\n",stderr);
-		rely_freetree(words_root);
+		rely_freetree(rely_words_root);
 		ffile.tiers = FreeUpTiers(ffile.tiers);
 		sfile.tiers = FreeUpTiers(sfile.tiers);
 		cutt_exit(0);
@@ -321,7 +359,7 @@ static struct rely_tnode *rely_talloc(char *word, char *POS) {
 			free(p->word);
 			free(p);
 			fputs("ERROR: Out of memory.\n",stderr);
-			rely_freetree(words_root);
+			rely_freetree(rely_words_root);
 			ffile.tiers = FreeUpTiers(ffile.tiers);
 			sfile.tiers = FreeUpTiers(sfile.tiers);
 			cutt_exit(0);
@@ -460,12 +498,12 @@ static void smartStrcpy(char *toS, char *fromS) {
 
 static void CompareTiers(char *isErrorsFound) {
 	register int i;
-	char word[BUFSIZ], rightTier, isErrorFound;
+	char word[1024], rightTier, isErrorFound;
 	float fTotalCodes, sTotalCodes;
 	struct code *p;
 	struct rtiers *ft, *st;
 
-	if (isComputeAphasia)
+	if (isComputeAphasia || isComputeStudentCorrectness)
 		return;
 	if (ffile.tiers == NULL || sfile.tiers == NULL)
 		return;
@@ -478,7 +516,7 @@ static void CompareTiers(char *isErrorsFound) {
 		fprintf(stderr, "        %s\n", ffile.tiers->speaker);
 		fprintf(stderr, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
 		fprintf(stderr, "        %s\n", sfile.tiers->speaker);
-		rely_freetree(words_root);
+		rely_freetree(rely_words_root);
 		ffile.tiers = FreeUpTiers(ffile.tiers);
 		sfile.tiers = FreeUpTiers(sfile.tiers);
 		if (fpout != NULL && fpout != stderr && fpout != stdout) {
@@ -494,137 +532,173 @@ static void CompareTiers(char *isErrorsFound) {
 			st->isKappaChecked = FALSE;
 		}
 	}
-	for (st=sfile.tiers; st != NULL; st=st->nexttier) {
-		uS.remblanks(st->speaker);
-		for (ft=ffile.tiers; ft != NULL; ft=ft->nexttier) {
-			if (ft->speaker[0] == '@' && st->speaker[0] == '@' && st->matched)
-				continue;
-			if (ft->matched && !isAddTiersToMasterFile)
-				continue;
-			uS.remblanks(ft->speaker);
-			if (strcmp(ft->speaker, st->speaker) == 0) {
-				ft->isKappaChecked = TRUE;
-				st->isKappaChecked = TRUE;
-				if (isAddTiersToMasterFile) ;
-				else if (*ft->speaker == '@' && isHeaderTierSpecified && !checktier(ft->speaker)) {
-					if (isMerge)
-						printout(ft->speaker, ft->line, ft->attSp, ft->attLine, FALSE);
-				} else if (*ft->speaker != '@' && isDepSpTierSpecified && checktier(ft->speaker)) {
-					i = 0;
-					if (includeBullets)
-						strcpy(uttline, st->line);
-					else
-						smartStrcpy(uttline, st->line);
-					sTotalCodes = 0.0;
-					while ((i=getword(st->speaker, uttline, word, NULL, i))) {
-						if (st->speaker[0] == '%')
-							sTotalCodes++;
-						sfile.rootcode = AddWord(sfile.rootcode, word);
-					}
-					if (includeBullets)
-						strcpy(uttline, ft->line);
-					else
-						smartStrcpy(uttline, ft->line);
-					i = 0;
-					fTotalCodes = 0.0;
-					while ((i=getword(ft->speaker, uttline, word, NULL, i))) {
-						if (ft->speaker[0] == '%')
-							fTotalCodes++;
-						if (!issameword(sfile.rootcode, word)) {
-							ffile.rootcode = AddWord(ffile.rootcode, word);
-						} else if (ft->speaker[0] == '%')
-							agreedNum++;
-					}
-					if (ft->speaker[0] == '%') {
-						if (sTotalCodes > fTotalCodes)
-							totalNum += sTotalCodes;
-						else
-							totalNum += fTotalCodes;
-					}
-					isErrorFound = FALSE;
-					*uttline = EOS;
-					if (isMerge) {
-						for (p=sfile.rootcode; p != NULL; p=p->nextcode) {
-							strcat(uttline, p->name);
-							if (!p->matched) {
-								strcat(uttline, ":?\"");
-								uS.FNType2str(uttline, strlen(uttline), sfile.fname);
-								strcat(uttline, "\"");
-								isErrorFound = TRUE;
-							}
-							strcat(uttline, " ");
-						}
-						for (p=ffile.rootcode; p != NULL; p=p->nextcode) {
-							strcat(uttline, p->name);
-							strcat(uttline, ":?\"");
-							uS.FNType2str(uttline, strlen(uttline), ffile.fname);
-							strcat(uttline, "\" ");
-							isErrorFound = TRUE;
-						}
-						if (!isErrorFound)
+	if (ffile.tiers->speaker[0] == '*' && !checktier(ffile.tiers->speaker)) {
+		for (st=sfile.tiers; st != NULL; st=st->nexttier) {
+			uS.remblanks(st->speaker);
+			for (ft=ffile.tiers; ft != NULL; ft=ft->nexttier) {
+				if (ft->speaker[0] == '@' && st->speaker[0] == '@' && st->matched)
+					continue;
+				if (ft->matched && !isAddTiersToMasterFile)
+					continue;
+				uS.remblanks(ft->speaker);
+				if (strcmp(ft->speaker, st->speaker) == 0) {
+					ft->isKappaChecked = TRUE;
+					st->isKappaChecked = TRUE;
+					if (isAddTiersToMasterFile) ;
+					else if (*ft->speaker == '@' && isHeaderTierSpecified && !checktier(ft->speaker)) {
+						if (isMerge)
+							printout(ft->speaker, ft->line, ft->attSp, ft->attLine, FALSE);
+					} else if (*ft->speaker != '@' && isDepSpTierSpecified && checktier(ft->speaker)) {
+						if (isMerge) {
 							printout(ft->speaker, ft->line, ft->attSp, NULL, FALSE);
-						else
-							printout(ft->speaker, uttline, ft->attSp, NULL, FALSE);
+						}
+						ffile.rootcode = freeupcodes(ffile.rootcode);
+						sfile.rootcode = freeupcodes(sfile.rootcode);
 					} else {
-						for (p=sfile.rootcode; p != NULL; p=p->nextcode) {
-							if (!p->matched) {
+						if (isMerge)
+							printout(ft->speaker, ft->line, ft->attSp, ft->attLine, FALSE);
+					}
+					ft->matched = TRUE;
+					st->matched = TRUE;
+				} else if (isAddTiersToMasterFile)
+					ft->matched = TRUE;
+			}
+		}
+	} else {
+		for (st=sfile.tiers; st != NULL; st=st->nexttier) {
+			uS.remblanks(st->speaker);
+			for (ft=ffile.tiers; ft != NULL; ft=ft->nexttier) {
+				if (ft->speaker[0] == '@' && st->speaker[0] == '@' && st->matched)
+					continue;
+				if (ft->matched && !isAddTiersToMasterFile)
+					continue;
+				uS.remblanks(ft->speaker);
+				if (strcmp(ft->speaker, st->speaker) == 0) {
+					ft->isKappaChecked = TRUE;
+					st->isKappaChecked = TRUE;
+					if (isAddTiersToMasterFile) ;
+					else if (ft->speaker[0] == '*' && nomain) ;
+					else if (*ft->speaker == '@' && isHeaderTierSpecified && !checktier(ft->speaker)) {
+						if (isMerge)
+							printout(ft->speaker, ft->line, ft->attSp, ft->attLine, FALSE);
+					} else if (*ft->speaker != '@' && isDepSpTierSpecified && checktier(ft->speaker)) {
+						i = 0;
+						if (includeBullets)
+							strcpy(uttline, st->line);
+						else
+							smartStrcpy(uttline, st->line);
+						sTotalCodes = 0.0;
+						while ((i=getword(st->speaker, uttline, word, NULL, i))) {
+							if (st->speaker[0] == '%')
+								sTotalCodes++;
+							sfile.rootcode = AddWord(sfile.rootcode, word);
+						}
+						if (includeBullets)
+							strcpy(uttline, ft->line);
+						else
+							smartStrcpy(uttline, ft->line);
+						i = 0;
+						fTotalCodes = 0.0;
+						while ((i=getword(ft->speaker, uttline, word, NULL, i))) {
+							if (ft->speaker[0] == '%')
+								fTotalCodes++;
+							if (!issameword(sfile.rootcode, word)) {
+								ffile.rootcode = AddWord(ffile.rootcode, word);
+							} else if (ft->speaker[0] == '%')
+								agreedNum++;
+						}
+						if (ft->speaker[0] == '%') {
+							if (sTotalCodes > fTotalCodes)
+								totalNum += sTotalCodes;
+							else
+								totalNum += fTotalCodes;
+						}
+						isErrorFound = FALSE;
+						*uttline = EOS;
+						if (isMerge) {
+							for (p=sfile.rootcode; p != NULL; p=p->nextcode) {
 								strcat(uttline, p->name);
-								if (uttline[0] != EOS)
-									strcat(uttline, ", ");
+								if (!p->matched) {
+									strcat(uttline, ":?\"");
+									uS.FNType2str(uttline, strlen(uttline), sfile.fname);
+									strcat(uttline, "\"");
+									isErrorFound = TRUE;
+								}
+								strcat(uttline, " ");
+							}
+							for (p=ffile.rootcode; p != NULL; p=p->nextcode) {
+								strcat(uttline, p->name);
+								strcat(uttline, ":?\"");
+								uS.FNType2str(uttline, strlen(uttline), ffile.fname);
+								strcat(uttline, "\" ");
 								isErrorFound = TRUE;
 							}
+							if (!isErrorFound)
+								printout(ft->speaker, ft->line, ft->attSp, NULL, FALSE);
+							else
+								printout(ft->speaker, uttline, ft->attSp, NULL, FALSE);
+						} else {
+							for (p=sfile.rootcode; p != NULL; p=p->nextcode) {
+								if (!p->matched) {
+									strcat(uttline, p->name);
+									if (uttline[0] != EOS)
+										strcat(uttline, ", ");
+									isErrorFound = TRUE;
+								}
+							}
+							templineC4[0] = EOS;
+							for (p=ffile.rootcode; p != NULL; p=p->nextcode) {
+								strcat(templineC4, p->name);
+								if (templineC4[0] != EOS)
+									strcat(templineC4, ", ");
+								isErrorFound = TRUE;
+							}
+							if (isErrorFound) {
+								*isErrorsFound = TRUE;
+								fprintf(fpout, "** Some items mismatch:\n");
+								fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ft->lineno);
+								fprintf(fpout, "        %s\t%s", ft->speaker,ft->line);
+								fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, st->lineno);
+								fprintf(fpout, "        %s\t%s", st->speaker,st->line);
+								uS.remblanks(templineC4);
+								if (templineC4[0] != EOS) {
+									fprintf(fpout, "    Unmatched item(s) from file \"%s\"\n", ffile.fname);
+									fprintf(fpout, "        %s\n", templineC4);
+								}
+								uS.remblanks(uttline);
+								if (uttline[0] != EOS) {
+									fprintf(fpout, "    Unmatched item(s) from file \"%s\"\n", sfile.fname);
+									fprintf(fpout, "        %s\n", uttline);
+								}
+	//							rely_freetree(rely_words_root);
+	//							ffile.tiers = FreeUpTiers(ffile.tiers);
+	//							sfile.tiers = FreeUpTiers(sfile.tiers);
+	//							cutt_exit(0);
+							}
 						}
-						templineC4[0] = EOS;
-						for (p=ffile.rootcode; p != NULL; p=p->nextcode) {
-							strcat(templineC4, p->name);
-							if (templineC4[0] != EOS)
-								strcat(templineC4, ", ");
-							isErrorFound = TRUE;
-						}
-						if (isErrorFound) {
+						ffile.rootcode = freeupcodes(ffile.rootcode);
+						sfile.rootcode = freeupcodes(sfile.rootcode);
+					} else {
+						if (ft->speaker[0] == '*' && nomain) ;
+						else if (isCompTiers && smartCompareTiers(ft->line, st->line)) {
 							*isErrorsFound = TRUE;
-							fprintf(fpout, "** Some items mismatch:\n");
-							fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ffile.lineno);
+							fprintf(fpout, "** Data on tiers doesn't match:\n");
+							fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ft->lineno);
 							fprintf(fpout, "        %s\t%s", ft->speaker,ft->line);
-							fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
+							fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, st->lineno);
 							fprintf(fpout, "        %s\t%s", st->speaker,st->line);
-							if (templineC4[0] != EOS) {
-								fprintf(fpout, "    Unmatched item(s) from file \"%s\"\n", ffile.fname);
-								fprintf(fpout, "        %s\n", templineC4);
-							}
-							if (uttline[0] != EOS) {
-								fprintf(fpout, "    Unmatched item(s) from file \"%s\"\n", sfile.fname);
-								fprintf(fpout, "        %s\n", uttline);
-							}
-//							rely_freetree(words_root);
-//							ffile.tiers = FreeUpTiers(ffile.tiers);
-//							sfile.tiers = FreeUpTiers(sfile.tiers);
-//							cutt_exit(0);
-						}
+	//						rely_freetree(rely_words_root);
+	//						ffile.tiers = FreeUpTiers(ffile.tiers);
+	//						sfile.tiers = FreeUpTiers(sfile.tiers);
+	//						cutt_exit(0);
+						} else if (isMerge)
+							printout(ft->speaker, ft->line, ft->attSp, ft->attLine, FALSE);
 					}
-					freeupcodes(ffile.rootcode);
-					freeupcodes(sfile.rootcode);
-					ffile.rootcode = NULL;
-					sfile.rootcode = NULL;
-				} else {
-					if (isCompTiers && smartCompareTiers(ft->line, st->line)) {
-						*isErrorsFound = TRUE;
-						fprintf(fpout, "** Data on tiers doesn't match:\n");
-						fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ft->lineno);
-						fprintf(fpout, "        %s\t%s", ft->speaker,ft->line);
-						fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, st->lineno);
-						fprintf(fpout, "        %s\t%s", st->speaker,st->line);
-//						rely_freetree(words_root);
-//						ffile.tiers = FreeUpTiers(ffile.tiers);
-//						sfile.tiers = FreeUpTiers(sfile.tiers);
-//						cutt_exit(0);
-					} else if (isMerge)
-						printout(ft->speaker, ft->line, ft->attSp, ft->attLine, FALSE);
-				}
-				ft->matched = TRUE;
-				st->matched = TRUE;
-			} else if (isAddTiersToMasterFile)
-				ft->matched = TRUE;
+					ft->matched = TRUE;
+					st->matched = TRUE;
+				} else if (isAddTiersToMasterFile)
+					ft->matched = TRUE;
+			}
 		}
 	}
 	if (KappaCats > 0.0) {
@@ -655,42 +729,47 @@ static void CompareTiers(char *isErrorsFound) {
 			}
 		}
 	}	
-	for (ft=ffile.tiers; ft != NULL; ft=ft->nexttier) {
-		if (isAddTiersToMasterFile) {
-			if (ft->speaker[0] == '@')
-				break;
-			if (ft->matched)
-				printout(ft->speaker, ft->line, ft->attSp, ft->attLine, FALSE);
-		}
-		if (!ft->matched && (isCompTiers || checktier(ft->speaker) || ft->speaker[0] != '%')) {
-			*isErrorsFound = TRUE;
-			fprintf(fpout, "** Unmatched tiers found around lines:\n");
-			fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ffile.lineno);
-			fprintf(fpout, "        %s\t%s", ft->speaker, ft->line);
-			fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
-//			rely_freetree(words_root);
-//			ffile.tiers = FreeUpTiers(ffile.tiers);
-//			sfile.tiers = FreeUpTiers(sfile.tiers);
-//			cutt_exit(0);
+	if (checktier(ffile.tiers->speaker)) {
+		for (ft=ffile.tiers; ft != NULL; ft=ft->nexttier) {
+			if (isAddTiersToMasterFile) {
+				if (ft->speaker[0] == '@')
+					break;
+				if (ft->matched)
+					printout(ft->speaker, ft->line, ft->attSp, ft->attLine, FALSE);
+			}
+			if (!ft->matched && (isCompTiers || checktier(ft->speaker))) {
+				*isErrorsFound = TRUE;
+				fprintf(fpout, "** Unmatched tiers found around lines:\n");
+				fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ffile.lineno);
+				fprintf(fpout, "        %s\t%s", ft->speaker, ft->line);
+				fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
+//				rely_freetree(rely_words_root);
+//				ffile.tiers = FreeUpTiers(ffile.tiers);
+//				sfile.tiers = FreeUpTiers(sfile.tiers);
+//				cutt_exit(0);
+			}
 		}
 	}
-	for (st=sfile.tiers; st != NULL; st=st->nexttier) {
-		rightTier = (checktier(st->speaker) && st->speaker[0] == '%');
-		if (isAddTiersToMasterFile && !st->matched && rightTier) {
-			printout(st->speaker, st->line, st->attSp, st->attLine, FALSE);
-		} else if ((!st->matched && (isCompTiers || checktier(st->speaker) || st->speaker[0] != '%')) || (isAddTiersToMasterFile && st->matched && rightTier)) {
-			*isErrorsFound = TRUE;
-			if (isAddTiersToMasterFile && st->matched)
-				fprintf(fpout, "** Duplicate tier found around lines:\n");
-			else
-				fprintf(fpout, "** Unmatched tiers found around lines:\n");
-			fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
-			fprintf(fpout, "        %s\t%s", st->speaker, st->line);
-			fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ffile.lineno);
-//			rely_freetree(words_root);
-//			ffile.tiers = FreeUpTiers(ffile.tiers);
-//			sfile.tiers = FreeUpTiers(sfile.tiers);
-//			cutt_exit(0);
+	if (checktier(sfile.tiers->speaker)) {
+		for (st=sfile.tiers; st != NULL; st=st->nexttier) {
+			rightTier = (checktier(st->speaker) && st->speaker[0] == '%');
+			if (isAddTiersToMasterFile && !st->matched && rightTier) {
+				printout(st->speaker, st->line, st->attSp, st->attLine, FALSE);
+			} else if ((!st->matched && (isCompTiers || checktier(st->speaker))) ||
+					   (isAddTiersToMasterFile && st->matched && rightTier)) {
+				*isErrorsFound = TRUE;
+				if (isAddTiersToMasterFile && st->matched)
+					fprintf(fpout, "** Duplicate tier found around lines:\n");
+				else
+					fprintf(fpout, "** Unmatched tiers found around lines:\n");
+				fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
+				fprintf(fpout, "        %s\t%s", st->speaker, st->line);
+				fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ffile.lineno);
+//				rely_freetree(rely_words_root);
+//				ffile.tiers = FreeUpTiers(ffile.tiers);
+//				sfile.tiers = FreeUpTiers(sfile.tiers);
+//				cutt_exit(0);
+			}
 		}
 	}
 	if (isAddTiersToMasterFile) {
@@ -742,7 +821,54 @@ static void rely_pr_result(FILE *fpo) {
 		kappa = ((agreedNum / totalNum) - (1 / KappaCats)) / (1 - (1 / KappaCats));
 		fprintf(fpo, "\nCohen's kappa coefficient: %.4f\n", kappa);
 	}
-	if (isComputeAphasia) {
+	if (isComputeStudentCorrectness) {
+		if (isComputeStudentCorrectness == 1) {
+			tf = fTotalUtts;
+			ts = sTotalUtts;
+			fprintf(fpo, "\ncontrol \"%s\": # utterances examined: %d\n", FileName1, fTotalUtts);
+			fprintf(fpo, "student \"%s:\": # utterances examined: %d\n", FileName2, sTotalUtts);
+		} else {
+			tf = sTotalUtts;
+			ts = fTotalUtts;
+			fprintf(fpo, "\ncontrol \"%s\": # utterances examined: %d\n", FileName2, sTotalUtts);
+			fprintf(fpo, "student \"%s:\": # utterances examined: %d\n", FileName1, fTotalUtts);
+		}
+		if (tf != 0.0) {
+			kappa = (ts / tf) * 100;
+		} else
+			kappa = 0.0;
+		fprintf(fpo, "%% utterances examined with matching items: %.4f\n", kappa);
+
+		if (isComputeStudentCorrectness == 1) {
+			fprintf(fpo, "\ncontrol \"%s\": # items examined: %ld\n", FileName1, controlItemCnt);
+			fprintf(fpo, "student \"%s\": # items examined: %ld\n", FileName2, studenItemCnt);
+		} else {
+			fprintf(fpo, "\ncontrol \"%s\": # items examined: %ld\n", FileName2, controlItemCnt);
+			fprintf(fpo, "student \"%s\": # items examined: %ld\n", FileName1, studenItemCnt);
+		}
+		fprintf(fpo, "# control items matched by student: %ld\n", studentItemsMatched);
+		fprintf(fpo, "# control items missed by student: %ld\n", controlItemCnt - studentItemsMatched);
+		tf = controlItemCnt;
+		ts = studentItemsMatched;
+		if (tf != 0.0) {
+			kappa = (ts / tf) * 100;
+		} else
+			kappa = 0.0;
+		fprintf(fpo, "%% precision: %.4f\n", kappa);
+
+		fprintf(fpo, "\n# student items found in control: %ld\n", studentItemsMatched);
+		fprintf(fpo, "# student items not found in control: %ld\n", studentItemsNotInMaster);
+		tf = studenItemCnt;
+		ts = studentItemsMatched;
+		if (tf != 0.0) {
+			kappa = (ts / tf) * 100;
+		} else
+			kappa = 0.0;
+		fprintf(fpo, "%% accuracy: %.4f\n", kappa);
+
+		fTotalUtts = 0;
+		sTotalUtts = 0;
+	} else if (isComputeAphasia) {
 		fCnt = fTotalUtts;
 		sCnt = sTotalUtts;
 		if (fCnt > sCnt) {
@@ -761,14 +887,14 @@ static void rely_pr_result(FILE *fpo) {
 				kappa = 0.0;
 		}
 		if (!isSOption) {
-			fprintf(fpo, "\n%s: total utterances: %d\n", FileName1, fCnt);
-			fprintf(fpo, "%s: total utterances: %d\n", FileName2, sCnt);
-			fprintf(fpo, "total utterances %%: %.4f\n", kappa);
+			fprintf(fpo, "\n%s: # utterances examined: %d\n", FileName1, fCnt);
+			fprintf(fpo, "%s: # utterances examined: %d\n", FileName2, sCnt);
+			fprintf(fpo, "%% of all utterances examined with matching codes %%: %.4f\n", kappa);
 		}
 		fCnt = 0;
 		sCnt = 0;
 		mCnt = 0;
-		totalNumMatchedWords(words_root, &mCnt, &fCnt, &sCnt);
+		totalNumMatchedWords(rely_words_root, &mCnt, &fCnt, &sCnt);
 		if (fCnt > sCnt) {
 			if (fCnt != 0) {
 				tf = fCnt;
@@ -786,18 +912,18 @@ static void rely_pr_result(FILE *fpo) {
 		}
 		createTokensList(templineC3);
 		if (!isSOption) {
-			fprintf(fpo, "\n%s: total words (tokens): %d\n", FileName1, fCnt);
-			fprintf(fpo, "%s: total words (tokens): %d\n", FileName2, sCnt);
-			fprintf(fpo, "total words (tokens) matched: %d\n", mCnt);
-			fprintf(fpo, "total words (tokens) %%: %.4f\n", kappa);
+			fprintf(fpo, "\n%s: # words examined: %d\n", FileName1, fCnt);
+			fprintf(fpo, "%s: # words examined: %d\n", FileName2, sCnt);
+			fprintf(fpo, "# words (tokens, codes) matched: %d\n", mCnt);
+			fprintf(fpo, "%% of all words examined with matching codes %%: %.4f\n", kappa);
 		} else {
 			fprintf(fpo, "\n%s: total %s: %d\n", FileName1, templineC3, fCnt);
 			fprintf(fpo, "%s: total %s: %d\n", FileName2, templineC3, sCnt);
 			fprintf(fpo, "total %s matched: %d\n", templineC3, mCnt);
 			fprintf(fpo, "total %s %%: %.4f\n", templineC3, kappa);
 		}
-		rely_freetree(words_root);
-		words_root = NULL;
+		rely_freetree(rely_words_root);
+		rely_words_root = NULL;
 		fTotalUtts = 0;
 		sTotalUtts = 0;
 	}
@@ -806,7 +932,7 @@ static void rely_pr_result(FILE *fpo) {
 void call(void) {
 	int  i;
 	char cc;
-	char isErrorsFound;
+	char isErrorsFound, isRightSpeaker;
 	char word[1024], tword[1024];
 	struct rtiers *ft, *st;
 
@@ -848,11 +974,21 @@ void call(void) {
 #if defined(_MAC_CODE)
 			settyp(OutFile, 'TEXT', the_file_creator.out, FALSE);
 #endif
+			if (FirstArgsPrint && !isMerge) {
+				fprintf(fpout, "> ");
+				printArg(targv, targc, fpout, FALSE, oldfname);
+				fprintf(fpout, "\n");
+			}
+			FirstArgsPrint = FALSE;
 		}
 		sfile.lineno = lineno;
 		sfile.tlineno = tlineno;
 		sfile.tiers = NULL;
 		sfile.rootcode = NULL;
+		controlItemCnt = 0L;
+		studenItemCnt = 0L;
+		studentItemsMatched = 0L;
+		studentItemsNotInMaster = 0L;
 	}
 	isErrorsFound = FALSE;
 	ffile.currentatt = 0;
@@ -906,9 +1042,7 @@ void call(void) {
 					ffile.tlineno = tlineno;
 					if (utterance->speaker[0] == '@' && !checktier(utterance->speaker))
 						continue;
-					else if (uS.partcmp(utterance->speaker,CKEYWORDHEADER,FALSE,FALSE) ||
-							 uS.partcmp(utterance->speaker,FONTHEADER,FALSE,FALSE) ||
-							 uS.isUTF8(utterance->speaker))
+					else if (uS.isInvisibleHeader(utterance->speaker) || uS.isUTF8(utterance->speaker))
 						continue;
 					ffile.tiers = AddTiers(ffile.tiers, utterance->speaker, utterance->attSp, uttline, utterance->attLine, lineno);
 				}
@@ -932,50 +1066,192 @@ void call(void) {
 					sfile.tlineno = tlineno;
 					if (utterance->speaker[0] == '@' && !checktier(utterance->speaker))
 						continue;
-					else if (uS.partcmp(utterance->speaker,CKEYWORDHEADER,FALSE,FALSE) ||
-							 uS.partcmp(utterance->speaker,FONTHEADER,FALSE,FALSE) ||
-							 uS.isUTF8(utterance->speaker))
+					else if (uS.isInvisibleHeader(utterance->speaker) || uS.isUTF8(utterance->speaker))
 						continue;
 					sfile.tiers = AddTiers(sfile.tiers, utterance->speaker, utterance->attSp, uttline, utterance->attLine, lineno);
 				}
 			} while (/*isAddTiersToMasterFile && */sfile.res && currentchar != '*' && (currentchar != '@' || cc == '@')) ;
 //		}
-		if (isComputeAphasia) {
-			for (ft=ffile.tiers; ft != NULL; ft=ft->nexttier) {
-				if (checktier(ft->speaker)) {
-					if (ft->speaker[0] == '*')
-						fTotalUtts++;
-					if ((ft->speaker[0] == '*' && !isDepTierSpecified) || (ft->speaker[0] == '%' && isDepTierSpecified)) {
-						i = 0;
-						while ((i=getword(ft->speaker, ft->line, word, NULL, i))) {
-							uS.remblanks(word);
-							strcpy(tword, word);
-							if (exclude(word) && isRightWord(word)) {
+		if (isComputeStudentCorrectness) {
+			struct code *fc, *sc;
+
+			if (ffile.tiers != NULL && sfile.tiers != NULL && ffile.tiers->speaker[0] != sfile.tiers->speaker[0]) {
+				uS.remblanks(ffile.tiers->speaker);
+				uS.remblanks(sfile.tiers->speaker);
+				if (strcmp(ffile.tiers->speaker, sfile.tiers->speaker) != 0) {
+					fprintf(stderr, "Files \"%s\" and \"%s\" do not have the same speakers in the same place.\n", ffile.fname, sfile.fname);
+					fprintf(stderr, "    File \"%s\": line %ld\n", ffile.fname, ffile.lineno);
+					if (ffile.tiers != NULL)
+						fprintf(stderr, "        %s\t%s", ffile.tiers->speaker, ffile.tiers->line);
+					fprintf(stderr, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
+					if (sfile.tiers != NULL)
+						fprintf(stderr, "        %s\t%s", sfile.tiers->speaker, sfile.tiers->line);
+					rely_freetree(rely_words_root);
+					ffile.tiers = FreeUpTiers(ffile.tiers);
+					sfile.tiers = FreeUpTiers(sfile.tiers);
+					if (fpout != NULL && fpout != stderr && fpout != stdout) {
+						fprintf(stderr,"\nCURRENT OUTPUT FILE \"%s\" IS INCOMPLETE.\n",OutFile);
+					}
+					cutt_exit(0);
+				}
+			}
+			if (isComputeStudentCorrectness == 1 && ffile.tiers != NULL) {
+				for (ft=ffile.tiers; ft != NULL; ft=ft->nexttier) {
+					if (checktier(ft->speaker)) {
+						if (ft->speaker[0] == '*' && !nomain)
+							fTotalUtts++;
+						if ((ft->speaker[0] == '*' && !isDepTierSpecified) || (ft->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								fTotalUtts++;
+						}
+						uS.remblanks(ft->speaker);
+						if (ft->speaker[0] == '%') {
+							smartStrcpy(uttline, ft->line);
+							i = 0;
+							while ((i=getword(ft->speaker, uttline, word, NULL, i))) {
+								controlItemCnt++;
+								ffile.rootcode = AddWord(ffile.rootcode, word);
+							}
+						}
+					}
+				}
+
+				for (st=sfile.tiers; st != NULL; st=st->nexttier) {
+					if (checktier(st->speaker)) {
+						if (st->speaker[0] == '*' && !nomain)
+							sTotalUtts++;
+						if ((st->speaker[0] == '*' && !isDepTierSpecified) || (st->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								sTotalUtts++;
+						}
+						uS.remblanks(st->speaker);
+						if (st->speaker[0] == '%') {
+							smartStrcpy(uttline, st->line);
+							i = 0;
+							while ((i=getword(st->speaker, uttline, word, NULL, i))) {
+								studenItemCnt++;
+								sfile.rootcode = AddWord(sfile.rootcode, word);
+							}
+						}
+					}
+				}
+
+				for (fc=ffile.rootcode; fc != NULL; fc=fc->nextcode) {
+					for (sc=sfile.rootcode; sc != NULL; sc=sc->nextcode) {
+						if (strcmp(fc->name, sc->name) == 0 && !fc->matched && !sc->matched) {
+							studentItemsMatched++;
+							fc->matched = TRUE;
+							sc->matched = TRUE;
+						}
+					}
+				}
+				for (sc=sfile.rootcode; sc != NULL; sc=sc->nextcode) {
+					if (!sc->matched) {
+						studentItemsNotInMaster++;
+					}
+				}
+				ffile.rootcode = freeupcodes(ffile.rootcode);
+				sfile.rootcode = freeupcodes(sfile.rootcode);
+			} else if (sfile.tiers != NULL) {
+				for (ft=ffile.tiers; ft != NULL; ft=ft->nexttier) {
+					if (checktier(ft->speaker)) {
+						if (ft->speaker[0] == '*' && !nomain)
+							fTotalUtts++;
+						if ((ft->speaker[0] == '*' && !isDepTierSpecified) || (ft->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								fTotalUtts++;
+							uS.remblanks(ft->speaker);
+							if (ft->speaker[0] == '%') {
+								smartStrcpy(uttline, ft->line);
+								i = 0;
+								while ((i=getword(ft->speaker, uttline, word, NULL, i))) {
+									studenItemCnt++;
+									ffile.rootcode = AddWord(ffile.rootcode, word);
+								}
+							}
+						}
+					}
+				}
+				for (st=sfile.tiers; st != NULL; st=st->nexttier) {
+					if (checktier(st->speaker)) {
+						if (st->speaker[0] == '*' && !nomain)
+							sTotalUtts++;
+						if ((st->speaker[0] == '*' && !isDepTierSpecified) || (st->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								sTotalUtts++;
+						}
+						uS.remblanks(st->speaker);
+						if (st->speaker[0] == '%') {
+							smartStrcpy(uttline, st->line);
+							i = 0;
+							while ((i=getword(st->speaker, uttline, word, NULL, i))) {
+								controlItemCnt++;
+								sfile.rootcode = AddWord(sfile.rootcode, word);
+							}
+						}
+					}
+				}
+				for (sc=ffile.rootcode; sc != NULL; sc=sc->nextcode) {
+					for (fc=sfile.rootcode; fc != NULL; fc=fc->nextcode) {
+						if (strcmp(fc->name, sc->name) == 0 && !fc->matched && !sc->matched) {
+							studentItemsMatched++;
+							fc->matched = TRUE;
+							sc->matched = TRUE;
+						}
+					}
+				}
+				for (fc=ffile.rootcode; fc != NULL; fc=fc->nextcode) {
+					if (!fc->matched) {
+						studentItemsNotInMaster++;
+					}
+				}
+				ffile.rootcode = freeupcodes(ffile.rootcode);
+				sfile.rootcode = freeupcodes(sfile.rootcode);
+			}
+		} else if (isComputeAphasia) {
+			if (ffile.tiers != NULL && ffile.tiers->speaker[0] == '*' && checktier(ffile.tiers->speaker)) {
+				for (ft=ffile.tiers; ft != NULL; ft=ft->nexttier) {
+					if (checktier(ft->speaker)) {
+						if (ft->speaker[0] == '*' && !nomain)
+							fTotalUtts++;
+						if ((ft->speaker[0] == '*' && !isDepTierSpecified) || (ft->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								fTotalUtts++;
+							i = 0;
+							while ((i=getword(ft->speaker, ft->line, word, NULL, i))) {
 								uS.remblanks(word);
-								if (strcmp(word, tword))
-									words_root = rely_tree(words_root, word, tword, TRUE);
-								else
-								words_root = rely_tree(words_root, word, NULL, TRUE);
+								strcpy(tword, word);
+								if (exclude(word) && isRightWord(word)) {
+									uS.remblanks(word);
+									if (strcmp(word, tword))
+										rely_words_root = rely_tree(rely_words_root, word, tword, TRUE);
+									else
+										rely_words_root = rely_tree(rely_words_root, word, NULL, TRUE);
+								}
 							}
 						}
 					}
 				}
 			}
-			for (st=sfile.tiers; st != NULL; st=st->nexttier) {
-				if (checktier(st->speaker)) {
-					if (st->speaker[0] == '*')
-						sTotalUtts++;
-					if ((st->speaker[0] == '*' && !isDepTierSpecified) || (st->speaker[0] == '%' && isDepTierSpecified)) {
-						i = 0;
-						while ((i=getword(st->speaker, st->line, word, NULL, i))) {
-							uS.remblanks(word);
-							strcpy(tword, word);
-							if (exclude(word) && isRightWord(word)) {
+			if (sfile.tiers != NULL && sfile.tiers->speaker[0] == '*' && checktier(sfile.tiers->speaker)) {
+				for (st=sfile.tiers; st != NULL; st=st->nexttier) {
+					if (checktier(st->speaker)) {
+						if (st->speaker[0] == '*' && !nomain)
+							sTotalUtts++;
+						if ((st->speaker[0] == '*' && !isDepTierSpecified) || (st->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								sTotalUtts++;
+							i = 0;
+							while ((i=getword(st->speaker, st->line, word, NULL, i))) {
 								uS.remblanks(word);
-								if (strcmp(word, tword))
-									words_root = rely_tree(words_root, word, tword, FALSE);
-								else
-									words_root = rely_tree(words_root, word, NULL, FALSE);
+								strcpy(tword, word);
+								if (exclude(word) && isRightWord(word)) {
+									uS.remblanks(word);
+									if (strcmp(word, tword))
+										rely_words_root = rely_tree(rely_words_root, word, tword, FALSE);
+									else
+										rely_words_root = rely_tree(rely_words_root, word, NULL, FALSE);
+								}
 							}
 						}
 					}
@@ -983,17 +1259,62 @@ void call(void) {
 			}
 		}
 		if (ffile.res && !sfile.res && !isAddTiersToMasterFile) {
-			if (isComputeAphasia) {
+			if (isComputeStudentCorrectness) {
 				fpin = ffile.fpin;
 				currentchar = ffile.currentchar;
 				currentatt = ffile.currentatt;
 				lineno  = ffile.lineno;
 				tlineno = ffile.tlineno;
+				isRightSpeaker = FALSE;
 				while (getwholeutter()) {
-					if (checktier(utterance->speaker)) {
-						if (utterance->speaker[0] == '*')
+					if (utterance->speaker[0] == '*') {
+						if (checktier(utterance->speaker))
+							isRightSpeaker = TRUE;
+						else
+							isRightSpeaker = FALSE;
+					}
+					if (isRightSpeaker && checktier(utterance->speaker)) {
+						if (utterance->speaker[0] == '*' && !nomain)
 							fTotalUtts++;
 						if ((utterance->speaker[0] == '*' && !isDepTierSpecified) || (utterance->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								fTotalUtts++;
+							i = 0;
+							while ((i=getword(utterance->speaker, uttline, word, NULL, i))) {
+								uS.remblanks(word);
+								if (exclude(word) && isRightWord(word)) {
+									uS.remblanks(word);
+									if (isComputeStudentCorrectness == 1) {
+										controlItemCnt++;
+									} else {
+										studenItemCnt++;
+										studentItemsNotInMaster++;
+									}
+								}
+							}
+						}
+					}
+				}
+			} else if (isComputeAphasia) {
+				fpin = ffile.fpin;
+				currentchar = ffile.currentchar;
+				currentatt = ffile.currentatt;
+				lineno  = ffile.lineno;
+				tlineno = ffile.tlineno;
+				isRightSpeaker = FALSE;
+				while (getwholeutter()) {
+					if (utterance->speaker[0] == '*') {
+						if (checktier(utterance->speaker))
+							isRightSpeaker = TRUE;
+						else
+							isRightSpeaker = FALSE;
+					}
+					if (isRightSpeaker && checktier(utterance->speaker)) {
+						if (utterance->speaker[0] == '*' && !nomain)
+							fTotalUtts++;
+						if ((utterance->speaker[0] == '*' && !isDepTierSpecified) || (utterance->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								fTotalUtts++;
 							i = 0;
 							while ((i=getword(utterance->speaker, uttline, word, NULL, i))) {
 								uS.remblanks(word);
@@ -1001,9 +1322,9 @@ void call(void) {
 								if (exclude(word) && isRightWord(word)) {
 									uS.remblanks(word);
 									if (strcmp(word, tword))
-										words_root = rely_tree(words_root, word, tword, TRUE);
+										rely_words_root = rely_tree(rely_words_root, word, tword, TRUE);
 									else
-										words_root = rely_tree(words_root, word, NULL, TRUE);
+										rely_words_root = rely_tree(rely_words_root, word, NULL, TRUE);
 								}
 							}
 						}
@@ -1011,7 +1332,7 @@ void call(void) {
 				}
 			} else {
 				fprintf(stderr, "File \"%s\" ended before file \"%s\" did.\n",  sfile.fname, ffile.fname);
-				rely_freetree(words_root);
+				rely_freetree(rely_words_root);
 				ffile.tiers = FreeUpTiers(ffile.tiers);
 				sfile.tiers = FreeUpTiers(sfile.tiers);
 				if (fpout != NULL && fpout != stderr && fpout != stdout) {
@@ -1021,17 +1342,63 @@ void call(void) {
 			}
 		}
 		if (!ffile.res && sfile.res) {
-			if (isComputeAphasia) {
+			if (isComputeStudentCorrectness) {
 				fpin = sfile.fpin;
 				currentchar = sfile.currentchar;
 				currentatt = sfile.currentatt;
 				lineno  = sfile.lineno;
 				tlineno = sfile.tlineno;
+				isRightSpeaker = FALSE;
 				while (getwholeutter()) {
-					if (checktier(utterance->speaker)) {
-						if (utterance->speaker[0] == '*')
+					if (utterance->speaker[0] == '*') {
+						if (checktier(utterance->speaker))
+							isRightSpeaker = TRUE;
+						else
+							isRightSpeaker = FALSE;
+					}
+					if (isRightSpeaker && checktier(utterance->speaker)) {
+						if (utterance->speaker[0] == '*' && !nomain)
 							sTotalUtts++;
 						if ((utterance->speaker[0] == '*' && !isDepTierSpecified) || (utterance->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								sTotalUtts++;
+							i = 0;
+							while ((i=getword(utterance->speaker, uttline, word, NULL, i))) {
+								uS.remblanks(word);
+								strcpy(tword, word);
+								if (exclude(word) && isRightWord(word)) {
+									uS.remblanks(word);
+									if (isComputeStudentCorrectness == 1) {
+										studenItemCnt++;
+										studentItemsNotInMaster++;
+									} else {
+										controlItemCnt++;
+									}
+								}
+							}
+						}
+					}
+				}
+			} else if (isComputeAphasia) {
+				fpin = sfile.fpin;
+				currentchar = sfile.currentchar;
+				currentatt = sfile.currentatt;
+				lineno  = sfile.lineno;
+				tlineno = sfile.tlineno;
+				isRightSpeaker = FALSE;
+				while (getwholeutter()) {
+					if (utterance->speaker[0] == '*') {
+						if (checktier(utterance->speaker))
+							isRightSpeaker = TRUE;
+						else
+							isRightSpeaker = FALSE;
+					}
+					if (isRightSpeaker && checktier(utterance->speaker)) {
+						if (utterance->speaker[0] == '*' && !nomain)
+							sTotalUtts++;
+						if ((utterance->speaker[0] == '*' && !isDepTierSpecified) || (utterance->speaker[0] == '%' && isDepTierSpecified)) {
+							if (nomain)
+								sTotalUtts++;
 							i = 0;
 							while ((i=getword(utterance->speaker, uttline, word, NULL, i))) {
 								uS.remblanks(word);
@@ -1039,9 +1406,9 @@ void call(void) {
 								if (exclude(word) && isRightWord(word)) {
 									uS.remblanks(word);
 									if (strcmp(word, tword))
-										words_root = rely_tree(words_root, word, tword, TRUE);
+										rely_words_root = rely_tree(rely_words_root, word, tword, TRUE);
 									else
-										words_root = rely_tree(words_root, word, NULL, TRUE);
+										rely_words_root = rely_tree(rely_words_root, word, NULL, TRUE);
 								}
 							}
 						}
@@ -1049,7 +1416,7 @@ void call(void) {
 				}
 			} else {
 				fprintf(stderr, "File \"%s\" ended before file \"%s\" did.\n", ffile.fname, sfile.fname);
-				rely_freetree(words_root);
+				rely_freetree(rely_words_root);
 				ffile.tiers = FreeUpTiers(ffile.tiers);
 				sfile.tiers = FreeUpTiers(sfile.tiers);
 				if (fpout != NULL && fpout != stderr && fpout != stdout) {
@@ -1079,7 +1446,7 @@ void call(void) {
 					fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, st->lineno);
 					if (sfile.tiers != NULL)
 						fprintf(fpout, "        %s\n", st->speaker);
-//					rely_freetree(words_root);
+//					rely_freetree(rely_words_root);
 //					ffile.tiers = FreeUpTiers(ffile.tiers);
 //					sfile.tiers = FreeUpTiers(sfile.tiers);
 //					cutt_exit(0);
@@ -1095,27 +1462,40 @@ void call(void) {
 						st = st->nexttier;
 				}
 			}
-			if (ft != st && (ffile.tiers->speaker[0] != '@' || !isComputeAphasia)) {
-				isErrorsFound = TRUE;
-				if (ffile.tiers->speaker[0] == '@') {
-					fprintf(fpout, "** Inconsistent number of header tiers found (perhaps some hidden tiers mismatched)\n");
-					fprintf(fpout, "   Starting at header tiers:\n");
-				} else
+			if (ft != st && ffile.tiers == NULL) {
+				if (isCompTiers) {
+					isErrorsFound = TRUE;
 					fprintf(fpout, "** Inconsistent number of dependent tiers found at speaker tier:\n");
-				if (ffile.tiers != NULL) {
-					fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ffile.tiers->lineno);
-					fprintf(fpout, "        %s\n", ffile.tiers->speaker);
-				} else
 					fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ffile.lineno);
-				if (sfile.tiers != NULL) {
-					fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.tiers->lineno);
-					fprintf(fpout, "        %s\n", sfile.tiers->speaker);
-				} else
-					fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
-//				rely_freetree(words_root);
-//				ffile.tiers = FreeUpTiers(ffile.tiers);
-//				sfile.tiers = FreeUpTiers(sfile.tiers);
-//				cutt_exit(0);
+					if (sfile.tiers != NULL) {
+						fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.tiers->lineno);
+						fprintf(fpout, "        %s\n", sfile.tiers->speaker);
+					} else
+						fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
+				}
+			} else if (ft != st && (ffile.tiers->speaker[0] != '@' || (!isComputeAphasia && !isComputeStudentCorrectness))) {
+				if (isCompTiers && checktier(ffile.tiers->speaker)) {
+					isErrorsFound = TRUE;
+					if (ffile.tiers->speaker[0] == '@') {
+						fprintf(fpout, "** Inconsistent number of header tiers found (perhaps some hidden tiers matched)\n");
+						fprintf(fpout, "   Starting at header tiers:\n");
+					} else
+						fprintf(fpout, "** Inconsistent number of dependent tiers found at speaker tier:\n");
+					if (ffile.tiers != NULL) {
+						fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ffile.tiers->lineno);
+						fprintf(fpout, "        %s\n", ffile.tiers->speaker);
+					} else
+						fprintf(fpout, "    File \"%s\": line %ld\n", ffile.fname, ffile.lineno);
+					if (sfile.tiers != NULL) {
+						fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.tiers->lineno);
+						fprintf(fpout, "        %s\n", sfile.tiers->speaker);
+					} else
+						fprintf(fpout, "    File \"%s\": line %ld\n", sfile.fname, sfile.lineno);
+//					rely_freetree(rely_words_root);
+//					ffile.tiers = FreeUpTiers(ffile.tiers);
+//					sfile.tiers = FreeUpTiers(sfile.tiers);
+//					cutt_exit(0);
+				}
 			}
 		}
 		if (ffile.currentchar == '*' || ffile.currentchar == '@' || ffile.currentchar == EOF) {
@@ -1153,6 +1533,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	OnlydataLimit = 0;
 	UttlineEqUtterance = TRUE;
 	FirstFile = TRUE;
+	FirstArgsPrint = TRUE;
 	FileName1[0] = EOS;
 	FileName2[0] = EOS;
 	bmain(argc,argv,NULL);

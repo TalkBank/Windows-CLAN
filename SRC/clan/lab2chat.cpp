@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -54,7 +54,8 @@ static FNType actualFName[FNSize];
 static long ln;
 static double timeOffset;
 static char *MFN;
-static char lEncodeSet;
+static FNType attrib_fname[FNSize];
+static char lEncodeSet, isPlainConv;
 static short lEncode;
 #ifdef _MAC_CODE
 static TextEncodingVariant lVariant;
@@ -77,6 +78,8 @@ void init(char f) {
 #ifdef _MAC_CODE
 		lVariant = kTextEncodingDefaultVariant;
 #endif
+		isPlainConv = FALSE;
+		strcpy(attrib_fname, "attribs.cut");
 		MFN = NULL;
 		OverWriteFile = TRUE;
 		AddCEXExtension = ".cha";
@@ -97,6 +100,8 @@ void init(char f) {
 			cutt_exit(0);
 		}
 */
+		if (isPlainConv)
+			stin = FALSE;
 		option_flags[CLAN_PROG_NUM] = 0L;
 	}
 	stout = TRUE;
@@ -104,9 +109,11 @@ void init(char f) {
 
 void usage() {
 	printf("Converts WaveSurfer text files to CHAT text files\n");
-	printf("Usage: lab2chat [+dF +fN +mF +tN] filename(s)\n");
+	printf("Usage: lab2chat [dF fN mF oS p tN] filename(s)\n");
     puts("+dF: specify tags dependencies file F.");
-    puts("+mF: specify movie file name F (default: input file name).");
+	puts("+mF: specify movie file name F (default: input file name).");
+	puts("+p : plain file conversion (default: input files are merged according to attribute file).");
+	puts("+re: run program recursively on all sub-directories.");
     puts("+tN: specify movie segment start time offset relative to actual movie start.");
 	puts("+oS: Specify code page. Please type \"+o?\" for full listing of codes");
 	puts("     macl  - Mac Latin (German, Spanish ...)");
@@ -212,7 +219,7 @@ static void rd_dep_f(const char *fname) {
 	ln = 0L;
 	while (fgets_cr(templineC, 255, fp)) {
 		ln++;
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE) || templineC[0] == ';')
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC) || templineC[0] == ';')
 			continue;
 		uS.remblanks(templineC);
 		if (templineC[0] == EOS)
@@ -320,7 +327,7 @@ void getflag(char *f, char *f1, int *i) {
 	switch(*f++) {
 		case 'd':
 			if (*f) {
-				rd_dep_f(getfarg(f,f1,i));
+				strcpy(attrib_fname, getfarg(f,f1,i));
 			} else {
 				fprintf(stderr,"Missing argument to option: %s\n", f-2);
 				cutt_exit(0);
@@ -328,6 +335,10 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 		case 'm':
 			MFN = f;
+			break;
+		case 'p':
+			no_arg_option(f);
+			isPlainConv = TRUE;
 			break;
 		case 't':
 			if (*f) {
@@ -557,7 +568,7 @@ static LINESLIST *insertEmptySpeaker(LINESLIST *root, LINESLIST **ont, LINESLIST
 	return(root);
 }
 
-static LINESLIST *add_each_line(LINESLIST *root, char isMerge, char whichTier, char *depOn, char *chatName, char *line, long bt, long et, FILE *tFp) {
+static LINESLIST *add_each_line(LINESLIST *root, char isMerge, char whichTier, char *depOn, const char *chatName, char *line, long bt, long et, FILE *tFp) {
 	long len;
 	LINESLIST *nt, *tnt;
 
@@ -625,10 +636,20 @@ static LINESLIST *add_each_line(LINESLIST *root, char isMerge, char whichTier, c
 		}
 	}
 	nt->line = NULL;
-	if (strlen(chatName) >= TAGSLEN || strlen(depOn) >= TAGSLEN) {
+	if (strlen(chatName) >= TAGSLEN) {
 		freeMem();
 		fprintf(stderr,"*** File \"%s%s\": line %ld.\n", DirPathName, actualFName, ln);
-		fprintf(stderr, "Tag is too long > %d\n", TAGSLEN);
+		fprintf(stderr, "Speaker tag is too long > %d\n", TAGSLEN);
+		if (tFp != NULL) {
+			fclose(fpin);
+			fpin = tFp;
+		}
+		cutt_exit(0);
+	}
+	if (depOn != NULL && strlen(depOn) >= TAGSLEN) {
+		freeMem();
+		fprintf(stderr,"*** File \"%s%s\": line %ld.\n", DirPathName, actualFName, ln);
+		fprintf(stderr, "Dependent tier name tag is too long > %d\n", TAGSLEN);
 		if (tFp != NULL) {
 			fclose(fpin);
 			fpin = tFp;
@@ -640,15 +661,20 @@ static LINESLIST *add_each_line(LINESLIST *root, char isMerge, char whichTier, c
 			if (uS.IsUtteranceDel(line, len))
 				break;
 		}
-		if (len < 0)
+		if (len < 0 && depOn != NULL)
 			sprintf(templineC2, " +. %c%ld_%ld%c\n\t", HIDEN_C, bt, et, HIDEN_C);
+		else if (len < 0 && depOn == NULL)
+			sprintf(templineC2, " . %c%ld_%ld%c\n\t", HIDEN_C, bt, et, HIDEN_C);
 		else
 			sprintf(templineC2, " %c%ld_%ld%c\n\t", HIDEN_C, bt, et, HIDEN_C);
 	} else
 		templineC2[0] = EOS;
 
 	nt->whichTier = whichTier;
-	strcpy(nt->depOn, depOn);
+	if (depOn == NULL)
+		strcpy(nt->depOn, "");
+	else
+		strcpy(nt->depOn, depOn);
 	strcpy(nt->chatName, chatName);
 	if (!isMerge) {
 		nt->line = (char *)malloc(strlen(line)+strlen(templineC2)+1);
@@ -714,7 +740,7 @@ static void output_Participants_ID(void) {
 			strcpy(templineC2, p->chatName+1);
 			for (i=strlen(templineC2)-1; i >= 0 && (isSpace(templineC2[i]) || templineC2[i] == ':'); i--) ;
 			templineC2[++i] = EOS;
-			fprintf(fpout, "@ID:	en|sample|%s|||||%s||\n", templineC2, p->chatRole);
+			fprintf(fpout, "@ID:	eng|sample|%s|||||%s|||\n", templineC2, p->chatRole);
 		}
 	}
 }
@@ -760,7 +786,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	UnicodeToUTF8(templineW, wchars, (unsigned char *)line, (unsigned long *)&UTF8Len, UTTLINELEN);
 	if (UTF8Len == 0 && wchars > 0) {
 		putc('\n', stderr);
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error: Unable to convert the following line:\n");
 		fprintf(stderr, "%s\n", src);
 	}
@@ -779,7 +805,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	MacRomanEncoding = CreateTextEncoding( (long)lEncode, lVariant, kTextEncodingDefaultFormat );
 	utf8Encoding = CreateTextEncoding( kTextEncodingUnicodeDefault, kTextEncodingDefaultVariant, kUnicodeUTF8Format );
 	if ((err=TECCreateConverter(&ec, MacRomanEncoding, utf8Encoding)) != noErr) {
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error1: Unable to craete a converter.\n");
 		fprintf(stderr, "%s\n", src);
 		cutt_exit(0);
@@ -788,7 +814,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	len = strlen(src);
 	if ((err=TECConvertText(ec, (ConstTextPtr)src, len, &ail, (TextPtr)line, UTTLINELEN, &aol)) != noErr) {
 		putc('\n', fpout);
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error2: Unable to convert the following line:\n");
 		fprintf(stderr, "%s\n",src);
 		cutt_exit(0);
@@ -796,7 +822,7 @@ static void AsciiToUnicodeToUTF8(char *src, char *line) {
 	err = TECDisposeConverter(ec);
 	if (ail < len) {
 		putc('\n', fpout);
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname);
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
 		fprintf(stderr, "Fatal error3: Converted only %ld out of %ld chars:\n", ail, len);
 		fprintf(stderr, "%s\n", src);
 		cutt_exit(0);
@@ -852,12 +878,14 @@ static char processFiles(TAGS *p) {
 	extern char GExt[];
 
 	tFp = fpin;
-	fpin = openFile(p->tag);
-	if (fpin == NULL) {
-		fpin = tFp;
-		if (!isRecursive)
-			fprintf(stderr, "Warning: Can't open file \"%s%s.%s\"\n", DirPathName, actualFName, p->tag);
-		return(FALSE);
+	if (p != NULL) {
+		fpin = openFile(p->tag);
+		if (fpin == NULL) {
+			fpin = tFp;
+			if (!isRecursive)
+				fprintf(stderr, "Warning: Can't open file \"%s%s.%s\"\n", DirPathName, actualFName, p->tag);
+			return(FALSE);
+		}
 	}
 	if (fpout == stdout && FileName2[0] != EOS) {
 		parsfname(FileName2,newfname,GExt);
@@ -878,29 +906,34 @@ static char processFiles(TAGS *p) {
 #endif
 	}
 
-	areTiersFound = FALSE;
-	ln = 0L;
-    while (fgets_cr(templineC, UTTLINELEN, fpin)) {
-    	ln++;
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
-			continue;
-		uS.remblanks(templineC);
-		if (isdigit(templineC[0])) {
-			areTiersFound = TRUE;
-			break;
+	if (p != NULL) {
+		areTiersFound = FALSE;
+		ln = 0L;
+		while (fgets_cr(templineC, UTTLINELEN, fpin)) {
+			ln++;
+			if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
+				continue;
+			uS.remblanks(templineC);
+			if (isdigit(templineC[0])) {
+				areTiersFound = TRUE;
+				break;
+			}
+		}
+
+		if (!areTiersFound) {
+			fclose(fpin);
+			fpin = tFp;
+			if (p != NULL)
+				fprintf(stderr, "Warning: No lines with time values found in file \"%s%s.%s\"\n", DirPathName, actualFName, p->tag);
+			else
+				fprintf(stderr, "Warning: No lines with time values found in file \"%s%s\"\n", DirPathName, actualFName);
+			return(TRUE);
 		}
 	}
 
-	if (!areTiersFound) {
-		fclose(fpin);
-		fpin = tFp;
-		fprintf(stderr, "Warning: No lines with time values found in file \"%s%s.%s\"\n", DirPathName, actualFName, p->tag);
-		return(TRUE);
-	}
-
     while (fgets_cr(templineC, UTTLINELEN, fpin)) {
     	ln++;
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 			continue;
 		uS.remblanks(templineC);
 		if (templineC[0] == EOS)
@@ -955,7 +988,9 @@ static char processFiles(TAGS *p) {
 			cutt_exit(0);
 		}
 		line = eS;
-		if (uS.mStricmp(line, "s")) {
+		if (isPlainConv) {
+			sLinesRoot = add_each_line(sLinesRoot, FALSE, SPKRTIER, NULL, "*TXT:", line, bt, et, NULL);
+		} else if (uS.mStricmp(line, "s")) {
 			cleanupLine(line, templineC1);
 			strcpy(line, templineC1);
 			if (lEncodeSet != 0) {
@@ -981,18 +1016,19 @@ void call() {
 	char *s;
 	TAGS *p;
 
-	if (tiersRoot == NULL) {
-		rd_dep_f("attribs.cut");
+	if (!isPlainConv) {
 		if (tiersRoot == NULL) {
-			fprintf(stderr,"Please specify attribs.cut file with +d option.\n");
+			rd_dep_f(attrib_fname);
+			if (tiersRoot == NULL) {
+				fprintf(stderr,"Please specify attribs.cut file with +d option.\n");
+				cutt_exit(0);
+			}
+		}
+		if (whatKindTag(NULL, NULL, NULL) != SPKRTIER) {
+			fprintf(stderr,"Please specify the name of main speaker(s) in attribs.cut file.\n");
 			cutt_exit(0);
 		}
 	}
-	if (whatKindTag(NULL, NULL, NULL) != SPKRTIER) {
-	    fprintf(stderr,"Please specify the name of main speaker(s) in attribs.cut file.\n");
-	    cutt_exit(0);
-	}
-
 	strcpy(DirPathName, oldfname);
 	s = strrchr(DirPathName, PATHDELIMCHR);
 	if (s != NULL) {
@@ -1013,18 +1049,28 @@ void call() {
 	if (DirPathName[0] != EOS)
 		SetNewVol(DirPathName);
 	FileName2[0] = EOS;
-	isSpeakerFound = FALSE;
-	for (p=tiersRoot; p != NULL; p=p->nextTag) {
-		if (p->whichTier == SPKRTIER) {
-			isSpeakerFound = TRUE;
-			if (!processFiles(p) && !isRecursive)
-				goto fin;
+	if (isPlainConv) {
+		strcpy(FileName2, oldfname);
+		s = strchr(FileName2, '.');
+		if (s != NULL)
+			*s = EOS;
+		isSpeakerFound = TRUE;
+		if (!processFiles(NULL))
+			goto fin;
+	} else {
+		isSpeakerFound = FALSE;
+		for (p=tiersRoot; p != NULL; p=p->nextTag) {
+			if (p->whichTier == SPKRTIER) {
+				isSpeakerFound = TRUE;
+				if (!processFiles(p) && !isRecursive)
+					goto fin;
+			}
 		}
-	}
-	for (p=tiersRoot; p != NULL; p=p->nextTag) {
-		if (p->whichTier == DEPTTIER) {
-			if (!processFiles(p) && !isRecursive)
-				goto fin;
+		for (p=tiersRoot; p != NULL; p=p->nextTag) {
+			if (p->whichTier == DEPTTIER) {
+				if (!processFiles(p) && !isRecursive)
+					goto fin;
+			}
 		}
 	}
     if (!isSpeakerFound) {
@@ -1034,10 +1080,15 @@ void call() {
     }
 
 	if (FileName2[0] != EOS) {
-		fprintf(fpout, "@UTF8\n");
+		fprintf(fpout, "%s\n", UTF8HEADER);
 		fprintf(fpout, "@Begin\n");
-		fprintf(fpout, "@Languages:	sw\n");
-		output_Participants_ID();
+		fprintf(fpout, "@Languages:	eng\n");
+		if (isPlainConv) {
+			fprintf(fpout, "@Participants:	TXT Participant\n");
+			fprintf(fpout, "@ID:	eng|sample|TXT|||||Participant|||\n");
+		} else {
+			output_Participants_ID();
+		}
 		if (MFN == NULL || *MFN == EOS) {
 			fprintf(fpout, "%s\t%s, audio\n", MEDIAHEADER, FileName2);
 		} else

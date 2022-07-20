@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -11,6 +11,8 @@
 #ifndef __system_hpp__
 #define __system_hpp__
 
+#include "longdef.hpp"
+
 #if defined(POSTCODE) || defined(_MAC_CODE)
 	#include "cu.h"
 
@@ -18,7 +20,6 @@
 	#define _stricmp uS.mStricmp
 	#define _strnicmp uS.mStrnicmp
 	#define sprintf uS.sprintf
-
 #else
 
 	#include <stdio.h>
@@ -41,12 +42,17 @@
 	#define FNType char
 
 	#define EOS '\0'
-
 #endif /* defined(POSTCODE) || defined(_MAC_CODE) */
 
 #if defined(UNX)
 #include <ctype.h>
 #include <unistd.h>
+
+#define FONTHEADER		"@Font:"
+#define WINDOWSINFO		"@Window:"
+#define CKEYWORDHEADER	"@Color words:"
+#define PIDHEADER		"@PID:"
+#define UTF8HEADER		"@UTF8"
 
 #define stricmp mStricmp
 #define strnicmp mStrnicmp
@@ -66,7 +72,7 @@ extern int mStricmp(const char *st1, const char *st2);
 #include "ClanCommands.h"
 #endif
 
-typedef long int Int4;
+typedef long32 Int4;
 typedef short int Int2;
 
 #define MaxFnSize 256

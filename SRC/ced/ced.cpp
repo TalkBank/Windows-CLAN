@@ -21,7 +21,7 @@ short SearchFFlag;
 void draw_mid_wm() {
 	register int len;
 	ROWS *tr1;
-	wchar_t buf[ERRMESSAGELEN];
+	unCH buf[ERRMESSAGELEN];
 
 	if (global_df == NULL)
 		return;
@@ -50,18 +50,13 @@ void draw_mid_wm() {
 	if (rawTextInput) {
 		waddstr(global_df->wm,cl_T("-RAW")); len += 4;
 	}
-#ifndef _UNICODE
-	if (global_df->isUTF) {
-		waddstr(global_df->wm,cl_T("-UTF")); len += 4;
-	}
-#endif
 	waddstr(global_df->wm,cl_T("] ")); len += 2;
 	if (global_df->DataChanged == '\001')
 		waddstr(global_df->wm,cl_T("* "));
 	else
 		waddstr(global_df->wm,cl_T("  "));
 	len += 2;
-	global_df->numberOfRows = global_df->lineno;
+	global_df->numberOfRows = global_df->wLineno;
 	for (tr1=global_df->row_txt; !AtBotEnd(tr1,global_df->tail_text,FALSE); tr1=ToNextRow(tr1,FALSE))
 		global_df->numberOfRows++;
 	
@@ -115,14 +110,14 @@ void ced_getflag(char *f) {
 		case '?':
 #if !defined(_MAC_CODE) && !defined(_WIN32)
 			if (w1) return;
-			puts("+a : always auto-wrap long line");
-			puts("+bN: set number of commands and word before auto-save");
+			puts("+a : always auto wrap long line");
+			puts("+bN: set number of commands and words before auto-save");
 			printf("+cF: specify codes file name (default: %s)\n", CODEFNAME);
 			puts("-d : do NOT create backup file");
 			puts("-e : do NOT start in an editor mode");
 			puts("+h : show this help message");
 			printf("+kF: specify key bindings file name (default: %s)\n", STATEFNAME);
-			puts("+lN: re-order codes (1 = advance to top, 2 = advance one step)");
+			puts("+lN: re-order codes (0 = do not change order, 1 = advance to top, 2 = advance one step)");
 			puts("+p : display current position as percentage of the whole file");
 			puts("+sN: progam will make identical copies of codes across branches");
 			puts("+tS: set next speaker name to S");

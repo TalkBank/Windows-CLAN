@@ -1,6 +1,9 @@
-#include "cu.h"
 #include "ced.h"
+#include "cu.h"
 #include "mul.h"
+#ifdef _COCOA_APP
+#import "ListBoxController.h"
+#endif
 #ifdef _WIN32
 	#include "w95_commands.h"
 #endif
@@ -29,16 +32,6 @@
 	#include <sys/stat.h>
 	#include <dirent.h>
 #endif // _MAC_CODE
-
-struct aliasesList {
-	char *alias;
-	char *argv0;
-	char *rest;
-	char loc;
-	int  ln;
-	struct aliasesList *next_alias;
-} ;
-typedef struct aliasesList ALIASES_LIST;
 
 struct exec_FileList {
 	FNType fname[FNSize];
@@ -69,10 +62,11 @@ typedef struct fopts fopts;
 
 extern int F_numfiles;
 
-#ifdef _MAC_CODE
+#ifndef _COCOA_APP
+  #ifdef _MAC_CODE
 	char *fbuffer = NULL;
-#endif // _MAC_CODE
-
+  #endif // _MAC_CODE
+#endif
 #ifdef _WIN32
 	static CFileFind fileFind;
 #endif /* _WIN32 */
@@ -83,14 +77,15 @@ FNType openFileName[FNSize];
 int  cl_argc;
 char *cl_argv[MAX_ARGS];
 static UInt32 aliasDFileDateValue = 0L, aliasUFileDateValue = 0L;
-static aliasesList *aliases = NULL;
 static struct redirects pipe1, pipe2;
+ALIASES_LIST *aliases = NULL;
 
 struct redirects *pipe_out, *pipe_in;
 struct redirects redirect_out, redirect_in;
 
+#ifndef _COCOA_APP
 char init_clan(void) {
-#ifdef _MAC_CODE
+  #ifdef _MAC_CODE
 	if (fbuffer != NULL)
 		return(TRUE);
 	fbuffer = (char *)malloc(EXPANSION_SIZE + 2L);
@@ -98,9 +93,10 @@ char init_clan(void) {
 		do_warning("Can't run CLAN; Out of memory", 0);
 		return(FALSE);
 	}
-#endif // _MAC_CODE
+  #endif // _MAC_CODE
 	return(TRUE);
 }
+#endif
 /*
  //	if (!findInLib(ALIAS_FILE_D, openFileName))
 
@@ -212,15 +208,22 @@ void free_aliases(void) {
 }
 
 static void createAliasesList(FILE *fp, char loc, char *Dfname, char *Ufname, char isInit) {
+	char isPullDownCommand, isNeedsArgs;
 	int argv0, rest, ln;
 	ALIASES_LIST *newP, *p;
 
 	ln = 0;
+	isNeedsArgs = 0;
+	isPullDownCommand = 0;
 	while (fgets_ced(ced_lineC, UTTLINELEN, fp, NULL)) {
-		if (uS.isUTF8(ced_lineC) || uS.partcmp(ced_lineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(ced_lineC) || uS.isInvisibleHeader(ced_lineC))
 			continue;
 		ln++;
 		uS.remFrontAndBackBlanks(ced_lineC);
+		if (strcmp(ced_lineC, "%pull-down-command") == 0)
+			isPullDownCommand = 1;
+		if (strcmp(ced_lineC, "%argument-needed") == 0)
+			isNeedsArgs = 1;
 		if (ced_lineC[0] == EOS || ced_lineC[0] == '%' || ced_lineC[0] == '#')
 			continue;
 		for (argv0=0; ced_lineC[argv0] != EOS && ced_lineC[argv0] != ' ' && ced_lineC[argv0] != '\t'; argv0++)
@@ -244,6 +247,8 @@ static void createAliasesList(FILE *fp, char loc, char *Dfname, char *Ufname, ch
 			return;
 		}
 		newP->next_alias = NULL;
+		newP->isPullDownC = isPullDownCommand;
+		newP->isNeedsArgs = isNeedsArgs;
 		newP->loc = loc;
 		newP->ln  = ln;
 		newP->alias = (char *)malloc(strlen(ced_lineC)+1);
@@ -270,6 +275,8 @@ static void createAliasesList(FILE *fp, char loc, char *Dfname, char *Ufname, ch
 		}
 		strcpy(newP->rest, ced_lineC+rest);
 		uS.remblanks(newP->rest);
+		isNeedsArgs = 0;
+		isPullDownCommand = 0;
 		if  (isInit == 2)
 			fprintf(stdout,"%s  =  %s %s\n", newP->alias, newP->argv0, newP->rest);
 		if (aliases == NULL) {
@@ -346,7 +353,7 @@ void readAliases(char isInit) {
 			getFileDate(openFileName, &dateDValue);
 			getFileDate(FileName1, &dateUValue);
 			if (aliasDFileDateValue != 0L && dateDValue != 0L && aliasDFileDateValue == dateDValue &&
-				  aliasUFileDateValue != 0L && dateUValue != 0L && aliasUFileDateValue == dateUValue) {
+				aliasUFileDateValue != 0L && dateUValue != 0L && aliasUFileDateValue == dateUValue) {
 				return;
 			}
 			aliasDFileDateValue = dateDValue;
@@ -431,8 +438,10 @@ static void alias(void) {
 			strcpy(openFileName, FileName1);
 		}
 #ifdef _MAC_CODE
+#ifndef _COCOA_APP
 		isAjustCursor = FALSE;
 		OpenAnyFile(openFileName, 1962, TRUE);
+#endif
 #endif // _MAC_CODE
 #ifdef _WIN32
 		strcpy(tFileBuf, ALIAS_FILE_D);
@@ -479,7 +488,7 @@ static void displayAliasUsage(ALIASES_LIST *p, char *str) {
 	str[0] = EOS;
 	while (fgets_ced(ced_lineC, UTTLINELEN, fp, NULL)) {
 		uS.remFrontAndBackBlanks(ced_lineC);
-		if (uS.isUTF8(ced_lineC) || uS.partcmp(ced_lineC,FONTHEADER,FALSE,FALSE) ||
+		if (uS.isUTF8(ced_lineC) || uS.isInvisibleHeader(ced_lineC) ||
 			ced_lineC[0] == EOS || ced_lineC[0] == '%')
 			continue;
 		if (uS.mStrnicmp(ced_lineC, p->alias, len) == 0) {
@@ -497,26 +506,26 @@ static void displayAliasUsage(ALIASES_LIST *p, char *str) {
 }
 
 static char *matchAlias(char *inputBuf) {
-	int  k;
-	char *com, alias[256+1];
+	int  k, c;
+	char *com, alias_st[256+1];
 	ALIASES_LIST *p;
 
 	if (inputBuf == NULL)
 		return(NULL);
+	com = inputBuf;
+	k = 0;
+	for (c=0; com[c] != EOS && com[c] != ' ' && com[c] != '\t'; c++)  {
+		if (k < 256)
+			alias_st[k++] = (char)tolower((unsigned char)com[c]);
+	}
+	alias_st[k] = EOS;
 	for (p=aliases; p != NULL; p=p->next_alias) {
-		com = inputBuf;
-		k = 0;
-		for (; *com != EOS && *com != ' ' && *com != '\t'; com++)  {
-			if (k < 256)
-				alias[k++] = (char)tolower((unsigned char)*com);
-		}			
-		alias[k] = EOS;
-		if (strcmp(alias, p->alias) == 0) {
+		if (strcmp(alias_st, p->alias) == 0) {
 			alias_com = (char *)malloc(EXPANSION_SIZE + 2L);
 			if (alias_com == NULL)
 				return(NULL);
-			for (; *com == ' ' || *com == '\t'; com++)  ;
-			if (*com == EOS) {
+			for (; com[c] == ' ' || com[c] == '\t'; c++)  ;
+			if ((com[c] == EOS && p->isNeedsArgs) || (com[c] == '?' && !p->isNeedsArgs)) {
 				strcpy(alias_com, ALIAS_USAGE);
 				strcat(alias_com, " ");
 				displayAliasUsage(p, alias_com+strlen(alias_com));
@@ -526,11 +535,9 @@ static char *matchAlias(char *inputBuf) {
 				strcat(alias_com, " ");
 				strcat(alias_com, p->rest);
 				k = strlen(alias_com);
-				if (*com != EOS) {
-					alias_com[k++] = ' ';
-					while (*com != EOS)
-						alias_com[k++] = *com++;
-				}
+				alias_com[k++] = ' ';
+				while (com[c] != EOS)
+					alias_com[k++] = com[c++];
 				alias_com[k] = EOS;
 				OutputToScreen(cl_T("ALIAS> "));
 				fprintf(stderr, "%s\n", alias_com);
@@ -541,14 +548,22 @@ static char *matchAlias(char *inputBuf) {
 	return(NULL);
 }
 
-static void make_new_str(FNType *old_pat, FNType *old_s, FNType *new_pat, FNType *new_s) {
-    register int j, k;
-    register int n, m;
-    int t, end;
+static char make_new_str(FNType *old_pat, FNType *old_s, FNType *new_pat, FNType *new_s) {
+	int j, k;
+	int n, m;
+	int t, end;
+	int starCnt;
+	char isCopy, isNStarMatched, isNStarFound;
 
+	isNStarMatched = FALSE;
+	isNStarFound = FALSE;
+	starCnt = 0;
 	*new_s = EOS;
-    if (old_s[0] == EOS) return;
-    for (j = 0, k = 0; old_pat[k]; j++, k++) {
+	if (old_s[0] == EOS) {
+		fprintf(stderr, "empty original string specified.\n");
+		return(FALSE);
+	}
+	for (j = 0, k = 0; old_pat[k]; j++, k++) {
 /* 27-03-02
 		if (old_pat[k] == '\\') {
 			k++;
@@ -562,6 +577,7 @@ static void make_new_str(FNType *old_pat, FNType *old_s, FNType *new_pat, FNType
 		} else
 */
 		if (old_pat[k] == '*') {	  /* wildcard */
+			starCnt++;
 			k++; t = j;
 f1:
 			while (old_s[j] && (islower((unsigned char)old_s[j]) ? (char)toupper((unsigned char)old_s[j]) : old_s[j]) != 
@@ -582,19 +598,42 @@ f1:
 					goto f1;
 				}
 			}
+			isCopy = FALSE;
 // 27-03-02			while (*new_pat != '_' && *new_pat != '*' && *new_pat != EOS)
-			while (*new_pat != '*' && *new_pat != EOS)
+			while (*new_pat != EOS) {
+				if (*new_pat == '*') {
+					isCopy = TRUE;
+					break;
+				}
+				if (*new_pat == '\\' && isdigit(*(new_pat+1)) && *(new_pat+2) == '*') {
+					isNStarFound = TRUE;
+					if (atoi(new_pat+1) == starCnt) {
+						isNStarMatched = TRUE;
+						isCopy = TRUE;
+						while (*new_pat == '\\' || isdigit(*new_pat))
+							new_pat++;
+					}
+					break;
+				}
 				*new_s++ = *new_pat++;
-			if (*new_pat != EOS) {
-				new_pat++;
-				while (t < end) *new_s++ = old_s[t++];
 			}
-			if (old_s[j] == EOS || old_pat[k] == EOS) break;
+			if (isCopy) {
+				new_pat++;
+				while (t < end)
+					*new_s++ = old_s[t++];
+			}
+			if (old_s[j] == EOS || old_pat[k] == EOS)
+				break;
 		}
 	}
 	while (*new_pat != EOS)
 		*new_s++ = *new_pat++;
 	*new_s = EOS;
+	if (isNStarFound && !isNStarMatched) {
+		fprintf(stderr, "Can't match replacement string wildcard number to original string wildcard.\n");
+		return(FALSE);
+	}
+	return(TRUE);
 }
 
 static void set_creator_type(creator_type *cr_ptr, const char *s) {
@@ -680,8 +719,10 @@ static char exec_addToFileList(fopts *args, const FNType *fname) {
 
 	tF = NEW(exec_FileList);
 	if (tF == NULL) {
+#ifndef _COCOA_APP
 		if (MEMPROT)
 			free(MEMPROT);
+#endif
 		do_warning("Out of memory", 0);
 		return(FALSE);
 	}
@@ -839,7 +880,7 @@ static char rec_dir(fopts *args, char isIncludeDirs, void(*func)(fopts *args)) {
 		fnameFound = dirFind.GetFileName();
 		if (!strcmp(fnameFound, ".") || !strcmp(fnameFound, ".."))
 			continue;
-		u_strcpy(fname, (wchar_t *)(LPCTSTR)fnameFound, FILENAME_MAX);
+		u_strcpy(fname, (unCH *)(LPCTSTR)fnameFound, FILENAME_MAX);
 		strcat(args->path, fname);
 		uS.str2FNType(args->path, strlen(args->path), PATHDELIMSTR);
 		if (!rec_dir(args,isIncludeDirs,func)) {
@@ -929,7 +970,7 @@ static void copy_current_dir(fopts *args) {
 				return;
 			}
 		}
-		
+
 		if (!uS.mStricmp(args->root_file->fname, new_name)) {
 			free(buf);
 			fprintf(stderr, "Can't copy file to itself.\n");
@@ -957,7 +998,10 @@ static void copy_current_dir(fopts *args) {
 				after_dir++;
 			else
 				after_dir = tFile->fname;
-			make_new_str(args->arg1, after_dir, args->arg2, new_name);
+			if (!make_new_str(args->arg1, after_dir, args->arg2, new_name)) {
+				fprintf(stderr, "Copy aborted.\n");
+				return;
+			}
 			if (args->set_lowcase) {
 				hold = strrchr(new_name,PATHDELIMCHR);
 				if (hold) hold++;
@@ -1031,7 +1075,11 @@ static void copy_current_dir(fopts *args) {
 
 #ifdef _MAC_CODE
 		original_type.out = 'TEXT';
+#ifndef _COCOA_APP
 		original_creator.out = '????';
+#else
+		original_creator.out = 0L;
+#endif
 		gettyp(tFile->fname, &original_type.out, &original_creator.out);
 		if (!args->set_creator)
 			args->temp_creator.out = original_creator.out;
@@ -1125,6 +1173,11 @@ static void cpy(void) {
 #endif /* _MAC_CODE */
 		fprintf(stderr,"-q verification\n");
 		fprintf(stderr,"-r recursive\n");
+		fprintf(stderr,"For example file name aki12_boofoo.cha:\n");
+		fprintf(stderr,"    copy aki*_*.cha \\1*.cha\n");
+		fprintf(stderr,"Will create file: 12.cha\n");
+		fprintf(stderr,"    copy aki*_*.cha \\2*.cha\n");
+		fprintf(stderr,"Will create to file: boofoo.cha\n");
 		return;
 	}
 	if (args.isRecursive && (strrchr(args.arg1,PATHDELIMCHR) || strrchr(args.arg2,PATHDELIMCHR))) {
@@ -1181,7 +1234,10 @@ static void ren_current_dir(fopts *args) {
 			after_dir++;
 		else
 			after_dir = tFile->fname;
-		make_new_str(args->arg1, after_dir, args->arg2, new_name);
+		if (!make_new_str(args->arg1, after_dir, args->arg2, new_name)) {
+			fprintf(stderr, "Rename aborted.\n");
+			return;
+		}
 		if (args->set_lowcase) {
 			hold = strrchr(new_name,PATHDELIMCHR);
 			if (hold) hold++;
@@ -1276,6 +1332,11 @@ static void ren(void) {
 #endif /* _MAC_CODE */
 		fprintf(stderr,"-q verification\n");
 		fprintf(stderr,"-r recursive\n");
+		fprintf(stderr,"For example file name aki12_boofoo.cha:\n");
+		fprintf(stderr,"    ren aki*_*.cha \\1*.cha\n");
+		fprintf(stderr,"Will rename to file: 12.cha\n");
+		fprintf(stderr,"    ren aki*_*.cha \\2*.cha\n");
+		fprintf(stderr,"Will rename to file: boofoo.cha\n");
 		return;
 	}
 
@@ -1309,7 +1370,7 @@ static void show_list(void) {
 
 	longest_name = 0;
 	for (index=1; index <= F_numfiles; index++) {
-		get_selected_file(index, fname);
+		get_selected_file(index, fname, FNSize);
 		if ((len=strlen(fname)) > longest_name)
 			longest_name = len;
 	}
@@ -1321,7 +1382,7 @@ static void show_list(void) {
 	len = 0;
 	index = 1;
 	for (index=1; index <= F_numfiles; index++) {
-		get_selected_file(index, fname);
+		get_selected_file(index, fname, FNSize);
 		if (!(++len % ncols))
 			fprintf(stdout,"%-*s\n", longest_name, fname);
 		else
@@ -1537,26 +1598,38 @@ static void rm(void) {
 
 /* show info begin */
 void show_info(char isJustComm) {
+#ifndef _COCOA_APP
 	long mysize;
+#endif
+	NewFontInfo finfo;
 
+	finfo.fontName[0] = EOS;
+	SetDefaultCAFinfo(&finfo);
+	selectChoosenFont(&finfo, TRUE, TRUE);
 	if (!isJustComm) {
 #ifdef _MAC_CODE
+#ifndef _COCOA_APP
 		Str255 pFontName;
 		char FontName[256];
+#endif
 		creator_type the_file_creator;
 
+#ifndef _COCOA_APP
 		MaxMem( (Size * ) &mysize);
   		mysize = FreeMem();
 		mysize = (long) CompactMem((Size) mysize);
+#endif
 
 		the_file_creator.out = PROGCREATOR;
 		fprintf(stdout,"Output File Creator is set to '%c%c%c%c'\n",
 			the_file_creator.in[0], the_file_creator.in[1],
 			the_file_creator.in[2], the_file_creator.in[3]);
+#ifndef _COCOA_APP
 		GetFontName(dFnt.fontId, pFontName);
 		p2cstrcpy(FontName, pFontName);
 		fprintf(stdout,"Screen Font is set to: %s %ld\n", FontName, dFnt.fontSize);
 		fprintf(stdout,"Free memory %ld bytes\n", mysize);
+#endif
 #endif // _MAC_CODE
 #ifdef _WIN32
 		MEMORYSTATUS lpBuffer;
@@ -1574,8 +1647,13 @@ void show_info(char isJustComm) {
 	readAliases(2);
 	fprintf(stdout,"\n");
 	fprintf(stdout,"Supplementary commands available:\n");
-	fprintf(stdout, "al(ias)   bat(ch)   cd        copy      del       dir\n");
-	fprintf(stdout, "info      list      open      ren(ame)  rm        ty(pe)\n");
+	if (isJustComm == 2) {
+		fprintf(stdout, "al(ias)   bat(ch)   cd        copy      del       dir\n");
+		fprintf(stdout, "help [a]  info      list      open      ren(ame)  rm\n");
+		fprintf(stdout, "ty(pe)    ? [a]\n");
+	} else {
+		fprintf(stdout, "al(ias)   bat(ch)   cd   dir   info   ren(ame)   rm\n");
+	}
 	if (!isJustComm) {
 		fprintf(stdout,"\n");
 		fprintf(stdout,"Your library directory is: %s\n", lib_dir);
@@ -1609,8 +1687,10 @@ static void type(void) {
 #ifdef _MAC_CODE
 				strcpy(dummy, wd_dir);
 				addFilename2Path(dummy, fname);
+#ifndef _COCOA_APP
 				isAjustCursor = TRUE;
 				OpenAnyFile(dummy, 1962, TRUE);
+#endif
 #endif // _MAC_CODE
 #ifdef _WIN32
 				strcpy(tFileBuf, fname);
@@ -1627,18 +1707,22 @@ static void type(void) {
 static void cd(FNType *new_dir) {
 	FNType mDirPathName[FNSize];
 
-#ifdef _MAC_CODE	
+#ifdef _MAC_CODE
 	SetNewVol(wd_dir);
 	if (chdir(new_dir)) {
 		fprintf(stderr,"change directory error %s\n", new_dir);
 	} else {
 		getcwd(mDirPathName, FNSize);
 		fprintf(stderr,"directory set to: %s\n", mDirPathName);
+#ifdef _COCOA_APP
+		SetWdLibFolder(mDirPathName, wdFolders);
+#else
 		if (!WD_Not_Eq_OD)
 			strcpy(od_dir, mDirPathName);
 		strcpy(wd_dir, mDirPathName);
 		UpdateWindowNamed(Commands_str);
 		WriteCedPreference();
+#endif
 	}
 #endif // _MAC_CODE
 #ifdef _WIN32	
@@ -1674,6 +1758,7 @@ static void cd(FNType *new_dir) {
 
 static void run_CLAN(char *inputBuf, char tDataChanged) {
 	char *com;
+#ifndef _COCOA_APP
 #ifdef _MAC_CODE
 	Size mysize;
 
@@ -1681,6 +1766,7 @@ static void run_CLAN(char *inputBuf, char tDataChanged) {
   	mysize = FreeMem();
 	mysize = (long) CompactMem((Size) mysize);
 #endif // _MAC_CODE
+#endif
 #ifdef _WIN32
 	extern char *nameOverride, *pathOverride;
 	extern char tFileBuf[];
@@ -1769,11 +1855,14 @@ static void run_CLAN(char *inputBuf, char tDataChanged) {
 			return;
 		}
 		global_df->DataChanged = tDataChanged;
+#ifndef _COCOA_APP
 		PosAndDispl();
+#endif
 		type();
 	} else if (!strcmp(cl_argv[0], BAT_COM) || !strcmp(cl_argv[0], BATCH_COM)) {
-		fprintf(stderr, "Usage: bat(ch) filename [option0, option2, ..., option9]\n");
-		fprintf(stderr, "In batch files use arguments %%0, ..., %%9 on command lines to access those options\n");
+		fprintf(stderr, "Usage: bat(ch) filename [argument1, argument2, ..., argument9]\n");
+		fprintf(stderr, "In batch files use arguments %%1, %%2, ..., %%9 on command lines to access those arguments\n");
+		fprintf(stderr, "In batch files use arguments -%%1, -%%2, ..., -%%9 if those arguments are optional\n");
 	} else if (!strcmp(cl_argv[0], ALIAS_COM) || !strcmp(cl_argv[0], AL_COM)) {
 		if (!MakeArgs(com)) {
 			if (alias_com != NULL)
@@ -1822,15 +1911,18 @@ static char *FindPipe(char *com) {
 	s = com;
 	qf = FALSE;
 	while (*s != EOS) {
-		if (*s == '|' && s > com && *(s-1) != ',' && *(s-1) != '~' && *(s-1) != '$' && *(s-1) != '@' && *(s-1) != '"' && *(s-1) != '\'' && !qf) {
-			*s++ = EOS;
-			while (*s == ' ' || *s == '\t' || *s == '|') 
-				s++;
-			uS.remFrontAndBackBlanks(com);
-			if (pipe_out->fp != NULL)
-				fclose(pipe_out->fp);
-			pipe_out->fp = fopen(pipe_out->fn, "w");
-			return(s);
+		if (*s == '|') {
+			if (s > com && *(s-1) != ',' && *(s-1) != '^' && *(s-1) != '~' && *(s-1) != '$' && *(s-1) != '@' && *(s-1) != '0' &&
+				*(s-1) != 'm' &&  *(s-1) != 'g' && *(s-1) != 'l' &&  *(s-1) != '"' && *(s-1) != '\'' && !qf) {
+				*s++ = EOS;
+				while (*s == ' ' || *s == '\t' || *s == '|') 
+					s++;
+				uS.remFrontAndBackBlanks(com);
+				if (pipe_out->fp != NULL)
+					fclose(pipe_out->fp);
+				pipe_out->fp = fopen(pipe_out->fn, "w");
+				return(s);
+			}
 		} else if ((*s == '\'' || *s == '"') && (s == com || *(s-1) != '\\')) {
 			if (!qf) {
 				qf = *s;
@@ -1922,11 +2014,12 @@ static char FindRedirect(char *com) {
 				*s++ = EOS;
 				uS.remFrontAndBackBlanks(com);
 				for (; *s == ' ' || *s == '\t'; s++) ;
+				if (*s == '>') {
+					append = TRUE;
+					for (s++; *s == ' ' || *s == '\t'; s++) ;
+				}
 				if (*s == '&') {
 					redirect_out.all = TRUE;
-					for (s++; *s == ' ' || *s == '\t'; s++) ;
-				} else if (*s == '>') {
-					append = TRUE;
 					for (s++; *s == ' ' || *s == '\t'; s++) ;
 				}
 				t = NextArg(s);
@@ -1943,7 +2036,9 @@ static char FindRedirect(char *com) {
 					return(0);
 				}
 #ifdef _MAC_CODE
+#ifndef _COCOA_APP
 				settyp(redirect_out.fn, 'TEXT', the_file_creator.out, FALSE);
+#endif
 #endif /* _MAC_CODE */
 				s = t;
 			}
@@ -1985,10 +2080,13 @@ static void filterInput(char *inputBuf) {
 		if (inputBuf[i] == (char)0xE2 && inputBuf[i+1] == (char)0x80 && inputBuf[i+2] == (char)0x93) {
 			strcpy(inputBuf+i, inputBuf+i+2);
 			inputBuf[i] = '-';
-		} else if (inputBuf[i] == (char)0xE2 && inputBuf[i+1] == (char)0x80 && (inputBuf[i+2] == (char)0x9C || inputBuf[i+2] == (char)0x9D)) {
+		}
+/* 2019-07-17
+		else if (inputBuf[i] == (char)0xE2 && inputBuf[i+1] == (char)0x80 && (inputBuf[i+2] == (char)0x9C || inputBuf[i+2] == (char)0x9D)) {
 			strcpy(inputBuf+i, inputBuf+i+2);
 			inputBuf[i] = '"';
 		}
+*/
 	}
 }
 

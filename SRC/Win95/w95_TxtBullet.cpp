@@ -1,7 +1,10 @@
 // w95_TextBullet.cpp : implementation file
 //
 
+//#define TEXT_BULLETS_PICTS
+
 #include "ced.h"
+#ifdef TEXT_BULLETS_PICTS
 #include "cu.h"
 #include "MMedia.h"
 #include "w95_TxtBullet.h"
@@ -713,7 +716,7 @@ void cTxtBullet::OnSize(UINT nType, int cx, int cy)
 }
 
 Movie txtMovieOpen(){
-	wchar_t		wrMovieFile[FNSize];
+	unCH		wrMovieFile[FNSize];
 	OSType		DRType;
 	Handle		DR = NULL;
 	short		RID = 0;
@@ -771,11 +774,9 @@ static int ShowText(FNType *name, long totalPicts) {
 	if (!PlayingSound && !PlayingContSound && !PlayingContMovie) {
 		if (totalPicts > 0) {
 			sprintf(templineC, "Loading %ld movie clips...", totalPicts);
-			progressDlg = new CProgressBar(cl_T(templineC), AfxGetApp()->m_pMainWnd);
-			progressDlg->m_ProgressBar.SetRange( 0, 100 );
-		} else
-			progressDlg = NULL;
-		cPict = 0;
+			initProgressBar(cl_T(templineC));
+		}
+		cPict = 0L;
 		oldfName[0] = EOS;
 		for (Picts=txtPicts; Picts != NULL; Picts=Picts->nextPict) {
 			if ((Picts->MBeg != 0L || Picts->MEnd != 0L) && Picts->isShowPict) {
@@ -800,16 +801,12 @@ static int ShowText(FNType *name, long totalPicts) {
 				pos = txt_conv_from_msec_mov(Picts->MBeg, ts);
 				Picts->pict = GetMoviePict(thisMovie, pos);
 				cPict++;
-				if (progressDlg != NULL) {
-					percl = (100L * cPict) / totalPicts;
-					perc = (int)percl;
-					progressDlg->m_ProgressBar.SetPos(perc);
-					progressDlg->UpdateData(FALSE);
-				}
+				percl = (100L * cPict) / totalPicts;
+				perc = (int)percl;
+				setCurrentProgressBarValue(perc);
 			}
 		}
-		if (progressDlg != NULL)
-			progressDlg->OnCancel();
+		deleteProgressBar();
 		if (thisMovie != NULL)
 			DisposeMovie(thisMovie);
 	}
@@ -879,7 +876,7 @@ static void extractMediaName(unCH *line) {
 		*s = EOS;
 }
 
-static char SetTextAttW(wchar_t *st, AttTYPE *att) {
+static char SetTextAttW(unCH *st, AttTYPE *att) {
 	char c;
 	char found = FALSE;
 
@@ -968,7 +965,6 @@ static void DrawMouseCursor(int i) {
 }
 
 int DisplayText(char *fname) {
-#ifdef TEXT_BULLETS_PICTS
 	int			i, bc, ec, len;
 	char		res, isCAFontSet;
 	char		txtMovieFileC[FILENAME_MAX];
@@ -986,7 +982,7 @@ int DisplayText(char *fname) {
 		txtDial->OnCancel();
 	extractPath(mDirPathName, fname);
 	extractFileName(mFileName, fname);
-	if ((fp=fopen(fname,"r")) == NULL) {
+	if ((fp = fopen(fname, "r")) == NULL) {
 		DrawMouseCursor(1);
 		sprintf(templineC, "Can't open file \"%s\".", fname);
 		do_warning(templineC, 0);
@@ -1017,10 +1013,10 @@ int DisplayText(char *fname) {
 			text_bullets_RootColorText = createColorTextKeywordsList(text_bullets_RootColorText, templineC);
 			continue;
 		}
-		if (uS.partcmp(templineC,FONTHEADER,FALSE,FALSE)) {
-			strcpy(templineC, templineC+strlen(FONTHEADER));
-			for (i=0; isSpace(templineC[i]); i++) ;
-			if (SetNewFont(templineC+i, EOS, &tFInfo))
+		if (uS.partcmp(templineC, FONTHEADER, FALSE, FALSE)) {
+			strcpy(templineC, templineC + strlen(FONTHEADER));
+			for (i = 0; isSpace(templineC[i]); i++);
+			if (SetNewFont(templineC + i, EOS, &tFInfo))
 				copyNewFontInfo(&finfo, &tFInfo);
 			continue;
 		}
@@ -1046,12 +1042,12 @@ int DisplayText(char *fname) {
 				finfo.CharSet = 0;
 				finfo.Encod = finfo.orgEncod = 1252;
 				finfo.fontTable = NULL;
-				for (tPicts=txtPicts; tPicts != NULL; tPicts=tPicts->nextPict) {
+				for (tPicts = txtPicts; tPicts != NULL; tPicts = tPicts->nextPict) {
 					strcpy(tPicts->Font.FName, finfo.fontName);
-					tPicts->Font.FSize   = finfo.fontSize;
+					tPicts->Font.FSize = finfo.fontSize;
 					tPicts->Font.CharSet = finfo.CharSet;
 					tPicts->Font.FHeight = finfo.charHeight;
-					tPicts->Font.Encod   = finfo.Encod;
+					tPicts->Font.Encod = finfo.Encod;
 				}
 			}
 		}
@@ -1125,7 +1121,7 @@ int DisplayText(char *fname) {
 						do_warning(templineC, 0);
 						return(0);
 					}
-					for (i=0; bc < ec; bc++) {
+					for (i = 0; bc < ec; bc++) {
 						cPict->text[i] = templine[bc];
 						cPict->atts[i] = tempAtt[bc];
 						i++;
@@ -1147,7 +1143,7 @@ int DisplayText(char *fname) {
 					cPict->text[i] = EOS;
 				}
 				bc = ec + 1;
-				for (; templine[bc] != HIDEN_C && templine[bc] != EOS; bc++) ;
+				for (; templine[bc] != HIDEN_C && templine[bc] != EOS; bc++);
 				if (templine[bc] == EOS) {
 					DrawMouseCursor(1);
 					sprintf(templineC, "Unmatched bullets found in %%txt: bullet file.");
@@ -1203,7 +1199,7 @@ int DisplayText(char *fname) {
 				do_warning(templineC, 0);
 				return(0);
 			}
-			for (i=0; bc < ec; bc++) {
+			for (i = 0; bc < ec; bc++) {
 				cPict->text[i] = templine[bc];
 				cPict->atts[i] = tempAtt[bc];
 				i++;
@@ -1219,10 +1215,13 @@ int DisplayText(char *fname) {
 		txtDial = new cTxtBullet(AfxGetApp()->m_pMainWnd);
 	}
 	return(0);
-#else
-	extern int DisplayFileText(char *justFname);
-	DisplayFileText(fname);
-	return(0);
-#endif
 }
 
+#else // TEXT_BULLETS_PICTS
+
+int DisplayText(char *fname) {
+	DisplayFileText(fname);
+	return(0);
+}
+
+#endif // else TEXT_BULLETS_PICTS

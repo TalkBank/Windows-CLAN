@@ -270,48 +270,66 @@ void CClanEval::OnUDB()
 {
 	int len;
 	char isCancel;
-	wchar_t URLPath[128];
-	wchar_t fname[FNSize];
+	unCH URLPath[128];
+	unCH fname[FNSize];
+	FILE *fp;
 	CGetWebPasswd dlg;
 	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	u_strcpy(URLPath, "http://talkbank.org/data/eval_db.txt", 128);
-	strcpy(FileName1, wd_dir);
-	addFilename2Path(FileName1, "eval_db1.txt");
-	u_strcpy(fname, FileName1, UTTLINELEN);
-	isCancel = FALSE;
-	if (curlURLDownloadToFile(URLPath, fname, 0L) == true) {
-		while (isPassNeeded(fname)) {
-			dlg.m_Passwd = cl_T("");
-			dlg.m_Username = cl_T("");
-			if (dlg.DoModal() == IDOK) {
-				u_strcpy(URL_passwd, dlg.m_Username, 128);
-				strcat(URL_passwd, ":");
-				len = strlen(URL_passwd);
-				u_strcpy(URL_passwd+len, dlg.m_Passwd, 128-len);
-				if (curlURLDownloadToFile(URLPath, fname, 6500000L) != true) {
-					do_warning("Error downloading data from the web (2)", 0);
+	u_strcpy(URLPath, "http://talkbank.org/data/eval_db.cut", 128);
+	strcpy(FileName1, lib_dir);
+	addFilename2Path(FileName1, "eval");
+	addFilename2Path(FileName1, "eval_db1.cut");
+	fp = fopen(FileName1, "w");
+	if (fp != NULL) {
+		fclose(fp);
+		unlink(FileName1);
+	} else {
+		strcpy(FileName1, wd_dir);
+		addFilename2Path(FileName1, "eval_db1.cut");
+		fp = fopen(FileName1, "w");
+	}
+	if (fp == NULL) {
+		do_warning("Can't download database file to lib or working directory. Please verify either one of those directories exist and is not write protected.", 0);
+	} else {
+		fclose(fp);
+		unlink(FileName1);
+		isCancel = FALSE;
+		u_strcpy(fname, FileName1, UTTLINELEN);
+		if (curlURLDownloadToFile(URLPath, fname, 0L) == true) {
+			while (isPassNeeded(fname)) {
+				dlg.m_Passwd = cl_T("");
+				dlg.m_Username = cl_T("");
+				if (dlg.DoModal() == IDOK) {
+					u_strcpy(URL_passwd, dlg.m_Username, 128);
+					strcat(URL_passwd, ":");
+					len = strlen(URL_passwd);
+					u_strcpy(URL_passwd + len, dlg.m_Passwd, 128 - len);
+					if (curlURLDownloadToFile(URLPath, fname, 1500000L) != true) {
+						do_warning("Error downloading data from the web (2)", 0);
+						isCancel = TRUE;
+						break;
+					}
+				} else {
+					URL_passwd[0] = EOS;
 					isCancel = TRUE;
 					break;
 				}
-			} else {
-				URL_passwd[0] = EOS;
-				isCancel = TRUE;
-				break;
 			}
-		} 
-		if (!isCancel) {
-			strcpy(FileName2, wd_dir);
-			addFilename2Path(FileName2, "eval_db.txt");
-			unlink(FileName2);
-			if (rename(FileName1,FileName2)) {
+			if (!isCancel) {
+				extractPath(FileName2, FileName1);
+				addFilename2Path(FileName2, "eval_db.cut");
+				unlink(FileName2);
+				if (rename(FileName1, FileName2)) {
+					do_warning("Error renaming database file", 0);
+				}
 			}
+		} else {
+			do_warning("Error downloading data from the web (2)", 0);
+			unlink(FileName1);
 		}
-	} else {
-		do_warning("Error downloading data from the web (2)", 0);
-		unlink(FileName1);
 	}
 	UpdateData(false);
 	len = strlen(m_AGE_RANGE);
@@ -610,16 +628,27 @@ void CClanEval::OnSelectT1()
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_T1 = !m_T1;
+	m_T1 = 0;
+	m_T2 = 0;
+	m_T3 = 0;
+	m_T4 = 0;
+	m_T5 = 0;
+	m_T6 = 0;
+	m_T7 = 0;
+	m_T8 = 0;
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		p->val = 0;
+	}
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		if (p->num == 1) {
+			m_T1 = 1;
+			p->val = m_T1;
+			break;
+		}
+	}
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
-	for (p=spRoot; p != NULL; p=p->next_tier) {
-		if (p->num == 1) {
-			p->val = m_T1;
-			return;
-		}
-	}
 }
 
 void CClanEval::OnSelectT2() 
@@ -628,16 +657,27 @@ void CClanEval::OnSelectT2()
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_T2 = !m_T2;
+	m_T1 = 0;
+	m_T2 = 0;
+	m_T3 = 0;
+	m_T4 = 0;
+	m_T5 = 0;
+	m_T6 = 0;
+	m_T7 = 0;
+	m_T8 = 0;
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		p->val = 0;
+	}
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		if (p->num == 2) {
+			m_T2 = 1;
+			p->val = m_T2;
+			break;
+		}
+	}
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
-	for (p=spRoot; p != NULL; p=p->next_tier) {
-		if (p->num == 2) {
-			p->val = m_T2;
-			return;
-		}
-	}
 }
 
 void CClanEval::OnSelectT3() 
@@ -646,16 +686,27 @@ void CClanEval::OnSelectT3()
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_T3 = !m_T3;
+	m_T1 = 0;
+	m_T2 = 0;
+	m_T3 = 0;
+	m_T4 = 0;
+	m_T5 = 0;
+	m_T6 = 0;
+	m_T7 = 0;
+	m_T8 = 0;
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		p->val = 0;
+	}
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		if (p->num == 3) {
+			m_T3 = 1;
+			p->val = m_T3;
+			break;
+		}
+	}
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
-	for (p=spRoot; p != NULL; p=p->next_tier) {
-		if (p->num == 3) {
-			p->val = m_T3;
-			return;
-		}
-	}
 }
 
 void CClanEval::OnSelectT4() 
@@ -664,16 +715,27 @@ void CClanEval::OnSelectT4()
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_T4 = !m_T4;
+	m_T1 = 0;
+	m_T2 = 0;
+	m_T3 = 0;
+	m_T4 = 0;
+	m_T5 = 0;
+	m_T6 = 0;
+	m_T7 = 0;
+	m_T8 = 0;
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		p->val = 0;
+	}
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		if (p->num == 4) {
+			m_T4 = 1;
+			p->val = m_T4;
+			break;
+		}
+	}
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
-	for (p=spRoot; p != NULL; p=p->next_tier) {
-		if (p->num == 4) {
-			p->val = m_T4;
-			return;
-		}
-	}
 }
 
 void CClanEval::OnSelectT5() 
@@ -682,16 +744,27 @@ void CClanEval::OnSelectT5()
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_T5 = !m_T5;
+	m_T1 = 0;
+	m_T2 = 0;
+	m_T3 = 0;
+	m_T4 = 0;
+	m_T5 = 0;
+	m_T6 = 0;
+	m_T7 = 0;
+	m_T8 = 0;
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		p->val = 0;
+	}
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		if (p->num == 5) {
+			m_T5 = 1;
+			p->val = m_T5;
+			break;
+		}
+	}
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
-	for (p=spRoot; p != NULL; p=p->next_tier) {
-		if (p->num == 5) {
-			p->val = m_T5;
-			return;
-		}
-	}
 }
 
 void CClanEval::OnSelectT6() 
@@ -700,16 +773,27 @@ void CClanEval::OnSelectT6()
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_T6 = !m_T6;
+	m_T1 = 0;
+	m_T2 = 0;
+	m_T3 = 0;
+	m_T4 = 0;
+	m_T5 = 0;
+	m_T6 = 0;
+	m_T7 = 0;
+	m_T8 = 0;
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		p->val = 0;
+	}
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		if (p->num == 6) {
+			m_T6 = 1;
+			p->val = m_T6;
+			break;
+		}
+	}
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
-	for (p=spRoot; p != NULL; p=p->next_tier) {
-		if (p->num == 6) {
-			p->val = m_T6;
-			return;
-		}
-	}
 }
 
 void CClanEval::OnSelectT7() 
@@ -718,16 +802,27 @@ void CClanEval::OnSelectT7()
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_T7 = !m_T7;
+	m_T1 = 0;
+	m_T2 = 0;
+	m_T3 = 0;
+	m_T4 = 0;
+	m_T5 = 0;
+	m_T6 = 0;
+	m_T7 = 0;
+	m_T8 = 0;
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		p->val = 0;
+	}
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		if (p->num == 7) {
+			m_T7 = 1;
+			p->val = m_T7;
+			break;
+		}
+	}
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
-	for (p=spRoot; p != NULL; p=p->next_tier) {
-		if (p->num == 7) {
-			p->val = m_T7;
-			return;
-		}
-	}
 }
 
 void CClanEval::OnSelectT8() 
@@ -736,16 +831,27 @@ void CClanEval::OnSelectT8()
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_T8 = !m_T8;
+	m_T1 = 0;
+	m_T2 = 0;
+	m_T3 = 0;
+	m_T4 = 0;
+	m_T5 = 0;
+	m_T6 = 0;
+	m_T7 = 0;
+	m_T8 = 0;
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		p->val = 0;
+	}
+	for (p = spRoot; p != NULL; p = p->next_tier) {
+		if (p->num == 8) {
+			m_T8 = 1;
+			p->val = m_T8;
+			break;
+		}
+	}
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
-	for (p=spRoot; p != NULL; p=p->next_tier) {
-		if (p->num == 8) {
-			p->val = m_T8;
-			return;
-		}
-	}
 }
 
 void CClanEval::getTierNamesFromFile(char *fname) {
@@ -768,11 +874,13 @@ void CClanEval::getTierNamesFromFile(char *fname) {
 	UpdateData(false);
 	while (fgets_cr(templineC3, 3072, fp)) {
 		if (templineC3[0] == '*') {
+			if (isFoundFile)
+				break;
 			s = strchr(templineC3, ':');
 			if (s != NULL) {
 				*s = EOS;
 				spRoot = addToSpArr(spRoot, templineC3);
-				isFoundFile = 1;
+				isFoundFile = TRUE;
 			}
 		} else if (strncmp(templineC3, "@ID:", 4) == 0) {
 			s = strchr(templineC3, '|');
@@ -793,7 +901,7 @@ void CClanEval::getTierNamesFromFile(char *fname) {
 								e++;
 						}
 						spRoot = addToSpArr(spRoot, code);
-						isFoundFile = 1;
+						isFoundFile = TRUE;
 					}
 				}
 			}
@@ -812,7 +920,7 @@ void CClanEval::makeSpeakersList() {
 		} else {
 			if (!strcmp(cl_argv[i], "@")) {
 				for (j=1; j <= F_numfiles; j++) {
-					get_selected_file(j, FileName1);
+					get_selected_file(j, FileName1, FNSize);
 					getTierNamesFromFile(FileName1);
 				}
 			} else if (cl_argv[i][0] == '@' && cl_argv[i][1] == ':') {
@@ -969,7 +1077,7 @@ static void selectEvalDialog() {
 	CClanEval dlg;
 
 	spRoot = NULL;
-	dlg.isFoundFile = 0;
+	dlg.isFoundFile = FALSE;
 	dlg.ReadyToLoadState = 0;
 	u_strcpy(templineW1, AgeRange, UTTLINELEN);
 	dlg.m_AGE_RANGE = templineW1;
@@ -1040,13 +1148,10 @@ static void selectEvalDialog() {
 				strcat(templineC3, "|");
 				strcat(templineC3, AgeRange);
 			}
-			if (isGender == 1) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "male");
-			} else if (isGender == 2) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "female");
-			}
+			if (isGender == 1)
+				strcat(templineC3, "|male");
+			else if (isGender == 2)
+				strcat(templineC3, "|female");
 			strcat(templineC3, "\"");
 		}
 		if (GlobalTp) {
@@ -1056,13 +1161,10 @@ static void selectEvalDialog() {
 				strcat(templineC3, "|");
 				strcat(templineC3, AgeRange);
 			}
-			if (isGender == 1) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "male");
-			} else if (isGender == 2) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "female");
-			}
+			if (isGender == 1)
+				strcat(templineC3, "|male");
+			else if (isGender == 2)
+				strcat(templineC3, "|female");
 			strcat(templineC3, "\"");
 		}
 		if (BrocaTp) {
@@ -1072,13 +1174,10 @@ static void selectEvalDialog() {
 				strcat(templineC3, "|");
 				strcat(templineC3, AgeRange);
 			}
-			if (isGender == 1) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "male");
-			} else if (isGender == 2) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "female");
-			}
+			if (isGender == 1)
+				strcat(templineC3, "|male");
+			else if (isGender == 2)
+				strcat(templineC3, "|female");
 			strcat(templineC3, "\"");
 		}
 		if (WernickeTp) {
@@ -1088,13 +1187,10 @@ static void selectEvalDialog() {
 				strcat(templineC3, "|");
 				strcat(templineC3, AgeRange);
 			}
-			if (isGender == 1) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "male");
-			} else if (isGender == 2) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "female");
-			}
+			if (isGender == 1)
+				strcat(templineC3, "|male");
+			else if (isGender == 2)
+				strcat(templineC3, "|female");
 			strcat(templineC3, "\"");
 		}
 		if (TranssenTp) {
@@ -1104,13 +1200,10 @@ static void selectEvalDialog() {
 				strcat(templineC3, "|");
 				strcat(templineC3, AgeRange);
 			}
-			if (isGender == 1) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "male");
-			} else if (isGender == 2) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "female");
-			}
+			if (isGender == 1)
+				strcat(templineC3, "|male");
+			else if (isGender == 2)
+				strcat(templineC3, "|female");
 			strcat(templineC3, "\"");
 		}
 		if (TransmotTp) {
@@ -1120,13 +1213,10 @@ static void selectEvalDialog() {
 				strcat(templineC3, "|");
 				strcat(templineC3, AgeRange);
 			}
-			if (isGender == 1) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "male");
-			} else if (isGender == 2) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "female");
-			}
+			if (isGender == 1)
+				strcat(templineC3, "|male");
+			else if (isGender == 2)
+				strcat(templineC3, "|female");
 			strcat(templineC3, "\"");
 		}
 		if (ConductionTp) {
@@ -1136,13 +1226,10 @@ static void selectEvalDialog() {
 				strcat(templineC3, "|");
 				strcat(templineC3, AgeRange);
 			}
-			if (isGender == 1) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "male");
-			} else if (isGender == 2) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "female");
-			}
+			if (isGender == 1)
+				strcat(templineC3, "|male");
+			else if (isGender == 2)
+				strcat(templineC3, "|female");
 			strcat(templineC3, "\"");
 		}
 		if (ControlTp) {
@@ -1152,13 +1239,10 @@ static void selectEvalDialog() {
 				strcat(templineC3, "|");
 				strcat(templineC3, AgeRange);
 			}
-			if (isGender == 1) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "male");
-			} else if (isGender == 2) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "female");
-			}
+			if (isGender == 1)
+				strcat(templineC3, "|male");
+			else if (isGender == 2)
+				strcat(templineC3, "|female");
 			strcat(templineC3, "\"");
 		}
 		if (NotAphByWab) {
@@ -1168,13 +1252,10 @@ static void selectEvalDialog() {
 				strcat(templineC3, "|");
 				strcat(templineC3, AgeRange);
 			}
-			if (isGender == 1) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "male");
-			} else if (isGender == 2) {
-				strcat(templineC3, "|");
-				strcat(templineC3, "female");
-			}
+			if (isGender == 1)
+				strcat(templineC3, "|male");
+			else if (isGender == 2)
+				strcat(templineC3, "|female");
 			strcat(templineC3, "\"");
 		}
 		if (SpeechGm) {

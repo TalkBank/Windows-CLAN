@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -56,7 +56,6 @@ void init(char f) {
 		addword('\0','\0',"+-*");
 		addword('\0','\0',"+#*");
 		addword('\0','\0',"+(*.*)");
-		addword('\0','\0',"+<\">");
 		mor_initwords();
 		tlex_root = NULL;
 	}
@@ -121,7 +120,7 @@ static void OpenLex(FNType *mFileName, int *isOpenOne) {
 				while (fgets_cr(templineC,UTTLINELEN,lex_fp_in)) {
 					ln++;
 					uS.remblanks(templineC);
-					if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+					if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 						continue;
 					for (s=0; isSpace(templineC[s]); s++) ;
 					if (templineC[s] == '%' || templineC[s] == EOS)
@@ -181,7 +180,7 @@ static void ParseLex(void) {
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	isWinMode = IS_WIN_MODE;
 	chatmode = CHAT_MODE;
-	CLAN_PROG_NUM = TEMP01;
+	CLAN_PROG_NUM = USEDLEX;
 	OnlydataLimit = 0;
 	UttlineEqUtterance = TRUE;
 	bmain(argc,argv,NULL);

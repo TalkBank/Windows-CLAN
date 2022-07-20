@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -65,6 +65,7 @@ int replacement_analyze_algorithm( AMBTAG* A, int n, AMBTAG* &R, int* annotation
 // R is allocated by analyze_algorithm until the next call to analyze_algorithm.
 int analyze_algorithm( AMBTAG* A, int n, AMBTAG* &R, int* annotation, int style, FILE* out ) // , int* taglocalwords )
 {
+	int res;
 
 	if ( n<=2 ) { // no analysis can be performed.
 		// compute Result Format:
@@ -142,14 +143,14 @@ int analyze_algorithm( AMBTAG* A, int n, AMBTAG* &R, int* annotation, int style,
 		}
 	}
 
-if (style == 6) {
+#ifdef out2
 	msgfile( out, "\tList of entries in the rule dictionary\n");
 	for ( i=0; i<n-1; i++ ) {
 		msgfile (out, "\t%d : ", i );
 		print_bimultclass( M[i], out );
 		msgfile (out, "\n" );
 	}
-}
+#endif
 
 // The elements of the M array are bi_multclasses, i.e. arrays of bitags
 // this means that the contents is something like that (but tags are represented as numbers)
@@ -165,23 +166,39 @@ if (style == 6) {
 	// ACCESS to left-part of the nth element of M[i] : M[i][x]->left ==> first_of_bitag(nth_of_multclass(M[i],x))
 	// ACCESS to right-part of the nth element of M[i] : M[i][x]->right ==> second_of_bitag(nth_of_multclass(M[i],x))
 	// ACCESS to the weight of the nth element of M[i] : M[i][x]->count ==> nthcount_of_multclass(M[i],x)
-#ifdef out3
-	msg( "\tList of entries in the rule dictionary\n");
+if (style == 6) {
+	msgfile( out, "\tList of entries in the rule dictionary\n");
 	for ( i=0; i<n-1; i++ ) {
-		msg ("\t%d : ", i );
-		print_ambtag( A[i], stdout );
-		print_ambtag( A[i+1], stdout );
-		msg( "\t" );
-		print_bimultclass( M[i], stdout);
-		msg ("\n" );
+		msgfile( out, "\t%d : ", i );
+		print_ambtag( A[i], out );
+		msgfile( out, " - " );
+		print_ambtag( A[i+1], out );
+		msgfile( out, " - M[%d]=", i );
+		print_bimultclass( M[i], out);
+		msgfile( out, "\n" );
 	}
-#endif
+}
 
 	if (n>100) {
-#ifdef out3
-		msg( "Replacement algorithm\n" );
-#endif
-		return replacement_analyze_algorithm( A, n, R, annotation, M );
+if (style == 6) {
+		msgfile( out, "\nReplacement algorithm (n>100)\n" );
+}
+		res = replacement_analyze_algorithm( A, n, R, annotation, M );
+		if (style == 6) {
+			msgfile( out, "\tList of entries (after replacement_analyze_algorithm)\n");
+			for ( i=0; i<n-1; i++ ) {
+				msgfile( out, "\t%d : ", i );
+				print_ambtag( A[i], out );
+				msgfile( out, " - " );
+				print_ambtag( A[i+1], out );
+				msgfile( out, " - M[%d]=", i );
+				print_bimultclass( M[i], out);
+				msgfile( out, " - R[%d]=", i);
+				print_ambtag(R[i],out);
+				msgfile(out, "\n" );
+			}
+		}
+		return res;
 	}
 
 	int *S = Md;
@@ -189,29 +206,47 @@ if (style == 6) {
 	
 	int nbsol = linrec_analyze_algorithm(M, n-1, S, (MaxMd-S)/n>MaxNbSolutions?MaxNbSolutions:(MaxMd-S)/n, DD );
 //	int nbsol = 0; // to test the replacement algorithm
-#ifdef out3
-	msg ("NbSol linrec_algo n=%d, nbsol=%d\n", n, nbsol );
+if (style == 6) {
+	msgfile( out, "\n\tNbSol linrec_algo n=%d, nbsol=%d\n", n, nbsol );
 	for (int ii=0; ii<nbsol; ii++) {
-		msg("LR> "); msg( "%f ", DD[ii] );
-		msg(" ");
-		msg("\n");
+		msgfile( out, "LR> ");
+		msgfile( out, "%f ", DD[ii] );
+		msgfile( out, " ");
+		msgfile( out, "\n");
 	}
-	msg( "\tList of entries in the rule dictionary (after analysis)\n");
+	msgfile( out, "\n\tList of entries (after linrec_analyze_algorithm)\n");
 	for ( i=0; i<n-1; i++ ) {
-		msg ("\t%d : ", i );
-		print_ambtag( A[i], stdout );
-		print_ambtag( A[i+1], stdout );
-		msg( "\t" );
-		print_bimultclass( M[i], stdout);
-		msg ("\n" );
+		msgfile( out, "\t%d : ", i );
+		print_ambtag( A[i], out );
+		msgfile( out, " - " );
+		print_ambtag( A[i+1], out );
+		msgfile( out, " - M[%d]=", i );
+		print_bimultclass( M[i], out);
+		msgfile(out, "\n" );
 	}
-#endif
+}
 
 	if (nbsol<=0||nbsol>MaxNbSolutions) {
-#ifdef out3
-		msg( "Replacement algorithm\n" );
-#endif
-		return replacement_analyze_algorithm( A, n, R, annotation, M );
+if (style == 6) {
+		msgfile( out, "\nReplacement algorithm (nbsol<=0||nbsol>MaxNbSolutions)\n" );
+}
+		res = replacement_analyze_algorithm( A, n, R, annotation, M );
+		if (style == 6) {
+			msgfile( out, "\tList of entries (after replacement_analyze_algorithm)\n");
+			for ( i=0; i<n-1; i++ ) {
+				msgfile( out, "\t%d : ", i );
+				print_ambtag( A[i], out );
+				msgfile( out, " - " );
+				print_ambtag( A[i+1], out );
+				msgfile( out, " - M[%d]=", i );
+				print_bimultclass( M[i], out);
+				msgfile( out, " - R[%d]=", i);
+				print_ambtag(R[i],out);
+				msgfile(out, "\n" );
+			}
+			msgfile(out, "\n" );
+		}
+		return res;
 	}
 
 	int    ind[MaxNbSolutions];
@@ -432,76 +467,79 @@ int     linrec_analyze_algorithm(int** M, int word_count, int* solutions, int ma
 	time_t	td;
 	time(&td);
 
-	if (word_count>MaxNbSolutions) return 0;	// too large to compute with this algorithm.
+	if (word_count>MaxNbSolutions)
+		return 0;	// too large to compute with this algorithm.
 	memset(choices_rn,0,sizeof(choices_rn));
 
-        if (word_count <= 1) return 0;	// too small to compute with this algorithm.
+	if (word_count <= 1)
+		return 0;	// too small to compute with this algorithm.
 
-        I=0; choices_rn[I]=0; choices_rn[I+1]=0;
+	I=0; choices_rn[I]=0; choices_rn[I+1]=0;
 
-        while (choices_rn[0] < number_of_multclass(M[0])) {
+	while (choices_rn[0] < number_of_multclass(M[0])) {
 
-                while (choices_rn[I+1] < number_of_multclass(M[I+1])) {
+		while (choices_rn[I+1] < number_of_multclass(M[I+1])) {
 
-		   n100++;
-		   if (n100%50==0) {
-			time_t tc;
-			time(&tc);
-			if ( tc-td > 10 ) {
-			    // msg( "Canceled because of too much time during analysis\n" );
-			    return -2; // too much time, use a faster algo.
+			n100++;
+			if (n100%50==0) {
+				time_t tc;
+				time(&tc);
+				if ( tc-td > 10 ) {
+					// msg( "Canceled because of too much time during analysis\n" );
+					return -2; // too much time, use a faster algo.
+				}
 			}
-		   }
 
-                   if (
-			   first_of_bitag(nth_of_multclass(M[I+1],choices_rn[I+1]))
-			== second_of_bitag(nth_of_multclass(M[I],choices_rn[I]))
-		      ) {
-                        if ( I == word_count - 2 ) {
-//                              nbsolutions = store_solution(M, word_count, solutions, nbsolutions, choice_rn);
-				double dwsol=1.0;
-				int i;
-				for (i=0;i<word_count;i++) {
-					(solutions+nbsolutions*(word_count+1))[i+1] = second_of_bitag(nth_of_multclass(M[i],choices_rn[i])) ;
-					dwsol *= (double) nthcount_of_multclass(M[i],choices_rn[i]) /* / (double) weight_of_multclass(M[i]) */ ;
-				}
-				DD[nbsolutions] = dwsol / (double)word_count;
-// msg ( "%f\n", dwsol );
-
-				for (i=0; i<nbsolutions; i++) {
-					for ( int j=0; j<word_count; j++ ) {
-						if ( (solutions+nbsolutions*(word_count+1))[j] != (solutions+i*(word_count+1))[j] )
-							goto next;
+			if (
+				first_of_bitag(nth_of_multclass(M[I+1],choices_rn[I+1]))
+				== second_of_bitag(nth_of_multclass(M[I],choices_rn[I]))
+				) {
+				if ( I == word_count - 2 ) {
+					//                              nbsolutions = store_solution(M, word_count, solutions, nbsolutions, choice_rn);
+					double dwsol=1.0;
+					int i;
+					for (i=0;i<word_count;i++) {
+						(solutions+nbsolutions*(word_count+1))[i+1] = second_of_bitag(nth_of_multclass(M[i],choices_rn[i])) ;
+						dwsol *= (double) nthcount_of_multclass(M[i],choices_rn[i]) /* / (double) weight_of_multclass(M[i]) */ ;
 					}
-					// this solution already exists
-					goto none;
-				    next: ;
+					DD[nbsolutions] = dwsol / (double)word_count;
+					// msg ( "%f\n", dwsol );
+
+					for (i=0; i<nbsolutions; i++) {
+						for ( int j=0; j<word_count; j++ ) {
+							if ( (solutions+nbsolutions*(word_count+1))[j] != (solutions+i*(word_count+1))[j] )
+								goto next;
+						}
+						// this solution already exists
+						goto none;
+next: ;
+					}
+					if (nbsolutions>=maxnbsol-1) return 0;
+					nbsolutions ++;
+none:
+					choices_rn[I+1] ++;
+				} else {
+					I++;
+					if (maxI < I) maxI = I;
+					choices_rn[I+1] = 0;
+					goto suivants;
 				}
-				if (nbsolutions>=maxnbsol-1) return 0;
-				nbsolutions ++;
-			    none:
-                                choices_rn[I+1] ++;
-                        } else {
-                                I++;
-                                if (maxI < I) maxI = I;
-                                choices_rn[I+1] = 0;
-                                goto suivants;
-                        }
-                   } else choices_rn[I+1] ++;
-                }
+			} else
+				choices_rn[I+1] ++;
+		}
 
-                choices_rn[I]++;
-                I--;
+		choices_rn[I]++;
+		I--;
 
-                if ( I == -1 ) {
-                        I = 0;
-                        choices_rn[1] = 0;
-                }
+		if ( I == -1 ) {
+			I = 0;
+			choices_rn[1] = 0;
+		}
 
-                suivants: ;
-        }
+suivants: ;
+	}
 
-        return nbsolutions;
+	return nbsolutions;
 }
 
 int replacement_analyze_algorithm( AMBTAG* A, int n, AMBTAG* &R, int* annotation, int** M )
@@ -509,6 +547,7 @@ int replacement_analyze_algorithm( AMBTAG* A, int n, AMBTAG* &R, int* annotation
 	int* bag = new int [sizelimitRepAlgo];
 	TAG* tbag = new TAG [sizelimitRepAlgo];
 	double* fbag = new double [sizelimitRepAlgo];
+	int tM[MaxNbTags][25];
 
 #ifdef out3
 	{ msg ("AMBTAG n = %d\n", n );
@@ -528,7 +567,7 @@ int replacement_analyze_algorithm( AMBTAG* A, int n, AMBTAG* &R, int* annotation
 		// compute intersection of right tags of M[i], left tag of M[i+1]
 		if (number_of_multclass(M[i])+number_of_multclass(M[i+1])>=sizelimitRepAlgo) {
 			annotation [i] |= AnaNote_sizelimit;
-     			continue;			
+			continue;
 		}
 		int b=0, j, c;
 		for ( j=0; j<number_of_multclass(M[i]); j++ )
@@ -552,14 +591,18 @@ int replacement_analyze_algorithm( AMBTAG* A, int n, AMBTAG* &R, int* annotation
 			if (bag[c] == bag[j]) // identical as previous.
 				continue;
 			c++;
-			if (c!=j) bag[c] = bag[j];
+			if (c!=j)
+				bag[c] = bag[j];
 		}
 		c++;
 		b = c;
 		// sort bag.
 		isort(bag,b);		
 		for ( c=0,j=0; j<b-1; j++ ) {
-			if (bag[j] == bag[j+1]) c++,j++;
+			if (bag[j] == bag[j+1]) {
+				c++;
+				j++;
+			}
 			// if element is present twice, then it belongs to intersection.
 		}
 #ifdef out3
@@ -587,11 +630,15 @@ msg ("\n");
 					continue;
 				}
 				for (k=0; k<number_of_multclass(M[i]); k++ )
+					if (k < 25)
+						tM[i][k] = nthcount_of_multclass(M[i],k);
 					if ( bag[j] == second_of_bitag(nth_of_multclass(M[i],k)) ) {
 						// suppress
 						setnthcount_of_multclass( M[i], k, -1 );
 					}
 				for ( k=0; k<number_of_multclass(M[i+1]); k++ )
+					if (k < 25)
+						tM[i+1][k] = nthcount_of_multclass(M[i+1],k);
 					if ( bag[j] == first_of_bitag(nth_of_multclass(M[i+1],k)) ) {
 						// suppress
 						setnthcount_of_multclass( M[i+1], k, -1 );
@@ -658,6 +705,7 @@ msg ("\n");
 	}
 */
 
+NotResolved:
 	int nores = 0;
 	for ( i=0; i<n-2; i++ ) {
 		if ( annotation [i+1] & AnaNote_noresolution ) {
@@ -676,10 +724,11 @@ msg ("\n");
 	print_ambtag(A[i+1],stdout);
 	msg( "\n" );
 #endif
-
+//NotResolvedFix1:
 			R[i+1] = Rd;
 			R[i+1][0] = number_of_ambtag(A[i+1]);
-			for (int k=1; k<=R[i+1][0]; k++ ) R[i+1][k] = A[i+1][k];
+			for (int k=1; k<=R[i+1][0]; k++ )
+				R[i+1][k] = A[i+1][k];
 			Rd += R[i+1][0]+1;
 			continue;
 		}
@@ -713,6 +762,19 @@ msg ("\n");
 		for (j=0; j<k; j++) {
 			R[i+1][j+1] = tbag[j];
 		}
+// 2016-10-15 lxs that
+		for (j=0; j<k; j++) {
+			if (R[i+1][j+1] != 0)
+				break;
+		}
+		if (j == k) {
+//		if (R[i+1][1] == 0) {
+			for ( j=0; j<number_of_multclass(M[i+1]) && j < 25; j++ )
+				setnthcount_of_multclass( M[i+1], j, tM[i+1][j] );
+			goto NotResolved;
+//			goto NotResolvedFix1;
+		}
+// 2016-10-15 lxs that
 	}
 #ifdef out3
 	for (i=0; i<n-1; i++) {
@@ -738,7 +800,8 @@ msg ("\n");
 		// put all possible tags
 		R[n-1] = Rd;
 		R[n-1][0] = number_of_ambtag(A[n-1]);
-		for (int k=1; k<=R[n-1][0]; k++ ) R[n-1][k] = A[n-1][k];
+		for (int k=1; k<=R[n-1][0]; k++ )
+			R[n-1][k] = A[n-1][k];
 		Rd += R[n-1][0]+1;
 
 		delete [] bag;
@@ -813,7 +876,8 @@ msg ("\n");
 						ME[3] = R[i][x];
 						// test if ME exists.
 						Int4 r = hashGetIN( _matrix_hashdic_, ME, 4*sizeof(TAG) );
-						if ( r != -1 ) goto mat3av;
+						if ( r != -1 )
+							goto mat3av;
 					}
 				}
 #ifdef out3
@@ -830,8 +894,9 @@ msg ("\n");
 				// if not, suppress the x tag.
 				R[i][x] = -1;
 				cx--;
-				if (cx<2) goto stopmatrixprocessing;
-				mat3av: ;
+				if (cx<2)
+					goto stopmatrixprocessing;
+mat3av: ;
 			}
 		}
 
@@ -850,7 +915,8 @@ msg ("\n");
 						ME[3] = R[i+2][a];
 						// test if ME exists.
 						Int4 r = hashGetIN( _matrix_hashdic_, ME, 4*sizeof(TAG) );
-						if ( r != -1 ) goto mat3ap;
+						if ( r != -1 )
+							goto mat3ap;
 					}
 				}
 #ifdef out3
@@ -867,8 +933,9 @@ msg ("\n");
 				// if not, suppress the x tag.
 				R[i][x] = -1;
 				cx--;
-				if (cx<2) goto stopmatrixprocessing;
-				mat3ap: ;
+				if (cx<2)
+					goto stopmatrixprocessing;
+mat3ap: ;
 			}
 		}
 
@@ -890,7 +957,8 @@ msg ("\n");
 						ME[4] = R[i][x];
 						// test if ME exists.
 						Int4 r = hashGetIN( _matrix_hashdic_, ME, 5*sizeof(TAG) );
-						if ( r != -1 ) goto mat4av;
+						if ( r != -1 )
+							goto mat4av;
 					}
 				}
 			}
@@ -908,20 +976,25 @@ msg ("\n");
 			// if not, suppress the x tag.
 			R[i][x] = -1;
 			cx--;
-			if (cx<2) goto stopmatrixprocessing;
-			mat4av: ;
+			if (cx<2)
+				goto stopmatrixprocessing;
+mat4av: ;
 		    }
 		}
 
 		if ( i+3 < n ) { // enough to the right.
 		    for ( x = R[i][0] ; x>0 ; x-- ) { // reverse
-			if ( R[i][x] == -1 ) continue;
+			if ( R[i][x] == -1 )
+				continue;
 			    for ( a = 1 ; a < R[i+3][0]+1 ; a++ ) {
-				if ( R[i+3][a] == -1 ) continue;
+				if ( R[i+3][a] == -1 )
+					continue;
 				for ( b = 1 ; b < R[i+2][0]+1 ; b++ ) {
-					if ( R[i+2][b] == -1 ) continue;
+					if ( R[i+2][b] == -1 )
+						continue;
 					for ( c = 1 ; c < R[i+1][0]+1 ; c++ ) {
-						if ( R[i+1][c] == -1 ) continue;
+						if ( R[i+1][c] == -1 )
+							continue;
 						// makes matrix element with R[i][x], R[i+1][c], R[i+2][b], R[i+3][a].
 						TAG ME[5];
 						ME[0] = 4;
@@ -931,7 +1004,8 @@ msg ("\n");
 						ME[4] = R[i+3][a];
 						// test if ME exists.
 						Int4 r = hashGetIN( _matrix_hashdic_, ME, 5*sizeof(TAG) );
-						if ( r != -1 ) goto mat4ap;
+						if ( r != -1 )
+							goto mat4ap;
 					}
 				}
 			}
@@ -949,8 +1023,9 @@ msg ("\n");
 			// if not, suppress the x tag.
 			R[i][x] = -1;
 			cx--;
-			if (cx<2) goto stopmatrixprocessing;
-			mat4ap: ;
+			if (cx<2)
+				goto stopmatrixprocessing;
+mat4ap: ;
 		    }
 		}
 	}
@@ -965,9 +1040,11 @@ msg ("\n");
 	for (i=0; i<n; i++) {
 		int w;
 		for ( w=0,j=1; j<R[i][0]+1; j++ ) {
-			if (R[i][j] == -1) continue;
+			if (R[i][j] == -1)
+				continue;
 			w++;
-			if (w!=j) R[i][w] = R[i][j];
+			if (w!=j)
+				R[i][w] = R[i][j];
 		}
 		R[i][0] = w;
 	}

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -51,13 +51,13 @@ char PhoLine[SPEAKERLEN];
 
 
 void usage() {
-   puts("PHONFREQ ");
-   printf("Usage: phonfreq [bS %s] filename(s)\n", mainflgs());
-   printf("+bS: set phonological tier name to S, (default %s)\n", PHONLINE);
+	puts("PHONFREQ ");
+	printf("Usage: phonfreq [bS %s] filename(s)\n", mainflgs());
+	printf("+bS: set phonological tier name to S, (default %s)\n", PHONLINE);
 #ifdef UNX
-   puts("+LF: specify full path F of the lib folder");
+	puts("+LF: specify full path F of the lib folder");
 #endif
-   mainusage(TRUE);
+	mainusage(TRUE);
 }
 
 static void phonfreq_overflow() {
@@ -76,7 +76,7 @@ static char *phonfreq_strsave(char *s) {
 }
 
 static void GetAlphabet() {
-	ALPHA *p;
+	ALPHA *p = NULL;
 	FILE *fp;
 	FNType mFileName[FNSize];
 
@@ -85,7 +85,7 @@ static void GetAlphabet() {
 		return;
 	}
 	while (fgets_cr(sound, BUFSIZ, fp) != NULL) {
-		if (uS.isUTF8(sound) || uS.partcmp(sound, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(sound) || uS.isInvisibleHeader(sound))
 			continue;
 		uS.remblanks(sound);
 		if (*sound == EOS)
@@ -95,7 +95,7 @@ static void GetAlphabet() {
 			if (RootAlphabet == NULL)
 				phonfreq_overflow();
 			p = RootAlphabet;
-		} else {
+		} else if (p != NULL) {
 			p->next_sound = NEW(ALPHA);
 			if (p->next_sound == NULL)
 				phonfreq_overflow();
@@ -336,15 +336,12 @@ static char *GetSound(char *st) {
 	i = 0;
 	do {
 		sound[i++] = *st;
-//		if (dFnt.isUTF) {
-			if (UTF8_IS_SINGLE(*st) || UTF8_IS_TRAIL(*st))
-				break;
-//		} else
-//			break;
 		st++;
+		if (UTF8_IS_SINGLE((unsigned char)*st) || UTF8_IS_LEAD((unsigned char)*st))
+			break;
 	} while (1) ;
 	sound[i] = EOS;
-	return(st+1);
+	return(st);
 }
 
 static void ProcessWord(char *s) {

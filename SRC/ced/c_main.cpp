@@ -6,11 +6,14 @@
     #include "my_ctype.h"
 	#include "mac_print.h"
 #endif // _MAC_CODE
+/* // NO QT
 #ifdef _WIN32
 	#include <TextUtils.h>
-#endif /* _WIN32 */
-
+#endif
+*/
 #include "MMedia.h"
+
+//#define LIBDOWNLOAD // for downloadinf libs like KIDEVAL
 
 extern char isAllFile;
 extern char ced_version[];
@@ -38,6 +41,7 @@ char isUnixCRs;
 char isUTFData;
 char isChatLineNums;
 char isUpdateCLAN;
+char isShowCHECKMessage;
 char isCursorPosRestore;
 char PlayingSound;
 char PlayingContSound;
@@ -50,11 +54,15 @@ char  rptMark;
 int   rptPTime;
 int   WebCLANVersion;
 int   streamSpeedNumber;
+#ifdef LIBDOWNLOAD
+int   eng_kidevalCurVersion, eng_kidevalWebVersion;
+int   eng_evalCurVersion, eng_evalWebVersion;
+int   fra_evalCurVersion, fra_evalWebVersion;
+time_t LibVersionTime;
+#endif
 time_t versionTime;
 short TabSize;
 short mScript;
-short ArialUnicodeFOND;
-short SecondDefUniFOND;
 double ThumbnailsHight;
 NewFontInfo dFnt, oFnt;
 struct DefWin defWinSize;
@@ -84,7 +92,6 @@ creator_type the_file_creator;
 CFByteOrder byteOrder;
 
 FNType webDownLoadDir[FNSize];
-FNType globalDir[FNSize];
 
 FNType CLAN_Programs_str[FNSize];
 FNType WEB_Dirs_str[FNSize];
@@ -105,15 +112,15 @@ FNType ThumbNails_str[FNSize];
 
 void LocalInit(void) {
 	int i;
+	char   buf[BUFSIZ];
+	FNType mFileName[FNSize];
+	FILE *fpin, *fpout;
 	extern int  CLANVersion;
 	extern char VERSION[];
 
 #ifdef _MAC_CODE
-	char   buf[BUFSIZ];
 	FSRef  tRef;
 	FSSpec fss;
-	FNType mFileName[FNSize];
-	FILE *fpin, *fpout;
 
 	print_init();
 	InitMyWindows();
@@ -140,7 +147,7 @@ void LocalInit(void) {
 	uS.str2FNType(ThumbNails_str, 0L, "ThumbNails");
 
 	strcpy(defUniFontName, "Arial Unicode MS"); // lxs font lxslxs
-	defUniFontSize = 12L;
+	defUniFontSize = 14L;
 	if (!GetFontNumber(defUniFontName, &ArialUnicodeFOND)) {
 		ArialUnicodeFOND = 0;
 		strcpy(defUniFontName, "CAfont"/*UNICODEFONT*/);
@@ -152,6 +159,7 @@ void LocalInit(void) {
 		if (!GetFontNumber(templineC, &SecondDefUniFOND))
 			SecondDefUniFOND = 0;
 	}
+	stickyFontSize = defUniFontSize;
 
 /*
 	SetDefaultUnicodeFinfo(&dFnt);
@@ -172,12 +180,12 @@ void LocalInit(void) {
 	OSStatus err = HGetVol(fss.name, &fss.vRefNum, &fss.parID);
 	fss.name[0] = 0;
 	err = FSpMakeFSRef(&fss, &tRef);
-	err = my_FSRefMakePath(&tRef, globalDir, FNSize);
-//	getcwd(globalDir, FNSize);
-	i = strlen(globalDir);
-	if (globalDir[i-1] != PATHDELIMCHR)
-		uS.str2FNType(globalDir, i, PATHDELIMSTR);
-	strcpy(home_dir, globalDir);
+	err = my_FSRefMakePath(&tRef, mFileName, FNSize);
+//	getcwd(mFileName, FNSize);
+	i = strlen(mFileName);
+	if (mFileName[i-1] != PATHDELIMCHR)
+		uS.str2FNType(mFileName, i, PATHDELIMSTR);
+	strcpy(home_dir, mFileName);
 	for (i=strlen(home_dir)-1; i >= 0; i--) {
 		if (uS.FNTypeicmp(home_dir+i, ".app/", 5) == 0) {
 			for (; i >= 0 && home_dir[i] != PATHDELIMCHR; i--) ;
@@ -192,12 +200,11 @@ void LocalInit(void) {
 		strcpy(lib_dir, home_dir);
 		addFilename2Path(lib_dir, "lib/");
 	} else {
-		strcpy(wd_dir, globalDir);
-		strcpy(lib_dir, globalDir);
+		strcpy(wd_dir, mFileName);
+		strcpy(lib_dir, mFileName);
 	}
 	strcpy(mor_lib_dir, lib_dir);
 	strcpy(od_dir, wd_dir);
-	strcpy(webDownLoadDir, globalDir);
 
 	byteOrder = CFByteOrderGetCurrent();
 	initFavFont();
@@ -207,9 +214,10 @@ void LocalInit(void) {
 #endif // _MAC_CODE
 
 #ifdef _WIN32
-	wchar_t wDirPathName[FNSize];
+	unCH wDirPathName[FNSize];
 
 	MEMPROT = NULL;
+	InitMyWindows();
 	strcpy(dFnt.fontName, DEFAULT_FONT);
 	dFnt.fontSize = DEFAULT_SIZE;
 	dFnt.fontType = getFontType(dFnt.fontName, TRUE);
@@ -245,7 +253,11 @@ void LocalInit(void) {
 	DefClan = TRUE;
 	DefWindowDims = FALSE;
 	isChatLineNums = FALSE;
-	doReWrap = FALSE;
+#if defined(_CLAN_DEBUG)
+	doReWrap = TRUE; // 2021-09-05 auto-wrap auto wrap
+#else
+	doReWrap = TRUE; // FALSE; // no auto-wrap auto wrap
+#endif
 	isUseSPCKeyShortcuts = TRUE;
 	global_df = NULL;
 	StdInWindow = NULL;
@@ -254,6 +266,7 @@ void LocalInit(void) {
 	DefAutoWrap = FALSE;
 	ClanAutoWrap = FALSE;
 	isUpdateCLAN = TRUE;
+	isShowCHECKMessage = TRUE;
 	doMixedSTWave = FALSE;
 	rptMark = 0;
 	rptPTime = 0;
@@ -267,11 +280,13 @@ void LocalInit(void) {
 	WebCLANVersion = CLANVersion;
 	streamSpeedNumber = 0;
 	versionTime = 0L;
-#ifdef _UNICODE
-	isUTFData = TRUE;
-#else
-	isUTFData = FALSE;
+#ifdef LIBDOWNLOAD
+	eng_kidevalCurVersion = 0; eng_kidevalWebVersion = 0;
+	eng_evalCurVersion = 0; eng_evalWebVersion = 0;
+	fra_evalCurVersion = 0; fra_evalWebVersion = 0;
+	LibVersionTime = 0L;
 #endif
+	isUTFData = TRUE;
 	FreqCountLimit = 0;
 	SearchFFlag = TRUE;
 	NextTierName[0] = EOS;
@@ -328,6 +343,7 @@ void LocalInit(void) {
 	InitFileDialog();
 	InitSelectedTiers();
 	InitEvalOptions();
+	InitKidevalOptions();
 	InitSelectedSearch();
 	main_check_init();
 	init_commands();
@@ -401,10 +417,23 @@ void LocalInit(void) {
 #endif
 #ifdef _WIN32
 	if (GetWindowsDirectory(wDirPathName, FNSize) == 0)
-		strcpy(prefsDir, PATHDELIMSTR);
+		templineC[0] = EOS;
 	else {
+		u_strcpy(templineC, wDirPathName, FNSize);
+		addFilename2Path(templineC, "Clan");
+	}
+	HWND m_hWnd = AfxGetApp()->m_pMainWnd->m_hWnd;
+	if (!SHGetSpecialFolderPath(m_hWnd, wDirPathName, CSIDL_LOCAL_APPDATA, FALSE)) {
+		if (!SHGetSpecialFolderPath(m_hWnd, wDirPathName, CSIDL_APPDATA, FALSE)) {
+			strcpy(prefsDir, templineC);
+			templineC[0] = EOS;
+		} else {
+			u_strcpy(prefsDir, wDirPathName, FNSize);
+			addFilename2Path(prefsDir, "Clan_prefs");
+		}
+	} else {
 		u_strcpy(prefsDir, wDirPathName, FNSize);
-		addFilename2Path(prefsDir, "Clan");
+		addFilename2Path(prefsDir, "Clan_prefs");
 	}
 	strcpy(home_dir, "C:\\talkbank\\clan");
 	if (chdir(home_dir)) {
@@ -417,16 +446,67 @@ void LocalInit(void) {
 	}
 	if (chdir(prefsDir)) {
 		if (my_mkdir(prefsDir, 0)) {
-			if (home_dir[0] == EOS)
+			if (templineC[0] != EOS) {
+				strcpy(prefsDir, templineC);
+				if (chdir(prefsDir)) {
+					if (my_mkdir(prefsDir, 0)) {
+						if (home_dir[0] == EOS)
+							strcpy(prefsDir, PATHDELIMSTR);
+						else
+							strcpy(prefsDir, home_dir);
+					}
+				}
+			} else if (home_dir[0] == EOS)
 				strcpy(prefsDir, PATHDELIMSTR);
 			else
 				strcpy(prefsDir, home_dir);
-/*
-			if (GetWindowsDirectory(templine, FNSize) == 0)
-				strcpy(prefsDir, PATHDELIMSTR);
-			else
-				strcpy(prefsDir, templine);
-*/
+		} else {
+			if (templineC[0] != EOS) {
+				if (!chdir(templineC)) {
+					strcpy(mFileName, templineC);
+					addFilename2Path(mFileName, CED_PREF_FILE);
+					if (!access(mFileName, 0)) {
+						fpin = fopen(mFileName, "rb");
+						if (fpin != NULL) {
+							strcpy(mFileName, prefsDir);
+							addFilename2Path(mFileName, CED_PREF_FILE);
+							fpout = fopen(mFileName, "wb");
+							if (fpout != NULL) {
+								while (!feof(fpin)) {
+									fgets(buf, BUFSIZ, fpin);
+									fputs(buf, fpout);
+								}
+								fclose(fpin);
+								fclose(fpout);
+								fpout = NULL;
+							} else
+								fclose(fpin);
+							fpin = NULL;
+						}
+					}
+					strcpy(mFileName, templineC);
+					addFilename2Path(mFileName, CLAN_PREF_FILE);
+					if (!access(mFileName, 0)) {
+						fpin = fopen(mFileName, "rb");
+						if (fpin != NULL) {
+							strcpy(mFileName, prefsDir);
+							addFilename2Path(mFileName, CLAN_PREF_FILE);
+							fpout = fopen(mFileName, "wb");
+							if (fpout != NULL) {
+								while (!feof(fpin)) {
+									fgets(buf, BUFSIZ, fpin);
+									fputs(buf, fpout);
+								}
+								fclose(fpin);
+								fclose(fpout);
+								fpout = NULL;
+							} else
+								fclose(fpin);
+							fpin = NULL;
+						}
+					}
+				}
+			}
 		}
 	}
 	if (home_dir[0] == EOS) {
@@ -489,9 +569,7 @@ void LocalInit(void) {
 	init_keys(FileName1, STATEFNAME);
 
 	i = 0;
-#ifdef _UNICODE
 //	ced_version[i++] = 'U';
-#endif
 	ced_version[i++] = VERSION[2];
 	ced_version[i++] = VERSION[3];
 	if (!strncmp(VERSION+5, "Jan", 3))
@@ -558,11 +636,11 @@ void LocalInit(void) {
 static void SetOption(char *text) {
 	int  id;
 #ifdef _MAC_CODE
-	Str255 pFontName;
-	char FontName[256];
+//	Str255 pFontName;
+//	char FontName[256];
 #endif // _MAC_CODE
 #ifdef _WIN32
-	wchar_t wDirPathName[FNSize];
+	unCH wDirPathName[FNSize];
 #endif // _WIN32
 	int height, width, top;
 
@@ -734,6 +812,27 @@ static void SetOption(char *text) {
 				}
 			}
 		}
+#ifdef LIBDOWNLOAD
+	} else if (id == 1800) {
+		if (*text != EOS) {
+			if (strncmp(text, "CURRENT_CLAN_LIB_VERSION-", 25) == 0) {
+				text = text + 25;
+				LibVersionTime = atol(text);
+			}
+		}
+	} else if (id == 1801) {
+		if (*text != EOS) {
+			eng_kidevalCurVersion = atoi(text);
+		}
+	} else if (id == 1850) {
+		if (*text != EOS) {
+			eng_evalCurVersion = atoi(text);
+		}
+	} else if (id == 1851) {
+		if (*text != EOS) {
+			fra_evalCurVersion = atoi(text);
+		}
+#endif
 	} else if (id == 1964) {
 		if (*text != EOS) {
 			height = atoi(text);
@@ -988,7 +1087,7 @@ static void SetOption(char *text) {
 				for (; *text && myIsAllDigit(*text); text++) ;
 				for (; *text && !myIsAllDigit(*text); text++) ;
 				if (*text != EOS) {
-					PBC.speed = atoi(text);
+// 2019-01-29					PBC.speed = atoi(text);
 					for (; *text && myIsAllDigit(*text); text++) ;
 					for (; *text && !myIsAllDigit(*text); text++) ;
 					if (*text != EOS) {
@@ -1098,6 +1197,7 @@ static void SetOption(char *text) {
 #endif /* _WIN32 */
 		}
 	} else if (id == 1976) {
+/* 2016-03-29
 		if (*text != EOS) {
 #ifdef _MAC_CODE
 			if (*text == '"') {
@@ -1116,14 +1216,14 @@ static void SetOption(char *text) {
 			}
 			for (; *text && !myIsAllDigit(*text) && *text != EOS; text++) ;
 			dFnt.fontSize = atol(text);
-/*
-			for (; *text && myIsAllDigit(*text); text++) ;
-			for (; *text && !myIsAllDigit(*text); text++) ;
-			if (*text != EOS)
-				dFnt.CharSet = atoi(text);
-			else
-				dFnt.CharSet = 1;
-*/
+
+//			for (; *text && myIsAllDigit(*text); text++) ;
+//			for (; *text && !myIsAllDigit(*text); text++) ;
+//			if (*text != EOS)
+//				dFnt.CharSet = atoi(text);
+//			else
+//				dFnt.CharSet = 1;
+
 			dFnt.Encod = my_FontToScript(dFnt.fontId, dFnt.CharSet);
 			dFnt.orgEncod = dFnt.Encod;
 			dFnt.CharSet = dFnt.Encod;
@@ -1169,7 +1269,7 @@ static void SetOption(char *text) {
 			dFnt.isUTF = TRUE;
 			if (uS.mStricmp(dFnt.fontName, "ARIAL UNICODE MS") == 0) {
 				dFnt.fontType = WINArialUC;
-			} else if (uS.mStricmp(dFnt.fontName, "CAFONT"/*UNICODEFONT*/) == 0) {
+			} else if (uS.mStricmp(dFnt.fontName, "CAFONT") == 0) {
 				dFnt.fontType = WINCAFont;
 			} else {
 				dFnt.fontType = UNICODEDATA;
@@ -1187,8 +1287,17 @@ static void SetOption(char *text) {
 				m_lfDefFont.lfHeight = dFnt.fontSize;
 				w95_fontSize = 0L;
 			}
-#endif /* _WIN32 */
+#endif // _WIN32
 		}
+*/
+	} else if (id == 19760) {
+#ifdef _MAC_CODE
+		if (*text != EOS) {
+			stickyFontSize = atol(text);
+			defUniFontSize = stickyFontSize;
+			dFnt.fontSize = stickyFontSize;
+		}
+#endif // _MAC_CODE
 	} else if (id == 1977) {
 		if (*text != EOS) {
 			for (top=0; text[top] != '\n' && text[top] != EOS; top++) ;
@@ -1210,6 +1319,10 @@ static void SetOption(char *text) {
 	} else if (id == 1981) {
 		if (*text != EOS) {
 			isUpdateCLAN = (char)atoi(text);
+		}
+	} else if (id == 2017) {
+		if (*text != EOS) {
+			isShowCHECKMessage = (char)atoi(text);
 		}
 	} else if (id == 1982) {
 		if (*text != EOS) {
@@ -1358,6 +1471,14 @@ static void SetOption(char *text) {
 						}
 					} else
 						u_strcpy(mor_lib_dir, wDirPathName, FNSize);
+				} else {
+					if (my_chdir(wd_dir)) {
+					}
+				}
+			} else {
+				if (my_chdir(wd_dir)) {
+					if (my_chdir(home_dir)) {
+					}
 				}
 			}
 			strcat(mor_lib_dir, PATHDELIMSTR);
@@ -1396,7 +1517,6 @@ static void SetOption(char *text) {
 
 static int ReadPreference(const char *fname, int argc, FNType *path) {
 	int   len;
-	char  text[257];
 	FILE  *fp;
 
 	len = strlen(path);
@@ -1408,18 +1528,18 @@ static int ReadPreference(const char *fname, int argc, FNType *path) {
 	path[len] = 0;
 
 	fgets_cr_lc = '\0';
-	while (fgets_cr(text, 256, fp)) {
-		if (uS.isUTF8(text) || uS.partcmp(text, FONTHEADER, FALSE, FALSE))
+	while (fgets_cr(templineC, UTTLINELEN, fp)) {
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 			continue;
-		uS.remFrontAndBackBlanks(text);
-		if (*text == '[') ;
-		else if (isdigit(*text)) {
-			SetOption(text);
+		uS.remFrontAndBackBlanks(templineC);
+		if (isdigit(*templineC)) {
+			SetOption(templineC);
+		} else if (*templineC == '[') {
 		} else {
-			if (*text != EOS) {
+			if (*templineC != EOS) {
 				for (len=0; ced_lineC[len] != EOS || ced_lineC[len+1] != EOS; len++) ;
 				len++;
-				strcpy(ced_lineC+len, text);
+				strcpy(ced_lineC+len, templineC);
 				len = len + strlen(ced_lineC+len);
 				ced_lineC[len+1] = EOS;
 				argc++;
@@ -1448,6 +1568,12 @@ static void WriteCedPrefs(FILE *fp) {
 	fprintf(fp, "%d=%d %d %d %d\n", 505, MVHLPWinSize.height, MVHLPWinSize.width, MVHLPWinSize.top, MVHLPWinSize.left);
 	fprintf(fp, "%d=%d %d %d %d\n", 1962,defWinSize.height, defWinSize.width, defWinSize.top, defWinSize.left);
 	fprintf(fp, "%d=CURRENT_CLAN_VERSION-%d-%lu\n", 1963, WebCLANVersion, versionTime);
+#ifdef LIBDOWNLOAD
+	fprintf(fp, "%d=CURRENT_CLAN_LIB_VERSION-%lu\n", 1800, LibVersionTime);
+	fprintf(fp, "%d=%d\n", 1801, eng_kidevalCurVersion);
+	fprintf(fp, "%d=%d\n", 1850, eng_evalCurVersion);
+	fprintf(fp, "%d=%d\n", 1851, fra_evalCurVersion);
+#endif
 	fprintf(fp, "%d=%d %d %d %d\n", 1964,ClanOutSize.height, ClanOutSize.width, ClanOutSize.top, ClanOutSize.left);
 	fprintf(fp, "%d=%d %d %d %d\n", 1965,ThumbnailWin.height, ThumbnailWin.width, ThumbnailWin.top, ThumbnailWin.left);
 	fprintf(fp, "%d=%d %d %d %d\n", 1966,TextWinSize.height, TextWinSize.width, TextWinSize.top, TextWinSize.left);
@@ -1468,6 +1594,7 @@ static void WriteCedPrefs(FILE *fp) {
 #ifdef _WIN32
 	fprintf(fp, "%d=%ld %d %s\n", 1976, dFnt.fontSize, (int)dFnt.CharSet, dFnt.fontName);
 #endif /* _WIN32 */
+	fprintf(fp, "%d=%ld\n", 19760, stickyFontSize);
 	fprintf(fp, "%d=%s\n", 1970, lib_dir);
 	fprintf(fp, "%d=%s\n", 1974, wd_dir);
 	fprintf(fp, "%d=%s\n", 1975, od_dir);
@@ -1506,7 +1633,7 @@ static void WriteCedPrefs(FILE *fp) {
 	fprintf(fp, "%d=%d\n", 2006, F5Option);
 // NOT USED 	fprintf(fp, "%d=%d\n", 2008, isUseSPCKeyShortcuts);
 	fprintf(fp, "%d=%lf\n", 2015, ThumbnailsHight);
-
+	fprintf(fp, "%d=%d\n", 2017, isShowCHECKMessage);
 	fprintf(fp, "+b%d\n", FreqCountLimit);
 	if (*CodesFName != EOS)
 		fprintf(fp, "+c%s\n", CodesFName);
@@ -1595,7 +1722,8 @@ void resetOptions(void) {
 	t = strlen(prefsDir);
 	if (t == 0)
 		return;
-	strcpy(message, "Are you sure you want to reset all options?");
+	strcpy(message, "Are you sure you want to reset all options? in: ");
+	strcat(message, prefsDir);
 	ans = QueryDialog(message, 147);
 	if (ans > 0) {
 		isSavePrefs = FALSE;
@@ -1632,8 +1760,46 @@ void freeArgs(void) {
 
 #ifdef _MAC_CODE
 #undef main
+extern Boolean isHaveURLAccess;
 
 #include <wchar.h>
+
+#ifdef LIBDOWNLOAD
+static void	checkDownloadsVersion(void) {
+	char	*s;
+	time_t	timer;
+
+	time(&timer);
+	if (LibVersionTime > timer)
+		return;
+	if (!isHaveURLAccess)
+		return;
+	LibVersionTime = timer + 345600L; // this number = 4 days time
+	strcpy(templineC2, "http://dali.talkbank.org/clan/CLAN_LIB_VERSION.txt");
+	DownloadURL(templineC2, 0L, templineC, UTTLINELEN, NULL, FALSE, FALSE, "Downloading CLAN_LIB_VERSION file...");
+	s = templineC;
+	while (*s != EOS) {
+		if (uS.mStrnicmp(s, "eng_kideval", 11) == 0) {
+			s += 11;
+			while (isSpace(*s)) s++;
+			eng_kidevalWebVersion = atoi(s);
+		} else if (uS.mStrnicmp(s, "eng_eval", 8) == 0) {
+			s += 8;
+			while (isSpace(*s)) s++;
+			eng_evalWebVersion = atoi(s);
+		} else if (uS.mStrnicmp(s, "fra_eval", 8) == 0) {
+			s += 8;
+			while (isSpace(*s)) s++;
+			fra_evalWebVersion = atoi(s);
+		}
+		while (*s != EOS && *s != '\n' && *s != '\r')
+			s++;
+		while (*s == '\n' || *s == '\r')
+			s++;
+	}
+	WriteCedPreference();
+}
+#endif
 
 /*
 static URLSystemEventUPP	myDownloadProcUPP;
@@ -1645,7 +1811,8 @@ static pascal OSStatus MyDownloadCallBackFunction(void *userContext, EventRecord
 	return(noErr);
 }
 */
-static void	checkWebVersion(void) {
+/*
+static void	checkCLANVersion(void) {
 	int			vn;
 	char		*s, res;
 	time_t		timer;
@@ -1656,7 +1823,6 @@ static void	checkWebVersion(void) {
 //	FILE		*fp;
 	OSStatus	err;
 //	URLOpenFlags		openFlags;
-	extern Boolean isHaveURLAccess;
 
 	time(&timer);
 	if (versionTime > timer)
@@ -1665,31 +1831,29 @@ static void	checkWebVersion(void) {
 		return;
 	if (!isHaveURLAccess)
 		return;
-// strcpy(templineC, ctime(&timer));
 	versionTime = timer + 345600L; // this number = 4 days time
-// strcpy(templineC, ctime((time_t *)&versionTime));
-	strcpy(templineC2, "http://childes.talkbank.org/clan/CLAN_VERSION.txt");
-/*
-	DH  = NewHandle(0);
-	if (MemError()) {
-		WriteCedPreference();
-		return;
-	}
-	openFlags = kURLDisplayProgressFlag | kURLReplaceExistingFlag;
-	err = URLSimpleDownload(templineC, NULL, DH, openFlags, NULL, 0);
-	templineC[0] = EOS;
-	if (err == noErr) {
-		HLock(DH);
-		vn = GetHandleSize(DH);
-		if (vn > UTTLINELEN)
-			vn = UTTLINELEN;
-		strncpy(templineC, *DH, UTTLINELEN);
-		templineC[vn] = EOS;
-		HUnlock(DH);
-	}
-	DisposeHandle(DH);
-*/
-	DownloadURL(templineC2, 0L, templineC, UTTLINELEN, NULL, FALSE, FALSE);
+	strcpy(templineC2, "http://dali.talkbank.org/clan/CLAN_VERSION.txt");
+
+//	DH  = NewHandle(0);
+//	if (MemError()) {
+//		WriteCedPreference();
+//		return;
+//	}
+//	openFlags = kURLDisplayProgressFlag | kURLReplaceExistingFlag;
+//	err = URLSimpleDownload(templineC, NULL, DH, openFlags, NULL, 0);
+//	templineC[0] = EOS;
+//	if (err == noErr) {
+//		HLock(DH);
+//		vn = GetHandleSize(DH);
+//		if (vn > UTTLINELEN)
+//			vn = UTTLINELEN;
+//		strncpy(templineC, *DH, UTTLINELEN);
+//		templineC[vn] = EOS;
+//		HUnlock(DH);
+//	}
+//	DisposeHandle(DH);
+
+	DownloadURL(templineC2, 0L, templineC, UTTLINELEN, NULL, FALSE, FALSE, "Downloading CLAN_VERSION file...");
 	if (templineC[0] == EOS) {
 		WriteCedPreference();
 		return;
@@ -1726,12 +1890,13 @@ static void	checkWebVersion(void) {
 //				if ((fp=fopen(gFile, "w")) != NULL) fclose(fp);
 //				my_FSPathMakeRef(gFile, &tRef); 
 			}
-			strcpy(templineC, "http://childes.talkbank.org/clan/clan.dmg");
-			DownloadURL(templineC, 3000000L, NULL, 0, gFile, TRUE, FALSE);
+			strcpy(templineC, "http://dali.talkbank.org/clan/clan.dmg");
+			DownloadURL(templineC, 3000000L, NULL, 0, gFile, TRUE, FALSE, "Downloading CLAN Installer...");
 		}
 	}
 	WriteCedPreference();
 }
+*/
 
 int main() {
 	int i;
@@ -1747,7 +1912,12 @@ int main() {
 	saveCurrentKeyScript = mScript;
 	InstallAEProcs();
 
+i = sizeof(unCH);
+/*
 i = sizeof(wchar_t);
+i = sizeof(unichar);
+i = sizeof(UniChar);
+*/
 format[0] = '%';
 format[1] = 'd';
 format[2] = 0;
@@ -1771,16 +1941,13 @@ if (buf[0] != format[0]) {
 // -fwide-exec-charset=UTF-16
 // -fpack-struct=n
 /*
-wchar_t test[256];
+unCH test[256];
 ANSIToUnicode((unsigned char *)"AbCdEfG", strlen("AbCdEfG"), test, NULL, 256, mScript);
-int i1 = sizeof(wchar_t);
-int i2 = sizeof(test[0]);
-int i3 = sizeof(UniChar);
-// int i4 = sizeof(_MSL_WCHAR_T_TYPE);
+i = sizeof(test[0]);
 
 int len = strlen(test);
 
-wchar_t c = to_unCH_lower(test[0]);
+unCH c = to_unCH_lower(test[0]);
 
 test[0] = '1';
 test[1] = '9';
@@ -1798,8 +1965,9 @@ long resL = atol(test);
 			ced_getflag(argv[i]);
 	}
 //	if (ArialUnicodeFOND == 0 && SecondDefUniFOND == 0)
-//		do_warning("Can't find either \"Arial Unicode MS\" or \"TITUS Cyberbit Basic\" font. Please look on web page \"http://childes.talkbank.org/clan/\" for more information.", 0);
-	checkWebVersion();
+//		do_warning("Can't find either \"Arial Unicode MS\" or \"TITUS Cyberbit Basic\" font. Please look on web page \"http://talkbank.org/clan/\" for more information.", 0);
+//	checkCLANVersion();
+	global_df = NULL;
 	mac_call();
 	KeyScript(mScript);
 	if (isMovieAvialable)

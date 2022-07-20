@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -15,10 +15,10 @@
 #define Ko (1024L)
 #define Mo (1024L*1024L)
 
-typedef long address;	/* this is a relative memory location */
+typedef long32 address;	/* this is a relative memory location */
 
 // this is for error recovery.
-extern jmp_buf mark;              /* Address for long jump to jump to */
+extern jmp_buf mark;              /* Address for long32 jump to jump to */
 
 const int vmRealMemory = 1;
 const int vmFileMemory = 2;
@@ -32,19 +32,19 @@ void vmRead( void* adr, address vmadr, int nbbytes );
 void vmWrite( const void* adr, address vmadr, int nbbytes );
 
 /*** Fonctions d'initialisation et de sauvegarde (acces limite de preference) ***/
-int vmCreate( FNType* vmexternalname, int vmtype, long vmavesize, int reversed, long vminitsize = 0L );
-int vmOpen(  FNType* vmexternalname, int vmtype, long vmavesize, int reversed, int RW = 1 );
+int vmCreate( FNType* vmexternalname, int vmtype, long32 vmavesize, int reversed, long32 vminitsize = 0L );
+int vmOpen(  FNType* vmexternalname, int vmtype, long32 vmavesize, int reversed, int RW = 1 );
 void vmSave();
 void vmClose();
 
 /*** read and write memory the normal way or in reverse order, depending on the setting of a global flag ***/
 short int vmReadShort( address vmadr );
 int vmReadInt( address vmadr );
-long vmReadLong( address vmadr );
+long32 vmReadLong( address vmadr );
 double vmReadDouble( address vmadr );
 void	vmWriteShort( short int v, address vmadr );
 void	vmWriteInt( int v, address vmadr );
-void	vmWriteLong( long v, address vmadr );
+void	vmWriteLong( long32 v, address vmadr );
 void	vmWriteDouble( double v, address vmadr );
 
 int vmIsReversed(); // returns 1 if memory is upside-down

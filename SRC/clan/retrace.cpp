@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -258,7 +258,7 @@ static char singleMatch(WORDLST *s, WORDLST *e, char *retrace_line) {
 }
 
 static char doubleMatch(WORDLST *s, WORDLST *e, char *retrace_line) {
-	WORDLST *isMatch, *lastMatch, *orgS, *lastS;
+	WORDLST *isMatch, *lastMatch = NULL, *orgS, *lastS;
 
 	orgS = s;
 	isMatch = NULL;
@@ -281,7 +281,7 @@ static char doubleMatch(WORDLST *s, WORDLST *e, char *retrace_line) {
 		} else
 			break;
 	}
-	if (isMatch) {
+	if (isMatch && lastMatch != NULL) {
 		addRetraceToOutput(orgS, isMatch, lastMatch->ep, retrace_line);
 		return(TRUE);
 	} else
@@ -289,7 +289,7 @@ static char doubleMatch(WORDLST *s, WORDLST *e, char *retrace_line) {
 }
 
 static char tripleMatch(WORDLST *s, WORDLST *e, char *retrace_line) {
-	WORDLST *isMatch, *lastMatch, *orgS, *lastS;
+	WORDLST *isMatch, *lastMatch = NULL, *orgS, *lastS;
 
 	orgS = s;
 	isMatch = NULL;
@@ -320,7 +320,7 @@ static char tripleMatch(WORDLST *s, WORDLST *e, char *retrace_line) {
 		} else
 			break;
 	}
-	if (isMatch) {
+	if (isMatch && lastMatch != NULL) {
 		addRetraceToOutput(orgS, isMatch, lastMatch->ep, retrace_line);
 		return(TRUE);
 	} else

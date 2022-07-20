@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -25,13 +25,12 @@ extern long mem_ctr;
 /* or run out of space to store rules */
 BOOL
 read_crules(FILE *rulefile) {
-	extern int DEBUG_CLAN;
 	extern CRULE_PTR crule_list;
 	extern int crules_linenum;
 	CRULE_PTR cur_rule;
-	CRULE_CLAUSE_PTR cur_clause;
-	CRULE_COND_PTR cur_cond;
-	CRULE_OP_PTR cur_op;
+	CRULE_CLAUSE_PTR cur_clause = NULL;
+	CRULE_COND_PTR cur_cond = NULL;
+	CRULE_OP_PTR cur_op = NULL;
 	char line[MAXLINE];
 	char keyword[MAX_WORD];
 	char *line_ptr;
@@ -170,6 +169,7 @@ read_crules(FILE *rulefile) {
 
 BOOL get_crule_conds(STRING *cond_name, STRING *line, CRULE_COND_PTR cond_ptr) {
 	extern int crules_linenum;
+	int  hyphenI;
 	CRULE_COND_PTR cond_tmp;
 	STRING *line_ptr, *tline_ptr;
 	char pattern[MAX_PATLEN];
@@ -199,6 +199,8 @@ BOOL get_crule_conds(STRING *cond_name, STRING *line, CRULE_COND_PTR cond_ptr) {
 		cond_type = NEXTCAT_CHK;
 	else if (strcmp(cond_name,"MATCHCAT") == 0)
 		cond_type = MATCHCAT;
+	else
+		cond_type = 0;
 
 	/* long clause to process statements accordingly */
 	if ((cond_type == STARTSURF_CHK) || (cond_type == NEXTSURF_CHK)) {
@@ -207,6 +209,18 @@ BOOL get_crule_conds(STRING *cond_name, STRING *line, CRULE_COND_PTR cond_ptr) {
 			fprintf(stderr,"*ERROR* unexpected end of line at line %d\n",crules_linenum);
 			return(FAIL);
 		}
+
+ // 2019-07-30 change dash to 0x2013
+		for (hyphenI=0; line_ptr[hyphenI] != EOS; hyphenI++) {
+			if (line_ptr[hyphenI] == '-') {
+//fprintf(stderr, "%s\n", line_ptr);
+				uS.shiftright(line_ptr+hyphenI, 2);
+				line_ptr[hyphenI++] = 0xE2;
+				line_ptr[hyphenI++] = 0x80;
+				line_ptr[hyphenI++] = 0x93;
+			}
+		}
+
 		/* check if we want negation of pattern */
 		if (*line_ptr == '!') {
 			cond_type += NOT;
@@ -216,6 +230,7 @@ BOOL get_crule_conds(STRING *cond_name, STRING *line, CRULE_COND_PTR cond_ptr) {
 				return(FAIL);
 			}
 		}
+
 		/* rest of line contains surface pattern - process & store */
 		if (expand_pat(line_ptr,pattern) == FAIL)
 			return(FAIL);
@@ -332,7 +347,7 @@ BOOL get_crule_ops(STRING *line, CRULE_OP_PTR op_ptr) {
 	/* rest of line contains operations on fs- get and store */
 	while ((line_ptr != NULL) && (*line_ptr != EOS)) {
 		line_ptr = get_word(line_ptr,cOperator);     /* get operation */
-		if (cOperator != NULL) {
+		if (cOperator[0] != EOS) {
 			if (strncmp(cOperator,"STARTCAT",8) == 0) { 
 				op_type = COPY_STARTCAT; 	/* copy entire cat or just set of features? */
 				line_ptr = skip_blanks(line_ptr);
@@ -594,7 +609,9 @@ void free_lex_lett(LEX_PTR lex, int num) {
     register int i;
 
     for (i=0; i < num; i++) {
-		if (lex[i].entries) free_entries(lex[i].entries);
+		if (lex[i].entries) {
+			lex[i].entries = free_entries(lex[i].entries);
+		}
 		if (lex[i].num_letters > -1)
 			free_lex_lett(lex[i].next_lett, lex[i].num_letters);
     }
@@ -628,29 +645,28 @@ static void add_to_result(STRING *word, FEATTYPE *cat, STRING *parse, STRING *tr
 		}
 	} else {
 		fprintf(stderr, "\nanalyze_word: too many parses, parse stack overflow\n");
-		CleanUpAll();
+		CleanUpAll(TRUE);
 		CloseFiles();
 		cutt_exit(0);
 	}
 }
 
+
+
 /***********************************************************************
-* analyze word                                                         *
-* parse a word into its constituent morphemes                          *
-************************************************************************/
+ * analyze word                                                         *
+ * parse a word into its constituent morphemes                          *
+ ************************************************************************/
 static void do_word_analyses(
-    STRING *word,
-    FEATTYPE *cat,
-    STRING *parse,
-    STRING *trans,
-	STRING *comp,
-    STRING *rest,
-    RULEPACK_PTR rp,
-    int ind)
+							 STRING *word,
+							 FEATTYPE *cat,
+							 STRING *parse,
+							 STRING *trans,
+							 STRING *comp,
+							 STRING *rest,
+							 RULEPACK_PTR rp,
+							 int ind)
 {
-	extern int DEBUG_CLAN;
-	extern PARSE_REC *parse_stack;
-	extern int parse_index;
 	extern TRIE_PTR trie_root;
 	TRIE_PTR trie_p;
 	ELIST_PTR entry_p;
@@ -669,7 +685,7 @@ static void do_word_analyses(
 	char fs_tmp[MAXCAT];
 	unsigned char utf8Char[7];
 	int UTF8i;
-	int beg_idx, end_idx, newind, i;
+	int newind, i;
 	int letter_idx;
 
 	if (DEBUG_CLAN & 4) {
@@ -747,15 +763,7 @@ static void do_word_analyses(
 					else
 						next_comp[0] = EOS;
 
-					beg_idx = parse_index;
-					concat_word(start,start_cat,start_parse,start_trans,start_comp,next,next_cat,next_stem,next_trans,next_comp,rp);
-					end_idx = parse_index;
-
-					/* recurse iteratively on successful concatenations */
-					while (end_idx > beg_idx) {
-						do_word_analyses(word,parse_stack[end_idx].cat,parse_stack[end_idx].parse,parse_stack[end_idx].trans,parse_stack[end_idx].comp,newrest_p,parse_stack[end_idx].rp,newind);
-						--end_idx;
-					}
+					concat_word(word,rest,start,start_cat,start_parse,start_trans,start_comp,next,next_cat,next_stem,next_trans,next_comp,rp,newrest_p,newind);
 					entry_p = entry_p->next_elist;
 				}
 			} /* end if (trie_p->entries != NULL) */
@@ -768,24 +776,36 @@ static void do_word_analyses(
 
 void
 analyze_word(
-     STRING *word,
-     FEATTYPE *cat,
-     STRING *parse,
-	 STRING *trans,
-	 STRING *comp,
-     STRING *rest,
-     RULEPACK_PTR rp,
-     int ind,
-     char doDef)
+			 STRING *word,
+			 FEATTYPE *cat,
+			 STRING *parse,
+			 STRING *trans,
+			 STRING *comp,
+			 STRING *rest,
+			 RULEPACK_PTR rp,
+			 int ind,
+			 char doDef)
 {
+	char *hyphenI;
 	char lcat[MAX_WORD], ts[256];
 	FEATTYPE n_comp_feat[256];
 	extern int result_index;
 	extern RESULT_REC *result_list;
     extern BOOL doCapitals;
 
+// 2019-07-30 change dash to 0x2013
+	hyphenI = strchr(word, '-');
+	while (hyphenI != NULL) {
+//fprintf(stderr, "%s\n", word);
+		uS.shiftright(hyphenI, 2);
+		*hyphenI++ = 0xE2;
+		*hyphenI++ = 0x80;
+		*hyphenI   = 0x93;
+		hyphenI = strchr(word, '-');
+	}
+
 	do_word_analyses(word, cat, parse, trans, comp, rest, rp, ind);
-/* lxs lxslxs *+* */
+	/* lxs lxslxs *+* */
 	if (doDef && result_index == 0 && uS.patmat(word,"_*+_*") && doCapitals) {
 		strcpy(ts, "[scat]");
 		if (get_vname(cat,ts,lcat) && !uS.patmat(lcat,"_*+_*")) {
@@ -801,13 +821,28 @@ analyze_word(
 		}
 	}
 }
-
+
+static BOOL isExcludeLetterFromDebug(char *st) {
+	int i;
+	const char *debugLetters = "abcefghjklmnopqrtuvwxz";
+
+	if (st[0] == EOS || st[1] != EOS)
+		return(FALSE);
+	for (i=0; debugLetters[i] != EOS; i++) {
+		if (debugLetters[i] == st[0])
+			return(TRUE);
+	}
+	return(FALSE);
+}
+
 /***********************************************************************
 * concat word                                                          *
 * parse a word into its constituent morphemes                          *
 ************************************************************************/
 void
 concat_word(
+	STRING *word,
+	STRING *rest,
     STRING *s_surf,
     FEATTYPE *s_cat,
     STRING *s_parse,
@@ -818,11 +853,10 @@ concat_word(
     STRING *n_stem,
 	STRING *n_trans,
 	STRING *n_comp,
-    RULEPACK_PTR rp) {
+    RULEPACK_PTR rp,
+	STRING *newrest_p,
+	int    newind) {
 
-	extern int DEBUG_CLAN;
-	extern PARSE_REC *parse_stack;
-	extern int parse_index;
 	RULEPACK_PTR cur_rp;
 	CRULE_PTR cur_rule;
 	CRULE_CLAUSE_PTR cur_clause;
@@ -838,10 +872,15 @@ concat_word(
 	char word_tmp[MAX_WORD];
 	char concat_char[2];
 	int clause_ctr;
+	BOOL isExcludeFromDebug;
 	FEATTYPE *NextCatt = NULL;
+	PARSE_REC parse_stack;
 
-	if (DEBUG_CLAN & 4) {
+	isExcludeFromDebug = isExcludeLetterFromDebug(n_surf);
+	if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 		fprintf(debug_fp,"\napplying c rules\n");
+		fprintf(debug_fp," word: %s\n",word);
+		fprintf(debug_fp," rest: %s\n",rest);
 		fprintf(debug_fp," start: %s\n",s_surf);
 		if (featlen(s_cat) > 0) {
 			fs_decomp(s_cat,fs_tmp);
@@ -875,21 +914,49 @@ concat_word(
 	while (cur_rp != NULL) {
 		if (cur_rp->rule_ptr != NULL) {
 			cur_rule = cur_rp->rule_ptr;
-			if (DEBUG_CLAN & 4) {
+			if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 				fprintf(debug_fp,"\ntrying rule %s ... \n",cur_rule->name);
+// lxs 2014-02-05
+				fprintf(debug_fp,"        word: %s\n",word);
+				fprintf(debug_fp,"        rest: %s\n",rest);
+				fprintf(debug_fp,"        start: %s\n",s_surf);
+				if (featlen(s_cat) > 0) {
+					fs_decomp(s_cat,fs_tmp);
+					fprintf(debug_fp,"        start cat: %s\n",fs_tmp);
+				} else {
+					int i;
+					fprintf(debug_fp,"        start cat: ");
+					for (i=0; s_cat[i] != 0; i++)
+						fprintf(debug_fp,"%c",(char)s_cat[i]);
+					fprintf(debug_fp,"\n");
+				}
+				fprintf(debug_fp,"        current parse: %s\n",s_parse);
+				fprintf(debug_fp,"        next: %s\n",n_surf);
+				if (featlen(n_cat) > 0) {
+					fs_decomp(n_cat,fs_tmp);
+					fprintf(debug_fp,"        next cat: %s\n",fs_tmp);
+				} else {
+					int i;
+					fprintf(debug_fp,"        next cat: ");
+					for (i=0; n_cat[i] != 0; i++)
+						fprintf(debug_fp,"%c",(char)n_cat[i]);
+					fprintf(debug_fp,"\n");
+				}
+				fprintf(debug_fp,"        next stem: %s\n",n_stem);
+// lxs 2014-02-05
 			}
 			clause_ctr = 0;
 			cur_clause = cur_rule->clauses;
 clause_loop:
 			if (cur_clause != NULL) {
 				clause_ctr++;
-				if (DEBUG_CLAN & 4) {
+				if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 					fprintf(debug_fp," trying clause/ if-then %d\n",clause_ctr);
 				}
 
 				cur_cond = cur_clause->conditions;
 				while (cur_cond != NULL) {  /* apply conditions on categories */
-					if (DEBUG_CLAN & 4) {
+					if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 						int i;
 						decode_cond_code(cur_cond->cond_type,word_tmp);
 						fprintf(debug_fp,"  condition = %s ",word_tmp);
@@ -910,12 +977,12 @@ clause_loop:
 					switch(cur_cond->cond_type) {
 						case STARTSURF_CHK :
 							if (match_word(s_surf,cur_cond->op_surf,0) == SUCCEED) {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition is met\n");
 								}
 								cur_cond = cur_cond->next_cond;
 							} else {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition failed\n");
 								}
 								cur_cond = cur_cond->next_cond;
@@ -925,12 +992,12 @@ clause_loop:
 							break;
 						case NEXTSURF_CHK :
 							if (match_word(n_surf,cur_cond->op_surf,0) == SUCCEED) {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition is met\n");
 								}
 								cur_cond = cur_cond->next_cond;
 							} else {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition failed\n");
 								}
 								cur_clause = cur_clause->next_clause;
@@ -939,12 +1006,12 @@ clause_loop:
 							break;
 						case STARTSURF_NOT :
 							if (match_word(s_surf,cur_cond->op_surf,0) == FAIL) {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition is met\n");
 								}
 								cur_cond = cur_cond->next_cond;
 							} else {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition failed\n");
 								}
 								cur_cond = cur_cond->next_cond;
@@ -954,12 +1021,12 @@ clause_loop:
 							break;
 						case NEXTSURF_NOT :
 							if (match_word(n_surf,cur_cond->op_surf,0) == FAIL) {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition is met\n");
 								}
 								cur_cond = cur_cond->next_cond;
 							} else {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition failed\n");
 								}
 								cur_clause = cur_clause->next_clause;
@@ -968,12 +1035,12 @@ clause_loop:
 							break;
 						case STARTCAT_CHK :
 							if (check_fvp(s_cat,cur_cond->op_cat) == SUCCEED) {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition is met\n");
 								}
 								cur_cond = cur_cond->next_cond;
 							} else{
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition failed\n");
 								}
 								cur_clause = cur_clause->next_clause;
@@ -983,12 +1050,12 @@ clause_loop:
 						case NEXTCAT_CHK :
 							NextCatt = cur_cond->op_cat;
 							if (check_fvp(n_cat,cur_cond->op_cat) == SUCCEED) {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition is met\n");
 								}
 								cur_cond = cur_cond->next_cond;
 							} else {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition failed\n");
 								}
 								cur_clause = cur_clause->next_clause;
@@ -997,12 +1064,12 @@ clause_loop:
 							break;
 						case STARTCAT_NOT :
 							if (check_fvp(s_cat,cur_cond->op_cat) == FAIL) {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition is met\n");
 								}
 								cur_cond = cur_cond->next_cond;
 							} else{
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition failed\n");
 								}
 								cur_clause = cur_clause->next_clause;
@@ -1011,12 +1078,12 @@ clause_loop:
 							break;
 						case NEXTCAT_NOT :
 							if (check_fvp(n_cat,cur_cond->op_cat) == FAIL) {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition is met\n");
 								}
 								cur_cond = cur_cond->next_cond;
 							} else {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition failed\n");
 								}
 								cur_clause = cur_clause->next_clause;
@@ -1025,12 +1092,12 @@ clause_loop:
 							break;
 						case MATCHCAT :
 							if (match_fvp(s_cat,n_cat,cur_cond->op_cat) == SUCCEED) {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition is met\n");
 								}
 								cur_cond = cur_cond->next_cond;
 							} else {
-								if (DEBUG_CLAN & 4) {
+								if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 									fprintf(debug_fp,"  condition failed\n");
 								}
 								cur_clause = cur_clause->next_clause;
@@ -1050,7 +1117,7 @@ clause_loop:
 				if (cur_clause->operations != NULL) {  /* what if it's null? */
 					cur_op = cur_clause->operations;
 					while (cur_op != NULL) {
-						if (DEBUG_CLAN & 4) {
+						if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 							decode_op_code(cur_op->op_type,word_tmp);
 							fprintf(debug_fp,"  operation = %s",word_tmp);
 							if (cur_op->data != NULL) {
@@ -1087,7 +1154,7 @@ clause_loop:
 // comment the whole else for RESULTCAT = NEXTCAT, STARTCAT [gen]
 /*
 								else {
-									if (DEBUG_CLAN & 4) {
+									if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 										int fvp_type;
 										fs_decomp(cur_op->data,word_tmp);
 										if (*word_tmp == '{')
@@ -1112,7 +1179,7 @@ clause_loop:
 // comment the whole else for RESULTCAT = STARTCAT, NEXTCAT [gen]
 								else {
 									Error_fvp(cur_op->data, NextCatt, n_surf, s_surf, s_cat, n_cat, s_parse, n_stem, cur_rule, clause_ctr, cur_cond, cur_op, r_cat);
-									if (DEBUG_CLAN & 4) {
+									if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
 										fprintf(debug_fp,"  condition failed\n");
 									}
 									return;  // rule fails if operation can't be done!
@@ -1147,35 +1214,27 @@ clause_loop:
 				strcat(r_comp, n_comp);
 
 				/* add this to parse stack */
-				if (++parse_index < MAX_PARSES) {
-					featcpy(parse_stack[parse_index].cat,r_cat);
-					strcpy(parse_stack[parse_index].parse,r_parse);
-					strcpy(parse_stack[parse_index].trans,r_trans);
-					strcpy(parse_stack[parse_index].comp,r_comp);
-					parse_stack[parse_index].rp  = cur_clause->rulepackages;
-
-					if (DEBUG_CLAN & 4) {
-						fprintf(debug_fp,"%s succeeded!\n",cur_rule->name);
-						if (featlen(r_cat) > 0) {
-							fs_decomp(r_cat,fs_tmp);
-							fprintf(debug_fp," result cat: %s\n",fs_tmp);
-						} else {
-							int i;
-							fprintf(debug_fp," result cat: ");
-							for (i=0; r_cat[i] != 0; i++)
-								fprintf(debug_fp,"%c",(char)r_cat[i]);
-							fprintf(debug_fp,"\n");
-						}
-						fprintf(debug_fp," current parse: %s\n",r_parse);
+				featcpy(parse_stack.cat,r_cat);
+				strcpy(parse_stack.parse,r_parse);
+				strcpy(parse_stack.trans,r_trans);
+				strcpy(parse_stack.comp,r_comp);
+				parse_stack.rp  = cur_clause->rulepackages;
+				if (DEBUG_CLAN & 4 && !isExcludeFromDebug) {
+					fprintf(debug_fp,"%s succeeded!\n",cur_rule->name);
+					if (featlen(r_cat) > 0) {
+						fs_decomp(r_cat,fs_tmp);
+						fprintf(debug_fp," result cat: %s\n",fs_tmp);
+					} else {
+						int i;
+						fprintf(debug_fp," result cat: ");
+						for (i=0; r_cat[i] != 0; i++)
+							fprintf(debug_fp,"%c",(char)r_cat[i]);
+						fprintf(debug_fp,"\n");
 					}
-				} else {
-					fprintf(stderr, "\nconcat word: too many parses, parse stack overflow\n");
-					fprintf(stderr, "word: %s%s\n",s_surf,n_surf);
-					CleanUpAll();
-					CloseFiles();
-					cutt_exit(0);
+					fprintf(debug_fp," current parse: %s\n",r_parse);
 				}
-
+				/* recurse iteratively on successful concatenations */
+				do_word_analyses(word,parse_stack.cat,parse_stack.parse,parse_stack.trans,parse_stack.comp,newrest_p,parse_stack.rp,newind);
 			}  /* end loop through clauses in a rule */
 		}
 		cur_rp = cur_rp->next_rule; /* look at next rule in rulepackage */
@@ -1183,7 +1242,6 @@ clause_loop:
 	return;
 }
 
-
 /* apply_endrules -  make sure that word is actual word- */
 /* most of this code is identical to analyze_word */
 /* differences :  apply_endrules only operates on cat info */
@@ -1191,7 +1249,6 @@ BOOL
 apply_endrules(STRING *surf, FEATTYPE *cat, STRING *stem)
 {
 	extern RULEPACK_PTR endrules_list;
-	extern int DEBUG_CLAN;
 	RULEPACK_PTR cur_rp;
 	CRULE_PTR cur_rule;
 	CRULE_OP_PTR cur_op;

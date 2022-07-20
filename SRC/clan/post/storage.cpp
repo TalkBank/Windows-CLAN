@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -28,19 +28,21 @@
  ***/
 
 /* this is for error recovery */
-jmp_buf mark;              /* Address for long jump to jump to */
+jmp_buf mark;              /* Address for long32 jump to jump to */
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=mac68k 
 #endif
+*/
 
 struct vmStructure {
 	int vmType;	/* type of memoire (1,2, or 3 above) */
 	int vmRW;	/* allowed to be saved to disk */
 	int vmReversed; /* is this a reversed database */
 
-	long vmCurrentSize;
-	long vmCurrentAllocatedSize;
+	long32 vmCurrentSize;
+	long32 vmCurrentAllocatedSize;
 
 	/* real memory */
 
@@ -52,13 +54,15 @@ struct vmStructure {
 	FNType  mFileMemoryName[FNSize];
 };
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=reset 
 #endif
+*/
 
 static vmStructure VM = { 0, 0, 0, 0L, 0L, 0, 0, {'\0'} } ;	/* global access to virtual memory */
 
-static void testfilememory( FILE* f, long e, const char *s )
+static void testfilememory( FILE* f, long32 e, const char *s )
 {
 	if (e<0) {
 		msg ( "cannot extend file with %ld bytes\n", e );
@@ -75,7 +79,7 @@ static void testfilememory( FILE* f, long e, const char *s )
 */
 }
 
-int vmCreate( FNType* vmexternalname, int vmtype, long vmavesize, int reversed, long vminitsize )
+int vmCreate( FNType* vmexternalname, int vmtype, long32 vmavesize, int reversed, long32 vminitsize )
 {
 	/** global variable updated **/
 	VM.vmReversed = reversed;	// is this a reversed database.
@@ -112,7 +116,7 @@ int vmCreate( FNType* vmexternalname, int vmtype, long vmavesize, int reversed, 
 	return 0;
 }
 
-int vmOpen(  FNType* vmexternalname, int vmtype, long vmavesize, int reversed, int RW )
+int vmOpen(  FNType* vmexternalname, int vmtype, long32 vmavesize, int reversed, int RW )
 {
 	/** global variable updated **/
 	VM.vmReversed = reversed;	// is this a reversed database.
@@ -134,21 +138,24 @@ int vmOpen(  FNType* vmexternalname, int vmtype, long vmavesize, int reversed, i
 			if (f == NULL) {
 				f = OpenGenLib(VM.mFileMemoryName,"rb",FALSE,FALSE,mFileName);
 				if (f != NULL)
-					fprintf(stderr, "\nUsing file:      %s.\n", mFileName);
+					fprintf(stderr, "    Using database file:      %s.\n", mFileName);
 				else {
 					define_databasename(tFileName);
 					f = OpenMorLib(tFileName,"rb",FALSE,FALSE,mFileName);
 					if (f == NULL) {
 						f = OpenGenLib(tFileName,"rb",FALSE,FALSE,mFileName);
 						if (f != NULL)
-							fprintf(stderr, "\nUsing file:      %s.\n", mFileName);
+							fprintf(stderr, "    Using database file:      %s.\n", mFileName);
 					} else
-						fprintf(stderr, "\nUsing file:      %s.\n", mFileName);
+						fprintf(stderr, "    Using database file:      %s.\n", mFileName);
 				}
 			} else
-				fprintf(stderr, "\nUsing file:      %s.\n", mFileName);
+				fprintf(stderr, "    Using database file:      %s.\n", mFileName);
 #else
 			f= fopen( VM.mFileMemoryName, "rb" );
+			if (f) {
+				fprintf(stderr, "    Using database file:      %s.\n", VM.mFileMemoryName);
+			}
 #endif
 			if (f) {
 				fseek( f, 0L, SEEK_END );
@@ -253,7 +260,7 @@ void vmClose()
 
 address vmAllocate( int nbbytes )
 {
-	long old_size;
+	long32 old_size;
 
 	address returnvalue;
 	switch ( VM.vmType ) {
@@ -304,7 +311,7 @@ void vmSetReversed(int reversed)
 	VM.vmReversed = reversed;
 }
 
-void flipLong(long *num) {
+void flipLong(long32 *num) {
 	unsigned char *s, t0, t1, t2, t3;
 
 	s = (unsigned char *)num;
@@ -359,12 +366,12 @@ int vmReadInt( address vmadr )
 	}
 }
 
-long vmReadLong( address vmadr )
+long32 vmReadLong( address vmadr )
 {
-	long v;
+	long32 v;
 	// the following should be a compilation time condition.
-	if (4 != sizeof(long)) {
-		msg( "non-compatible \"long\" size, it is \"%d\", but should be \"4\"\n", sizeof(long));
+	if (4 != sizeof(long32)) {
+		msg( "non-compatible \"long32\" size, it is \"%d\", but should be \"4\"\n", sizeof(long32));
 		exit(1);
 	}
 	if ( VM.vmReversed == 0 ) { // not reversed
@@ -391,7 +398,7 @@ double vmReadDouble( address vmadr )
 
 void	vmRead( void* adr, address vmadr, int nbbytes )
 {
-	unsigned long Uvmadr, Unbbytes, totalSize;
+	unsigned long32 Uvmadr, Unbbytes, totalSize;
 
 	switch ( VM.vmType ) {
 		case vmRealMemory:
@@ -440,11 +447,11 @@ void	vmWriteInt( int v, address vmadr )
 	}
 }
 
-void	vmWriteLong( long v, address vmadr )
+void	vmWriteLong( long32 v, address vmadr )
 {
 	// the following should be a compilation time condition.
-	if (4 != sizeof(long)) {
-		msg( "non-compatible \"long\" size, it is \"%d\", but should be \"4\"\n", sizeof(long));
+	if (4 != sizeof(long32)) {
+		msg( "non-compatible \"long32\" size, it is \"%d\", but should be \"4\"\n", sizeof(long32));
 		exit(1);
 	}
 	if ( VM.vmReversed == 0 ) { // not reversed
@@ -468,7 +475,7 @@ void	vmWriteDouble( double v, address vmadr )
 
 void	vmWrite( const void* adr, address vmadr, int nbbytes )
 {
-	unsigned long Uvmadr, Unbbytes, totalSize;
+	unsigned long32 Uvmadr, Unbbytes, totalSize;
 
 	switch ( VM.vmType ) {
 		case vmRealMemory:
@@ -493,8 +500,8 @@ void	vmWrite( const void* adr, address vmadr, int nbbytes )
 
 /*** Management of a local pool of memory ***/
 static char* _dyn_memory = 0;
-static unsigned long _dyn_current = 0;
-static unsigned long _dyn_total_size = 0;
+static unsigned long32 _dyn_current = 0;
+static unsigned long32 _dyn_total_size = 0;
 
 char* dynalloc(unsigned size)
 {

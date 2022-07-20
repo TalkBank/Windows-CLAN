@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -69,8 +69,14 @@ void call() {
 		    	i--;
 		    }
 		}
-		if (uttline[i-1] == ' ')
+		if (i == 0) {
+			if (uttline[i] != '\n')
+				strcat(uttline, "\n");
+		} else if (uttline[i-1] == ' ') {
 			uttline[i-1] = '\n';
+		} else if (uttline[i-1] != '\n') {
+			strcat(uttline, "\n");
+		}
 		fputs(utterance->speaker, fpout);
 		fputs(uttline, fpout);
     }

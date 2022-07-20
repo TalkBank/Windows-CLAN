@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -24,7 +24,7 @@ extern struct tier *headtier;
 char lines_numbers;
 
 void usage() {
-	puts("LINES line number and page number");
+	puts("LINES line number");
 	printf("Usage: lines [n %s] filename(s)\n",mainflgs());
 	puts("+n : remove all the line/tier numbers");
 	mainusage(TRUE);
@@ -91,7 +91,7 @@ void call() {		/* this function is self-explanatory */
 		currentatt = 0;
 		currentchar = (char)getc_cr(fpin, &currentatt);
 		while (getwholeutter()) {
-			if (uS.partcmp(utterance->speaker,CKEYWORDHEADER,FALSE,FALSE) || uS.partcmp(utterance->speaker,FONTHEADER,FALSE,FALSE)) {
+			if (uS.isInvisibleHeader(utterance->speaker) || uS.isUTF8(utterance->speaker)) {
 				printout(utterance->speaker, utterance->line, utterance->attSp, utterance->attLine, FALSE);
 				continue;
 			}

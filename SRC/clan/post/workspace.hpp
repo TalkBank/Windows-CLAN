@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -18,9 +18,11 @@
 
 const int MaxNameSA = 512;
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=mac68k 
 #endif
+*/
 
 /*** storage of data names with their virtual addresses ***/
 struct cSymbolicAddress {
@@ -53,7 +55,7 @@ struct cWorkSpace {
 	cVMWorkSpace m_vm;	// virtual memory
 
 	int	m_MemVsFile;
-	long	m_SzVirtualMemory;
+	long32	m_SzVirtualMemory;
 
 	/** **/
 
@@ -64,7 +66,7 @@ struct cWorkSpace {
 	}
 
 	/** basic functions **/
-	void Parameters( int memvsfile, long szvmem );
+	void Parameters( int memvsfile, long32 szvmem );
 	int  Create(FNType* extern_name);
 	int  Open(FNType* extern_name, int RW=1);
 	void Close();
@@ -76,8 +78,10 @@ struct cWorkSpace {
 	void ListNS();
 };
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=reset 
 #endif
+*/
 
 #endif /* __WORKSPACE_HPP__ */

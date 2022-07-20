@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -105,7 +105,7 @@ static void freqpos_exclude_file(FNType *fname) {
 		SetNewVol(od_dir);
 #endif
 	while (fgets_cr(wd, 512, efp)) {
-		if (uS.isUTF8(wd) || uS.partcmp(wd, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(wd) || uS.isInvisibleHeader(wd))
 			continue;
 		addfreqpos_wdptr(wd);
 	}

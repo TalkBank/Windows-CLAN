@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -77,7 +77,7 @@ static void mod_overflow(void) {
 
 void usage() {
 	printf("Usage: makemod [a %s] filename(s)\n",mainflgs());
-    puts("+a : printout all alternative pronunciation");
+	puts("+a : printout all alternative pronunciation");
 #ifdef UNX
 	puts("+LF: specify full path F of the lib folder");
 #endif
@@ -183,9 +183,9 @@ static void readLex(void) {
 	}
 	ln = 0L;
 	while (fgets_cr(templineC, UTTLINELEN, fp) != NULL) {
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 			continue;
-		if (templineC[0] == '#')
+		if (templineC[0] == '#' || templineC[0] == '%')
 			continue;
 		i = 0;
 		j = 0;

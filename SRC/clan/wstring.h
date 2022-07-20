@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -19,7 +19,19 @@ extern "C"
 	#define to_unCH_lower towlower
 	#define to_unCH_upper towupper
 
+#ifdef UNX
+
 	#define unCH	wchar_t
+
+#elif defined(_MAC_CODE)
+
+	#define unCH	unichar
+
+#elif defined(_WIN32)
+
+	#define unCH	wchar_t
+
+#endif
 
 	extern unCH *cl_T(const char *);
 

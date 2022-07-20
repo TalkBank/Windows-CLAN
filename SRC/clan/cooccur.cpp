@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -28,7 +28,7 @@ struct Location {
 } ;
 
 struct Cluster_s {
-	int  num_occ;
+	unsigned int num_occ;
 	char *cluster;
 	struct Location *loc;
 	struct Cluster_s *left, *right;
@@ -39,16 +39,18 @@ extern char isRecursive;
 
 static char cooccur_ftime;
 static char *wheel[MAXNUMWORDS];
+static char isSort = FALSE;
 static short matchLoc;
 static int notch = 2;		/* number of words rolling around wheel */
 
 void usage() {
-   puts("COOCCUR rolls through text a word cluster at a time and prints them.");
-   printf("Usage: cooccur [l nN %s] filename(s)\n",mainflgs());
-   puts("+b: match words specified by +/-s only at the beginning of cluster");
-   puts("-b: match words specified by +/-s only at the end of cluster");
-   puts("+nN: print clusters of N words (default 2)");
-   mainusage(TRUE);
+	puts("COOCCUR rolls through text a word cluster at a time and prints them.");
+	printf("Usage: cooccur [l nN o %s] filename(s)\n",mainflgs());
+	puts("+b: match words specified by +/-s only at the beginning of cluster");
+	puts("-b: match words specified by +/-s only at the end of cluster");
+	puts("+nN: print clusters of N words (default 2)");
+	puts("+o : sort output by descending frequency");
+	mainusage(TRUE);
 }
 
 void init(char f) {
@@ -57,6 +59,7 @@ void init(char f) {
 	if (f) {
 		maininitwords();
 		mor_initwords();
+		isSort = FALSE;
 		notch = 2;
 		matchLoc = 0;
 		cooccur_ftime = TRUE;
@@ -83,48 +86,25 @@ void init(char f) {
 		OverWriteFile = TRUE;
 }
 
-static void PrintLocation(struct Location *p) {
-	struct Location *t;
-
-	while (p != NULL) {
-		fprintf(fpout,"*** File \"%s\": line %ld.\n", p->filename, p->lineno);
-		t = p;
-		p = p->next;
-		free(t->filename);
-		free(t);
-	}
-}
-
-static void PrintClusters(struct Cluster_s *cluster) {
-	if (cluster != NULL) {
-		PrintClusters(cluster->left);
-		if (onlydata == 2)
-			PrintLocation(cluster->loc);
-		if (onlydata == 0 || onlydata == 2)
-			fprintf(fpout, "%5d  ", cluster->num_occ);
-		fprintf(fpout,"%s\n", cluster->cluster);
-		PrintClusters(cluster->right);
-		free(cluster->cluster);
-		free(cluster);
-	}
-}
-
-static void cooccur_pr_result(void) {
-	PrintClusters(root_cluster);
-}
-
 static void AddLoc(struct Cluster_s *p) {
 	struct Location *loc;
 
-	if ((loc=NEW(struct Location)) == NULL)
-		out_of_mem();
+	if (p->loc == NULL) {
+		if ((loc=NEW(struct Location)) == NULL)
+			out_of_mem();
+		p->loc = loc;
+	} else {
+		for (loc=p->loc; loc->next != NULL; loc=loc->next) ;
+		if ((loc->next=NEW(struct Location)) == NULL)
+			out_of_mem();
+		loc = loc->next;
+	}
 	loc->filename = (FNType *)malloc((strlen(oldfname)+1)*sizeof(FNType));
 	if (loc->filename == NULL)
 		out_of_mem();
 	strcpy(loc->filename, oldfname);
 	loc->lineno = lineno;
-	loc->next = p->loc;
-	p->loc = loc;
+	loc->next = NULL;
 }
 
 static struct Cluster_s *AddToCluster(char *w) {
@@ -144,22 +124,93 @@ static struct Cluster_s *AddToCluster(char *w) {
 	return(p);
 }
 
-static struct Cluster_s *cooccur_AddCluster(struct Cluster_s *p, char *w) {
+static struct Cluster_s *cooccur_tree(struct Cluster_s *p, char *w) {
 	int cond;
 
-	if (onlydata == 1)
-		fprintf(fpout,"%s\n", w);
-	else if (p == NULL)
+	if (p == NULL)
 		p = AddToCluster(w);
 	else if ((cond = strcmp(w, p->cluster)) == 0) {
 		p->num_occ++;
 		if (onlydata == 2)
 			AddLoc(p);
 	} else if (cond < 0)
-		p->left = cooccur_AddCluster(p->left, w);
+		p->left = cooccur_tree(p->left, w);
 	else
-		p->right = cooccur_AddCluster(p->right, w);
+		p->right = cooccur_tree(p->right, w);
 	return(p);
+}
+
+static struct Cluster_s *cooccur_stree(struct Cluster_s *p, struct Cluster_s *m) {
+	struct Cluster_s *t = p;
+
+	if (p == NULL) {
+		if ((p=NEW(struct Cluster_s)) == NULL)
+			out_of_mem();
+		p->cluster = m->cluster;
+		p->num_occ = m->num_occ;
+		if (onlydata == 2)
+			p->loc = m->loc;
+		else
+			p->loc = NULL;
+		p->left = p->right = NULL;
+	} else if (p->num_occ < m->num_occ)
+		p->left = cooccur_stree(p->left, m);
+	else if (p->num_occ == m->num_occ) {
+		for (; p->num_occ>= m->num_occ && p->right!= NULL; p=p->right) ;
+		if (p->num_occ < m->num_occ)
+			p->left = cooccur_stree(p->left, m);
+		else
+			p->right = cooccur_stree(p->right, m);
+		return(t);
+	} else
+		p->right = cooccur_stree(p->right, m);
+	return(p);
+}
+
+static void cooccur_sorttree(struct Cluster_s *p) {
+	if (p != NULL) {
+		cooccur_sorttree(p->left);
+		root_cluster = cooccur_stree(root_cluster, p);
+		cooccur_sorttree(p->right);
+		free(p);
+	}
+}
+
+static void PrintLocation(struct Location *p) {
+	struct Location *t;
+
+	while (p != NULL) {
+		fprintf(fpout,"      File \"%s\": line %ld.\n", p->filename, p->lineno);
+		t = p;
+		p = p->next;
+		free(t->filename);
+		free(t);
+	}
+}
+
+static void PrintClusters(struct Cluster_s *cluster) {
+	if (cluster != NULL) {
+		PrintClusters(cluster->left);
+		if (onlydata == 0 || onlydata == 2)
+			fprintf(fpout, "%3u  ", cluster->num_occ);
+		fprintf(fpout,"%s\n", cluster->cluster);
+		if (onlydata == 2)
+			PrintLocation(cluster->loc);
+		PrintClusters(cluster->right);
+		free(cluster->cluster);
+		free(cluster);
+	}
+}
+
+static void cooccur_pr_result(void) {
+	if (isSort) {
+		struct Cluster_s *p;
+		p = root_cluster;
+		root_cluster = NULL;
+		cooccur_sorttree(p);
+		PrintClusters(root_cluster);
+	} else
+		PrintClusters(root_cluster);
 }
 
 void call() {	/* roll word wheel through text */
@@ -209,7 +260,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					found = FALSE;
 			}
 			if (found)
-				root_cluster = cooccur_AddCluster(root_cluster, spareTier1+j);
+				root_cluster = cooccur_tree(root_cluster, spareTier1+j);
 		}
 		*spareTier1 = EOS;
 		if (k > 0) {
@@ -236,7 +287,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 							found = FALSE;
 					}
 					if (found)
-						root_cluster=cooccur_AddCluster(root_cluster,spareTier1+j);
+						root_cluster=cooccur_tree(root_cluster,spareTier1+j);
 				}
 				*spareTier1 = EOS;
 			}
@@ -282,6 +333,10 @@ void getflag(char *f, char *f1, int *i) {
 				fprintf(stderr,"Clusters must be smaller than %d.", MAXNUMWORDS);
 				cutt_exit(0);
 			}
+			break;
+		case 'o':
+			isSort = TRUE;
+			no_arg_option(f);
 			break;
 		default:
 			maingetflag(f-2,f1,i);

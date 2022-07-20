@@ -29,11 +29,13 @@ public:
 	afx_msg void OnEnChangeIdsCode();
 
 // Dialog Data
-	enum { IDD = IDD_INSERT_DIALOG };
+	enum { IDD = IDD_ID_DIALOG };
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 	virtual BOOL OnInitDialog();
+	void createPopupSESeMenu();
+	void createPopupSESsMenu();
 	void createPopupRoleMenu();
 	void createPopupSpeakerMenu();
 	void updateSpeakerMenu();
@@ -44,9 +46,10 @@ protected:
 public:
 	IDSTYPE *rootIDs;
 	ROLESTYPE *rootRoles;
+	SESTYPE *rootSESe, *rootSESs;
 	CComboBox m_SpeakerIDC;
 //	CString m_SpeakerIDs;
-	CComboBox m_RoleCtrl;
+	CComboBox m_RoleC;
 	CString m_RoleS;
 	afx_msg void OnIdsCopy();
 	afx_msg void OnIdsCreate();
@@ -63,21 +66,16 @@ public:
 	CString m_M1S;
 	CEdit m_D1C;
 	CString m_D1S;
-	CEdit m_Y2C;
-	CString m_Y2S;
-	CEdit m_M2C;
-	CString m_M2S;
-	CEdit m_D2C;
-	CString m_D2S;
 	CEdit m_SexC;
-	BOOL m_About;
 	BOOL m_Unknown;
 	BOOL m_Male;
 	BOOL m_Female;
 	CEdit m_GroupC;
 	CString m_GroupS;
-	CEdit m_SESC;
-	CString m_SESS;
+	CComboBox m_SES_eC;
+	CString m_SES_eS;
+	CComboBox m_SES_sC;
+	CString m_SES_sS;
 	CEdit m_EducationC;
 	CString m_EducationS;
 	CEdit m_UFIDC;

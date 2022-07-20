@@ -6,9 +6,7 @@
 #endif // _MSC_VER > 1000
 // W95_TxtBullet.h : header file
 //
-#include <TextUtils.h>
-
-#define TEXT_BULLETS_PICTS
+// NO QT #include <TextUtils.h>
 
 /////////////////////////////////////////////////////////////////////////////
 // cTxtBullet dialog

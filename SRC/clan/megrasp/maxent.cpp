@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -29,15 +29,15 @@ using namespace std;
 	#define FNType char
 	#define fprintf my_fprintf
 	#define fputc my_putc
-  extern "C"
-  {
-	extern FILE *OpenGenLib(const FNType *, const char *, char, char, FNType *);
-	extern FILE *OpenMorLib(const FNType *, const char *, char, char, FNType *);
-	extern void my_flush_chr(void);
-	extern void my_fprintf(FILE * file, const char * format, ...);
-	extern void my_putc(const char format, FILE * file);
-	extern int  isKillProgram;
-  }
+	extern "C"
+	{
+		extern FILE *OpenGenLib(const FNType *, const char *, char, char, FNType *);
+		extern FILE *OpenMorLib(const FNType *, const char *, char, char, FNType *);
+		extern void my_flush_chr(void);
+		extern void my_fprintf(FILE * file, const char * format, ...);
+		extern void my_putc(const char format, FILE * file);
+		extern int  isKillProgram;
+	}
 	extern void megraps_exit(int i);
 #endif
 
@@ -285,7 +285,7 @@ ME_Model::make_feature_bag(const int cutoff)
       //      if (cutoff > 0 && count[feature.body()] < cutoff) continue;
       if (cutoff > 0 && count[feature.body()] <= cutoff) continue;
 //      int id = _fb.Put(feature);
-	  _fb.Put(feature);
+		_fb.Put(feature);
     }
   }
   count.clear();
@@ -327,7 +327,8 @@ ME_Model::update_model_expectation()
   for (vector<Sample>::const_iterator i = _vs.begin(); i != _vs.end(); i++, n++) {
 #if defined(_MAC_CODE) || defined(_WIN32)
 	  if (n % 10000 == 0) { // PERIOD
-		  fprintf(stderr,"\r%d ",n/10000);
+// lxs 2019-03-15 if (!isRecursive)
+			  fprintf(stderr,"\r%d ",n/10000);
 		  my_flush_chr();
 		  if (isKillProgram)
 			  megraps_exit(0);
@@ -521,7 +522,8 @@ ME_Model::train(const int cutoff,
   for (int n = 0; n < (int)_vs.size(); n++) {
 #if defined(_MAC_CODE) || defined(_WIN32)
 	  if (n % 10000 == 0) { // PERIOD
-		  fprintf(stderr,"\r%d ",n/10000);
+// lxs 2019-03-15 if (!isRecursive)
+			  fprintf(stderr,"\r%d ",n/10000);
 		  my_flush_chr();
 		  if (isKillProgram)
 			  megraps_exit(0);

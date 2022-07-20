@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -26,6 +26,7 @@
 #define IS_WIN_MODE FALSE
 #include "mul.h" 
 
+extern char R8;
 extern char *Toldsp;
 extern char OverWriteFile;
 extern struct tier *headtier;
@@ -37,12 +38,13 @@ struct mlu_cnt {
 	char *fname;
 	char *sp;
 	char *ID;
+	char *utt;
 	float morf, mlu_utter, morfsqr;
 	MLUSP *next_sp;
 } ;
 
 static MLUSP *mlu_head;
-static char mlu_ftime1, mlu_ftime2, mlu_foutput, mlu_isMorExcluded, mlu_isCombineSpeakers, morTierSelected;
+static char mlu_ftime1, mlu_ftime2, mlu_isMorExcluded, mlu_isCombineSpeakers, morTierSelected;
 static float morf, mlu_utter, morfsqr;
 
 void usage() {
@@ -60,8 +62,9 @@ void usage() {
 //	puts("+a : count all utterances even the ones without words");
 //	puts("+at: count utterances that have [+ trn] code even the ones without words");
 	printf("+bS: add all S characters to morpheme delimiters list (default: %s)\n", rootmorf);
-	puts("-bS: remove all S characters from be morphemes list (-b: empty morphemes list)");
-	puts("+cS: look for unit marker S or markers listed in file @S");
+	puts("-bS: remove all S characters from be morphemes list");
+	puts("-b:  counts words, not morphemes");
+	puts("+cS: look for clause marker S or markers listed in file @S");
 	puts("+gS: exclude utterance consisting solely of specified word S or words in file @S");
 	puts("+o3: combine selected speakers from each file into one results list for that file");
 	mainusage(FALSE);
@@ -100,6 +103,8 @@ void init(char f) {
 		addword('\0','\0',"+$*");
 		maininitwords();
 		mor_initwords();
+		isMLUEpostcode = TRUE;
+		ml_isSkip = FALSE;
 		ml_isXXXFound = FALSE;
 		ml_isYYYFound = FALSE;
 		ml_isPlusSUsed = FALSE;
@@ -107,7 +112,6 @@ void init(char f) {
 		ml_WdHead = NULL;
 		mlu_ftime1 = TRUE;
 		mlu_ftime2 = TRUE;
-		mlu_foutput = TRUE;
 		morTierSelected = FALSE;
 		mlu_isMorExcluded = FALSE;
 		mlu_isCombineSpeakers = FALSE;
@@ -116,29 +120,32 @@ void init(char f) {
 			maketierchoice("%mor",'+',FALSE);
 			nomain = TRUE;
 			mlu_ftime2 = FALSE;
-			if (isMorSearchListGiven() || ml_isclause())
+			if (isMORSearch() || ml_isclause())
 				linkMain2Mor = TRUE;
-		} else if (morTierSelected && ml_isclause())
+		} else if (morTierSelected && ml_isclause()) {
 			linkMain2Mor = TRUE;
-		if (onlydata == 1) {
+		}
+		if (R8)
+			linkMain2Mor = FALSE;
+		if (onlydata == 1 || onlydata == 3) {
 			combinput = TRUE;
 			OverWriteFile = TRUE;
 			AddCEXExtension = ".xls";
 		}
 	}
-	if (!combinput || onlydata == 1 || f) {
+	if (!combinput || f) {
 		mlu_head = NULL;
 	}
-	if ((onlydata == 1 || onlydata == 2) && mlu_ftime1 && chatmode) {
+	if ((onlydata == 1 || onlydata == 2 || onlydata == 3) && mlu_ftime1 && chatmode) {
 		maketierchoice("@ID:",'+',FALSE);
 /*
 		if (IDField == NULL && *headtier->tcode == '@') {
-			fputs("\nPlease use \"+t\" option to specify speaker name or ID\n",stderr);
+			fputs("\nPlease use \"+t\" option to specify speaker code or ID\n",stderr);
 			ml_exit(0);
 		}
 */
 		mlu_ftime1 = FALSE;
-		if (onlydata == 1 && !f_override)
+		if ((onlydata == 1 || onlydata == 3) && !f_override)
 			stout = FALSE;
 	}
 	ml_spchanged = TRUE;
@@ -178,15 +185,26 @@ static void mlu_outputIDInfo(char *fname, char *s) {
 }
 
 static void mlu_pr_result(void) {
+	char *sFName;
 	float tt;
 	MLUSP *ts;
 
-	if (onlydata == 1 && mlu_foutput) {
-		mlu_foutput = FALSE;
-		fprintf(fpout,"File\tLanguage\tCorpus\tCode\tAge\tSex\tGroup\tSES\tRole\tEducation\tCustom_field\t");
-		fprintf(fpout,"#%s\t#%s\t%s/%s\tStandard_deviation\n",
+	if (onlydata == 1) {
+		excelHeader(fpout, newfname, 95);
+		excelRow(fpout, ExcelRowStart);
+		excelCommasStrCell(fpout,"File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field,");
+		sprintf(spareTier1,"#%s,#%s,%s/%s,Standard deviation",
 				(ml_isclause() ? "clauses" : "utterances"),((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"),
 				((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"),(ml_isclause() ? "clauses" : "utterances"));
+		excelCommasStrCell(fpout, spareTier1);
+		excelRow(fpout, ExcelRowEnd);
+	} else if (onlydata == 3) {
+		excelHeader(fpout, newfname, 95);
+		excelRow(fpout, ExcelRowStart);
+		excelCommasStrCell(fpout,"File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field,");
+		sprintf(spareTier1,"#%s, utterance", ((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"));
+		excelCommasStrCell(fpout, spareTier1);
+		excelRow(fpout, ExcelRowEnd);
 	}
 	while (mlu_head) {
 		morf	  = mlu_head->morf;
@@ -214,30 +232,66 @@ static void mlu_pr_result(void) {
 					// tt = (morfsqr - ((morf * morf) / mlu_utter)) / mlu_utter;
 					// fprintf(fpout,"\tStandard deviation = %.3f\n", sqrt(tt));
 					tt = (morfsqr / mlu_utter) - ((morf / mlu_utter) * (morf / mlu_utter));
-					if (mlu_utter > (float)1.0 && tt > (float)0.0) {
+					if (mlu_utter > (float)1.0 && tt >= (float)0.0) {
 						fprintf(fpout,"\tStandard deviation = %.3f\n", sqrt(tt));
 					} else
-						fprintf(fpout,"\tStandard deviation = %.3f\n", 0.0);
+						fprintf(fpout,"\tStandard deviation = %s\n", "NA");
 				}
 			}
 			putc('\n',fpout);
 		} else if (onlydata == 1) {
 			if (mlu_head->isSpeakerFound) {
-				if (mlu_head->ID)
-					mlu_outputIDInfo(mlu_head->fname, mlu_head->ID);
+				excelRow(fpout, ExcelRowStart);
+				sFName = strrchr(mlu_head->fname, PATHDELIMCHR);
+				if (sFName != NULL)
+					sFName = sFName + 1;
 				else
-					fprintf(fpout,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", mlu_head->fname, mlu_head->sp);
-				fprintf(fpout,"%5.0f\t%5.0f", mlu_utter, morf);
+					sFName = mlu_head->fname;
+				excelStrCell(fpout, sFName);
+				if (mlu_head->ID) {
+					excelOutputID(fpout, mlu_head->ID);
+				} else {
+					excelCommasStrCell(fpout, ".,.");
+					excelStrCell(fpout, mlu_head->sp);
+					excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.");
+				}
+				excelNumCell(fpout, "%.0f", mlu_utter);
+				excelNumCell(fpout, "%.0f", morf);
 				if (mlu_utter > (float)0.0) {
-					fprintf(fpout,"\t%7.3f", morf/mlu_utter);
+					excelNumCell(fpout, "%.3f", morf/mlu_utter);
 					tt = (morfsqr / mlu_utter) - ((morf/mlu_utter) * (morf/mlu_utter));
-					if (mlu_utter > (float)1.0 && tt > (float)0.0) {
-						fprintf(fpout,"\t%7.3f", sqrt(tt));
+					if (mlu_utter > (float)1.0 && tt >= (float)0.0) {
+						excelNumCell(fpout, "%.3f", sqrt(tt));
 					} else
-						fprintf(fpout,"\t.");
-				} else
-					fprintf(fpout,"\t.\t.");
-				putc('\n',fpout);
+						excelStrCell(fpout, "NA");
+				} else {
+					excelStrCell(fpout, "NA");
+					excelStrCell(fpout, "NA");
+				}
+				excelRow(fpout, ExcelRowEnd);
+			}
+		} else if (onlydata == 3) {
+			if (mlu_head->isSpeakerFound) {
+				excelRow(fpout, ExcelRowStart);
+				sFName = strrchr(mlu_head->fname, PATHDELIMCHR);
+				if (sFName != NULL)
+					sFName = sFName + 1;
+				else
+					sFName = mlu_head->fname;
+				excelStrCell(fpout, sFName);
+				if (mlu_head->ID) {
+					excelOutputID(fpout, mlu_head->ID);
+				} else {
+					excelCommasStrCell(fpout, ".,.");
+					excelStrCell(fpout, mlu_head->sp);
+					excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.");
+				}
+				excelNumCell(fpout, "%.0f", morf);
+				if (mlu_head->utt == NULL)
+					excelStrCell(fpout, "NA");
+				else
+					excelStrCell(fpout, mlu_head->utt);
+				excelRow(fpout, ExcelRowEnd);
 			}
 		} else {
 			if (mlu_head->ID) {
@@ -248,12 +302,12 @@ static void mlu_pr_result(void) {
 			if (mlu_utter > (float)0.0) {
 				fprintf(fpout,"\t%7.3f", morf/mlu_utter);
 				tt = (morfsqr / mlu_utter) - ((morf/mlu_utter) * (morf/mlu_utter));
-				if (mlu_utter > (float)1.0 && tt > (float)0.0) {
+				if (mlu_utter > (float)1.0 && tt >= (float)0.0) {
 					fprintf(fpout,"\t%7.3f", sqrt(tt));
 				} else
-					fprintf(fpout,"\t.");
+					fprintf(fpout,"\tNA");
 			} else
-				fprintf(fpout,"\t.\t.");
+				fprintf(fpout,"\tNA\tNA");
 			putc('\n',fpout);
 		}
 		ts = mlu_head;
@@ -264,35 +318,47 @@ static void mlu_pr_result(void) {
 			free(ts->sp);
 		if (ts->ID)
 			free(ts->ID);
+		if (ts->utt)
+			free(ts->utt);
 		free(ts);
 	}
+	if (onlydata == 1 || onlydata == 3)
+		excelFooter(fpout);
 	mlu_head = NULL;
 }
 
-static MLUSP *mlu_FindSpeaker(char *sp, char *ID, char isSpeakerFound) {
-	char *s;
-	MLUSP *ts;
+static MLUSP *mlu_FindSpeaker(char *fname, char *sp, char *ID, char isSpeakerFound) {
+	MLUSP *ts, *tsp;
 
 	uS.remblanks(sp);
-	for (ts=mlu_head; ts != NULL; ts=ts->next_sp) {
-		if (uS.partcmp(ts->sp, sp, FALSE, FALSE)) {
-			ts->isSpeakerFound = isSpeakerFound;
-			return(ts);
+	if (onlydata == 3) {
+		for (ts=mlu_head; ts != NULL; ts=ts->next_sp) {
+			if (uS.mStricmp(ts->fname, fname) == 0 || (combinput && onlydata != 1)) {
+				if (uS.partcmp(ts->sp, sp, FALSE, FALSE)) {
+					if (ts->ID != NULL && ID == NULL)
+						ID = ts->ID;
+					if (ts->isSpeakerFound == FALSE)
+						return(ts);
+				}
+			}
+		}
+		isSpeakerFound = FALSE;
+	} else {
+		for (ts=mlu_head; ts != NULL; ts=ts->next_sp) {
+			if (uS.mStricmp(ts->fname, fname) == 0 || (combinput && onlydata != 1)) {
+				if (uS.partcmp(ts->sp, sp, FALSE, FALSE)) {
+					ts->isSpeakerFound = isSpeakerFound;
+					return(ts);
+				}
+			}
 		}
 	}
 	if ((ts=NEW(MLUSP)) == NULL)
 		out_of_mem();
-	s = strrchr(oldfname, PATHDELIMCHR);
-	if (s == NULL)
-		s = oldfname;
-	else
-		s++;
-	if ((ts->fname=(char *)malloc(strlen(s)+1)) == NULL)
+// ".xls"
+	if ((ts->fname=(char *)malloc(strlen(fname)+1)) == NULL)
 		out_of_mem();
-	strcpy(ts->fname, s);
-	s = strrchr(ts->fname, '.');
-	if (s != NULL)
-		*s = EOS;
+	strcpy(ts->fname, fname);
 	if ((ts->sp=(char *)malloc(strlen(sp)+1)) == NULL)
 		out_of_mem();
 	strcpy(ts->sp, sp);
@@ -303,13 +369,19 @@ static MLUSP *mlu_FindSpeaker(char *sp, char *ID, char isSpeakerFound) {
 			out_of_mem();
 		strcpy(ts->ID, ID);
 	}
+	ts->utt = NULL;
 	ts->isSpeakerFound = isSpeakerFound;
 	ts->isPSDFound = FALSE;
 	ts->morf	= (float)0.0;
 	ts->mlu_utter   = (float)0.0;
 	ts->morfsqr = (float)0.0;
-	ts->next_sp = mlu_head;
-	mlu_head = ts;
+	ts->next_sp = NULL;
+	if (mlu_head == NULL) {
+		mlu_head = ts;
+	} else {
+		for (tsp=mlu_head; tsp->next_sp != NULL; tsp=tsp->next_sp) ;
+		tsp->next_sp = ts;
+	}
 	return(ts);
 }
 
@@ -325,17 +397,18 @@ char mlu_excludeUtter(char *line, int pos, char *isWordsFound) { // xxx, yyy, ww
 	}
 	if (!isSkipFirst) {
 		i = 0;
+		j = 0;
 		if (pos == 0 || uS.isskip(line,pos-1,&dFnt,MBF)) {
 			for (j=pos; line[j] == 'x' || line[j] == 'X' ||
-				   line[j] == 'y' || line[j] == 'Y' ||
-				   line[j] == 'w' || line[j] == 'W' || 
-				   line[j] == '(' || line[j] == ')'; j++) {
+						line[j] == 'y' || line[j] == 'Y' ||
+						line[j] == 'w' || line[j] == 'W' || 
+						line[j] == '(' || line[j] == ')'; j++) {
 				if (line[j] != '(' && line[j] != ')')
 					templineC2[i++] = line[j];
 			}
 		}
 		if (i == 3) {
-			if (isSpace(line[j]) || line[j] == '@')
+			if (uS.isskip(line, j, &dFnt,MBF) || line[j] == '@')
 				templineC2[i] = EOS;
 			else
 				templineC2[0] = EOS;
@@ -343,7 +416,7 @@ char mlu_excludeUtter(char *line, int pos, char *isWordsFound) { // xxx, yyy, ww
 			templineC2[i] = EOS;
 		uS.lowercasestr(templineC2, &dFnt, FALSE);
 		if ((ml_isXXXFound && strcmp(templineC2, "xxx") == 0) ||
-			  (ml_isYYYFound && strcmp(templineC2, "yyy") == 0)) {
+			(ml_isYYYFound && strcmp(templineC2, "yyy") == 0)) {
 			if (isWordsFound == NULL && (CntWUT == 2 || CntWUT == 3)) {
 			} else {
 				line[pos] = ' ';
@@ -377,7 +450,7 @@ char mlu_excludeUtter(char *line, int pos, char *isWordsFound) { // xxx, yyy, ww
 			templineC2[7] = EOS;
 			uS.lowercasestr(templineC2, &dFnt, FALSE);
 			if ((ml_isXXXFound && strcmp(templineC2, "unk|xxx") == 0) ||
-				  (ml_isYYYFound && strcmp(templineC2, "unk|yyy") == 0)) {
+				(ml_isYYYFound && strcmp(templineC2, "unk|yyy") == 0)) {
 				if (isWordsFound == NULL && (CntWUT == 2 || CntWUT == 3)) {
 				} else {
 					line[pos] = ' ';
@@ -399,14 +472,15 @@ char mlu_excludeUtter(char *line, int pos, char *isWordsFound) { // xxx, yyy, ww
 	return(FALSE);	
 }
 
-// EVAL, KIDEVAL, MAXWD and WDLEN
+// C_NNLA, EVAL, KIDEVAL, MAXWD, WDLEN and SUGAR
 void call() {
 	register int pos;
 	MLUSP *ts = NULL;
-	float tLocalmorf, localmorf = (float)0.0;
+	float tLocalmorf = 0.0, localmorf = 0.0;
 	char tmp, isWordsFound, sq, aq, isSkip;
-	char isPSDFound, curPSDFound, isAmbigFound;
+	char isPSDFound = FALSE, curPSDFound, isAmbigFound, isDepTierFound;
 
+	isDepTierFound = FALSE;
 	isSkip = FALSE;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
@@ -418,18 +492,18 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 		if (linkMain2Mor && uS.partcmp(utterance->speaker,"%mor",FALSE,FALSE)) {
 			removeMainTierWords(uttline);
 		}
-		if ((onlydata == 1 || onlydata == 2) && chatmode) {
+		if ((onlydata == 1 || onlydata == 2 || onlydata == 3) && chatmode) {
 			if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
 				if (isIDSpeakerSpecified(utterance->line, templineC, TRUE)) {
 					uS.remblanks(utterance->line);
-					mlu_FindSpeaker(templineC, utterance->line, FALSE);
+					mlu_FindSpeaker(oldfname, templineC, utterance->line, FALSE);
 				}
 				continue;
 			}
 		}
 		if (!chatmode) {
 			strcpy(templineC, "GENERIC");
-			ts = mlu_FindSpeaker(templineC, NULL, TRUE);
+			ts = mlu_FindSpeaker(oldfname, templineC, NULL, TRUE);
 			morf	  = ts->morf;
 			mlu_utter = ts->mlu_utter;
 			morfsqr   = ts->morfsqr;
@@ -442,19 +516,31 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				strcpy(templineC, utterance->speaker);
 //				ml_checktier(templineC);
 			}
-			ts = mlu_FindSpeaker(templineC, NULL, TRUE);
+			ts = mlu_FindSpeaker(oldfname, templineC, NULL, TRUE);
 			morf	  = ts->morf;
 			mlu_utter = ts->mlu_utter;
 			morfsqr   = ts->morfsqr;
 			tLocalmorf = localmorf;
 			isPSDFound = ts->isPSDFound;
+		} else if (*utterance->speaker == '%') {
+			isDepTierFound = TRUE;
+			if (ts == NULL && nomain && mlu_isCombineSpeakers) {
+				strcpy(templineC, "*COMBINED*");
+				ts = mlu_FindSpeaker(oldfname, templineC, NULL, TRUE);
+				morf	  = ts->morf;
+				mlu_utter = ts->mlu_utter;
+				morfsqr   = ts->morfsqr;
+				tLocalmorf = localmorf;
+				isPSDFound = ts->isPSDFound;
+				isSkip = FALSE;
+			}
 		}
-		if (nomain && *utterance->speaker == '*') {
+		if (*utterance->speaker == '*') {
 			isSkip = FALSE;
 			if (!ml_isclause()) {
 				for (pos=0; utterance->line[pos] != EOS; pos++) {
 					if ((pos == 0 || uS.isskip(utterance->line,pos-1,&dFnt,MBF)) && utterance->line[pos] == '+' && 
-						  uS.isRightChar(utterance->line,pos+1,',',&dFnt, MBF) && isPSDFound) {
+						uS.isRightChar(utterance->line,pos+1,',',&dFnt, MBF) && isPSDFound) {
 						if (mlu_utter > 0.0)
 							mlu_utter--;
 						isPSDFound = FALSE;
@@ -462,14 +548,20 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				}
 				ts->mlu_utter = mlu_utter;
 			}
-			for (pos=0; utterance->line[pos] != EOS; pos++) {
-				if (mlu_excludeUtter(uttline, pos, &isWordsFound)) { // xxx, yyy, www
-					isSkip = TRUE;
-					localmorf = tLocalmorf;
-					break;
-				}
+			if (isMLUEpostcode && isPostCodeOnUtt(utterance->line, "[+ mlue]")) {
+				isSkip = TRUE;
+				localmorf = tLocalmorf;
 			}
-			continue;
+			if (nomain) {
+				for (pos=0; utterance->line[pos] != EOS; pos++) {
+					if (mlu_excludeUtter(uttline, pos, &isWordsFound)) { // xxx, yyy, www
+						isSkip = TRUE;
+						localmorf = tLocalmorf;
+						break;
+					}
+				}
+				continue;
+			}
 		} else if (!nomain)
 			isSkip = FALSE;
 		curPSDFound = FALSE;
@@ -544,7 +636,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			}
 			if (!ml_isclause()) {
 				if ((pos == 0 || uS.isskip(utterance->line,pos-1,&dFnt,MBF)) && utterance->line[pos] == '+' && 
-					  uS.isRightChar(utterance->line,pos+1,',',&dFnt, MBF) && isPSDFound) {
+					uS.isRightChar(utterance->line,pos+1,',',&dFnt, MBF) && isPSDFound) {
 					if (mlu_utter > 0.0)
 						mlu_utter--;
 					else if (mlu_utter == 0.0) 
@@ -589,16 +681,35 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				ts->mlu_utter = mlu_utter;
 				ts->morfsqr   = morfsqr;
 				ts->isPSDFound = curPSDFound;
+				if (onlydata == 3) {
+					strcpy(templineC4, org_spTier);
+					for (pos=0; templineC4[pos] != EOS; pos++) {
+						if (templineC4[pos] == '\n')
+							templineC4[pos] = ' ';
+						if (templineC4[pos] == HIDEN_C) {
+							templineC4[pos] = EOS;
+							break;
+						}
+					}
+					removeExtraSpace(templineC4);
+					if ((ts->utt=(char *)malloc(strlen(templineC4)+1)) != NULL)
+						strcpy(ts->utt, templineC4);
+					ts->isSpeakerFound = TRUE;
+				}
 			}
 		}
 	}
-	if (!combinput || onlydata == 1)
+	if (isDepTierFound && ts == NULL) {
+		fprintf(stderr,"\n    No speaker tiers were specified.\n");
+		fprintf(stderr,"    Try add +o3 option and running command again.\n\n");
+	}
+	if (!combinput)
 		mlu_pr_result();
 }
 
 void getflag(char *f, char *f1, int *i) {
 	int j;
-	char *morf, *t;
+	char *morf, *t, *s;
 
 	f++;
 	switch(*f++) {
@@ -630,7 +741,7 @@ void getflag(char *f, char *f1, int *i) {
 				break;
 		case 'c':
 			if (!*f) {
-				fprintf(stderr,"Specify unit delemeters after +c option.\n");
+				fprintf(stderr,"Specify clause delemeters after +c option.\n");
 				ml_exit(0);
 			} 
 			if (*f == '@') {
@@ -685,6 +796,23 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 		case 's':
 			t = getfarg(f,f1,i);
+			s = t;
+			if (*s == '+' || *s == '~')
+				s++;
+			if (*s == '[' || *s == '<') {
+				s++;
+				if (*s == '+') {
+					for (s++; isSpace(*s); s++) ;
+					if ((*s     == 'm' || *s     == 'M') &&
+						(*(s+1) == 'l' || *(s+1) == 'L') &&
+						(*(s+2) == 'u' || *(s+2) == 'U') &&
+						(*(s+3) == 'e' || *(s+3) == 'E') &&
+						(*(s+4) == ']' || *(s+4) == '>' )) {
+						isMLUEpostcode = FALSE;
+						break;
+					}
+				}
+			}
 			j = strlen(t) - 3;
 			if (uS.mStricmp(t+j, "xxx") == 0) {
 				if (*(f-2) == '+')
@@ -704,7 +832,7 @@ void getflag(char *f, char *f1, int *i) {
 					ml_exit(0);
 				}
 				break;
-			} else if (uS.mStricmp(t+j, "yyy") == 0 || uS.mStricmp(t+j, "www") == 0) {
+			} else if (uS.mStricmp(t+j, "www") == 0) {
 				fprintf(stderr,"%s \"%s\" is not allowed.\n", ((*(f-2) == '+') ? "Including" : "Excluding"), f);
 				ml_exit(0);
 				break;
@@ -720,7 +848,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	isWinMode = IS_WIN_MODE;
 	CLAN_PROG_NUM = MLU;
 	chatmode = CHAT_MODE;
-	OnlydataLimit = 2;
+	OnlydataLimit = 3;
 	UttlineEqUtterance = FALSE;
 	bmain(argc,argv,mlu_pr_result);
 	ml_WdHead = freeIEWORDS(ml_WdHead);

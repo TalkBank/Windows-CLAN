@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -52,23 +52,23 @@ class cAtom {
 	int   UsedLength()	{ return Align4((int)m_WordLength) + sizeof_header_cAtom; }
 	int   WordLength()	{ return (int)m_WordLength; }
 
-	long  Property1() { return (long)m_Prop1; }
-	void  SetProperty1(long v) { m_Prop1 = (Int4)v; }
+	long32  Property1() { return (long32)m_Prop1; }
+	void  SetProperty1(long32 v) { m_Prop1 = (Int4)v; }
 
-	long  Property2() { return (long)m_Prop2; }
-	void  SetProperty2(long v) { m_Prop2 = (Int4)v; }
+	long32  Property2() { return (long32)m_Prop2; }
+	void  SetProperty2(long32 v) { m_Prop2 = (Int4)v; }
 
-	long  Property3() { return (long)m_Prop3; }
-	void  SetProperty3(long v) { m_Prop3 = (Int4)v; }
+	long32  Property3() { return (long32)m_Prop3; }
+	void  SetProperty3(long32 v) { m_Prop3 = (Int4)v; }
 
-	long NbOcc();
+	long32 NbOcc();
 //	void vmRead( address vadr, cAtom* mptr );
 };
 
 class cHashAtom : public cHashBasic {
 	int	type_key;	// 1 Int4 key, 0 char key
   public:
-	address Create( long sizeBB, int type=0 );
+	address Create( long32 sizeBB, int type=0 );
 	int Open( address vmadr, int type=0 );
 	address AddC( cAtom* a );  /* add one element (atom) */
 	address AddI( cAtom* a );  /* add one element (atom) */

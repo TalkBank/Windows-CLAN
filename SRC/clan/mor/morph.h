@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -34,10 +34,6 @@
 #ifndef FAIL
 #define FAIL  0
 #endif
-#ifndef nil
-#define nil NULL
-#endif
-
 
 /* error condition macros */
 #define ERROR_MOR(ERR,CODE,ST)		{\
@@ -94,7 +90,7 @@
 //#define DONT_ADD_NEXTSURF 2
 
 /* usefule typedefs */
-typedef int BOOL;
+#define BOOL int
 #define STRING char
 //typedef char STRING;
 typedef unsigned short FEATTYPE;
@@ -293,6 +289,7 @@ typedef struct drule {
 	STRING *name;
 } DRULE, *DRULE_PTR;
 
+extern int DEBUG_CLAN;
 extern FILE *debug_fp;
 extern STRING estr[];
 

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -109,7 +109,7 @@ int close_all()
 	return wksclose();
 }
 
-void local_abort ( long size, const char* funname )
+void local_abort ( long32 size, const char* funname )
 {
 	if (size==0) {
 	msg( "\nfatal error: %s\n", funname );

@@ -1,10 +1,11 @@
 /**********************************************************************
- "Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
 #define CHAT_MODE 1
 #include "cu.h"
+#include "c_curses.h"
 
 #if !defined(UNX)
 #define _main script_main
@@ -22,6 +23,8 @@ extern char outputOnlyData;
 extern char cutt_isCAFound;
 extern char cutt_isBlobFound;
 extern char isRecursive;
+extern char R5_1;
+extern char GExt[];
 extern struct tier *defheadtier;
 
 struct script_fname {
@@ -62,26 +65,41 @@ struct script_tnode {
 
 static int  targc;
 static char **targv;
-static char ftime, isSpeakerNameGiven, isRemoveRetracedCodes;
+static char ftime, isSpeakerNameGiven, isRemoveRetracedCodes, isMORFound, morTierSpecified;
 static int  maxIdealUttNum;
-static float ItmDur, tmDur, tmS;
+static float ItmDur;
 static FILE *scriptFP;
 static FILE *textFP;
-static struct script_fname *files_root;
-static script_tnode *words_root;
+static struct script_fname *script_files_root;
+static struct script_tnode *script_words_root;
 
 void usage() {
+#ifdef UNX
+	printf("SCRIPT NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.\n");
+	printf("TO RUN SCRIPT ON MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.\n");
+#else
+	printf("%c%cSCRIPT NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cTO RUN SCRIPT ON MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
 	printf("Usage: script [+e +s %s] filename(s)\n",mainflgs());
 	puts("+e : count error codes in retraces or repeats. (default: don't count)");
 	puts("+sF: specify template script file F");
 	mainusage(FALSE);
+#ifdef UNX
+	printf("SCRIPT NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.\n");
+	printf("TO RUN SCRIPT ON MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.\n");
+#else
+	printf("%c%cSCRIPT NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cTO RUN SCRIPT ON MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
 	puts("\nExample:");
 	puts("   Compare subjects data to ideal script \"eggs\" ....");
 	puts("       script +t*PAR +seggs.cut *.cha");
+	puts("       script +t*PAR +seggs.cut -t%mor *.cha");
 	cutt_exit(0);
 }
 
-static void script_freeFiles(struct script_fname *p) {
+static struct script_fname *script_freeFiles(struct script_fname *p) {
 	struct script_fname *t;
 
 	while (p) {
@@ -89,6 +107,7 @@ static void script_freeFiles(struct script_fname *p) {
 		p = p->nextFname;
 		free(t);
 	}
+	return(NULL);
 }
 
 static contextListS *freeWhat(contextListS *p) {
@@ -128,7 +147,7 @@ static void freeSpeakers(struct script_sp *p) {
 	}
 }
 
-static void script_freetree(struct script_tnode *p) {
+static struct script_tnode *script_freetree(struct script_tnode *p) {
 	if (p != NULL) {
 		script_freetree(p->left);
 		script_freetree(p->right);
@@ -142,15 +161,14 @@ static void script_freetree(struct script_tnode *p) {
 			free(p->POS);
 		free(p);
 	}
+	return(NULL);
 }
 
 static void script_overflow(char IsOutOfMem) {
 	if (IsOutOfMem)
 		fputs("ERROR: Out of memory.\n",stderr);
-	script_freeFiles(files_root);
-	files_root = NULL;
-	script_freetree(words_root);
-	words_root = NULL;
+	script_files_root = script_freeFiles(script_files_root);
+	script_words_root = script_freetree(script_words_root);
 	if (scriptFP != NULL)
 		fclose(scriptFP);
 	cutt_exit(0);
@@ -161,14 +179,15 @@ static struct script_fname *findFileP(char *fname) {
 
 	if ((p=NEW(struct script_fname)) == NULL)
 		script_overflow(TRUE);
+// ".xls"
 	if ((p->fname=(char *)malloc(strlen(fname)+1)) == NULL) {
 		free(p);
 		script_overflow(TRUE);
 	}
 	strcpy(p->fname, fname);
 	p->maxUttNum = 0;
-	p->nextFname = files_root;
-	files_root = p;
+	p->nextFname = script_files_root;
+	script_files_root = p;
 	return(p);
 }
 
@@ -274,9 +293,15 @@ static struct contextListS *script_AddContext(struct contextListS *contextRoot, 
 	return(contextRoot);
 }
 
-static struct contextListS *script_AddToList(struct contextListS *contextRoot, int count, char *context) {
+static struct contextListS *script_AddToList(struct contextListS *contextRoot, int count, char *context, char isCleanContext) {
+	int i;
 	struct contextListS *p;
 
+	if (isCleanContext) {
+		for (i=0; isSpace(context[i]) ||  context[i] == '-'; i++) ;
+		if (context[i] == EOS)
+			return(contextRoot);
+	}
 	if (contextRoot == NULL) {
 		if ((p=NEW(struct contextListS)) == NULL)
 			script_overflow(TRUE);
@@ -340,7 +365,7 @@ static struct script_sp *addSp(struct script_sp *root, struct script_fname *fnam
 	return(root);
 }
 
-static struct script_tnode *script_tree(script_tnode *p,char *w,char *m,script_fname *fnameP,int uttNum,char *context) {
+static struct script_tnode *script_tree(struct script_tnode *p,char *w,char *m,struct script_fname *fnameP,int uttNum,char *context) {
 	int cond;
 
 	if (p == NULL) {
@@ -379,19 +404,6 @@ static char isRightWord(char *word) {
 		word[0] == '+' || word[0] == '-' || word[0] == '!' || word[0] == '?' || word[0] == '.')
 		return(FALSE);
 	return(TRUE);
-}
-
-static void removeExtraSpaceFromTier(char *st) {
-	int i;
-
-	for (i=0; st[i] != EOS; ) {
-		if (st[i]==' ' || st[i]=='\t' || (st[i]=='<' && (i==0 || st[i-1]==' ' || st[i-1]=='\t'))) {
-			i++;
-			while (st[i] == ' ' || st[i] == '\t')
-				strcpy(st+i, st+i+1);
-		} else
-			i++;
-	}
 }
 
 static void script_filterscop(char *wline) {
@@ -447,13 +459,30 @@ static void CleanUpLine(char *st) {
 	}
 }
 
-static void script_process_tier(struct script_fname *fnameP, int uttNum) {
+/*
+static void extractReplaceContent(char *tword, char *word) {
+	int i, j;
+
+	j = 0;
+	for (i=0; tword[i] == '[' || tword[i] == ':' || tword[i] == ' ' || tword[i] == '\t'; i++) ;
+	word[0] = '\001';
+	for (j=1; tword[i] != ']' && tword[i] != EOS; j++) {
+		word[j] = tword[i++];
+	}
+	word[j] = EOS;
+	uS.remblanks(word);
+	if (strlen(word) == 1)
+		word[0] = EOS;
+}
+*/
+static void script_process_tier(struct script_fname *fnameP, int uttNum, float *ltmDur) {
 	int  i, wi;
 	char word[1024], tword[1024];
 	long stime, etime;
+	float tmB, tmE;
 
 	if (utterance->speaker[0] == '*') {
-		removeExtraSpaceFromTier(utterance->line);
+		removeExtraSpace(utterance->line);
 		if (uttNum <= 0) {
 			fprintf(stderr,"Internal error: uttNum <= 0.\n");
 			fprintf(stderr,"Quiting program.\n");
@@ -462,10 +491,11 @@ static void script_process_tier(struct script_fname *fnameP, int uttNum) {
 		for (i=0; utterance->line[i] != EOS; i++) {
 			if (utterance->line[i] == HIDEN_C && isdigit(utterance->line[i+1])) {
 				if (getMediaTagInfo(utterance->line+i, &stime, &etime)) {
-					if (tmS < 0.0)
-						tmS = (float)(stime / 1000);
-					tmDur = (float)(etime / 1000);
-					tmDur = tmDur - tmS;
+					tmB = (float)(stime);
+					tmB = tmB / 1000.0000;
+					tmE = (float)(etime);
+					tmE = tmE / 1000.000;
+					*ltmDur = *ltmDur + (tmE - tmB);
 				}
 			}
 		}
@@ -480,10 +510,11 @@ static void script_process_tier(struct script_fname *fnameP, int uttNum) {
 				dealWithDiscontinuousWord(word, i);
 				if (exclude(word) && isRightWord(word)) {
 					uS.remblanks(word);
-					words_root = script_tree(words_root, word, NULL, fnameP, uttNum, NULL);
+					script_words_root = script_tree(script_words_root, word, NULL, fnameP, uttNum, NULL);
 				}
 			}
 		}
+		strcpy(org_spName, utterance->speaker);
 		strcpy(org_spTier, utterance->line);
 		if (isRemoveRetracedCodes)
 			script_filterscop(spareTier1);
@@ -491,15 +522,27 @@ static void script_process_tier(struct script_fname *fnameP, int uttNum) {
 		while ((i=getword(utterance->speaker, spareTier1, word, &wi, i))) {
 			if (uS.isSqCodes(word, tword, &dFnt, FALSE)) {
 				if (!strncmp(tword, "[*", 2)) {
-					findWholeScope(wi, templineC4);
+					findWholeScope(utterance->line, wi, templineC4);
 					uS.remFrontAndBackBlanks(templineC4);
 					CleanUpLine(templineC4);
 					uS.remblanks(tword);
-					words_root = script_tree(words_root, tword, NULL, fnameP, uttNum, templineC4);
+					script_words_root = script_tree(script_words_root, tword, NULL, fnameP, uttNum, templineC4);
+				} else if (!strncmp(tword, "[: ", 3) || !strncmp(tword, "[::", 3)) {
+					findWholeScope(utterance->line, wi, templineC4);
+					uS.remFrontAndBackBlanks(templineC4);
+					CleanUpLine(templineC4);
+					uS.remblanks(tword);
+					script_words_root = script_tree(script_words_root, tword, NULL, fnameP, uttNum, templineC4);
+/*
+					extractReplaceContent(tword, word);
+					if (word[0] == '\001')
+						script_words_root = script_tree(script_words_root, word, NULL, fnameP, uttNum, NULL);
+*/
 				}
 			}
 		}
-	} else if (uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE)) {
+	} else if (!morTierSpecified && uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE)) {
+		isMORFound = TRUE;
 		if (uttNum <= 0) {
 			fprintf(stderr,"Internal error: uttNum <= 0.\n");
 			fprintf(stderr,"Quiting program.\n");
@@ -513,7 +556,7 @@ static void script_process_tier(struct script_fname *fnameP, int uttNum) {
 				if (exclude(word) && isRightWord(word)) {
 					uS.remblanks(word);
 					uS.remblanks(tword);
-					words_root = script_tree(words_root, tword, word, fnameP, uttNum, NULL);
+					script_words_root = script_tree(script_words_root, tword, word, fnameP, uttNum, NULL);
 				}
 			}
 		} else if (!R6) {
@@ -524,14 +567,14 @@ static void script_process_tier(struct script_fname *fnameP, int uttNum) {
 				dealWithDiscontinuousWord(word, i);
 				if (exclude(word) && isRightWord(word)) {
 					uS.remblanks(word);
-					words_root = script_tree(words_root, word, NULL, fnameP, uttNum, NULL);
+					script_words_root = script_tree(script_words_root, word, NULL, fnameP, uttNum, NULL);
 				}
 			}
 		}
 	}
 }
 
-static void totalNumWords(struct script_tnode *p, script_fname *fn, int *cnt) {
+static void totalNumWords(struct script_tnode *p, struct script_fname *fn, int *cnt) {
 	struct script_sp *sp;
 	struct script_utts *utt;
 
@@ -564,7 +607,7 @@ static void totalNumIdealWords(struct script_tnode *p, int *cnt) {
 	}
 }
 
-static void totalNumCorrectWords(struct script_tnode *p, script_fname *fn, int *cnt) {
+static void totalNumCorrectWords(struct script_tnode *p, struct script_fname *fn, int *cnt) {
 	int uttNum;
 	struct script_sp *sp;
 	struct script_utts *uttI, *utt;
@@ -601,7 +644,7 @@ static void totalNumCorrectWords(struct script_tnode *p, script_fname *fn, int *
 	}
 }
 
-static void totalNumOmittedWords(struct script_tnode *p, script_fname *fn, int *cnt) {
+static void totalNumOmittedWords(struct script_tnode *p, struct script_fname *fn, int *cnt) {
 	int  uttNum;
 	char isFound;
 	struct script_sp *sp;
@@ -641,7 +684,7 @@ static void totalNumOmittedWords(struct script_tnode *p, script_fname *fn, int *
 	}
 }
 
-static void totalNumAddedWords(struct script_tnode *p, script_fname *fn, int *cnt) {
+static void totalNumAddedWords(struct script_tnode *p, struct script_fname *fn, int *cnt) {
 	int  uttNum;
 	struct script_sp *sp;
 	struct script_utts *uttI, *utt;
@@ -678,7 +721,7 @@ static void totalNumAddedWords(struct script_tnode *p, script_fname *fn, int *cn
 	}
 }
 
-static void totalNumErrCode(struct script_tnode *p, script_fname *fn, const char *code, int *cnt) {
+static void totalNumErrCode(struct script_tnode *p, struct script_fname *fn, const char *code, int *cnt) {
 	int len;
 	struct script_sp *sp;
 	struct script_utts *utt;
@@ -701,7 +744,7 @@ static void totalNumErrCode(struct script_tnode *p, script_fname *fn, const char
 	}
 }
 
-static void totalNumXX(struct script_tnode *p, script_fname *fn, int *cnt) {
+static void totalNumXX(struct script_tnode *p, struct script_fname *fn, int *cnt) {
 	struct script_sp *sp;
 	struct script_utts *utt;
 
@@ -722,7 +765,7 @@ static void totalNumXX(struct script_tnode *p, script_fname *fn, int *cnt) {
 	}
 }
 
-static void totalNumXXX(struct script_tnode *p, script_fname *fn, int *cnt) {
+static void totalNumXXX(struct script_tnode *p, struct script_fname *fn, int *cnt) {
 	int  uttNum;
 	struct script_sp *sp;
 	struct script_utts *utt;
@@ -749,7 +792,7 @@ static void totalNumXXX(struct script_tnode *p, script_fname *fn, int *cnt) {
 	}
 }
 
-static void totalNum0s(struct script_tnode *p, script_fname *fn, int *cnt) {
+static void totalNum0s(struct script_tnode *p, struct script_fname *fn, int *cnt) {
 	struct script_sp *sp;
 	struct script_utts *utt;
 
@@ -770,7 +813,7 @@ static void totalNum0s(struct script_tnode *p, script_fname *fn, int *cnt) {
 	}
 }
 
-static struct contextListS *listOmittedWords(struct contextListS *root_list, struct script_tnode *p, script_fname *fn) {
+static struct contextListS *listOmittedWords(struct contextListS *root_list, struct script_tnode *p, struct script_fname *fn) {
 	int  uttNum;
 	char isFound;
 	struct script_sp *sp;
@@ -801,7 +844,7 @@ static struct contextListS *listOmittedWords(struct contextListS *root_list, str
 										strcat(templineC3, " - ");
 										strcat(templineC3, p->POS);
 									}
-									root_list = script_AddToList(root_list, uttI->cnt-utt->cnt, templineC3);
+									root_list = script_AddToList(root_list, uttI->cnt-utt->cnt, templineC3, TRUE);
 								}
 								isFound = TRUE;
 								break;
@@ -815,7 +858,7 @@ static struct contextListS *listOmittedWords(struct contextListS *root_list, str
 						strcat(templineC3, " - ");
 						strcat(templineC3, p->POS);
 					}
-					root_list = script_AddToList(root_list, uttI->cnt, templineC3);
+					root_list = script_AddToList(root_list, uttI->cnt, templineC3, TRUE);
 				}
 			}
 		}
@@ -823,7 +866,7 @@ static struct contextListS *listOmittedWords(struct contextListS *root_list, str
 	return(root_list);
 }
 
-static struct contextListS *listAddedWords(struct contextListS *root_list, struct script_tnode *p, script_fname *fn) {
+static struct contextListS *listAddedWords(struct contextListS *root_list, struct script_tnode *p, struct script_fname *fn) {
 	int  uttNum;
 	struct script_sp *sp;
 	struct script_utts *uttI, *utt;
@@ -852,7 +895,7 @@ static struct contextListS *listAddedWords(struct contextListS *root_list, struc
 										strcat(templineC3, " - ");
 										strcat(templineC3, p->POS);
 									}
-									root_list = script_AddToList(root_list, utt->cnt-uttI->cnt, templineC3);
+									root_list = script_AddToList(root_list, utt->cnt-uttI->cnt, templineC3, TRUE);
 								}
 							} else {
 								strcpy(templineC3, p->word);
@@ -860,7 +903,7 @@ static struct contextListS *listAddedWords(struct contextListS *root_list, struc
 									strcat(templineC3, " - ");
 									strcat(templineC3, p->POS);
 								}
-								root_list = script_AddToList(root_list, utt->cnt, templineC3);
+								root_list = script_AddToList(root_list, utt->cnt, templineC3, TRUE);
 							}
 							break;
 						}
@@ -872,7 +915,7 @@ static struct contextListS *listAddedWords(struct contextListS *root_list, struc
 	return(root_list);
 }
 
-static struct contextListS *listErrorCodes(struct contextListS *root_list, struct script_tnode *p, script_fname *fn) {
+static struct contextListS *listErrorCodes(struct contextListS *root_list, struct script_tnode *p, struct script_fname *fn) {
 	int cnt;
 	struct script_sp *sp;
 	struct script_utts *utt;
@@ -881,7 +924,7 @@ static struct contextListS *listErrorCodes(struct contextListS *root_list, struc
 	if (p != NULL) {
 		root_list = listErrorCodes(root_list, p->left, fn);
 		root_list = listErrorCodes(root_list, p->right, fn);
-		if (!p->isCode || p->word[0] != '[')
+		if (!p->isCode || (p->word[0] != '[' || p->word[1] != '*'))
 			return(root_list);
 		for (sp=p->sp_root; sp != NULL; sp=sp->nextSp) {
 			if (sp->fnameP == fn) {
@@ -889,12 +932,42 @@ static struct contextListS *listErrorCodes(struct contextListS *root_list, struc
 				for (utt=sp->spUtts; utt != NULL; utt=utt->nextUtt)
 					cnt = cnt + utt->cnt;
 				if (cnt > 1)
-					fprintf(textFP,"  %3d %s\n", cnt, p->word);
+					fprintf(textFP,"    %3d %s\n", cnt, p->word);
 				for (err=sp->contextRoot; err != NULL; err=err->nextContext) {
 					if (cnt > 1)
 						fprintf(textFP,"      %3d %s\n", err->count, err->context);
 					else
-						root_list = script_AddToList(root_list, err->count, err->context);
+						root_list = script_AddToList(root_list, err->count, err->context, FALSE);
+				}
+			}
+		}
+	}
+	return(root_list);
+}
+
+static struct contextListS *listReplacesCodes(struct contextListS *root_list, struct script_tnode *p, struct script_fname *fn) {
+	int cnt;
+	struct script_sp *sp;
+	struct script_utts *utt;
+	struct contextListS *err;
+
+	if (p != NULL) {
+		root_list = listReplacesCodes(root_list, p->left, fn);
+		root_list = listReplacesCodes(root_list, p->right, fn);
+		if (!p->isCode || (p->word[0] != '[' || p->word[1] != ':'))
+			return(root_list);
+		for (sp=p->sp_root; sp != NULL; sp=sp->nextSp) {
+			if (sp->fnameP == fn) {
+				cnt = 0;
+				for (utt=sp->spUtts; utt != NULL; utt=utt->nextUtt)
+					cnt = cnt + utt->cnt;
+				if (cnt > 1)
+					fprintf(textFP,"    %3d %s\n", cnt, p->word);
+				for (err=sp->contextRoot; err != NULL; err=err->nextContext) {
+					if (cnt > 1)
+						fprintf(textFP,"      %3d %s\n", err->count, err->context);
+					else
+						root_list = script_AddToList(root_list, err->count, err->context, FALSE);
 				}
 			}
 		}
@@ -911,125 +984,180 @@ static void printList(struct contextListS *root_list) {
 }
 
 static void script_pr_result(void) {
-	int cnt, iWds, rerr, unerr;
+	int cnt, iWds, rerr, unerr, dcolCnt;
 	char  st[1024];
 	float wpm, tfloat;
 	struct script_fname *fn;
 	struct contextListS *root_list;
 
-	fprintf(fpout, "File name\tIdeal TIMDUR\tTIMDUR\t# wds produced\t# wds per minute\t");
-	fprintf(fpout, "# wds ideal\t# wds correct\t%% wds correct\t# wds omitted\t");
-	fprintf(fpout, "%% wds omitted\t# wds added\t# recog errors\t# unrecog errors\t");
-	fprintf(fpout, "# utts with xxx\t# utts with 0\n");
-	for (fn=files_root; fn != NULL; fn=fn->nextFname) {
-		fprintf(fpout, "%s", fn->fname);
-		Secs2Str(ItmDur, st);
-		fprintf(fpout,"\t%s", st);
-		Secs2Str(fn->tmDur, st);
-		fprintf(fpout,"\t%s", st);
+	excelHeader(fpout, newfname, 75);
+	excelRow(fpout, ExcelRowStart);
+	excelCommasStrCell(fpout, "File name,Ideal TIMDUR,TIMDUR,# wds produced,# wds per minute,");
+	excelCommasStrCell(fpout, "# wds ideal,# wds correct,% wds correct,# wds omitted,");
+	excelCommasStrCell(fpout, "% wds omitted,# wds added,");
+	excelCommasStrCell(fpout, "# wds [: ],% wds [: ],# wds [:: ],% wds [:: ],");
+	excelCommasStrCell(fpout, "# recog errors,# unrecog errors,");
+	excelCommasStrCell(fpout, "# utts with xxx,# utts with 0\n");
+	excelRow(fpout, ExcelRowEnd);
+	for (fn=script_files_root; fn != NULL; fn=fn->nextFname) {
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, fn->fname);
+		Secs2Str(ItmDur, st, FALSE);
+		excelStrCell(fpout, st);
+		Secs2Str(fn->tmDur, st, FALSE);
+		excelStrCell(fpout, st);
 		cnt = 0;
-		totalNumWords(words_root, fn, &cnt);
-		fprintf(fpout, "\t%d", cnt);
+		totalNumWords(script_words_root, fn, &cnt);
 		wpm = (float)cnt;
-		wpm = wpm / (fn->tmDur / 60.0000);
-		fprintf(fpout, "\t%.4f", wpm);
+		excelNumCell(fpout, "%.0f", wpm);
+		if (fn->tmDur <= 0)
+			excelStrCell(fpout, "NA");
+		else {
+			wpm = wpm / (fn->tmDur / 60.0000);
+			excelNumCell(fpout, "%.4f", wpm);
+		}
+
 		iWds = 0;
-		totalNumIdealWords(words_root, &iWds);
-		fprintf(fpout, "\t%d", iWds);
+		totalNumIdealWords(script_words_root, &iWds);
+		excelLongNumCell(fpout, "%ld", iWds);
+
+		dcolCnt = 0;
+		totalNumErrCode(script_words_root, fn, "[::", &dcolCnt);
+
 		cnt = 0;
-		totalNumCorrectWords(words_root, fn, &cnt);
-		fprintf(fpout, "\t%d", cnt);
+		totalNumCorrectWords(script_words_root, fn, &cnt);
+		cnt = cnt - dcolCnt;
+		excelLongNumCell(fpout, "%ld", cnt);
 		wpm = (float)cnt;
-		tfloat = iWds;
-		wpm = wpm * 100.0000 / tfloat;
-		fprintf(fpout, "\t%.0f", wpm);
+		if (iWds <= 0)
+			excelStrCell(fpout, "NA");
+		else {
+			tfloat = iWds;
+			wpm = wpm * 100.0000 / tfloat;
+			excelNumCell(fpout, "%.0f", wpm);
+		}
+
 		cnt = 0;
-		totalNumOmittedWords(words_root, fn, &cnt);
-		fprintf(fpout, "\t%d", cnt);
+		totalNumOmittedWords(script_words_root, fn, &cnt);
 		wpm = (float)cnt;
-		tfloat = iWds;
-		wpm = wpm * 100.0000 / tfloat;
-		fprintf(fpout, "\t%.0f", wpm);
+		excelNumCell(fpout, "%.0f", wpm);
+		if (iWds <= 0)
+			excelStrCell(fpout, "NA");
+		else {
+			tfloat = iWds;
+			wpm = wpm * 100.0000 / tfloat;
+			excelNumCell(fpout, "%.0f", wpm);
+		}
 		cnt = 0;
-		totalNumAddedWords(words_root, fn, &cnt);
-		fprintf(fpout, "\t%d", cnt);
+		totalNumAddedWords(script_words_root, fn, &cnt);
+		excelLongNumCell(fpout, "%ld", cnt);
+
+		cnt = 0;
+		totalNumErrCode(script_words_root, fn, "[: ", &cnt);
+		wpm = (float)cnt;
+		excelNumCell(fpout, "%.0f", wpm);
+		if (iWds <= 0)
+			excelStrCell(fpout, "NA");
+		else {
+			tfloat = iWds;
+			wpm = wpm * 100.0000 / tfloat;
+			excelNumCell(fpout, "%.0f", wpm);
+		}
+
+		wpm = (float)dcolCnt;
+		excelNumCell(fpout, "%.0f", wpm);
+		if (iWds <= 0)
+			excelStrCell(fpout, "NA");
+		else {
+			tfloat = iWds;
+			wpm = wpm * 100.0000 / tfloat;
+			excelNumCell(fpout, "%.0f", wpm);
+		}
+
 		unerr = 0;
 		cnt = 0;
-		totalNumErrCode(words_root, fn, "[* s:uk", &cnt);
+		totalNumErrCode(script_words_root, fn, "[* s:uk", &cnt);
 		unerr += cnt;
 		cnt = 0;	
-		totalNumErrCode(words_root, fn, "[* n:uk", &cnt);
+		totalNumErrCode(script_words_root, fn, "[* n:uk", &cnt);
 		unerr += cnt;
 		cnt = 0;
-		totalNumErrCode(words_root, fn, "[*", &cnt);
+		totalNumErrCode(script_words_root, fn, "[*", &cnt);
 		rerr = cnt - unerr;
 		if (rerr < 0)
 			rerr = 0;
 		cnt = 0;	
-		totalNumXX(words_root, fn, &cnt);
+		totalNumXX(script_words_root, fn, &cnt);
 		unerr += cnt;
-		fprintf(fpout, "\t%d", rerr);
-		fprintf(fpout, "\t%d", unerr);
+		excelLongNumCell(fpout, "%ld", rerr);
+		excelLongNumCell(fpout, "%ld", unerr);
 		cnt = 0;
-		totalNumXXX(words_root, fn, &cnt);
-		fprintf(fpout, "\t%d", cnt);
+		totalNumXXX(script_words_root, fn, &cnt);
+		excelLongNumCell(fpout, "%ld", cnt);
 		cnt = 0;
-		totalNum0s(words_root, fn, &cnt);
-		fprintf(fpout, "\t%d", cnt);
-		fputc('\n', fpout);
+		totalNum0s(script_words_root, fn, &cnt);
+		excelLongNumCell(fpout, "%ld", cnt);
+		excelRow(fpout, ExcelRowEnd);
 		if (textFP != NULL) {
 			fprintf(textFP, "**** From file: %s\n", fn->fname);
 
 			fprintf(textFP, "  List of omitted words:\n");
 			root_list = NULL;
-			root_list = listOmittedWords(root_list, words_root, fn);
+			root_list = listOmittedWords(root_list, script_words_root, fn);
 			printList(root_list);
 			root_list = freeWhat(root_list);
 
 			fprintf(textFP, "\n  List of added words:\n");
 			root_list = NULL;
-			root_list = listAddedWords(root_list, words_root, fn);
+			root_list = listAddedWords(root_list, script_words_root, fn);
 			printList(root_list);
 			root_list = freeWhat(root_list);
 
 			fprintf(textFP, "\n  List of errors:\n");
 			root_list = NULL;
-			root_list = listErrorCodes(root_list, words_root, fn);
+			root_list = listErrorCodes(root_list, script_words_root, fn);
+			printList(root_list);
+			root_list = freeWhat(root_list);
+
+			fprintf(textFP, "\n  List of replacements:\n");
+			root_list = NULL;
+			root_list = listReplacesCodes(root_list, script_words_root, fn);
 			printList(root_list);
 			root_list = freeWhat(root_list);
 
 			fprintf(textFP, "\n");
 		}
 	}
-	fprintf(fpout, "\n");
+	excelFooter(fpout);
 //	printArg(targv, targc, fpout, FALSE, "");
-	script_freeFiles(files_root);
-	files_root = NULL;
-	script_freetree(words_root);
-	words_root = NULL;
+	script_files_root = script_freeFiles(script_files_root);
+	script_words_root = script_freetree(script_words_root);
 }
 
 void call() {
 	int  uttNum;
 	char lRightspeaker, tLinkMain2Mor;
+	float ltmDur;
 	struct script_fname *fnameP;
-	extern char GExt[];
 
+	isMORFound = FALSE;
 	if (textFP == NULL) {
 		AddCEXExtension = ".cex";
 		parsfname(oldfname, FileName2, GExt);
 		if ((textFP=openwfile(oldfname, FileName2, NULL)) == NULL) {
-			fprintf(stderr,"Can't create file \"%s\", perhaps it is opened by another application\n", FileName1);
+			fprintf(stderr,"Can't create file \"%s\", perhaps it is opened by another application\n", FileName2);
 			script_overflow(FALSE);
 		}
 	}
 	fnameP = findFileP(oldfname);
 	uttNum = 0;
-	tmS = 0.0;
-	tmDur = 0.0;
+	ltmDur = 0.0;
 	lRightspeaker = FALSE;
 	tLinkMain2Mor = linkMain2Mor;
-	linkMain2Mor = TRUE;
+	if (R6 || morTierSpecified)
+		linkMain2Mor = FALSE;
+	else
+		linkMain2Mor = TRUE;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
@@ -1039,38 +1167,56 @@ void call() {
 			continue;
 		} else {
 			if (*utterance->speaker == '*') {
-				uttNum++;
-				lRightspeaker = TRUE;
+				if (isPostCodeOnUtt(utterance->line, "[+ exc]"))
+					lRightspeaker = FALSE;
+				else {
+					uttNum++;
+					lRightspeaker = TRUE;
+				}
 			}
 			if (!lRightspeaker && *utterance->speaker != '@')
 				continue;
 		}
 		if (uS.partcmp(utterance->speaker,"@Time Duration:",FALSE,FALSE)) {
 			uS.remFrontAndBackBlanks(utterance->line);
-			tmDur = tmDur + getTimeDuration(utterance->line);
+			ltmDur = ltmDur + getTimeDuration(utterance->line);
 		} else
-			script_process_tier(fnameP, uttNum);
+			script_process_tier(fnameP, uttNum, &ltmDur);
 	}
 	linkMain2Mor = tLinkMain2Mor;
-	fnameP->tmDur = tmDur;
+	fnameP->tmDur = ltmDur;
 	fnameP->maxUttNum = uttNum;
 	if (!combinput)
 		script_pr_result();
+	if (!isMORFound && !R6 && !morTierSpecified) {
+#ifdef UNX
+		fprintf(stderr, "\n        WARNING: No \"%%mor:\" tier found in file \"%s\"\n", oldfname);
+		fprintf(stderr, "SCRIPT NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.\n");
+		fprintf(stderr, "TO RUN SCRIPT ON MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.\n\n");
+#else
+		fprintf(stderr, "\n        %c%cWARNING: No \"%%mor:\" tier found in file \"%s\"%c%c\n", ATTMARKER, error_start, oldfname, ATTMARKER, error_start);
+		fprintf(stderr, "%c%cSCRIPT NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+		fprintf(stderr, "%c%cTO RUN SCRIPT ON MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
+	}
 }
 
 static void readTemplateFile(void) {
 	int  uttNum;
 	char tLinkMain2Mor;
+	float ltmDur;
 	FILE *tfpin;
 
+	isMORFound = FALSE;
 	tLinkMain2Mor = linkMain2Mor;
-	linkMain2Mor = TRUE;
+	if (R6 || morTierSpecified)
+		linkMain2Mor = FALSE;
+	else
+		linkMain2Mor = TRUE;
 	tfpin = fpin;
 	fpin = scriptFP;
 	uttNum = 0;
-	tmS = 0.0;
-	tmDur = 0.0;
-	ItmDur = 0.0;
+	ltmDur = 0.0;
 	maxIdealUttNum = 0;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
@@ -1079,11 +1225,22 @@ static void readTemplateFile(void) {
 			uttNum++;
 		if (uS.partcmp(utterance->speaker,"@Time Duration:",FALSE,FALSE)) {
 			uS.remFrontAndBackBlanks(utterance->line);
-			tmDur = tmDur + getTimeDuration(utterance->line);
+			ltmDur = ltmDur + getTimeDuration(utterance->line);
 		} else
-			script_process_tier(NULL, uttNum);
+			script_process_tier(NULL, uttNum, &ltmDur);
 	}
-	ItmDur = tmDur;
+	if (!isMORFound && !R6 && !morTierSpecified) {
+#ifdef UNX
+		fprintf(stderr, "\n        WARNING: No \"%%mor:\" tier found in template file\n");
+		fprintf(stderr, "SCRIPT NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.\n");
+		fprintf(stderr, "TO RUN SCRIPT ON MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.\n\n");
+#else
+		fprintf(stderr, "\n        %c%cWARNING: No \"%%mor:\" tier found in template file%c%c\n", ATTMARKER, error_start, ATTMARKER, error_start);
+		fprintf(stderr, "%c%cSCRIPT NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+		fprintf(stderr, "%c%cTO RUN SCRIPT ON MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
+	}
+	ItmDur = ltmDur;
 	maxIdealUttNum = uttNum;
 	fpin = tfpin;
 	linkMain2Mor = tLinkMain2Mor;
@@ -1098,6 +1255,7 @@ void init(char first) {
 		FilterTier = 1;
 		LocalTierSelect = TRUE;
 		AddCEXExtension = ".xls";
+		R5_1 = TRUE;
 		if (defheadtier != NULL) {
 			if (defheadtier->nexttier != NULL)
 				free(defheadtier->nexttier);
@@ -1114,26 +1272,25 @@ void init(char first) {
 		addword('\0','\0',"+-*");
 		addword('\0','\0',"+#*");
 		addword('\0','\0',"+(*.*)");
-		addword('\0','\0',"+<\">");
 		mor_initwords();
 // defined in "mmaininit" and "globinit" - nomap = TRUE;
 		isSpeakerNameGiven = FALSE;
 		isRemoveRetracedCodes = TRUE;
-		words_root = NULL;
-		files_root = NULL;
+		script_words_root = NULL;
+		script_files_root = NULL;
 		textFP = NULL;
 		scriptFP = NULL;
 		textFP = NULL;
-		tmS = 0.0;
-		tmDur = 0.0;
 		ItmDur = 0.0;
 		maxIdealUttNum = 0;
+		isMORFound = FALSE;
+		morTierSpecified = FALSE;
 	} else {
 		AddCEXExtension = ".xls";
 		if (ftime) {
 			ftime = FALSE;
 			if (!isSpeakerNameGiven) {
-				fprintf(stderr,"Please specify speaker's tier code with \"+t\" option on command line.\n");
+				fprintf(stderr,"Please specify at least one speaker tier code with \"+t\" option on command line.\n");
 				script_overflow(FALSE);
 			}
 			if (scriptFP == NULL) {
@@ -1163,10 +1320,8 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	OnlydataLimit = 0;
 	UttlineEqUtterance = FALSE;
 	bmain(argc,argv,script_pr_result);
-	script_freeFiles(files_root);
-	files_root = NULL;
-	script_freetree(words_root);
-	words_root = NULL;
+	script_files_root = script_freeFiles(script_files_root);
+	script_words_root = script_freetree(script_words_root);
 	if (scriptFP != NULL)
 		fclose(scriptFP);
 	if (textFP != NULL) {
@@ -1192,13 +1347,17 @@ void getflag(char *f, char *f1, int *i) {
 					fprintf(stderr,"ERROR: Can't open script file: %s\n", FileName1);
 					script_overflow(FALSE);
 				}
-				fprintf(stderr,"Database File: %s\n", FileName1);
+				fprintf(stderr,"    Database File: %s\n\n", FileName1);
 			}
 			break;
 		case 't':
-			if (*(f-2) == '+')
-				isSpeakerNameGiven = TRUE;
-			maingetflag(f-2,f1,i);
+			if (*(f-2) == '-' && (!uS.mStricmp(f, "%mor") || !uS.mStricmp(f, "%mor:")))
+				morTierSpecified = TRUE;
+			else {
+				if (*(f-2) == '+' && *f != '@' && *f != '%')
+					isSpeakerNameGiven = TRUE;
+				maingetflag(f-2,f1,i);
+			}
 			break;
 		default:
 			maingetflag(f-2,f1,i);

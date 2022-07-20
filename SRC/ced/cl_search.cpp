@@ -9,13 +9,10 @@ SearchPresets presets[] = {
 		"n,n:*", "", "", "", "", "", false} ,
 
 	{"all verbs only", true, false,
-		"v,cop,aux,aux:*,part", "", "", "", "", "", false} ,
+		"v,cop,aux,aux:*,mod,mod:*,part", "", "", "", "", "", false} ,
 
 	{"all modal words", true, false,
-		"aux", "will,shall,can,may,must,should,could", "", "", "", "", false} ,
-
-	{"all \"Wh\" (*:wh) words", true, false,
-		"*:wh", "", "", "", "", "", false} ,
+		"mod,mod:aux", "", "", "", "", "", false} ,
 
 	{"all suffixes merged", true, false,
 		"", "", "", "*", "|*", "", true} ,
@@ -29,14 +26,20 @@ SearchPresets presets[] = {
 	{"all noun stems merged", true, false,
 		"n:*,n", "*", "", "", "", "", true} ,
 
-	{"all noun stems and affix merged", true, false,
-		"n:*,n", "*", "+*", "", "", "", true} ,
+	{"all plural noun stems merged", true, false,
+		"n:*,n", "*", "", "PL", "", "", true} ,
+
+	{"all noun stems and suffixes merged", true, false,
+		"n:*,n", "*", "", "+*", "+*", "", true} ,
 
 	{"all verb stems merged", true, false,
-		"v,cop,aux,aux:*,part", "*", "", "", "", "", true} ,
+		"v,cop,aux,aux:*,mod,mod:*,part", "*", "", "", "", "", true} ,
 
 	{"all past tense verbs merged", true, false,
-		"v,cop,aux,aux:*,part", "*", "", "PAST", "", "", true} ,
+		"v,cop,aux,aux:*,mod,mod:*,part", "*", "", "PAST", "", "", true} ,
+
+	{"all irregular past tense verbs merged", true, false,
+		"v,cop,aux,aux:*,mod,mod:*,part", "*", "", "", "PAST", "", true} ,
 
 	{"all \"adv\" stems merged", true, false,
 		"adv,adv:*", "*", "", "", "", "", true} ,

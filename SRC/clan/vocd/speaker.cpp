@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -25,6 +25,9 @@
 #include "vocdefs.h"
 #include "speaker.h"
 #include "tokens.h"
+
+extern char isLanguageExplicit;
+
 
 /* 
  * speaker_linecount
@@ -200,14 +203,19 @@ void speaker_fprint_speaker( FILE *ofp, VOCDSP *speaker )
  		if (pt[len] == ']') {
  			if (len > 0 && (pt[len-1] == ' ' || pt[len-1] == '\t'))
  				strcpy(pt+len-1, pt+len);
- 		} else if (pt[len] == HIDEN_C) {
- 			len2 = len;
- 			for (len--; len >= 0 && pt[len] != HIDEN_C; len--) ;
- 			if (len < 0)
- 				len = len2;
- 			else
- 				strcpy(pt+len, pt+len2+1);
- 		}
+		} else if (pt[len] == HIDEN_C) {
+			len2 = len;
+			for (len--; len >= 0 && pt[len] != HIDEN_C; len--) ;
+			if (len < 0)
+				len = len2;
+			else
+				strcpy(pt+len, pt+len2+1);
+		} else if (pt[len] == '@' && pt[len+1] == 's' && pt[len+2] == ':' && isLanguageExplicit == 1) {
+			len2 = len;
+			for (; !uS.isskip(pt, len2, &dFnt, MBF) && pt[len2] != EOS; len2++) ;
+			if (len < len2)
+				strcpy(pt+len, pt+len2);
+		}
  	}
  }
  
@@ -301,7 +309,7 @@ int speaker_append_to_line ( VOCDSP * speaker, char *pt )
  * Add a speaker to the speaker list.
  *
  */
-VOCDSP *speaker_add_speaker(VOCDSPs ** s, char *name, char *IDs, char isTemp, char isUsed)
+VOCDSP *speaker_add_speaker(VOCDSPs ** s, char *name, char *fname, char *IDs, char isTemp, char isUsed)
 {
 	VOCDSPs *newS;
 	VOCDSPs *speakers;
@@ -357,11 +365,25 @@ VOCDSP *speaker_add_speaker(VOCDSPs ** s, char *name, char *IDs, char isTemp, ch
 		speakers = newS;
 	}
 	speakers->speaker->isUsed = isUsed;
+	if (fname == NULL)
+		speakers->speaker->fname = NULL;
+	else {
+		speakers->speaker->fname = (char *)malloc(strlen(fname)+1);
+		if (speakers->speaker->fname == NULL) {
+			free(newS->speaker);
+			free(newS);
+			fprintf(stderr, "speaker_add_speaker: no memory\n");
+			return NULL;
+		}
+		strcpy(speakers->speaker->fname, fname);
+	}
 	if (IDs == NULL)
 		speakers->speaker->IDs = NULL;
 	else {
 		speakers->speaker->IDs = (char *)malloc(strlen(IDs)+1);
 		if (speakers->speaker->IDs == NULL) {
+			if (newS->speaker->fname != NULL)
+				free(newS->speaker->fname);
 			free(newS->speaker);
 			free(newS);
 			fprintf(stderr, "speaker_add_speaker: no memory\n");
@@ -371,6 +393,8 @@ VOCDSP *speaker_add_speaker(VOCDSPs ** s, char *name, char *IDs, char isTemp, ch
 	}
 	speakers->speaker->code = (char *)malloc(strlen(name)+1);
 	if (speakers->speaker->code == NULL) {
+		if (newS->speaker->fname != NULL)
+			free(newS->speaker->fname);
 		if (newS->speaker->IDs != NULL)
 			free(newS->speaker->IDs);
 		free(newS->speaker);
@@ -458,6 +482,8 @@ VOCDSPs *speaker_free_up_speakers (VOCDSPs *rp, char isAll)
 				lpt = lpt->nextline;
 				speaker_free_line(tmp_line);
 			}
+			if (t->speaker->fname != NULL)
+				free(t->speaker->fname);
 			if (t->speaker->IDs != NULL)
 				free(t->speaker->IDs);
 			if (t->speaker->code != NULL)
@@ -488,6 +514,8 @@ VOCDSPs *speaker_free_up_speakers (VOCDSPs *rp, char isAll)
 				lpt = lpt->nextline;
 				speaker_free_line(tmp_line);
 			}
+			if (t->speaker->fname != NULL)
+				free(t->speaker->fname);
 			if (t->speaker->IDs != NULL)
 				free(t->speaker->IDs);
 			if (t->speaker->code != NULL)

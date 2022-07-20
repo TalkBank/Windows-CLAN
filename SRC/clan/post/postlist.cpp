@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -30,7 +30,7 @@
 	void getflag(char *f, char *f1, int *i) { }
 	void call( ) { }
 
-#elif UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#elif defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 	#define CLAN_MAIN_RETURN int
 	#define main_return return(0);
 #else
@@ -105,7 +105,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 					break;
 				case 'd' :
 					if (argv[i][2] != EOS) {
-#if UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#if defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 						strcpy(database_name, argv[i]+2);
 #else
 						uS.str2FNType(database_name, 0L, argv[i]+2);

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -100,8 +100,7 @@ static void copyStem2comp(char *comp, char *surface, char *stem) {
 /* parse entry into surface and cat(s) */
 /* apply allo rules to each surface cat combo */
 int
-process_lex_entry(STRING *entry, char isComp) {
-	extern int DEBUG_CLAN;
+process_lex_entry(STRING *entry, char isComp, FNType *fname, long ln) {
 	extern long rt_entry_ctr;
 	extern char DEBUGWORD;
 	extern RESULT_REC *result_list;
@@ -115,11 +114,21 @@ process_lex_entry(STRING *entry, char isComp) {
 	CAT_COND_PTR cur_cond;
 	FEATTYPE cat_comp[MAXCAT];
 	char *e_ptr;
-	int num_allos, i, j;
+	int num_allos = 0, i, j;
 
 	e_ptr = entry;
 //  e_ptr = get_word(e_ptr,surface);
+	if (e_ptr == NULL) {
+		fprintf(stderr,"\n\n*** File \"%s\": line %ld.\n", fname, ln);
+		fprintf(stderr, "lex-entry error: bad entry specified: %s\n", entry);
+		return(-1);
+	}
 	e_ptr = get_lex_word(e_ptr,surface);
+	if (e_ptr == NULL) {
+		fprintf(stderr,"\n\n*** File \"%s\": line %ld.\n", fname, ln);
+		fprintf(stderr, "lex-entry error: bad entry specified: %s\n", entry);
+		return(-1);
+	}
 	e_ptr = skip_blanks(e_ptr);
 	if (DEBUGWORD) {
 		if (wdptr == NULL || exclude(surface))
@@ -135,7 +144,8 @@ process_lex_entry(STRING *entry, char isComp) {
 		comp[0] = EOS;
 		e_ptr = get_cat(e_ptr,cat);
 		if (e_ptr == NULL) {
-			fprintf(stderr, "\nlex-entry error: bad category specification for entry: %s\n", surface);
+			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", fname, ln);
+			fprintf(stderr, "lex-entry error: bad category specification for entry: %s\n", surface);
 //			fprintf(stderr, "Plase make sure that entries appear in this order {[ ]} \" \" = =:\n\t%s\n\n", entry);
 			return(-1);
 		}
@@ -157,7 +167,8 @@ process_lex_entry(STRING *entry, char isComp) {
 		}
 		if (isComp) {
 			if (stem[0] != EOS && strchr(stem,'+') == NULL) {
-				fprintf(stderr, "\n\n Warning: Item \"%s\" doesn't have compound symbol \"+\" for entry:\n", stem);
+				fprintf(stderr,"\n\n*** File \"%s\": line %ld.\n", fname, ln);
+				fprintf(stderr, "Warning: Item \"%s\" doesn't have compound symbol \"+\" for entry:\n", stem);
 				fprintf(stderr, "%s\n\n", entry);
 			}
 			copyStem2comp(comp, surface, stem);
@@ -167,7 +178,8 @@ process_lex_entry(STRING *entry, char isComp) {
 		}
 		if (fs_comp(cat,cat_comp) == FAIL){  /* convert cat to internal rep */
 			fprintf(stderr,"\n");
-			fprintf(stderr, "\nlex-entry error: bad category specification for entry: %s\n\n", surface);
+			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", fname, ln);
+			fprintf(stderr, "lex-entry error: bad category specification for entry: %s\n\n", surface);
 			return(-1);
 		}
 		/* apply allo rules, stick words in lexicon */
@@ -317,47 +329,47 @@ enter_word(const STRING *word, FEATTYPE *entry, const STRING *stem, const STRING
 /* returns array index */
 int
 find_letter(TRIE_PTR cur_node, int letter) {
-  int i;
-  for (i = 0; i < cur_node->num_letters; i++) {
-    if (cur_node->letters[i].letter == letter)
-      return(i);
-  }
-  return(-1);
+	int i;
+	for (i = 0; i < cur_node->num_letters; i++) {
+		if (cur_node->letters[i].letter == letter)
+			return(i);
+	}
+	return(-1);
 }
 
 /* add_letter:  adds letter to letter array */
 /* returns index of new entry */
 int
 add_letter(TRIE_PTR cur_node, int letter) {
-  extern long letter_ctr;   /* number of letter nodes */
-  int i;
-  LETTER_PTR new_list;
-  
-  cur_node->num_letters = (cur_node->num_letters) + 1;
-  letter_ctr++;
-  
-  new_list = (LETTER_REC *)malloc((size_t)(cur_node->num_letters*(size_t)sizeof(LETTER_REC)));
-  mem_ctr++;
-  if (new_list != NULL) {
-    for (i = 0; i < (cur_node->num_letters)-1; i++){
-      new_list[i].letter = cur_node->letters[i].letter;
-      new_list[i].t_node = cur_node->letters[i].t_node;
-    }
+	extern long letter_ctr;   /* number of letter nodes */
+	int i;
+	LETTER_PTR new_list;
 
-    new_list[i].letter  = letter;
-    if ((new_list[i].t_node = m_trie_node()) == NULL){
-      mor_mem_error(-2,"can't malloc enough space for lexicon, quitting");
-    }
-  }
-  else {
-    mor_mem_error(-2,"can't malloc enough space for lexicon, quitting");
-  }
-  if (cur_node->letters){
-    free(cur_node->letters);
-//    mem_ctr--;
-  }
-  cur_node->letters = new_list;
-  return(i);
+	cur_node->num_letters = (cur_node->num_letters) + 1;
+	letter_ctr++;
+
+	new_list = (LETTER_REC *)malloc((size_t)(cur_node->num_letters*(size_t)sizeof(LETTER_REC)));
+	mem_ctr++;
+	if (new_list != NULL) {
+		for (i=0; i < (cur_node->num_letters)-1; i++){
+			new_list[i].letter = cur_node->letters[i].letter;
+			new_list[i].t_node = cur_node->letters[i].t_node;
+		}
+
+		new_list[i].letter  = letter;
+		if ((new_list[i].t_node = m_trie_node()) == NULL){
+			mor_mem_error(-2,"can't malloc enough space for lexicon, quitting");
+		}
+	} else {
+		i = 0;
+		mor_mem_error(-2,"can't malloc enough space for lexicon, quitting");
+	}
+	if (cur_node->letters){
+		free(cur_node->letters);
+		//    mem_ctr--;
+	}
+	cur_node->letters = new_list;
+	return(i);
 }
 
 void delete_entry(TRIE_PTR node, FEATTYPE *entry) {
@@ -613,9 +625,11 @@ m_entry_node(FEATTYPE *entry, const STRING *stem, const STRING *trans, const STR
 
 #define NUMLETT 35
 /* free_entries:  free up space allocated for lexical entries */
-void free_entries(ELIST_PTR entry_list) {
-	if (entry_list->next_elist != NULL) free_entries(entry_list->next_elist);
-	if (entry_list->entry != NULL) free(entry_list->entry);
+ELIST_PTR free_entries(ELIST_PTR entry_list) {
+	if (entry_list->next_elist != NULL)
+		entry_list->next_elist = free_entries(entry_list->next_elist);
+	if (entry_list->entry != NULL)
+		free(entry_list->entry);
 	mem_ctr--;
 	if (entry_list->stem){
 		free(entry_list->stem);
@@ -631,6 +645,7 @@ void free_entries(ELIST_PTR entry_list) {
 	}
 	free(entry_list);
 	mem_ctr--;
+	return(NULL);
 }		  
 
 /* free_trie:  free up space allocated for letter trie */
@@ -638,7 +653,8 @@ void free_trie(TRIE_PTR root) {
 	int i;
 
 	if (root != NULL){
-		if (root->entries != NULL) free_entries(root->entries);
+		if (root->entries != NULL)
+			root->entries = free_entries(root->entries);
 		for (i = 0; i < root->num_letters; i++){
 			free_trie(root->letters[i].t_node);
 		}

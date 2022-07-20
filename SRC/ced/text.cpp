@@ -1,16 +1,16 @@
 #include "ced.h"
+#include "prefs.h"
+#include "cu.h"
 #include "c_clan.h"
 #include "my_ctype.h"
 #include "MMedia.h"
+
+extern void RecompEdWinSize(void);
 
 typedef union WCHARUMASK {
 	short num;
 	unsigned char c[2];
 } WCHARUMASK;
-
-#if defined(_MAC_CODE) || defined(_WIN32)
-void RecompEdWinSize(void);
-#endif
 
 static void AddCharAfter(unCH c);
 static void AddRowAfter(unCH *buf, char RED, FONTINFO *fontInfo, NewFontInfo *finfo);
@@ -22,6 +22,8 @@ extern "C"
 {
 	extern void init_punct(char which);
 }
+
+#define isBreakInLine(c) ((c) == (unCH)' ' || (c) == (unCH)'\t' || (c) == SNL_C || (c) == EOS) 
 
 myFInfo *global_df;
 
@@ -40,8 +42,8 @@ short DOSdata;
 WCHARUMASK wMask;
 
 #define W_UTTLINELEN UTTLINELEN+UTTLINELEN+4
-static char in_buf[UTTLINELEN];
-static wchar_t wIn_buf[W_UTTLINELEN];
+char in_buf[UTTLINELEN];
+static unCH wIn_buf[W_UTTLINELEN];
 
 
 void mem_err(char bck, myFInfo *DF) {
@@ -66,7 +68,7 @@ void mem_err(char bck, myFInfo *DF) {
 #endif /* else !defined(_MAC_CODE) && !defined(_WIN32) */
 }
 
-static char SetTextAttW(wchar_t *st, AttTYPE *att) {
+static char SetTextAttW(unCH *st, AttTYPE *att) {
 	char c;
 	char found = FALSE;
 
@@ -266,8 +268,8 @@ char SetNewFont(char *st, char ec, NewFontInfo *finfo) {
 	}
 	if (DOSdata == -1) 
 		DOSdata = 0;
-	if (finfo->fontSize < 8)
-		finfo->fontSize = 9;
+	if (finfo->fontSize < 9)
+		finfo->fontSize = 10;
 	finfo->charHeight = GetFontHeight(NULL, finfo, global_df->wind);
 	if (global_df->MinFontSize > finfo->charHeight)
 		global_df->MinFontSize = finfo->charHeight;
@@ -324,6 +326,26 @@ char SetNewFont(char *st, char ec, NewFontInfo *finfo) {
 #endif /* _WIN32 */
 }
 
+static char *getPIDs(char *line) {
+	int  i;
+	char *PIDs;
+
+	uS.remFrontAndBackBlanks(line);
+	for (i=0; line[i] != EOS; i++) {
+		if (line[i] == '\n' || line[i] == '\t')
+			line[i] = ' ';
+	}
+	removeExtraSpace(line);
+	i = strlen(PIDHEADER);
+	for (; isSpace(line[i]); i++) ;
+	if (line[i] == EOS)
+		return(NULL);
+	PIDs = (char *)malloc(strlen(line+i)+1);
+	if (PIDs != NULL)
+		strcpy(PIDs, line+i);
+	return(PIDs);
+}
+
 #ifdef _MAC_CODE
 char GetFontOfTEXT(char *buf, FNType *fname) {
 	char res;
@@ -352,6 +374,79 @@ char GetFontOfTEXT(char *buf, FNType *fname) {
 	return(res);
 }
 #endif // _MAC_CODE
+
+static char getHeadCursor(char *buf, myFInfo *g_df) { // 2020-02-01
+	int i;
+	WindowInfo wi;
+
+	for (i=0; buf[i] != EOS && !isdigit(buf[i]); i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+	for (; buf[i] != EOS && buf[i] != '_'; i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+
+	i++;
+	for (; buf[i] != EOS && buf[i] != '_'; i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+
+	i++;
+	for (; buf[i] != EOS && buf[i] != '_'; i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+
+	i++;
+	for (; buf[i] != EOS && buf[i] != '_'; i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+
+	i++;
+	wi.topC = atol(buf+i);
+
+	for (; buf[i] != EOS && buf[i] != '_'; i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+
+	i++;
+	wi.skipTop = atol(buf+i);
+
+	for (; buf[i] != EOS && buf[i] != '_'; i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+
+	i++;
+	wi.pos1C = atol(buf+i);
+
+	for (; buf[i] != EOS && buf[i] != '_'; i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+
+	i++;
+	wi.skipP1 = atol(buf+i);
+
+	for (; buf[i] != EOS && buf[i] != '_'; i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+
+	i++;
+	wi.pos2C = atol(buf+i);
+
+	for (; buf[i] != EOS && buf[i] != '_'; i++) ;
+	if (buf[i] == EOS)
+		return(FALSE);
+
+	i++;
+	wi.skipP2 = atol(buf+i);
+
+	g_df->winInfo.topC = wi.topC;
+	g_df->winInfo.skipTop = wi.skipTop;
+	g_df->winInfo.pos1C = wi.pos1C;
+	g_df->winInfo.skipP1 = wi.skipP1;
+	g_df->winInfo.pos2C = wi.pos2C;
+	g_df->winInfo.skipP2 = wi.skipP2;
+	return(TRUE);
+}
 
 static char isXMLFile(char *in_buf, NewFontInfo *finfo) {
 	int i;
@@ -390,7 +485,7 @@ static char isXMLFile(char *in_buf, NewFontInfo *finfo) {
 
 static char isXLSFile(FNType *fname) {
 	register int j;
-	wchar_t ext[4];
+	unCH ext[4];
 
 	j = strlen(fname) - 1;
 	for (; j >= 0 && fname[j] != '.'; j--) ;
@@ -408,6 +503,16 @@ static char isXLSFile(FNType *fname) {
 		return(FALSE);
 }
 
+static char isCAFontHeader(char *in_buf) {
+	int i;
+
+	for (i=0; in_buf[i] != EOS; i++) {
+		if (!uS.mStrnicmp(in_buf+i, "CAfont", 6))
+			return(TRUE);
+	}
+	return(FALSE);
+}
+
 static char ReadInText(char *isUTF8Header, short id) {
 	register char tDataChanged = 0;
 	register long len;
@@ -416,15 +521,17 @@ static char ReadInText(char *isUTF8Header, short id) {
 	register unsigned long RT = 0L;
 	register unsigned long cnt;
 	long i, err = 0L;
-#ifdef _UNICODE
 	NewFontInfo ufinfo;
-#endif
 	AttTYPE att;
 	char AttFound, FirstLine;
 	char fontHeaderFound, isClanOutFile;
 	NewFontInfo finfo;
 	NewFontInfo defFInfo;
 	FILE *fp;
+#if defined(_WIN32)
+	float tf;
+	extern float scalingSize;
+#endif
 
 	if (isDontAskDontTell)
 		global_df->dontAskDontTell = TRUE;
@@ -432,12 +539,10 @@ static char ReadInText(char *isUTF8Header, short id) {
 	global_df->platform = NOCHANGE;
 	finfo.isUTF = 0;
 
-#ifdef _UNICODE
 	SetDefaultUnicodeFinfo(&ufinfo);
 	if (global_df->MinFontSize > ufinfo.charHeight)
 		global_df->MinFontSize = ufinfo.charHeight;
 	ufinfo.fontTable = NULL;
-#endif
 	strcpy(finfo.fontName, DEFAULT_FONT);
 	finfo.fontSize = DEFAULT_SIZE;
 	finfo.fontId = DEFAULT_ID;
@@ -552,6 +657,8 @@ static char ReadInText(char *isUTF8Header, short id) {
 				}
 #endif
 				if (wMask.num == (short)'\n' || wMask.num == (short)'\r') {
+					if (doReWrap)
+						wIn_buf[len++] = NL_C;
 					wIn_buf[len] = EOS;
 					if (isNLFound && isNLFound != wMask.num)
 						isNLFound = 0;
@@ -572,10 +679,13 @@ static char ReadInText(char *isUTF8Header, short id) {
 		} else {
 			rewind(fp);
 			if (isXLSFile(global_df->fileName)) {
-				SetDefaultCAFinfo(&finfo);
+				SetDefaultUnicodeFinfo(&finfo);
+				if (global_df->MinFontSize > finfo.charHeight)
+					global_df->MinFontSize = finfo.charHeight;
 				fontHeaderFound = 1;
+				copyNewFontInfo(&defFInfo, &finfo);
 				global_df->isUTF = 1;
-				*isUTF8Header = TRUE;
+				finfo.fontTable = NULL;
 			} else if (*isUTF8Header == TRUE) {
 				SetDefaultUnicodeFinfo(&finfo);
 				if (global_df->MinFontSize > finfo.charHeight)
@@ -686,6 +796,18 @@ static char ReadInText(char *isUTF8Header, short id) {
 					tempAtt[len] = att;
 				}
 				if (global_df->dontAskDontTell) {
+				} else if (uS.partcmp(in_buf, PIDHEADER, FALSE, FALSE)) {
+					if (!rawTextInput) {
+						if (global_df->PIDs != NULL)
+							free(global_df->PIDs);
+						global_df->PIDs = getPIDs(in_buf);
+						continue;
+					}
+				} else if (uS.partcmp(in_buf, WINDOWSINFO, FALSE, FALSE)) {
+					if (!rawTextInput) {
+						getHeadCursor(in_buf, global_df);
+						continue;
+					}
 				} else if (uS.partcmp(in_buf, CKEYWORDHEADER, FALSE, FALSE)) {
 					if (!rawTextInput) {
 						FreeColorText(global_df->RootColorText);
@@ -707,9 +829,10 @@ extern char *TempFileStringTag;
 						i++;
 					for (; isSpace(in_buf[i]); i++) ;
 					for (; in_buf[i] != EOS; i++) {
-						if (in_buf[i] == 'C' && in_buf[i+1] == 'A')
-							isCAFound = TRUE;
-						else if (in_buf[i] == 'I' && in_buf[i+1] == 'P' && in_buf[i+2] == 'A')
+						if (in_buf[i] == 'C' && in_buf[i+1] == 'A') {
+							if (in_buf[i+2] != '-')
+								isCAFound = TRUE;
+						} else if (in_buf[i] == 'I' && in_buf[i+1] == 'P' && in_buf[i+2] == 'A')
 							isIPAFound = TRUE;
 						else if (in_buf[i]== 't' && in_buf[i+1]== 'h' && 
 								 (isSpace(in_buf[i+2]) || in_buf[i+2]== ',' || in_buf[i+2]== EOS || in_buf[i+2]== NL_C))
@@ -720,8 +843,10 @@ extern char *TempFileStringTag;
 
 						if (isThaiFound)
 							SetDefaultThaiFinfo(&finfo);
-						else
+						else {
+							finfo.fontName[0] = EOS;
 							SetDefaultCAFinfo(&finfo);
+						}
 						if (global_df->MinFontSize > finfo.charHeight)
 							global_df->MinFontSize = finfo.charHeight;
 						if (DOSdata != 6)
@@ -800,28 +925,51 @@ extern char *TempFileStringTag;
 					}
 					continue;
 				} else if (uS.partcmp(in_buf, FONTHEADER, FALSE, FALSE)) {
-					if (!SetNewFont(in_buf, EOS, &finfo)) {
-						if (isOrgUnicodeFont(finfo.orgFType))
-							DOSdata = 0;
-						copyNewFontInfo(&finfo, &defFInfo);
-						continue;
+					if (global_df->SpecialTextFile == TRUE || isCAFontHeader(in_buf)) {
+						if (!SetNewFont(in_buf, EOS, &finfo)) {
+							if (isOrgUnicodeFont(finfo.orgFType))
+								DOSdata = 0;
+							copyNewFontInfo(&finfo, &defFInfo);
+						} else {
+							RT++;
+							RL1++;
+							if (!isOrgUnicodeFont(finfo.orgFType))
+								fontHeaderFound = 1;
+							else
+								fontHeaderFound = -1;
+							if (global_df->isUTF)
+								finfo.fontTable = NULL;
+							copyNewFontInfo(&defFInfo, &finfo);
+							if (uS.mStricmp(finfo.fontName, "CAfont") == 0) {
+								global_df->isUTF = 1;
+#if defined(_WIN32)
+								if (scalingSize != 1) {
+									tf = finfo.fontSize;
+									tf = tf * scalingSize;
+									finfo.fontSize = (long)tf;
+									finfo.charHeight = GetFontHeight(NULL, &finfo);
+								}
+#endif
+								finfo.fontTable = NULL;
+								*isUTF8Header = TRUE;
+							}
+						}
 					} else {
-						RT++;
-						RL1++;
-						if (!isOrgUnicodeFont(finfo.orgFType))
-							fontHeaderFound = 1;
-						else
-							fontHeaderFound = -1;
-						if (global_df->isUTF)
-							finfo.fontTable = NULL;
-						copyNewFontInfo(&defFInfo, &finfo);
 						if (uS.mStricmp(finfo.fontName, "CAfont") == 0) {
 							global_df->isUTF = 1;
+#if defined(_WIN32)
+							if (scalingSize != 1) {
+								tf = finfo.fontSize;
+								tf = tf * scalingSize;
+								finfo.fontSize = (long)tf;
+								finfo.charHeight = GetFontHeight(NULL, &finfo);
+							}
+#endif
 							finfo.fontTable = NULL;
 							*isUTF8Header = TRUE;
 						}
-						continue;
 					}
+					continue;
 				} else if (uS.partcmp(in_buf, MEDIAHEADER, FALSE, FALSE)) {
 					u_strcpy(global_df->mediaFileName, in_buf+strlen(MEDIAHEADER), FILENAME_MAX-1);
 					global_df->mediaFileName[FILENAME_MAX-1] = EOS;
@@ -864,57 +1012,61 @@ extern char *TempFileStringTag;
 
 				cnt = strlen(in_buf);
 				if (global_df->isUTF) {
-					if (AttFound) {
-						AttTYPE oldAtt = 0;
-						long j;
+					if (isClanOutFile != '\002') {
+						if (AttFound) {
+							AttTYPE oldAtt = 0;
+							long j;
 
-						i = 0L;
-						j = 0L;
-						while (in_buf[j] != EOS) {
-							i = RebuildStrAtts(templineC, i, tempAtt[j], oldAtt, FALSE);
-							oldAtt = tempAtt[j];
-							templineC[i++] = in_buf[j];
-							j++;
+							i = 0L;
+							j = 0L;
+							while (in_buf[j] != EOS) {
+								i = RebuildStrAtts(templineC, i, tempAtt[j], oldAtt, FALSE);
+								oldAtt = tempAtt[j];
+								templineC[i++] = in_buf[j];
+								j++;
+							}
+							i = RebuildStrAtts(templineC, i, 0, oldAtt, FALSE);
+							templineC[i] = EOS;
+							strcpy(in_buf, templineC);
+							cnt = strlen(in_buf);
 						}
-						i = RebuildStrAtts(templineC, i, 0, oldAtt, FALSE);
-						templineC[i] = EOS;
-						strcpy(in_buf, templineC);
-						cnt = strlen(in_buf);
 					}
 
 					i = UTF8ToUnicode((unsigned char *)in_buf, cnt, wIn_buf, &cnt, W_UTTLINELEN);
 					if (i)
 						err = i;
 
-					if (AttFound) {
-						att = 0;
-						for (len=0L; wIn_buf[len]; len++) {
-							if (wIn_buf[len] == 0xa0) {
-								wIn_buf[len] = ' ';
-								tDataChanged = 1;
-							} else if (wIn_buf[len] == 0x202f) {
-								wIn_buf[len] = ' ';
-							} else if (wIn_buf[len] == 0x2022) {
-								wIn_buf[len] = HIDEN_C;
-								tDataChanged = 2;
-							} else {
-								while (wIn_buf[len] == ATTMARKER) {
-									if (!SetTextAttW(wIn_buf+len, &att))
-										break;
+					if (isClanOutFile != '\002') {
+						if (AttFound) {
+							att = 0;
+							for (len=0L; wIn_buf[len]; len++) {
+								if (wIn_buf[len] == 0xa0) {
+									wIn_buf[len] = ' ';
+									tDataChanged = 1;
+								} else if (wIn_buf[len] == 0x202f) {
+									wIn_buf[len] = ' ';
+								} else if (wIn_buf[len] == 0x2022) {
+									wIn_buf[len] = HIDEN_C;
+									tDataChanged = 2;
+								} else {
+									while (wIn_buf[len] == ATTMARKER) {
+										if (!SetTextAttW(wIn_buf+len, &att))
+											break;
+									}
 								}
+								tempAtt[len] = att;
 							}
-							tempAtt[len] = att;
-						}
-					} else {
-						for (len=0L; wIn_buf[len]; len++) {
-							if (wIn_buf[len] == 0xa0) {
-								wIn_buf[len] = ' ';
-								tDataChanged = 1;
-							} else if (wIn_buf[len] == 0x202f) {
-								wIn_buf[len] = ' ';
-							} else if (wIn_buf[len] == 0x2022) {
-								wIn_buf[len] = HIDEN_C;
-								tDataChanged = 2;
+						} else {
+							for (len=0L; wIn_buf[len]; len++) {
+								if (wIn_buf[len] == 0xa0) {
+									wIn_buf[len] = ' ';
+									tDataChanged = 1;
+								} else if (wIn_buf[len] == 0x202f) {
+									wIn_buf[len] = ' ';
+								} else if (wIn_buf[len] == 0x2022) {
+									wIn_buf[len] = HIDEN_C;
+									tDataChanged = 2;
+								}
 							}
 						}
 					}
@@ -958,18 +1110,18 @@ extern char *TempFileStringTag;
 		AddRowAfter(cl_T(""), FALSE, NULL, &finfo);
 		global_df->EdWinSize = 1;
 		DOSdata = 0;
-#if defined(_UNICODE)
 		*isUTF8Header = TRUE;
-#endif
 	} else {
 		if (DefChatMode < 2) {
 			if ((RL1+RL2)*100/RT >= 90 - (100/RT)) {
 				if (RL2 == 0L) {
 					global_df->ChatMode = TRUE;
-					if (global_df->ShowParags) global_df->ShowParags = FALSE;
+					if (global_df->ShowParags)
+						global_df->ShowParags = FALSE;
 				} else if (RL1*100/RL2 >= 5) {
 					global_df->ChatMode = TRUE;
-					if (global_df->ShowParags) global_df->ShowParags = FALSE;
+					if (global_df->ShowParags)
+						global_df->ShowParags = FALSE;
 				}
 			}
 		}
@@ -978,9 +1130,7 @@ extern char *TempFileStringTag;
 		DOSdata = 0;
 	if (DOSdata == 5 && global_df->isUTF)
 		DOSdata = 0;
-#ifdef _UNICODE
 	global_df->isUTF = 1;
-#endif
 	if (err) {
 		DOSdata = 200;
 #ifdef _MAC_CODE
@@ -1011,6 +1161,80 @@ extern char *TempFileStringTag;
 		tDataChanged = TRUE;
 	}
 	return(tDataChanged);
+}
+
+void getVideosExt(int key) {
+	int i;
+	char err_mess[256];
+
+	if (key == '0')
+		i = 9;
+	else
+		i = key - '1';
+	if (i >= 0 && i < 10) {
+		if (global_df->VideosNameExts[i][0] != EOS) {
+			global_df->VideosNameIndex = i;
+		} else {
+			sprintf(err_mess, "Can't find %dth media file.", i+1);
+			do_warning(err_mess, 0);
+		}
+	}
+}
+
+void SetUpVideos(void) {
+	register int i;
+	unCH *s, *e, t;
+	ROWS *tt;
+
+	for (i=0; i < 10; i++)
+		global_df->VideosNameExts[i][0] = EOS;
+	global_df->VideosNameIndex = -1;
+	ChangeCurLineAlways(0);
+	tt = global_df->head_text->next_row;
+	while (tt != global_df->tail_text) {
+		if (tt->line[0] == '*')
+			break;
+		for (i=0; tt->line[i] && tt->line[i] != ':' && i < SPEAKERLEN-1; i++) {
+			sp[i] = tt->line[i];
+		}
+		sp[i] = EOS;
+		if (strcmp(sp, "@Videos") == 0) {
+			strcpy(templine, tt->line);
+			tt = tt->next_row;
+			while (tt != global_df->tail_text) {
+				if (isSpeaker(*tt->line))
+					break;
+				strcat(templine, tt->line);
+				tt = tt->next_row;
+			}
+			for (s=templine; *s && *s != ':'; s++) ;
+			for (; *s == ':' || isSpace(*s) || *s == ',' || *s == NL_C || *s == '\n'; s++) ;
+			while (*s) {
+				for (; isSpace(*s) || *s == ',' || *s == NL_C || *s == '\n'; s++) ;
+				for (e=s; *e != EOS && !isSpace(*e) && *e != ',' && *e != NL_C && *e != '\n'; e++) ;
+				t = *e;
+				*e = EOS;
+				if (*s != EOS) {
+					for (i=0; i < 10; i++) {
+						if (global_df->VideosNameExts[i][0] == EOS) {
+							strncpy(global_df->VideosNameExts[i], s, 127);
+							global_df->VideosNameExts[i][127] = EOS;
+							break;
+						}
+					}
+				}
+				*e = t;
+				if (*e == EOS)
+					break;
+				else
+					s = e + 1;
+			}
+			if (global_df->VideosNameExts[i][0] != EOS)
+				global_df->VideosNameIndex = 0;
+			break;
+		}
+		tt = tt->next_row;
+	}
 }
 
 void init_text(char *isUTF8Header, short id) {
@@ -1089,7 +1313,8 @@ void init_text(char *isUTF8Header, short id) {
 	global_df->row_txt = global_df->head_text->next_row;
 	global_df->cur_line = global_df->row_txt;
 	global_df->top_win = global_df->row_txt;
-	global_df->lineno = 1L;
+	global_df->lineno  = 1L;
+	global_df->wLineno = 1L;
 	CpCur_lineToHead_row(global_df->cur_line);
 	global_df->col_txt = global_df->head_row->next_char;
 	global_df->DataChanged = tDataChanged;
@@ -1100,7 +1325,7 @@ void init_text(char *isUTF8Header, short id) {
 	FALSE_VIS_ID(global_df->tail_text->flag);
 
 
-	Re_WrapLines(AddLineToRow, 0L, TRUE, NULL);
+	Re_WrapLines(AddLineToRow, 0L, FALSE, NULL);
 
 #ifdef _MAC_CODE
 	SetCurrentFontParams(global_df->row_txt->Font.FName, global_df->row_txt->Font.FSize);
@@ -1111,6 +1336,7 @@ void init_text(char *isUTF8Header, short id) {
 		global_df->DataChanged = TRUE;
 	if (global_df->ChatMode) {
 		SetUpParticipants();
+		SetUpVideos();
 		strcpy(global_df->err_message, DASHES);
 #ifdef _MAC_CODE
 		ChangeSpeakerMenuItem();
@@ -1319,6 +1545,19 @@ void ChangeCurLine(void) {
 		global_df->DataChanged = TRUE;
 }
 
+long countLines(ROWS *row_txt) {
+	long curLineno;
+	ROWS *tr;
+
+	curLineno = 1;
+	tr = global_df->head_text->next_row;
+	for (; tr != row_txt; tr = tr->next_row) {
+		if (CMP_VIS_ID(tr->flag) && isNL_CFound(tr))
+			curLineno++;
+	}
+	return(curLineno);
+}
+
 static void AddCharAfter(unCH c) {
 	LINE *NewChar;
 
@@ -1340,8 +1579,17 @@ static void AddCharAfter(unCH c) {
 }
 
 static void AddRowAfter(unCH *buf, char RED, FONTINFO *fontInfo, NewFontInfo *finfo) {
+	char isAddLineno;
 	ROWS *NewRow;
 
+	if (global_df->RowLimit && global_df->numberOfRows >= global_df->RowLimit &&
+		global_df->curRowLimit == global_df->head_text->next_row) {
+		global_df->RowLimit++;
+	}
+	if (global_df->row_txt == NULL || global_df->row_txt == global_df->head_text  || isNL_CFound(global_df->row_txt))
+		isAddLineno = TRUE;
+	else
+		isAddLineno = FALSE;
 	if (global_df->RowLimit && global_df->numberOfRows >= global_df->RowLimit) {
 		if (global_df->top_win == global_df->head_text->next_row)
 			global_df->top_win = global_df->head_text->next_row->next_row;
@@ -1359,7 +1607,11 @@ static void AddRowAfter(unCH *buf, char RED, FONTINFO *fontInfo, NewFontInfo *fi
 		if (NewRow->att != NULL)
 			free(NewRow->att);
 		global_df->numberOfRows--;
-		global_df->lineno--;
+		if (isAddLineno)
+			global_df->lineno--;
+		global_df->wLineno--;
+		if (global_df->curRowLimit == NewRow)
+			global_df->isOutputScrolledOff = TRUE;
 	} else {
 		NewRow = NEW(ROWS);
 		if (NewRow == NULL) 
@@ -1394,10 +1646,11 @@ static void AddRowAfter(unCH *buf, char RED, FONTINFO *fontInfo, NewFontInfo *fi
 	}
 	strcpy(NewRow->line, buf);
 	NewRow->att = NULL;
-
 	global_df->gAtt = 0;
 	global_df->row_txt = NewRow;
-	global_df->lineno++;
+	if (isAddLineno)
+		global_df->lineno++;
+	global_df->wLineno++;
 	global_df->numberOfRows++;
 #if defined(_MAC_CODE) || defined(_WIN32)
 	if (RED)
@@ -1559,7 +1812,8 @@ void AddString(unCH *s, long len, char UpdateUndo) {
 			global_df->col_win = ComColWin(FALSE, NULL, global_df->col_chr);
 			if (isCallFixLine(0L, global_df->head_row_len, TRUE) && UpdateUndo) {
 				FixLine(UpdateUndo);
-				if (global_df->col_txt->c == NL_C || global_df->col_txt->c == SNL_C) {
+				if ((global_df->col_txt->c == NL_C && global_df->col_txt->prev_char->c != NL_C) || 
+					global_df->col_txt->c == SNL_C) {
 					global_df->col_chr++;
 					global_df->col_txt = global_df->col_txt->next_char;
 					global_df->col_win = ComColWin(FALSE, NULL, global_df->col_chr);
@@ -1736,15 +1990,6 @@ static void collectLine(unCH *dest, long beg_c, long col_c, char isIgnoreBullets
 	long col, len;
 	long colWin, newcol;
 	LINE *ColTxt;
-#ifndef _UNICODE
-	short res;
-	NewFontInfo finfo;
-	unCH mByteBuf[64];
-	int  mByteBufCnt = 0;
-
-	finfo.isUTF = global_df->isUTF;
-	finfo.Encod = my_FontToScript(global_df->cur_line->Font.FName, global_df->cur_line->Font.CharSet);
-#endif
 	colWin = 0L;
 	ColTxt = global_df->head_row->next_char;
 	for (col=0L; ColTxt != global_df->tail_row && col < beg_c; ColTxt=ColTxt->next_char, col++) {
@@ -1762,24 +2007,7 @@ static void collectLine(unCH *dest, long beg_c, long col_c, char isIgnoreBullets
 			}
 		} else if (ColTxt->c == NL_C && global_df->ShowParags != '\001') ;
 		else {
-#ifndef _UNICODE
-			if (mByteBufCnt < 64) {
-				mByteBuf[mByteBufCnt++] = ColTxt->c;
-				if (ColTxt->next_char != global_df->tail_row)
-					mByteBuf[mByteBufCnt] = ColTxt->next_char->c;
-				else
-					mByteBuf[mByteBufCnt] = '\0';
-				res = my_CharacterByteType(mByteBuf, mByteBufCnt-1, &finfo);
-				if (res == 0 || res == 1) {
-					mByteBufCnt = 0;
-					mByteBuf[mByteBufCnt++] = ColTxt->c;
-					colWin++;
-				}
-			} else
-				colWin++;
-#else
 			colWin++;
-#endif
 		}
 	}
 	for (len=0L; ColTxt != global_df->tail_row && col < col_c && len < UTTLINELEN-1; 
@@ -1800,24 +2028,7 @@ static void collectLine(unCH *dest, long beg_c, long col_c, char isIgnoreBullets
 			}
 		} else if (ColTxt->c == NL_C && global_df->ShowParags != '\001') ;
 		else {
-#ifndef _UNICODE
-			if (mByteBufCnt < 64) {
-				mByteBuf[mByteBufCnt++] = ColTxt->c;
-				if (ColTxt->next_char != global_df->tail_row)
-					mByteBuf[mByteBufCnt] = ColTxt->next_char->c;
-				else
-					mByteBuf[mByteBufCnt] = '\0';
-				res = my_CharacterByteType(mByteBuf, mByteBufCnt-1, &finfo);
-				if (res == 0 || res == 1) {
-					mByteBufCnt = 0;
-					mByteBuf[mByteBufCnt++] = ColTxt->c;
-					colWin++;
-				}
-			} else
-				colWin++;
-#else
 			colWin++;
-#endif
 			dest[len++] = ColTxt->c;
 		}
 	}
@@ -1844,7 +2055,10 @@ char isCallFixLine(long beg_c, long col_c, char buildLine) {
 		TextFont(global_df->row_txt->Font.FName);
 		TextSize(global_df->row_txt->Font.FSize);
 		GetWindowPortBounds(global_df->wind, &box);
-		width = box.right-box.left-LEFTMARGIN-global_df->w1->textOffset-SCROLL_BAR_SIZE;
+		if (global_df == NULL || global_df->w1 == NULL)
+			width = box.right - box.left - LEFTMARGIN - getNumberOffset() - SCROLL_BAR_SIZE;
+		else
+			width = box.right - box.left - LEFTMARGIN - global_df->w1->textOffset - SCROLL_BAR_SIZE;
 		if (buildLine)
 			collectLine(templine4, beg_c, col_c, TRUE);
 		len = ComColWin(FALSE, templine4, strlen(templine4));
@@ -1867,7 +2081,10 @@ char isCallFixLine(long beg_c, long col_c, char buildLine) {
 		if (!gWin)
 			return(TRUE);
 		gWin->GetClientRect(&theRect);		
-		width = theRect.right - theRect.left - LEFTMARGIN - global_df->w1->textOffset - SCROLL_BAR_SIZE;
+		if (global_df == NULL || global_df->w1 == NULL)
+			width = theRect.right - theRect.left - LEFTMARGIN - getNumberOffset() - SCROLL_BAR_SIZE;
+		else
+			width = theRect.right - theRect.left - LEFTMARGIN - global_df->w1->textOffset - SCROLL_BAR_SIZE;
 		if (buildLine)
 			collectLine(templine4, beg_c, col_c, TRUE);
 		len = strlen(templine4);
@@ -1885,22 +2102,12 @@ char isCallFixLine(long beg_c, long col_c, char buildLine) {
 
 long ComColWin(char isIgnoreBullets, unCH *line, long col_c) {
 	long col, ColWin;
-#ifndef _UNICODE
-	short res;
-	NewFontInfo finfo;
-	unCH mByteBuf[64];
-	int  mByteBufCnt = 0;
-#endif
 
 	ColWin = 0L;
 	if (line == NULL) {
 		LINE *ColTxt;
 
-#ifndef _UNICODE
-		finfo.isUTF = global_df->isUTF;
-		finfo.Encod = my_FontToScript(global_df->cur_line->Font.FName, global_df->cur_line->Font.CharSet);
-#endif
-		for (ColTxt=global_df->head_row->next_char, col=0L; 
+		for (ColTxt=global_df->head_row->next_char, col=0L;
 				ColTxt != global_df->tail_row && col < col_c; ColTxt=ColTxt->next_char, col++) {
 			if (ColTxt->c == '\t') {
 				ColWin = (((ColWin / TabSize) + 1) * TabSize);
@@ -1914,31 +2121,10 @@ long ComColWin(char isIgnoreBullets, unCH *line, long col_c) {
 					ColWin++;
 			} else if (ColTxt->c == NL_C && global_df->ShowParags != '\001') ;
 			else {
-#ifndef _UNICODE
-				if (mByteBufCnt < 64) {
-					mByteBuf[mByteBufCnt++] = ColTxt->c;
-					if (ColTxt->next_char != global_df->tail_row)
-						mByteBuf[mByteBufCnt] = ColTxt->next_char->c;
-					else
-						mByteBuf[mByteBufCnt] = '\0';
-					res = my_CharacterByteType(mByteBuf, mByteBufCnt-1, &finfo);
-					if (res == 0 || res == 1) {
-						mByteBufCnt = 0;
-						mByteBuf[mByteBufCnt++] = ColTxt->c;
-						ColWin++;
-					}
-				} else
-					ColWin++;
-#else
 				ColWin++;
-#endif
 			}
 		}
 	} else {
-#ifndef _UNICODE
-		finfo.isUTF = global_df->isUTF;
-		finfo.Encod = my_FontToScript(global_df->cur_line->Font.FName, global_df->cur_line->Font.CharSet);
-#endif
 		for (col=0L; line[col] != EOS && col < col_c; col++) {
 			if (line[col] == '\t') {
 				ColWin = (((ColWin / TabSize) + 1) * TabSize);
@@ -1951,14 +2137,7 @@ long ComColWin(char isIgnoreBullets, unCH *line, long col_c) {
 					ColWin++;
 			} else if (line[col] == NL_C && global_df->ShowParags != '\001') ;
 			else {
-#ifndef _UNICODE
-				res = my_CharacterByteType(line, col, &finfo);
-				if (res == 0 || res == 1) {
-					ColWin++;
-				}
-#else
 				ColWin++;
-#endif
 			}
 		}
 	}
@@ -1967,22 +2146,12 @@ long ComColWin(char isIgnoreBullets, unCH *line, long col_c) {
 
 long ComColChr(unCH *line, long col_w) {
 	long col, ColChr;
-#ifndef _UNICODE
-	short res;
-	NewFontInfo finfo;
-	unCH mByteBuf[64];
-	int  mByteBufCnt = 0;
-#endif
 
 	ColChr = 0L;
 	if (line == NULL) {
 		LINE *ColTxt;
 
-#ifndef _UNICODE
-		finfo.isUTF = global_df->isUTF;
-		finfo.Encod = my_FontToScript(global_df->cur_line->Font.FName, global_df->cur_line->Font.CharSet);
-#endif
-		for (ColTxt=global_df->head_row->next_char, col=0L; 
+		for (ColTxt=global_df->head_row->next_char, col=0L;
 				ColTxt != global_df->tail_row && col <= col_w; ColTxt=ColTxt->next_char, ColChr++) {
 			if (ColTxt->c == '\t') {
 				col = (((col / TabSize) + 1) * TabSize) - 1;
@@ -1993,41 +2162,14 @@ long ComColChr(unCH *line, long col_w) {
 					break;
 				for (; ColTxt != global_df->tail_row && col <= col_w && ColTxt->c != HIDEN_C;  ColTxt=ColTxt->next_char, ColChr++) ;
 			} else {
-#ifndef _UNICODE
-				if (mByteBufCnt < 64) {
-					mByteBuf[mByteBufCnt++] = ColTxt->c;
-					if (ColTxt->next_char != global_df->tail_row)
-						mByteBuf[mByteBufCnt] = ColTxt->next_char->c;
-					else
-						mByteBuf[mByteBufCnt] = '\0';
-					res = my_CharacterByteType(mByteBuf, mByteBufCnt-1, &finfo);
-					if (res == 0 || res == 1) {
-						mByteBufCnt = 0;
-						mByteBuf[mByteBufCnt++] = ColTxt->c;
-						col++;
-					}
-				} else
-					col++;
-#else
 				col++;
-#endif
 			}
 		}
 		if (ColTxt != global_df->tail_row || col > col_w) {
 			if (ColChr > 0L)
 				ColChr--;
-#ifndef _UNICODE
-			if (!finfo.isUTF && (finfo.Encod == 1 || finfo.Encod == 2 || finfo.Encod == 3)) {
-				if (ColChr > 0L)
-					ColChr--;
-			}
-#endif
 		}
 	} else {
-#ifndef _UNICODE
-		finfo.isUTF = global_df->isUTF;
-		finfo.Encod = my_FontToScript(global_df->cur_line->Font.FName, global_df->cur_line->Font.CharSet);
-#endif
 		for (col=0L; line[ColChr] != EOS && col <= col_w; ColChr++) {
 			if (line[ColChr] == '\t') {
 				col = (((col / TabSize) + 1) * TabSize) - 1;
@@ -2038,25 +2180,12 @@ long ComColChr(unCH *line, long col_w) {
 					break;
 				for (; line[ColChr] != EOS && col <= col_w && line[ColChr] != HIDEN_C; ColChr++) ;
 			} else {
-#ifndef _UNICODE
-				res = my_CharacterByteType(line, ColChr, &finfo);
-				if (res == 0 || res == 1) {
-					col++;
-				}
-#else
 				col++;
-#endif
 			}
 		}
 		if (line[ColChr] != EOS || col > col_w) {
 			if (ColChr > 0L)
 				ColChr--;
-#ifndef _UNICODE
-			if (!finfo.isUTF && (finfo.Encod == 1 || finfo.Encod == 2 || finfo.Encod == 3)) {
-				if (ColChr > 0L)
-					ColChr--;
-			}
-#endif
 		}
 	}
 	return(ColChr);
@@ -2314,14 +2443,56 @@ void DisplayRow(char isShift) {
 	strcpy(global_df->err_message, DASHES);
 }
 
+static void remAllBlanks(unCH *st) {
+	register int i;
+
+	for (i=0; isSpace(st[i]) || st[i] == '\n' || st[i] == '_'; i++) ;
+	if (i > 0)
+		strcpy(st, st+i);
+	i = strlen(st) - 1;
+	while (i >= 0 && (isSpace(st[i]) || st[i] == '\n' || st[i] == '_' || st[i] == NL_C || st[i] == SNL_C)) i--;
+	st[i+1] = EOS;
+}
+
 int NewLine(int i) {
+	int  j;
 	long num = 0L;
+	ROWS *tr;
 	LINE *tl, *ttail_row;
+	extern char isMORXiMode;
+	extern char morTestCom[];
+	extern char morXiExec(void);
+
+	if (isMORXiMode && strcmp(StdInWindow, global_df->fileName) == 0) {
+		ChangeCurLineAlways(0);
+		tr = global_df->row_txt;
+		for (j=0, i=0; j < UTTLINELEN && tr->line[i] != EOS; i++) {
+				templineW1[j++] = tr->line[i];
+		}
+		templineW1[j] = EOS;
+		if (uS.partcmp(templineW1, "mor (:h help)>", FALSE, TRUE)) {
+			strcpy(templineW1, templineW1+strlen("mor (:h help)>"));
+		}
+		remAllBlanks(templineW1);
+		UnicodeToUTF8(templineW1, j, (unsigned char *)morTestCom, NULL, UTTLINELEN);
+		if (global_df->row_txt->next_row != global_df->tail_text) {
+			EndOfFile(-1);
+			OutputToScreen(templineW1);
+		}
+		if (morXiExec())
+			PosAndDispl();
+#ifdef _MAC_CODE
+		if (!isMORXiMode && global_df != NULL && global_df->winID == 1964)
+			OpenCommandsWindow(TRUE);
+#endif
+		return(21);
+	}
 
 	if (i > -1) {
 		if (global_df->row_win < 0 || global_df->row_win >= (long)global_df->EdWinSize)
 			PutCursorInWindow(global_df->w1);
-		if (!DeleteChank(1)) return(21);
+		if (!DeleteChank(1))
+			return(21);
 		SaveUndoState(FALSE);
 		if (global_df->UndoList->NextUndo)
 			global_df->UndoList->key = INSTKEY;
@@ -2329,11 +2500,12 @@ int NewLine(int i) {
 	ChangeCurLine();
 //	TRUE_CHECK_ID1(global_df->row_txt->flag);
 //	TRUE_CHECK_ID2(global_df->row_txt->flag);
-	if (!global_df->ChatMode && i > -1) {
+	if ((!global_df->ChatMode || doReWrap) && i > -1) {
 		AddText(NULL, (unCH)NL_C, -1, 1L);
 		ChangeCurLine();
 	}
-	for (tl=global_df->tail_row; tl != global_df->col_txt; tl=tl->prev_char) num++;
+	for (tl=global_df->tail_row; tl != global_df->col_txt; tl=tl->prev_char)
+		num++;
 	ttail_row = global_df->tail_row;
 	global_df->tail_row = tl;
 	global_df->head_row_len -= num;
@@ -2359,7 +2531,8 @@ int NewLine(int i) {
 		global_df->row_win--;
 		global_df->top_win = ToNextRow(global_df->top_win, FALSE);
 	}
-	if (global_df->redisplay) DisplayTextWindow(NULL, 1);
+	if (global_df->redisplay)
+		DisplayTextWindow(NULL, 1);
 	return(21);
 }
 
@@ -2438,7 +2611,8 @@ ROWS *ToNextRow(ROWS *p, char all) {
 	} else {
 		while (p != global_df->tail_text) {
 			p = p->next_row;
-			if (CMP_VIS_ID(p->flag)) return(p);
+			if (CMP_VIS_ID(p->flag))
+				return(p);
 		}
 		return(p);
 	}
@@ -2471,70 +2645,59 @@ char AddLineToRow(ROWS *rt, unCH tierType, void *data) {
 	return(TRUE);
 }
 
-static char isLineFull(long max, long pos, ROWS *rt) {
-	int  width;
+char isNL_CFound(ROWS *tr) {
+	unsigned long i;
+	LINE *tl;
+
+	if (!doReWrap)
+		return(TRUE);
+
+	if (global_df != NULL) {
+		if (tr == global_df->head_text)
+			return(TRUE);
+
+		if (tr == global_df->cur_line) {
+			for (tl=global_df->head_row->next_char; tl != global_df->tail_row; tl=tl->next_char) {
+				if (tl->c == NL_C)
+					return(TRUE);
+			}
+		}
+	}
+
+	for (i=0L; tr->line[i] != EOS; i++) {
+		if (tr->line[i] == NL_C)
+			return(TRUE);
+	}
+	return(FALSE);
+}
+
+static char isLineFull(long max, long pos, ROWS *rt, int width) {
 	long t, len;
 	long colWin, newcol;
 #ifdef _MAC_CODE
-	GrafPtr savePort;
-	Rect box;
-#ifndef _UNICODE
-	short res;
-	NewFontInfo finfo;
-
-	finfo.isUTF = global_df->isUTF;
-	finfo.Encod = my_FontToScript(rt->Font.FName, rt->Font.CharSet);
-#endif
-
 	if (max == 0) {
-		GetPort(&savePort);
-	 	SetPortWindowPort(global_df->wind);
-		TextFont(rt->Font.FName);
-		TextSize(rt->Font.FSize);
-		GetWindowPortBounds(global_df->wind, &box);
-		width = box.right-box.left-LEFTMARGIN-global_df->w1->textOffset-SCROLL_BAR_SIZE;
 		colWin = 0L;
+		templine2[0] = EOS;
 		for (t=0L, len=0L; t < pos && len < UTTLINELEN-1; t++) {
 			if (rt->line[t] == '\t') {
 				newcol = (((colWin / TabSize) + 1) * TabSize);
 				for (; colWin < newcol; colWin++) 
 					templine2[len++] = ' ';
 			} else {
-#ifndef _UNICODE
-				res = my_CharacterByteType(rt->line, t, &finfo);
-				if (res == 0 || res == 1) {
-					colWin++;
-				}
-#else
 				colWin++;
-#endif
 				templine2[len++] = rt->line[t];
 			}
 		}
 		if (TextWidthInPix(templine2,0,len,&rt->Font,0) >= width) {
-			SetPort(savePort);
 			return(TRUE);
 		}
-		SetPort(savePort);
 	}
 #elif defined(_WIN32)
-	RECT theRect;
 	CSize tw;
-	CWnd *gWin;
-	LOGFONT lfFont;
-	CFont l_font;
 
 	if (max == 0) {
-		SetLogfont(&lfFont, &rt->Font, NULL);
-		l_font.CreateFontIndirect(&lfFont);
-		CFont* pOldFont = GlobalDC->SelectObject(&l_font);
-		gWin = GlobalDC->GetWindow();
-		if (!gWin)
-			return(TRUE);
-		gWin->GetClientRect(&theRect);		
-		width = theRect.right - theRect.left - LEFTMARGIN -
-							global_df->w1->textOffset - SCROLL_BAR_SIZE;
 		colWin = 0L;
+		templine2[0] = EOS;
 		for (t=0L, len=0L; t < pos && len < UTTLINELEN-1; t++) {
 			if (rt->line[t] == '\t') {
 				newcol = (((colWin / TabSize) + 1) * TabSize);
@@ -2547,8 +2710,6 @@ static char isLineFull(long max, long pos, ROWS *rt) {
 		}
 		tw = GlobalDC->GetTextExtent(templine2, len);
 		len = tw.cx;
-		GlobalDC->SelectObject(pOldFont);
-		l_font.DeleteObject();
 		if (len >= width) {
 			return(TRUE);
 		}
@@ -2566,7 +2727,8 @@ static char isLineFull(long max, long pos, ROWS *rt) {
 			if (colWin >= max)
 				return(TRUE);
 		}
-	}	return(FALSE);
+	}
+	return(FALSE);
 }
 
 static void uAtt_cp(long pos, unCH *desSt, unCH *srcSt, AttTYPE *desAtt, AttTYPE *srcAtt) {
@@ -2582,37 +2744,51 @@ static void uAtt_cp(long pos, unCH *desSt, unCH *srcSt, AttTYPE *desAtt, AttTYPE
 static char isLineEmpty(unCH *line) {
 	long i;
 	
-	for (i=0; isBreakInLine(line[i]); i++) ;
+	for (i=0; isBreakInLine(line[i]) || line[i] == NL_C ; i++) ;
 	if (line[i] == EOS)
 		return(TRUE);
 	else
 		return(FALSE);
 }
 
-char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, char isChange, void *data) {
+char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, char isResize, void *data) {
 	register long pos;
 	register long lPos;
 	register long oPos;
-	char fTime, sq, hc;
+	unsigned long prevRowLen;
+	int  winWidth;
+	char fTime, sq, hc, tDoReWrap, isPrevRowNL_C;
 	unCH tierType;
-	char tDoReWrap;
 	ROWS *rt, *tr, *end, newRow;
 	LINE *tl, *t;
+	WindowInfo wi;
+#ifdef _MAC_CODE
+	GrafPtr savePort;
+	Rect box;
+#elif defined(_WIN32)
+	RECT theRect;
+	CWnd *gWin;
+	LOGFONT lfFont;
+	CFont l_font;
+	CFont* pOldFont;
+#endif
 
 	tDoReWrap = doReWrap;
 	if (!global_df->ChatMode)
 		doReWrap = FALSE;
 
-	if (!doReWrap && isChange) {
+	if (!doReWrap && data == NULL) {
 		doReWrap = tDoReWrap;
 		return(TRUE);
 	}
 
+	ChangeCurLineAlways(0);
 	rt = global_df->head_text->next_row;
-	if (isChange) {
+	if (data == NULL) {
+		if (isResize && doReWrap)
+			getTextCursor(global_df, &wi);// 2022-05-03
 		ResetUndos();
 		global_df->tail_text->prev_row->next_row = NULL;
-		
 		global_df->head_text->next_row = global_df->tail_text;
 		global_df->head_text->prev_row = NULL;
 		global_df->tail_text->next_row = NULL;
@@ -2641,6 +2817,32 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 		end = global_df->tail_text;
 	}
 
+	if (max == 0) {
+#ifdef _MAC_CODE
+		GetPort(&savePort);
+		SetPortWindowPort(global_df->wind);
+		TextFont(rt->Font.FName);
+		TextSize(rt->Font.FSize);
+		GetWindowPortBounds(global_df->wind, &box);
+		if (global_df == NULL || global_df->w1 == NULL)
+			winWidth = box.right - box.left - LEFTMARGIN - getNumberOffset() - SCROLL_BAR_SIZE;
+		else
+			winWidth = box.right - box.left - LEFTMARGIN - global_df->w1->textOffset - SCROLL_BAR_SIZE;
+#elif defined(_WIN32)
+		SetLogfont(&lfFont, &rt->Font, NULL);
+		l_font.CreateFontIndirect(&lfFont);
+		pOldFont = GlobalDC->SelectObject(&l_font);
+		gWin = GlobalDC->GetWindow();
+		if (!gWin)
+			return(FALSE);
+		gWin->GetClientRect(&theRect);		
+		if (global_df == NULL || global_df->w1 == NULL)
+			winWidth = theRect.right - theRect.left - LEFTMARGIN - getNumberOffset() - SCROLL_BAR_SIZE;
+		else
+			winWidth = theRect.right - theRect.left - LEFTMARGIN - global_df->w1->textOffset - SCROLL_BAR_SIZE;
+#endif
+	}
+
 	ced_line[0] = EOS;
 	templine4[0] = 0;
 	newRow.line = ced_line;
@@ -2649,6 +2851,11 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 	pos = 0L;
 	lPos = pos;
 	tierType = 0;
+	if (rt->prev_row == global_df->head_text || rt->prev_row == NULL)
+		prevRowLen = 0L;
+	else
+		prevRowLen = strlen(rt->prev_row->line);
+	isPrevRowNL_C = TRUE;
 	while (rt != end) {
 		if (global_df->ChatMode) {
 			if (rt->line[0] == '*' || rt->line[0] == '%' || rt->line[0] == '@')
@@ -2657,20 +2864,43 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 		if (!doReWrap) {
 			if (!(*finLine)(rt, tierType, data)) {
 				doReWrap = tDoReWrap;
+#ifdef _MAC_CODE
+				SetPort(savePort);
+#elif defined(_WIN32)
+				GlobalDC->SelectObject(pOldFont);
+				l_font.DeleteObject();
+#endif
 				return(FALSE);
 			}
 		} else {
 			oPos = 0L;
 			fTime = TRUE;
 			if (isSpace(rt->line[oPos])) {
-				fTime = FALSE;
-				while (isSpace(rt->line[oPos]))
-					oPos++;
-				oPos--;
-				if (pos > 0L && ced_line[pos-1] == ':')
-					rt->line[oPos] = '\t';
-				else
-					rt->line[oPos] = ' ';
+				if (rt != global_df->head_text->next_row && rt != global_df->head_text) {
+					if (prevRowLen > 0L) {
+						if (!isPrevRowNL_C) {
+							fTime = FALSE;
+							while (isSpace(rt->line[oPos]))
+								oPos++;
+							oPos--;
+							if (pos > 0L && ced_line[pos-1] == ':')
+								rt->line[oPos] = '\t';
+							else
+								rt->line[oPos] = ' ';
+						}
+					} else if (pos > 0) {
+						if (ced_line[pos-1] != NL_C) {
+							fTime = FALSE;
+							while (isSpace(rt->line[oPos]))
+								oPos++;
+							oPos--;
+							if (ced_line[pos-1] == ':')
+								rt->line[oPos] = '\t';
+							else
+								rt->line[oPos] = ' ';
+						}
+					}
+				}
 			}
 			sq = FALSE;
 			hc = FALSE;
@@ -2680,11 +2910,20 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 						if (*ced_line == ' ')
 							*ced_line = '\t';
 					}
-					if (isLineFull(max, pos, &newRow)) {
+					if (isLineFull(max, pos, &newRow, winWidth)) {
 						ced_line[pos] = EOS;
 						ced_line[lPos] = EOS;
 						if (!(*finLine)(&newRow, tierType, data)) {
 							doReWrap = tDoReWrap;
+							if (isResize && data == NULL && doReWrap) {
+								setTextCursor(global_df, &wi);// 2022-05-03
+							}
+#ifdef _MAC_CODE
+							SetPort(savePort);
+#elif defined(_WIN32)
+							GlobalDC->SelectObject(pOldFont);
+							l_font.DeleteObject();
+#endif
 							return(FALSE);
 						}
 						if (lPos == pos)
@@ -2703,6 +2942,15 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 						ced_line[pos] = EOS;
 						if (!(*finLine)(&newRow, tierType, data)) {
 							doReWrap = tDoReWrap;
+							if (isResize && data == NULL && doReWrap) {
+								setTextCursor(global_df, &wi);// 2022-05-03
+							}
+#ifdef _MAC_CODE
+							SetPort(savePort);
+#elif defined(_WIN32)
+							GlobalDC->SelectObject(pOldFont);
+							l_font.DeleteObject();
+#endif
 							return(FALSE);
 						}
 						pos = 0L;
@@ -2711,18 +2959,21 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 				}
 				lPos = pos;
 				while (isBreakInLine(rt->line[oPos])) {
-					if (rt->line[oPos] != NL_C && rt->line[oPos] != SNL_C) {
+					if (/* 2021-09-25 rt->line[oPos] != NL_C && */rt->line[oPos] != SNL_C) {
 						ced_line[pos] = rt->line[oPos];
 						if (rt->att == NULL)
 							tempAtt[pos] = 0;
 						else
 							tempAtt[pos] = rt->att[oPos];
-						pos++;
+						if (ced_line[pos] != EOS)
+							pos++;
 					}
-					oPos++;
 					copyFontInfo(&newRow.Font, &rt->Font, FALSE);
+					if (rt->line[oPos] == EOS)
+						break;
+					oPos++;
 				}
-				while ((!isBreakInLine(rt->line[oPos]) || hc || sq) && rt->line[oPos] != EOS) {
+				while ((!isBreakInLine(rt->line[oPos]) || hc || sq) && rt->line[oPos] != NL_C && rt->line[oPos] != EOS) {
 					if (rt->line[oPos] == '[')
 						sq = TRUE;
 					else if (rt->line[oPos] == ']')
@@ -2737,23 +2988,91 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 					pos++;
 					oPos++;
 				}
+				if (rt->line[oPos] == NL_C) {
+					ced_line[pos] = rt->line[oPos];
+					tempAtt[pos] = 0;
+					pos++;
+					oPos++;
+
+					if (isLineFull(max, pos, &newRow, winWidth)) {
+						ced_line[pos] = EOS;
+						ced_line[lPos] = EOS;
+						if (!(*finLine)(&newRow, tierType, data)) {
+							doReWrap = tDoReWrap;
+							if (isResize && data == NULL && doReWrap) {
+								setTextCursor(global_df, &wi);// 2022-05-03
+							}
+#ifdef _MAC_CODE
+							SetPort(savePort);
+#elif defined(_WIN32)
+							GlobalDC->SelectObject(pOldFont);
+							l_font.DeleteObject();
+#endif
+							return(FALSE);
+						}
+						if (lPos == pos)
+							ced_line[0] = EOS;
+						else {
+							if (lPos > 0L)
+								uAtt_cp(0,ced_line+1,ced_line+lPos+1,tempAtt+1,tempAtt+lPos+1);
+							ced_line[0] = '\t';
+							tempAtt[0] = 0;
+							if (isLineEmpty(ced_line))
+								ced_line[0] = EOS;
+						}
+						pos = strlen(ced_line);
+					}
+
+					
+					ced_line[pos] = EOS;
+					if (!(*finLine)(&newRow, tierType, data)) {
+						doReWrap = tDoReWrap;
+						if (isResize && data == NULL && doReWrap) {
+							setTextCursor(global_df, &wi);// 2022-05-03
+						}
+#ifdef _MAC_CODE
+						SetPort(savePort);
+#elif defined(_WIN32)
+						GlobalDC->SelectObject(pOldFont);
+						l_font.DeleteObject();
+#endif
+						return(FALSE);
+					}
+					ced_line[0] = EOS;
+					pos = strlen(ced_line);
+				}
+				if (rt->line[oPos] == SNL_C)
+					oPos++;
 			} while (rt->line[oPos] != EOS) ;
 		}
 		tr = rt;
+		prevRowLen = strlen(rt->line);
+		isPrevRowNL_C = isNL_CFound(rt);
 		rt = rt->next_row;
-		if (isChange) {
-			if (tr->line) free(tr->line); 
-			if (tr->att) free(tr->att); 
+		if (data == NULL) {
+			if (tr->line)
+				free(tr->line); 
+			if (tr->att)
+				free(tr->att); 
 			free(tr);
 		}
 	}
 	if (doReWrap) {
 		if (global_df->ChatMode) {
-			if (isLineFull(max, pos, &newRow)) {
+			if (isLineFull(max, pos, &newRow, winWidth)) {
 				ced_line[pos] = EOS;
 				ced_line[lPos] = EOS;
 				if (!(*finLine)(&newRow, tierType, data)) {
 					doReWrap = tDoReWrap;
+					if (isResize && data == NULL) {
+						setTextCursor(global_df, &wi);// 2022-05-03
+					}
+#ifdef _MAC_CODE
+					SetPort(savePort);
+#elif defined(_WIN32)
+					GlobalDC->SelectObject(pOldFont);
+					l_font.DeleteObject();
+#endif
 					return(FALSE);
 				}
 				if (lPos == pos)
@@ -2771,11 +3090,20 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 			ced_line[pos] = EOS;
 			if (!(*finLine)(&newRow, tierType, data)) {
 				doReWrap = tDoReWrap;
+				if (isResize && data == NULL) {
+					setTextCursor(global_df, &wi);// 2022-05-03
+				}
+#ifdef _MAC_CODE
+				SetPort(savePort);
+#elif defined(_WIN32)
+				GlobalDC->SelectObject(pOldFont);
+				l_font.DeleteObject();
+#endif
 				return(FALSE);
 			}
 		}
 	}
-	if (isChange) {
+	if (data == NULL) {
 		if (global_df->head_text->next_row == global_df->tail_text)
 			AddRowAfter(cl_T(""), FALSE, &newRow.Font, NULL);
 		global_df->row_win = 0L;
@@ -2787,7 +3115,8 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 		global_df->row_txt = global_df->head_text->next_row;
 		global_df->cur_line = global_df->row_txt;
 		global_df->top_win = global_df->row_txt;
-		global_df->lineno = 1L;
+		global_df->lineno  = 1L;
+		global_df->wLineno = 1L;
 		CpCur_lineToHead_row(global_df->cur_line);
 		global_df->col_txt = global_df->head_row->next_char;
 		global_df->DataChanged = FALSE;
@@ -2796,8 +3125,19 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 		FALSE_VIS_ID(global_df->head_text->flag);
 		global_df->tail_text->flag = 0;
 		FALSE_VIS_ID(global_df->tail_text->flag);
+		
+		doReWrap = tDoReWrap;
+		if (isResize && doReWrap) {
+			setTextCursor(global_df, &wi);// 2022-05-03
+		}
 	}
 	doReWrap = tDoReWrap;
+#ifdef _MAC_CODE
+	SetPort(savePort);
+#elif defined(_WIN32)
+	GlobalDC->SelectObject(pOldFont);
+	l_font.DeleteObject();
+#endif
 	return(TRUE);
 }
 // re-wrap routines end
@@ -2886,7 +3226,8 @@ static char ContNextRow(void) {
 		if (tl == global_df->tail_text || isSpeaker(*tl->line))
 			return(FALSE);
 	} else {
-		if (tl == global_df->tail_text || global_df->tail_row->prev_char->c == NL_C) return(FALSE);
+		if (tl == global_df->tail_text || global_df->tail_row->prev_char->c == NL_C)
+			return(FALSE);
 	}
 	return(TRUE);
 }
@@ -2926,7 +3267,8 @@ void FixLine(char UpdateUndo) {
 	UNDO cursor_state;
 	LINE *old_col_txt = global_df->col_txt, *temp_col_txt = NULL, *LC, *ttail_row;
    
-	if (!global_df->ChatMode && !global_df->AutoWrap) return;
+	if (!global_df->ChatMode && !global_df->AutoWrap)
+		return;
 
 	if (UpdateUndo) {
 		SaveUndoState(FALSE);
@@ -3028,10 +3370,14 @@ void FixLine(char UpdateUndo) {
 					tAtt = NULL;
 				last_col = 0;
 				while (global_df->col_txt != global_df->tail_row) {
-					if (global_df->col_txt->c == NL_C)
-						t[last_col] = ' ';
-					else
+					if (doReWrap) {
 						t[last_col] = global_df->col_txt->c;
+					} else {
+						if (global_df->col_txt->c == NL_C)
+							t[last_col] = ' ';
+						else
+							t[last_col] = global_df->col_txt->c;
+					}
 					if (tAtt != NULL)
 						tAtt[last_col] = global_df->col_txt->att;
 					LC = global_df->col_txt->prev_char;
@@ -3044,6 +3390,12 @@ void FixLine(char UpdateUndo) {
 						free(global_df->col_txt);
 					global_df->col_txt = LC->next_char;
 					last_col++;
+				}
+				if (last_col > 1 && !isSpace(t[last_col-1])) {
+					if (!doReWrap || t[last_col-1] != NL_C) {
+						t[last_col] = ' ';
+						last_col++;
+					}
 				}
 				if (global_df->col_txt == old_col_txt) {
 					temp_col_txt = global_df->col_txt;
@@ -3089,6 +3441,13 @@ void FixLine(char UpdateUndo) {
 					AddCharAfter(t[last_col]);
 					if (tAtt != NULL)
 						global_df->col_txt->att = tAtt[last_col];
+					if (doReWrap && t[last_col] == NL_C) {
+						global_df->col_txt = global_df->col_txt->next_char;
+						global_df->redisplay = 0;
+						NewLine(-1);
+						global_df->redisplay = 1;
+						global_df->col_txt = global_df->col_txt->prev_char;
+					}
 				}
 				if (tAtt != NULL)
 					free(tAtt);
@@ -3156,7 +3515,8 @@ void FixLine(char UpdateUndo) {
 				SaveUndoState(FALSE);
 				global_df->UndoList->key = MOVERPT;
 			}
-		} else break;
+		} else
+			break;
 	} while (1) ;
 	if (curs_fnd != -1L)
 		ResetVarStatus(&cursor_state);
@@ -3170,11 +3530,6 @@ static char DisplayOneRow(int  row, ROWS *win) {
 	register long colWin;
 	long newcol;
 	char NeedClearing;
-#ifndef _UNICODE
-	unCH mByteBuf[64];
-	int  mByteBufCnt = 0;
-	short res;
-#endif
 	NewFontInfo finfo;
 	LINE *ch;
 
@@ -3206,32 +3561,13 @@ static char DisplayOneRow(int  row, ROWS *win) {
 					for (; colWin < newcol && colChr < global_df->w1->num_cols; colWin++, colChr++)
 						waddch(global_df->w1,' ', NULL, 0L, ch->att);
 				} else {
-#ifndef _UNICODE
-					if (mByteBufCnt < 64) {
-						mByteBuf[mByteBufCnt++] = ch->c;
-						if (ch->next_char != global_df->tail_row)
-							mByteBuf[mByteBufCnt] = ch->next_char->c;
-						else
-							mByteBuf[mByteBufCnt] = '\0';
-						res = my_CharacterByteType(mByteBuf, mByteBufCnt-1, &finfo);
-						if (res == 0 || res == 1) {
-							mByteBufCnt = 0;
-							mByteBuf[mByteBufCnt++] = ch->c;
-							colWin++;
-						}
-					} else
-#endif
-						colWin++;
+					colWin++;
 					colChr++;
 					if (ch->c == NL_C)
 						waddch(global_df->w1,SOFT_CR_CHAR, NULL, 0L, ch->att);
 					else if (ch->c == HIDEN_C) {
 						if (global_df->isUTF) {
-#ifdef _UNICODE
 							waddch(global_df->w1,(unCH)0x2022, NULL, 0L, ch->att);
-#else
-							waddch(global_df->w1,'*', NULL, 0L, ch->att);
-#endif
 						} else
 							waddch(global_df->w1,BULLET_CHAR, NULL, 0L, ch->att);
 						if (global_df->ShowParags != '\002') {
@@ -3251,44 +3587,14 @@ static char DisplayOneRow(int  row, ROWS *win) {
 				} else
 					colWin = newcol;
 			} else if (ch->c == HIDEN_C) {
-#ifndef _UNICODE
-				if (mByteBufCnt < 64) {
-					mByteBuf[mByteBufCnt++] = ch->c;
-					if (ch->next_char != global_df->tail_row)
-						mByteBuf[mByteBufCnt] = ch->next_char->c;
-					else
-						mByteBuf[mByteBufCnt] = '\0';
-					res = my_CharacterByteType(mByteBuf, mByteBufCnt-1, &finfo);
-					if (res == 0 || res == 1) {
-						mByteBufCnt = 0;
-						mByteBuf[mByteBufCnt++] = ch->c;
-						colWin++;
-					}
-				} else
-#endif
-					colWin++;
+				colWin++;
 				if (global_df->ShowParags != '\002') {
 					for (ch=ch->next_char; ch->c != HIDEN_C && ch!=global_df->tail_row; ch=ch->next_char) ;
 					if (ch == global_df->tail_row)
 						ch = ch->prev_char;
 				}
 			} else {
-#ifndef _UNICODE
-				if (mByteBufCnt < 64) {
-					mByteBuf[mByteBufCnt++] = ch->c;
-					if (ch->next_char != global_df->tail_row)
-						mByteBuf[mByteBufCnt] = ch->next_char->c;
-					else
-						mByteBuf[mByteBufCnt] = '\0';
-					res = my_CharacterByteType(mByteBuf, mByteBufCnt-1, &finfo);
-					if (res == 0 || res == 1) {
-						mByteBufCnt = 0;
-						mByteBuf[mByteBufCnt++] = ch->c;
-						colWin++;
-					}
-				} else
-#endif
-					colWin++;
+				colWin++;
 			}
 		}
 	} else {
@@ -3314,24 +3620,13 @@ static char DisplayOneRow(int  row, ROWS *win) {
 					for (; colWin < newcol && colChr < global_df->w1->num_cols; colWin++, colChr++) 
 						waddch(global_df->w1,' ', win->att, lineChr, 0);
 				} else {
-#ifndef _UNICODE
-					res = my_CharacterByteType(win->line, lineChr, &finfo);
-					if (res == 0 || res == 1) {
-						colWin++;
-					}
-#else
 					colWin++;
-#endif
 					colChr++;
 					if (win->line[lineChr] == NL_C)
 						waddch(global_df->w1,SOFT_CR_CHAR, win->att, lineChr, 0);
 					else if (win->line[lineChr] == HIDEN_C) {
 						if (global_df->isUTF) {
-#ifdef _UNICODE
 							waddch(global_df->w1,(unCH)0x2022, win->att, lineChr, 0);
-#else
-							waddch(global_df->w1,'*', win->att, lineChr, 0);
-#endif
 						} else
 							waddch(global_df->w1,BULLET_CHAR, win->att, lineChr, 0);
 						if (global_df->ShowParags != '\002') {
@@ -3351,28 +3646,14 @@ static char DisplayOneRow(int  row, ROWS *win) {
 				} else
 					colWin = newcol;
 			} else if (win->line[lineChr] == HIDEN_C) {
-#ifndef _UNICODE
-				res = my_CharacterByteType(win->line, lineChr, &finfo);
-				if (res == 0 || res == 1) {
-					colWin++;
-				}
-#else
 				colWin++;
-#endif
 				if (global_df->ShowParags != '\002') {
 					for (lineChr++; win->line[lineChr] != HIDEN_C && win->line[lineChr]; lineChr++) ;
 					if (win->line[lineChr] == EOS)
 						lineChr--;
 				}
 			} else {
-#ifndef _UNICODE
-				res = my_CharacterByteType(win->line, lineChr, &finfo);
-				if (res == 0 || res == 1) {
-					colWin++;
-				}
-#else
 				colWin++;
-#endif
 			}
 			lineChr++;
 		}
@@ -3385,7 +3666,7 @@ static char DisplayOneRow(int  row, ROWS *win) {
 void DisplayTextWindow(ROWS *row_line, char refresh) {
 	int row;
 	int tTextWinSize = global_df->TextWinSize;
-	unsigned short lineno;
+	unsigned long lineno = 0L;
 	ROWS *win;
 	char NeedClearing;
 
@@ -3405,12 +3686,14 @@ void DisplayTextWindow(ROWS *row_line, char refresh) {
 		NeedClearing = TRUE;
 		if (isShowLineNums) {
 			ChangeCurLineAlways(0);
-			lineno = 1;
+			lineno = 1L;
 			for (win=global_df->head_text->next_row;
 						win != global_df->tail_text && win != global_df->top_win;
 										win=win->next_row) {
-				if (LineNumberingType == 0 || isMainSpeaker(win->line[0]))
-					lineno++;
+				if (LineNumberingType == 0 || isMainSpeaker(win->line[0])) {
+					if (win->prev_row == NULL || isNL_CFound(win->prev_row))
+						lineno++;
+				}
 			}
 		}
 		win = global_df->top_win;
@@ -3423,16 +3706,21 @@ void DisplayTextWindow(ROWS *row_line, char refresh) {
 				global_df->EdWinSize++;
 				NeedClearing = DisplayOneRow(row, win);
 				if (isShowLineNums) {
-					if (LineNumberingType == 0 || isMainSpeaker(win->line[0]))
-						wsetlineno(global_df->w1, row, lineno);
-					else
-						wsetlineno(global_df->w1, row, 0);
+					if (LineNumberingType == 0 || isMainSpeaker(win->line[0])) {
+						if (win->prev_row == NULL || isNL_CFound(win->prev_row))
+							wsetlineno(global_df->w1, row, lineno);
+						else
+							wsetlineno(global_df->w1, row, 0L);
+					} else
+						wsetlineno(global_df->w1, row, 0L);
 				}
 				row++;
 			}
 			if (isShowLineNums) {
-				if (LineNumberingType == 0 || isMainSpeaker(win->line[0]))
-					lineno++;
+				if (LineNumberingType == 0 || isMainSpeaker(win->line[0])) {
+					if (win->prev_row == NULL || isNL_CFound(win->prev_row) || win->prev_row == global_df->head_text)
+						lineno++;
+				}
 			}
 		}
 		global_df->EdWinSize--;
@@ -3714,7 +4002,7 @@ void GetCurCode(void) {
 
 #define FoundTextCode1 												\
 	global_df->row_txt = tr;										\
-	global_df->lineno -= (long)offset;								\
+	global_df->wLineno -= (long)offset;								\
 	global_df->col_win = 0L;										\
 	global_df->col_chr = 0L;										\
 	global_df->row_win -= (long)offset;								\
@@ -3735,7 +4023,7 @@ void GetCurCode(void) {
 
 #define FoundTextCode2 												\
 	global_df->row_txt = tr;										\
-	global_df->lineno += (long)offset;								\
+	global_df->wLineno += (long)offset;								\
 	global_df->col_win = 0L;										\
 	global_df->col_chr = 0L;										\
 	global_df->row_win += (long)offset;								\
@@ -3764,7 +4052,7 @@ static char isHidenCodeFound(unCH c) {
 int GetCurHidenCode(char move, unCH *CodeMatch) {
 	register int offset;
 	int d;
-	long i, c, ti, index;
+	long i = 0L, c, ti = 0L, index;
 	char hc_found, isCodFound;
 	ROWS *tr;
 	LINE *tl, *ttl;
@@ -3809,6 +4097,7 @@ int GetCurHidenCode(char move, unCH *CodeMatch) {
 			isCodFound = 0;
 			hc_found = FALSE;
 			c = 0;
+			ttl = global_df->head_row->next_char;
 			for (tl=global_df->head_row->next_char; tl != global_df->tail_row; tl=tl->next_char) {
 				if (hc_found && CodeMatch != NULL) {
 					if (isCodFound == 0 && is_unCH_digit(tl->c)) {
@@ -4013,7 +4302,21 @@ void FindAnyBulletsOnLine(void) {
 	if (global_df->row_txt == global_df->cur_line) {
 		hc_found = FALSE;
 		ttl = NULL;
-		for (tl=global_df->col_txt; tl != global_df->tail_row; tl=tl->next_char) {
+		tl = global_df->col_txt;
+		if (tl->prev_char != global_df->head_row && tl->prev_char->c == HIDEN_C) {
+			tl = tl->prev_char;
+			tl = tl->prev_char;
+			if (tl != global_df->head_row && iswdigit(tl->c)) {
+				for (; tl != global_df->head_row; tl=tl->prev_char) {
+					if (tl->c == HIDEN_C)
+						break;
+				}
+				if (tl == global_df->head_row)
+					tl = global_df->col_txt;
+			} else
+				tl = global_df->col_txt;
+		}
+		for (; tl != global_df->tail_row; tl=tl->next_char) {
 			if (tl->c == HIDEN_C) {
 				hc_found = !hc_found;
 				if (hc_found && ttl != NULL)
@@ -4035,7 +4338,20 @@ void FindAnyBulletsOnLine(void) {
 	} else {
 		hc_found = FALSE;
 		ti = -1;
-		for (index=global_df->col_chr; global_df->row_txt->line[index]; index++) {
+		index = global_df->col_chr;
+		if (index > 0 && global_df->row_txt->line[index-1] == HIDEN_C) {
+			index -= 2;
+			if (index >= 0 && iswdigit(global_df->row_txt->line[index])) {
+				for (; index >= 0; index--) {
+					if (global_df->row_txt->line[index] == HIDEN_C)
+						break;
+				}
+				if (index < 0)
+					index = global_df->col_chr;
+			} else
+				index = global_df->col_chr;
+		}
+		for (; global_df->row_txt->line[index]; index++) {
 			if (global_df->row_txt->line[index] == HIDEN_C) {
 				hc_found = !hc_found;
 				if (hc_found && ti != -1)
@@ -4150,12 +4466,14 @@ int FindTextCodeLine(unCH *code, unCH *CodeMatch) {
 /* tier names location end */
 
 static char changeStyleOfCurrentLine(char which, char color, char setAtt, ROWS *st, long sc, long ec) {
-	char isOKtoChange, isDoAll, sb;
+	char isOKtoChange, isDoAll, sb, isBullet;
 	long cnt, t;
 
 	cnt = 0;
-	isDoAll = (which == 0) || (!global_df->ChatMode);
+	// (which == 99) - 2019-04-17 ESC-C - color Red
+	isDoAll = (which == 0) || (which == 99) || (!global_df->ChatMode);
 	sb = FALSE;
+	isBullet = FALSE;
 	if (!isDoAll) {
 		isOKtoChange = FALSE;
 		if (isSpeaker(st->line[cnt])) {
@@ -4168,6 +4486,8 @@ static char changeStyleOfCurrentLine(char which, char color, char setAtt, ROWS *
 				sb = TRUE;
 			else if (st->line[cnt] == ']')
 				sb = FALSE;
+			else if (st->line[cnt] == HIDEN_C)
+				isBullet = !isBullet;
 			if (isSpace(st->line[cnt])) {
 				for (; cnt < ec && isSpace(st->line[cnt]); cnt++) ;
 			} else if (st->line[cnt] == '[' && st->line[cnt+1] == '-') {
@@ -4190,6 +4510,8 @@ static char changeStyleOfCurrentLine(char which, char color, char setAtt, ROWS *
 			sb = TRUE;
 		else if (st->line[cnt] == ']')
 			sb = FALSE;
+		else if (st->line[cnt] == HIDEN_C)
+			isBullet = !isBullet;
 		if (uS.IsUtteranceDel(st->line, cnt) && !sb && !isDoAll)
 			return(FALSE);
 	}
@@ -4203,6 +4525,8 @@ static char changeStyleOfCurrentLine(char which, char color, char setAtt, ROWS *
 			sb = TRUE;
 		else if (st->line[cnt] == ']')
 			sb = FALSE;
+		else if (st->line[cnt] == HIDEN_C)
+			isBullet = !isBullet;
 		if (uS.IsUtteranceDel(st->line, cnt) && !sb && !isDoAll) {
 			ec = cnt;
 			for (cnt--; cnt > 0; cnt--) {
@@ -4226,24 +4550,34 @@ static char changeStyleOfCurrentLine(char which, char color, char setAtt, ROWS *
 			st->att[cnt] = set_underline_to_0(st->att[cnt]);
 			st->att[cnt] = set_italic_to_0(st->att[cnt]);
 			st->att[cnt] = set_bold_to_0(st->att[cnt]);
-		} else if (which == 1) {
-			if (setAtt)
-				st->att[cnt] = set_underline_to_1(st->att[cnt]);
-			else
-				st->att[cnt] = set_underline_to_0(st->att[cnt]);
-		} else if (which == 2) {
-			if (setAtt)
-				st->att[cnt] = set_italic_to_1(st->att[cnt]);
-			else
-				st->att[cnt] = set_italic_to_0(st->att[cnt]);
-		} else if (which == 3) {
-			if (setAtt)
-				st->att[cnt] = set_bold_to_1(st->att[cnt]);
-			else
-				st->att[cnt] = set_bold_to_0(st->att[cnt]);
-		} else if (which == 4) {
-			if (!uS.isskip(st->line,cnt,&dFnt,TRUE) && !sb)
-				st->att[cnt] = set_color_num(color, st->att[cnt]);
+#ifdef _CLAN_DEBUG // 2019-04-17 ESC-C - color Red
+			st->att[cnt] = set_error_to_0(st->att[cnt]);
+#endif
+		} else if ((!isBullet && !sb) || !global_df->ChatMode) {
+			if (which == 1) {
+				if (setAtt)
+					st->att[cnt] = set_underline_to_1(st->att[cnt]);
+				else
+					st->att[cnt] = set_underline_to_0(st->att[cnt]);
+			} else if (which == 2) {
+				if (setAtt)
+					st->att[cnt] = set_italic_to_1(st->att[cnt]);
+				else
+					st->att[cnt] = set_italic_to_0(st->att[cnt]);
+			} else if (which == 3) {
+				if (setAtt)
+					st->att[cnt] = set_bold_to_1(st->att[cnt]);
+				else
+					st->att[cnt] = set_bold_to_0(st->att[cnt]);
+			} else if (which == 4) {
+				if (!uS.isskip(st->line,cnt,&dFnt,TRUE) && !sb)
+					st->att[cnt] = set_color_num(color, st->att[cnt]);
+			} else if (which == 99) {  // 2019-04-17 ESC-C - color Red
+				if (setAtt)
+					st->att[cnt] = set_error_to_1(st->att[cnt]);
+				else
+					st->att[cnt] = set_error_to_0(st->att[cnt]);
+			}
 		}
 	}
 	if (isOKtoChange) {
@@ -4265,6 +4599,8 @@ static char changeStyleOfCurrentLine(char which, char color, char setAtt, ROWS *
 				st->att[cnt] = set_bold_to_0(st->att[cnt]);
 			} else if (which == 4) {
 				st->att[cnt] = zero_color_num(st->att[cnt]);
+			} else if (which == 99) { // 2019-04-17 ESC-C - color Red
+				st->att[cnt] = set_error_to_0(st->att[cnt]);
 			}
 		}
 	}
@@ -4364,17 +4700,19 @@ static char changeStyleOfGlobalLine(char which, char color, char setAtt, ROWS *s
 }
 
 void StyleItems(char which, char color) {
-    char setAtt, isRightTier;
+    char setAtt = FALSE, isRightTier;
 	long cnt;
-	long sc, ec;
-	ROWS *st, *et, *tt;
+	long sc = 0L, ec = 0L;
+	ROWS *st, *et = global_df->row_txt, *tt;
 
 	init_punct(0);
 	ChangeCurLineAlways(0);
 	if (global_df->ScrollBar && (global_df->row_win2 || global_df->col_win2 != -2L)) {
 		if (global_df->row_win2 == 0) {
 			for (tt=global_df->row_txt; !isSpeaker(tt->line[0]) && !AtTopEnd(tt,global_df->head_text,FALSE); tt=ToPrevRow(tt, FALSE)) ;
-			if (tt->line[0] == '*' || !global_df->ChatMode)
+			if (which == 99) // 2019-04-17 ESC-C - color Red
+				isRightTier = TRUE;
+			else if (tt->line[0] == '*' || !global_df->ChatMode)
 				isRightTier = TRUE;
 			else
 				return;
@@ -4411,6 +4749,11 @@ void StyleItems(char which, char color) {
 					setAtt = TRUE;
 			} else if (which == 4) {
 				setAtt = TRUE;
+			} else if (which == 99) { // 2019-04-17 ESC-C - color Red
+				if (is_error(global_df->row_txt->att[sc]))
+					setAtt = FALSE;
+				else
+					setAtt = TRUE;
 			}
 			if (changeStyleOfCurrentLine(which, color, setAtt, global_df->row_txt, sc, ec))
 				CpCur_lineAttToHead_rowAtt(global_df->cur_line);
@@ -4425,10 +4768,13 @@ void StyleItems(char which, char color) {
 				for (cnt=global_df->row_win2, et=global_df->row_txt; cnt && !AtBotEnd(et,global_df->tail_text,FALSE);
 								cnt--, et=ToNextRow(et, FALSE)) ;
 				sc = global_df->col_chr; ec = global_df->col_chr2;
-			}
+			} else
+				st = global_df->row_txt;
 
 			for (tt=st; !isSpeaker(tt->line[0]) && !AtTopEnd(tt,global_df->head_text,FALSE); tt=ToPrevRow(tt, FALSE)) ;
-			if (tt->line[0] == '*' || !global_df->ChatMode)
+			if (which == 99) // 2019-04-17 ESC-C - color Red
+				isRightTier = TRUE;
+			else if (tt->line[0] == '*' || !global_df->ChatMode)
 				isRightTier = TRUE;
 			else
 				isRightTier = FALSE;
@@ -4460,6 +4806,11 @@ void StyleItems(char which, char color) {
 						setAtt = TRUE;
 				} else if (which == 4) {
 					setAtt = TRUE;
+				} else if (which == 99) { // 2019-04-17 ESC-C - color Red
+					if (is_error(st->att[sc]))
+						setAtt = FALSE;
+					else
+						setAtt = TRUE;
 				}
 				changeStyleOfCurrentLine(which, color, setAtt, st, sc, strlen(st->line));
 			} else {
@@ -4472,7 +4823,9 @@ void StyleItems(char which, char color) {
 			if (!AtBotEnd(st,et,FALSE)) {
 				do {
 					st = ToNextRow(st, FALSE);
-					if (st->line[0] == '*' || !global_df->ChatMode)
+					if (which == 99) // 2019-04-17 ESC-C - color Red
+						isRightTier = TRUE;
+					else if (st->line[0] == '*' || !global_df->ChatMode)
 						isRightTier = TRUE;
 					else if (st->line[0] == '@' || st->line[0] == '%')
 						isRightTier = FALSE;
@@ -4489,7 +4842,9 @@ void StyleItems(char which, char color) {
 				} while (!AtBotEnd(st,et,FALSE)) ;
 			}
 			st = ToNextRow(st, FALSE);
-			if (st->line[0] == '*' || !global_df->ChatMode)
+			if (which == 99) // 2019-04-17 ESC-C - color Red
+				isRightTier = TRUE;
+			else if (st->line[0] == '*' || !global_df->ChatMode)
 				isRightTier = TRUE;
 			else if (st->line[0] == '@' || st->line[0] == '%')
 				isRightTier = FALSE;
@@ -4545,23 +4900,17 @@ void StyleItems(char which, char color) {
 				setAtt = TRUE;
 		} else if (which == 4) {
 			setAtt = TRUE;
+		} else if (which == 99) { // 2019-04-17 ESC-C - color Red
+			if (is_error(global_df->gAtt))
+				setAtt = FALSE;
+			else
+				setAtt = TRUE;
 		}
 		changeStyleOfGlobalLine(which, color, setAtt, st, sc);
 #ifdef _MAC_CODE
 		SetTextWinMenus(FALSE);
 #endif
 	}
-}
-
-static void remAllBlanks(wchar_t *st) {
-	register int i;
-
-	for (i=0; isSpace(st[i]) || st[i] == '\n' || st[i] == '_'; i++) ;
-	if (i > 0)
-		strcpy(st, st+i);
-	i = strlen(st) - 1;
-	while (i >= 0 && (isSpace(st[i]) || st[i] == '\n' || st[i] == '_' || st[i] == NL_C || st[i] == SNL_C)) i--;
-	st[i+1] = EOS;
 }
 
 static char *getTierText(ROWS *tr, int max) {
@@ -4604,7 +4953,7 @@ void getTextAndSendToSoundAnalyzer(void) {
 	long cnt;
 	double dBeg, dEnd;
 	extern const char *sendMessage(const char *mess);
-	extern const char *sendpraat (void *display, const char *programName, long timeOut, const char *text);
+	extern char *sendpraat (void *display, const char *programName, long timeOut, const char *text);
 
 	if (global_df == NULL)
 		return;
@@ -4666,7 +5015,7 @@ repeat_this:
 			if (!LaunchAppFromSignature('PHW0', FALSE))
 				err = "Can't fine PitchWorks application";
 			else {
-				EventAvail(everyEvent, &theEvent);
+				EventAvail-commented(everyEvent, &theEvent);
 				err = NULL;
 			}
 			t.out = global_df->SnTr.SFileType;
@@ -4681,10 +5030,12 @@ repeat_this:
 				if (*global_df->SnTr.SoundFile != EOS) {
 					if (global_df->SnTr.isMP3 == TRUE) {
 						global_df->SnTr.isMP3 = FALSE;
+#ifdef _MAC_CODE
 						if (global_df->SnTr.mp3.hSys7SoundData)
 							DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
 						global_df->SnTr.mp3.theSoundMedia = NULL;
 						global_df->SnTr.mp3.hSys7SoundData = NULL;
+#endif
 					} else {
 						fclose(global_df->SnTr.SoundFPtr);
 					}
@@ -4704,7 +5055,7 @@ repeat_this:
 			return;
 		}
 	} else if (reportError)
-		do_warning("Media marker not found at cursor position", 0);
+		do_warning("Media marker not found at cursor position. Please make sure to play bullet first.", 0);
 	if (cnt != 0L) {
 		if (cnt < 0L) {
 			if (AtTopEnd(global_df->row_txt,global_df->head_text,FALSE))

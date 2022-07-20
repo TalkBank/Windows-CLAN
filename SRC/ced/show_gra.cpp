@@ -35,25 +35,23 @@ static void convertToURLText(char *to, char *from) {
 char ShowGRA(void) {
 	int  i;
 	int  j;
-	char hf;
-//	FILE *fp;
-//	FNType morgra2jpgExec[FNSize];
+	char hf, jpgTag[20];
+	FILE *fp;
 	ROWS *tr, *grt, *gra, *trn, *mor, *msp;
+	extern FNType prefsDir[];
 
 	ChangeCurLineAlways(0);
-/*
-	if ((fp=OpenGenLib("morgra2jpg.pl","rb",TRUE,TRUE,morgra2jpgExec)) == NULL) {
-		do_warning("Can't find \"morgra2jpg.pl\" file in lib folder.", -1);
-		return(FALSE);
-	}
-	fclose(fp);
-*/
 	msp = NULL;
 	grt = NULL;
 	gra = NULL;
 	trn = NULL;
 	mor = NULL;
 	tr = global_df->row_txt;
+	if (isSpace(tr->line[0])) {
+		while (!isSpeaker(tr->line[0]) && !AtTopEnd(tr, global_df->head_text, FALSE)) {
+			tr = ToPrevRow(tr, FALSE);
+		}
+	}
 	if (uS.partcmp(tr->line, "%grt:", FALSE, FALSE))
 		grt = tr;
 	else if (uS.partcmp(tr->line, "%gra:", FALSE, FALSE))
@@ -175,48 +173,22 @@ char ShowGRA(void) {
 		templine3[j] = EOS;
 		UnicodeToUTF8(templine3, j, (unsigned char *)templineC3, NULL, UTTLINELEN);
 	}	
-/*
-extractPath(global_df->PcTr.pictFName, global_df->fileName);
-addFilename2Path(global_df->PcTr.pictFName, "debug.txt");
-fp = fopen(global_df->PcTr.pictFName, "w");
-if (fp == NULL) {
-	do_warning("Error opening debug file.", -1);
-	return(FALSE);
-}
-*/
-	extractPath(global_df->PcTr.pictFName, global_df->fileName);
-	addFilename2Path(global_df->PcTr.pictFName, "graph.jpg");
-/*
-	 strcpy(templineC4, morgra2jpgExec);
-	 strcat(templineC4, " \"");
-	 strcat(templineC4, templineC2);
-	 strcat(templineC4, "\" \"");
-	 strcat(templineC4, templineC);
-	 strcat(templineC4, "\" \"");
-	 strcat(templineC4, global_df->PcTr.pictFName);
-	 strcat(templineC4, "\" \"");
-	 strcat(templineC4, templineC3);
-	 strcat(templineC4, "\"");
-	 if (system(templineC4)) {
-		do_warning("SYSTEM FUNCTION CALL FAILED. Did you install graphviz-2.28.0?", -1);
-		return(FALSE);
-	 }
-*/
-	strcpy(templineC1, "http://talkbank.org/cgi-bin/morgra2jpg.cgi?morText=");
+	if (!strcmp(global_df->fileName, "newfile.cha"))
+		strcpy(global_df->PcTr.pictFName, prefsDir);
+	else
+		extractPath(global_df->PcTr.pictFName, global_df->fileName);
+	addFilename2Path(global_df->PcTr.pictFName, "0graph.jpg");
+	strcpy(templineC1, "https://talkbank.org/cgi-bin/morgra2jpg.cgi?morText=");
 	i = strlen(templineC1);
-	strcpy(templineC4, "http://talkbank.org/cgi-bin/morgra2jpg.cgi?morText=");
+	strcpy(templineC4, "https://talkbank.org/cgi-bin/morgra2jpg.cgi?morText=");
 	strcat(templineC4, templineC2);
 	strcat(templineC4, "&graText=");
 	strcat(templineC4, templineC);
 	strcat(templineC4, "&mainText=");
 	strcat(templineC4, templineC3);
 	convertToURLText(templineC1+i, templineC4+i);
-/*
-fprintf(fp, "%s", templineC1);
-fclose(fp);
-*/
 #ifdef _MAC_CODE
-	if (!DownloadURL(templineC1, 60000L, NULL, 0, global_df->PcTr.pictFName, FALSE, TRUE)) {
+	if (!DownloadURL(templineC1, 60000L, NULL, 0, global_df->PcTr.pictFName, FALSE, TRUE, "Downloading gra graph...")) {
 		do_warning("WEB CONNECTION FAILED", -1);
 		return(FALSE);
 	}
@@ -231,8 +203,25 @@ fclose(fp);
 	isOverRidePicName = TRUE;
 #endif
 	if (access(global_df->PcTr.pictFName, 0)) {
-		do_warning("ACCESS TO IMAGE FILE FAILED. Did you install graphviz-2.28.0?", -1);
+		do_warning("ACCESS TO IMAGE FILE FAILED.", -1);
 		return(FALSE);
+	} else {
+		fp = fopen(global_df->PcTr.pictFName, "rb");
+		if (fp == NULL) {
+			do_warning("ACCESS TO IMAGE FILE FAILED.", -1);
+			return(FALSE);
+		}
+		i = 0;
+		while (!feof(fp) && i < 20)
+			jpgTag[i++] = getc(fp);
+		fclose(fp);
+		if (uS.mStrnicmp(jpgTag, "<h1>Software error:", 19) == 0) {
+			do_warning("Possibly %mor tier length does not match %gra tier length", -1);
+			return(FALSE);
+		} else if (uS.mStrnicmp(jpgTag, "<!DOCTYPE", 9) == 0) {
+			do_warning("Internal error, image generating script missing on talkbank.org, contact support", -1);
+			return(FALSE);
+		}
 	}
 	global_df->PcTr.pictChanged = TRUE;
 	DisplayPhoto(global_df->PcTr.pictFName);

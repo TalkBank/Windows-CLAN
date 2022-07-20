@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -263,10 +263,10 @@ static void rd_AnvilAtts_f(const char *fname, char isFatalError) {
 	}
 	ln = 0L;
 	while (fgets_cr(templineC, 255, fp)) {
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE))
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 			continue;
 		ln++;
-		if (templineC[0] == ';')
+		if (templineC[0] == '#')
 			continue;
 		uS.remblanks(templineC);
 		if (templineC[0] == EOS)
@@ -347,43 +347,6 @@ void getflag(char *f, char *f1, int *i) {
 	}
 }
 
-static void makeAnotation(char *an, char *bs, char *es) {
-	long i;
-
-	for (; (isSpace(*bs) || *bs == '\n') && bs < es; bs++) ;
-	for (es--; (isSpace(*es) || *es == '\n') && bs <= es; es--) ;
-	es++;
-	i = 0L;
-	for (; bs < es; bs++) {
-		if (*bs == '&') {
-			strcpy(an+i, "&amp;");
-			i = strlen(an);
-		} else if (*bs == '"') {
-			strcpy(an+i, "&quot;");
-			i = strlen(an);
-		} else if (*bs == '\'') {
-			strcpy(an+i, "&apos;");
-			i = strlen(an);
-		} else if (*bs == '<') {
-			strcpy(an+i, "&lt;");
-			i = strlen(an);
-		} else if (*bs == '>') {
-			strcpy(an+i, "&gt;");
-			i = strlen(an);
-		} else if (*bs == '\n')
-			an[i++] = ' ';
-		else if (*bs == '\t')
-			an[i++] = ' ';
-		else if (*bs >= 0 && *bs < 32) {
-			sprintf(an+i,"{0x%x}", *bs);
-			i = strlen(an);
-		} else
-			an[i++] = *bs;
-	}
-	an[i] = EOS;
-}
-
-
 static char *extractRefNum(char *chatRefSt, long *chatRefID, char *st) {
 	char *es, t;
 	
@@ -423,7 +386,7 @@ static char findLinkInfo(ALLTIERS *trs, long chatRefID, char *refTrack, long *xm
 }
 
 static char *changeValueLinks(char *oldSt) {
-	char *st, refTrack[NAMESLEN];
+	char *st = NULL, refTrack[NAMESLEN];
 	long chatRefID, xmlIndex, len;
 
 	templineC1[0] = EOS;
@@ -917,7 +880,7 @@ void call() {
 		if (utterance->speaker[0] == '@') {
 			if (!isSpTierFound) {
 				if (uS.isUTF8(utterance->speaker) ||
-					uS.partcmp(utterance->speaker, "@Font:", FALSE, FALSE) ||
+					uS.isInvisibleHeader(utterance->speaker) ||
 					uS.partcmp(utterance->speaker, "@Begin", FALSE, FALSE) || 
 					uS.partcmp(utterance->speaker, "@End", FALSE, FALSE)) {
 				} else if (uS.partcmp(utterance->speaker, "@Languages:", FALSE, FALSE) ||
@@ -927,7 +890,7 @@ void call() {
 					if (attsRoot == NULL) {
 						bs = utterance->line;
 						for (es=bs; *es != EOS; es++) ;
-						makeAnotation(templineC, bs, es);
+						textToXML(templineC, bs, es);
 						uS.remFrontAndBackBlanks(templineC);
 						fprintf(fpout, "    <info key=\"%s\" type=\"String\">\n", utterance->speaker);
 						fprintf(fpout, "      %s\n", templineC);
@@ -987,7 +950,7 @@ void call() {
 				else
 					mediaRes = getOLDMediaTagInfo(es, NULL, mediaFName, &Beg, &End);
 				if (mediaRes) {
-					makeAnotation(templineC, bs, es);
+					textToXML(templineC, bs, es);
 					if (templineC[0] != EOS) {
 						if (utterance->speaker[0] == '*') {
 							convertChatTiers2AnvilTag(tag, utterance->speaker, "");
@@ -1026,7 +989,7 @@ void call() {
 				fprintf(errFp,"%s:\t%s\n", utterance->speaker, utterance->line);
 			}
 		}
-		makeAnotation(templineC, bs, es);
+		textToXML(templineC, bs, es);
 		if (templineC[0] != EOS) {
 			if (utterance->speaker[0] == '*') {
 				convertChatTiers2AnvilTag(tag, utterance->speaker, "");

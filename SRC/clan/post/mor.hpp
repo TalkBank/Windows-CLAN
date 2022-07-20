@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -12,7 +12,8 @@
 #define __MOR_HPP__
 
 #define WhiteSpaces " \t\b\r\n"
-#define PunctuationsAtEnd ".!,;?+/"
+//#define PunctuationsAtEnd ".!,;?+/"
+#define PunctuationsAtEnd ".!;?+/"
 #define PunctuationsInside ""
 #define AmbiguitySeparator "^"
 #define MorTagMainSeparator '|'

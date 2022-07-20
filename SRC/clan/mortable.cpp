@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -33,7 +33,6 @@
 #define LABELS struct labels_list
 LABELS {
 	char *label;
-	char isDisplay;
 	int num;
 	LABELS *next_label;
 };
@@ -55,6 +54,7 @@ LSP {
 	LSP *next_sp;
 } ;
 
+extern char R8;
 extern char OverWriteFile;
 extern char outputOnlyData;
 extern struct IDtype *IDField;
@@ -120,7 +120,7 @@ static void mortable_error(const char *mess) {
 	cutt_exit(0);
 }
 
-static LABELS *addNewLabel(char *label, char isDisplay) {
+static LABELS *mortable_addNewLabel(char *label) {
 	int cnt;
 	LABELS *p;
 
@@ -150,7 +150,6 @@ static LABELS *addNewLabel(char *label, char isDisplay) {
 		mortable_error("Error: out of memory");
 	}
 	p->next_label = NULL;
-	p->isDisplay = isDisplay;
 	p->num = cnt;
 	p->label = (char *)malloc(strlen(label)+1);
 	if (p->label == NULL) {
@@ -161,7 +160,7 @@ static LABELS *addNewLabel(char *label, char isDisplay) {
 	return(p);
 }
 
-static COLS *add2col(COLS *root, char isFirstElem, char *pat, FNType *mFileName, int ln, char isDisplay) {
+static COLS *mortable_add2col(COLS *root, char isFirstElem, char *pat, FNType *mFileName, int ln) {
 	int  i;
 	char ch, res;
 	COLS *p;
@@ -184,8 +183,8 @@ static COLS *add2col(COLS *root, char isFirstElem, char *pat, FNType *mFileName,
 		p->isClitic = FALSE;
 	} else
 		for (p=root; p->next_col != NULL; p=p->next_col) ;
-	if (pat[0] == '"' || pat[0] == '\'') {
-		for (i=0; pat[i] != EOS && (pat[i] == '"' || pat[i] == '\'' || isSpace(pat[i])); i++) ;
+	if (pat[0] == '"') {
+		for (i=0; pat[i] != EOS && (pat[i] == '"' || isSpace(pat[i])); i++) ;
 		if (pat[i] != EOS) {
 			if (p->labelP != NULL) {
 				fprintf(stderr,"\n*** File \"%s\": line %d.\n", mFileName, ln);
@@ -208,7 +207,7 @@ static COLS *add2col(COLS *root, char isFirstElem, char *pat, FNType *mFileName,
 					strcpy(templineC2, "% ");
 			}
 			strcat(templineC2, pat+i);
-			p->labelP = addNewLabel(templineC2, isDisplay);
+			p->labelP = mortable_addNewLabel(templineC2);
 		}
 	} else {
 		i = 0;
@@ -219,6 +218,7 @@ static COLS *add2col(COLS *root, char isFirstElem, char *pat, FNType *mFileName,
 			i++;
 			ch = 'i';
 		} else {
+			ch = 0;
 			fprintf(stderr,"\n*** File \"%s\": line %d.\n", mFileName, ln);
 			fprintf(stderr, "    ERROR: Illegal character \"%c\" found on line \"%s\"\n", pat[i], pat);
 			fprintf(stderr, "    Expected characters are: + - \" '\n\n");
@@ -234,7 +234,7 @@ static COLS *add2col(COLS *root, char isFirstElem, char *pat, FNType *mFileName,
 			i++;
 		if (strchr(pat+i, '~') != NULL || strchr(pat+i, '$') != NULL)
 			p->isClitic = TRUE;
-		p->pats = makeMorWordList(p->pats, &res, pat+i, ch);
+		p->pats = makeMorSeachList(p->pats, &res, pat+i, ch);
 		if (p->pats == NULL) {
 			if (res == TRUE)
 				mortable_error("Error: out of memory");
@@ -252,7 +252,7 @@ static COLS *add2col(COLS *root, char isFirstElem, char *pat, FNType *mFileName,
 
 static void read_script(char *lang) {
 	int  ln;
-	char *b, *e, t, isQT, isFirstElem, isORGoup, isDisplay;
+	char *b, *e, t, isQT, isFirstElem, isORGoup;
 	FNType mFileName[FNSize];
 	FILE *fp;
 
@@ -290,19 +290,12 @@ static void read_script(char *lang) {
 	isORGoup = FALSE;
 	ln = 0;
 	while (fgets_cr(templineC, 255, fp)) {
-		if (uS.isUTF8(templineC) || uS.partcmp(templineC, FONTHEADER, FALSE, FALSE) ||
+		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC) ||
 			strncmp(templineC, SPECIALTEXTFILESTR, SPECIALTEXTFILESTRLEN) == 0)
 			continue;
 		ln++;
-		if (templineC[0] == ';' || templineC[0] == '%')
+		if (templineC[0] == '%' || templineC[0] == '#')
 			continue;
-		if (templineC[0] == '#') {
-			for (b=templineC; *b == '#' || isSpace(*b); b++) ;
-			if (b != templineC)
-				strcpy(templineC, b);
-			isDisplay = FALSE;
-		} else
-			isDisplay = TRUE;
 		uS.remFrontAndBackBlanks(templineC);
 		if (templineC[0] == EOS)
 			continue;
@@ -318,22 +311,22 @@ static void read_script(char *lang) {
 		b = templineC;
 		e = b;
 		while (*b != EOS) {
-			if (*e == '"' || *e == '\'') {
+			if (*e == '"') {
 				if (isQT == *e)
 					isQT = '\0';
 				else if (isQT == '\0')
 					isQT = *e;
 			}
-			if (((isSpace(*e) || *e == '"' || *e == '\'') && isQT == '\0') || *e == EOS) {
+			if (((isSpace(*e) || *e == '"') && isQT == '\0') || *e == EOS) {
 				t = *e;
 				*e = EOS;
 				strcpy(templineC1, b);
 				uS.remblanks(templineC1);
 				if (templineC1[0] != EOS) {
 					if (isORGoup)
-						colOrRoot = add2col(colOrRoot, isFirstElem, templineC1, mFileName, ln, isDisplay);
+						colOrRoot = mortable_add2col(colOrRoot, isFirstElem, templineC1, mFileName, ln);
 					else
-						colAndRoot = add2col(colAndRoot, isFirstElem, templineC1, mFileName, ln, isDisplay);
+						colAndRoot = mortable_add2col(colAndRoot, isFirstElem, templineC1, mFileName, ln);
 					isFirstElem = FALSE;
 				}
 				*e = t;
@@ -390,7 +383,6 @@ void init(char f) {
 		addword('\0','\0',"+unk|xxx");
 		addword('\0','\0',"+unk|yyy");
 		addword('\0','\0',"+*|www");
-//		addword('\0','\0',"+<\">");
 		maininitwords();
 		mor_initwords();
 	} else {
@@ -402,15 +394,16 @@ void init(char f) {
 				cutt_exit(0);
 			}
 			read_script(script_file);
+			maketierchoice("@ID:",'+','\001');
+			maketierchoice("%mor:",'+','\001');
+			R8 = TRUE;
 		}
-		maketierchoice("@ID:",'+','\001');
-		maketierchoice("%mor:",'+','\001');
 	}
 }
 
 void usage() {
 	printf("Creates table of frequency count of parts of speech and bound morphemes\n");
-	printf("Usage: mortable[lF oN %s] filename(s)\n", mainflgs());
+	printf("Usage: mortable [lF oN %s] filename(s)\n", mainflgs());
 	puts("+lF: specify language script file name F");
 #ifdef UNX
 	puts("+LF: specify full path F of the lib folder");
@@ -466,66 +459,60 @@ void getflag(char *f, char *f1, int *i) {
 
 static void print_labels(LABELS *col) {
 	for (; col != NULL; col=col->next_label) {
-		if (col->isDisplay) {
-			if (col->label != NULL)
-				fprintf(fpout,"\t%s", col->label);
-			else
-				fprintf(fpout,"\t");
-		}
+		if (col->label != NULL)
+			excelStrCell(fpout, col->label);
+		else
+			excelStrCell(fpout, ".");
 	}
 }
 
-static void print_vals(unsigned int *count, float ftotalW) {
-	float fcount;
+static void print_vals(unsigned int *count, unsigned int totalW) {
+	float fcount, ftotalW;
 	LABELS  *col;
 
+	ftotalW = (float)totalW;
+	excelNumCell(fpout, "%.0f", ftotalW);
 	for (col=labelsRoot; col != NULL; col=col->next_label) {
-		if (col->isDisplay) {
-			if (isRawVal)
-				fprintf(fpout,"\t%u", count[col->num]);
-			else if (ftotalW == 0)
-				fprintf(fpout,"\t0.000");
-			else {
-				fcount = (float)count[col->num];
-				fprintf(fpout,"\t%.3f", (fcount/ftotalW)*100.0000);
-			}
+		if (isRawVal) {
+			fcount = (float)count[col->num];
+			excelNumCell(fpout, "%.0f", fcount);
+		} else if (totalW == 0)
+			excelStrCell(fpout, "NA");
+		else {
+			fcount = (float)count[col->num];
+			excelNumCell(fpout, "%.3f", (fcount/ftotalW)*100.0000);
 		}
 	}
 }
 
 static void LSp_pr_result(void) {
-	int i, cnt;
 	LSP *p;
 
 	p = root_sp;
-	fprintf(fpout,"File\tLanguage\tCorpus\tCode\tAge\tSex\tGroup\tSES\tRole\tEducation\tCustom_field");
-	fprintf(fpout,"\t# words");
+	excelHeader(fpout, newfname, 95);
+	excelRow(fpout, ExcelRowStart);
+	excelCommasStrCell(fpout, "File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field");
+	excelCommasStrCell(fpout, "mor Words");
 	if (p != NULL && (isFTimeLabel || !combinput)) {
 		isFTimeLabel = FALSE;
 		print_labels(labelsRoot);
 	}
-	fprintf(fpout,"\n");
+	excelRow(fpout, ExcelRowEnd);
 	while (p != NULL) {
-		fprintf(fpout,"%s\t", p->fname);
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, p->fname);
 		if (p->ID != NULL) {
-			cnt = 0;
-			for (i=0; p->ID[i] != EOS; i++) {
-				if (p->ID[i] == '|') {
-					cnt++;
-					if (cnt < 10)
-						p->ID[i] = '\t';
-					else
-						p->ID[i] = EOS;
-				}
-			}
-			fprintf(fpout,"%s", p->ID);
-		} else
-			fprintf(fpout,".\t.\t%s\t.\t.\t.\t.\t.\t.\t.", p->sp);
-		fprintf(fpout,"\t%u", p->totalW);
-		print_vals(p->count, (float)p->totalW);
-		fprintf(fpout,"\n");
+			excelOutputID(fpout, p->ID);
+		} else {
+			excelCommasStrCell(fpout, ".,.");
+			excelStrCell(fpout, p->sp);
+			excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.");
+		}
+		print_vals(p->count, p->totalW);
+		excelRow(fpout, ExcelRowEnd);
 		p = p->next_sp;
 	}
+	excelFooter(fpout);
 }
 
 static LSP *findSpeaker(char *sp, char *ID) {
@@ -579,6 +566,7 @@ static LSP *findSpeaker(char *sp, char *ID) {
 		mortable_error("Error: out of memory");
 	}
 	strcpy(ts->sp, sp);
+// ".xls"
 	s = strrchr(oldfname, PATHDELIMCHR);
 	if (s == NULL)
 		s = oldfname;
@@ -603,7 +591,6 @@ static void countCols(LSP *p) {
 	while ((i=getword(utterance->speaker, uttline, wordO, NULL, i))) {
 		uS.remblanks(wordO);
 		if (strchr(wordO, '|') != NULL) {
-			p->totalW++;
 			strcpy(wordC, wordO);
 			comps = 0;
 			w[comps++] = wordC;
@@ -622,6 +609,7 @@ static void countCols(LSP *p) {
 					w[comps++] = wordC+j;
 				}
 			}
+			p->totalW += comps;
 			for (j=0; j < comps; j++) {
 				for (col=colOrRoot; col != NULL; col=col->next_col) {
 					if (col->isClitic) {
@@ -673,7 +661,7 @@ static void countCols(LSP *p) {
 }
 
 void call() {
-	LSP *ts;
+	LSP *ts = NULL;
 	char spname[SPEAKERLEN];
 
 	fileID++;
@@ -695,7 +683,7 @@ void call() {
 				strcpy(spname, utterance->speaker);
 			}
 			ts = findSpeaker(spname, NULL);
-		} else if (uS.partcmp(utterance->speaker, "%mor:", FALSE, FALSE)) {
+		} else if (uS.partcmp(utterance->speaker, "%mor:", FALSE, FALSE) && ts != NULL) {
 			countCols(ts);
 		}
 	}

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -164,7 +164,8 @@ ME_Model::Solve_BLMVM(BLMVM blmvm, BLMVMVec X){
 #if defined(_MAC_CODE) || defined(_WIN32)
 	  cnt++;
 	  if (cnt % 20000 == 0) { // PERIOD
-		  fprintf(stderr,"\r%d ",cnt/10000);
+// lxs 2019-03-15 if (!isRecursive)
+			  fprintf(stderr,"\r%d ",cnt/10000);
 		  my_flush_chr();
 		  if (isKillProgram)
 			  megraps_exit(0);

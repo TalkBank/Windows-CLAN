@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -468,28 +468,27 @@ void pr_result(void) {
     prdebug(("pr_result()\n"));
 
     if (!onlydata) {
-	if (chatmode) {
-	    fprintf(fpout, "There were %d turns.\n\n\n", line_count);
-	} else {
-	    fprintf(fpout, "There were %d lines.\n\n\n", line_count);
-	}
+		if (chatmode) {
+			fprintf(fpout, "There were %d turns.\n\n\n", line_count);
+		} else {
+			fprintf(fpout, "There were %d lines.\n\n\n", line_count);
+		}
 
-	fprintf(fpout, format,
-	    "",
-	    "Occurrence",
-	    "First ",
-	    "Last  ",
-	    "Average ");
+		fprintf(fpout, format,
+			"",
+			"Occurrence",
+			"First ",
+			"Last  ",
+			"Average ");
 
-	fprintf(fpout, format,
-	    "Word",
-	    "Count",
-	    "Occurs",
-	    "Occurs",
-	    "Distance");
+		fprintf(fpout, format,
+			"Word",
+			"Count",
+			"Occurs",
+			"Occurs",
+			"Distance");
 
-	fprintf(fpout,
-	    "-----------------------------------------------------------\n");
+		fprintf(fpout, "-----------------------------------------------------------\n");
     }
 
 	/* Print out the data collected in the tree.			    */
@@ -537,7 +536,7 @@ void getflag(char *f, char *f1, int *i) {
 	case 't':	/* Notice if any main utterance lines are stripped, */
 	    tf = getfarg(f,f1,i);
 	    if (*tf == EOS || *tf == '*') {
-		no_main = TRUE;		/* Don't try to count utterances.   */
+			no_main = TRUE;		/* Don't try to count utterances.   */
 	    }
 	    maingetflag(f-2,f1,i);
 	    break;
@@ -579,14 +578,14 @@ void init(char first) {
     	prdebug(("init()\n"));
 
     if (!combinput || first) {
-	prdebug(("inter()\n"));
-	/* Lazy garbage collection.  Only garbage collect if needed.	    */
-	if (word_tree) {		/* If there is an old tree around,  */
-	    tgarbage(word_tree);	/* garbage collect it.	    */
-	}
-	/* Cast the standard "strcmp" as taking two "void *" args.	    */
-	word_tree = tnew();
-	line_count = 0;
+		prdebug(("inter()\n"));
+		/* Lazy garbage collection.  Only garbage collect if needed.	    */
+		if (word_tree) {		/* If there is an old tree around,  */
+			tgarbage(word_tree);	/* garbage collect it.	    */
+		}
+		/* Cast the standard "strcmp" as taking two "void *" args.	    */
+		word_tree = tnew();
+		line_count = 0;
     }
 }
 

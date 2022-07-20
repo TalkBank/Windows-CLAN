@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -302,6 +302,7 @@ private:
 
 };
 
+extern char isRecursive;
 extern char *fgets_megrasp(char *beg, int size, FILE *fp);
 
 #endif

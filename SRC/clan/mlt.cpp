@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -32,21 +32,21 @@ struct mlt_cnt {
 	char *fname;
 	char *sp;
 	char *ID;
-	float mlt_words, mlt_utter, mlt_turn;
+	float mlt_words, mlt_utter, mlt_turn, mlt_word_sqr;
 	MLTSP *next_sp;
 } ;
 
 static MLTSP *mlt_head;
 static char mlt_ftime, mlt_foutput, count_empty_utterences, isFromCall, mlt_isCombineSpeakers;
-static float mlt_utter, mlt_words;
+static float mlt_utter, mlt_words, mlt_word_sqr;
 
 void usage() {
 	puts("MLT- Mean Length Turn computes the number of utterances, turns");
 	puts("     and their ratio.");
 	printf("Usage: mlt [a cS gS oN %s] filename(s)\n",mainflgs());
 //	puts("+a : count utterances that are not empty or have words specified with +/-s option");
-	puts("+a : count utterances that are not empty");
-	puts("+cS: look for unit marker S or markers listed in file @S");
+	puts("+a : do not count empty utterances, 0.");
+	puts("+cS: look for clause marker S or markers listed in file @S");
 	puts("+gS: exclude utterance consisting solely of specified word S or words in file @S");
 	puts("+o3: combine selected speakers from each file into one results list for that file");
 	mainusage(TRUE);
@@ -75,6 +75,7 @@ void init(char f) {
 		addword('\0','\0',"+$*");
 		maininitwords();
 		mor_initwords();
+		ml_isSkip = FALSE;
 		ml_isXXXFound = TRUE;
 		ml_isYYYFound = TRUE;
 		ml_isWWWFound = TRUE;
@@ -93,14 +94,14 @@ void init(char f) {
 			AddCEXExtension = ".xls";
 		}
 	}
-	if (!combinput || onlydata == 1 || f) {
+	if (!combinput || f) {
 		mlt_head = NULL;
 	}
 	if ((onlydata == 1 || onlydata == 2) && mlt_ftime && chatmode) {
 		maketierchoice("@ID:",'+',FALSE);
 /*
 		if (IDField == NULL && *headtier->tcode == '@') {
-			fputs("\nPlease use \"+t\" option to specify speaker name or ID\n",stderr);
+			fputs("\nPlease use \"+t\" option to specify speaker code or ID\n",stderr);
 			ml_exit(0);
 		}
 */
@@ -146,39 +147,41 @@ static void mlt_outputIDInfo(char *fname, char *s) {
 
 
 static void mlt_pr_result(void) {
-	char *s;
-	MLTSP *ts;
+	char *sFName;
+	float tt;
 	float mlt_turn;
+	MLTSP *ts;
 
-	if (onlydata == 1 && mlt_foutput) {
-		mlt_foutput = FALSE;
-		fprintf(fpout,"File\tLanguage\tCorpus\tCode\tAge\tSex\tGroup\tSES\tRole\tEducation\tCustom_field\t");
+	if (onlydata == 1) {
+		excelHeader(fpout, newfname, 95);
+		excelRow(fpout, ExcelRowStart);
+		excelCommasStrCell(fpout,"File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field,");
 		if (!ml_isPlusSUsed) {
-			fprintf(fpout,"#%s\t#turns\t#words\twords/turns\t%s/turns\twords/%s\n",
+			sprintf(spareTier1,"#%s,#turns,#words,words/turns,%s/turns,words/%s,Standard deviation",
 					(ml_isclause() ? "clauses" : "utterances"),(ml_isclause() ? "clauses" : "utterances"),(ml_isclause() ? "clauses" : "utterances"));
-//			fprintf(fpout,"#%s\t#turns\t#words\twords/turns\t%s/turns\n",(ml_isclause() ? "clauses" : "utterances"),(ml_isclause() ? "clauses" : "utterances"));
 		} else {
-			fprintf(fpout,"#%s\t#turns\t#specified words\twords/turns\t%s/turns\tspecified words/%s\n",
+			sprintf(spareTier1,"#%s,#turns,#specified words,words/turns,%s/turns,specified words/%s,Standard deviation",
 					(ml_isclause() ? "clauses" : "utterances"),(ml_isclause() ? "clauses" : "utterances"),(ml_isclause() ? "clauses" : "utterances"));
-//			fprintf(fpout,"#%s\t#turns\t%s/turns\t\n",(ml_isclause() ? "clauses" : "utterances"),(ml_isclause() ? "clauses" : "utterances"));
 		}
+		excelCommasStrCell(fpout, spareTier1);
+		excelRow(fpout, ExcelRowEnd);
 	}
 	if (onlydata == 1 && mlt_head == NULL && isFromCall) {
-		s = strrchr(oldfname, PATHDELIMCHR);
-		if (s == NULL)
-			s = oldfname;
+		excelRow(fpout, ExcelRowStart);
+		sFName = strrchr(oldfname, PATHDELIMCHR);
+		if (sFName == NULL)
+			sFName = oldfname;
 		else
-			s++;
-		strcpy(FileName1, s);
-		s = strrchr(FileName1, '.');
-		if (s != NULL)
-			*s = EOS;
-		fprintf(fpout,"%s\t.\t.\t.\t.\t.\t.\t.\t.\t.\t.\t0\t0\t0\t.\t.\n", FileName1);
+			sFName++;
+		excelStrCell(fpout, sFName);
+		excelCommasStrCell(fpout,".,.,.,.,.,.,.,.,.,.,0,0,0,.,.,.");
+		excelRow(fpout, ExcelRowEnd);
 	}
 	while (mlt_head) {
 		mlt_words = mlt_head->mlt_words;
 		mlt_utter = mlt_head->mlt_utter;
 		mlt_turn  = mlt_head->mlt_turn;
+		mlt_word_sqr = mlt_head->mlt_word_sqr;
 		if (!onlydata || !chatmode) {
 			fprintf(fpout, "MLT for Speaker: %s\n", mlt_head->sp);
 			if (!ml_isPlusSUsed) {
@@ -213,6 +216,11 @@ static void mlt_pr_result(void) {
 
 				if (mlt_utter > (float)0.0) {
 					fprintf(fpout, "\tRatio of words over %s = %.3f\n", (ml_isclause() ? "clauses" : "utterances"), mlt_words/mlt_utter);
+					tt = (mlt_word_sqr / mlt_utter) - ((mlt_words / mlt_utter) * (mlt_words / mlt_utter));
+					if (mlt_utter > (float)1.0 && tt >= (float)0.0) {
+						fprintf(fpout,"\tStandard deviation = %.3f\n", sqrt(tt));
+					} else
+						fprintf(fpout,"\tStandard deviation = %s\n", "NA");
 				}
 
 			} else {
@@ -247,99 +255,73 @@ static void mlt_pr_result(void) {
 				}
 				if (mlt_utter > (float)0.0) {
 					fprintf(fpout, "\tRatio of specified words over %s = %.3f\n", (ml_isclause() ? "clauses" : "utterances"), mlt_words/mlt_utter);
+					tt = (mlt_word_sqr / mlt_utter) - ((mlt_words / mlt_utter) * (mlt_words / mlt_utter));
+					if (mlt_utter > (float)1.0 && tt >= (float)0.0) {
+						fprintf(fpout,"\tStandard deviation = %.3f\n", sqrt(tt));
+					} else
+						fprintf(fpout,"\tStandard deviation = %s\n", "NA");
 				}
-/*
-				fprintf(fpout, "    Number of: %s = %.0f, turns = %.0f\n", (ml_isclause() ? "clauses" : "utterances"), mlt_utter, mlt_turn);
-				if (mlt_turn > (float)0.0) {
-					fprintf(fpout, "\tRatio of %s over turns = %.3f\n", (ml_isclause() ? "clauses" : "utterances"), mlt_utter/mlt_turn);
-				}
-*/
 			}
 			putc('\n',fpout);
 		} else if (onlydata == 1) {
 			if (mlt_head->isSpeakerFound) {
+				excelRow(fpout, ExcelRowStart);
+				sFName = strrchr(mlt_head->fname, PATHDELIMCHR);
+				if (sFName != NULL)
+					sFName = sFName + 1;
+				else
+					sFName = mlt_head->fname;
+				excelStrCell(fpout, sFName);
 				if (mlt_head->ID) {
-					mlt_outputIDInfo(mlt_head->fname, mlt_head->ID);
-				} else
-					fprintf(fpout,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", mlt_head->fname, mlt_head->sp);
-				if (!ml_isPlusSUsed) {
-					fprintf(fpout,"%5.0f\t%5.0f\t%5.0f", mlt_utter, mlt_turn, mlt_words);
-					if (mlt_turn > (float)0.0) {
-						fprintf(fpout,"\t%7.3f\t%7.3f", mlt_words/mlt_turn, mlt_utter/mlt_turn);
-					} else {
-						fprintf(fpout,"\t.\t.");
-					}
-
-					if (mlt_utter > (float)0.0) {
-						fprintf(fpout,"\t%7.3f",mlt_words/mlt_utter);
-					} else {
-						fprintf(fpout,"\t.");
-					}
-
+					excelOutputID(fpout, mlt_head->ID);
 				} else {
-
-					fprintf(fpout,"%5.0f\t%5.0f\t%5.0f", mlt_utter, mlt_turn, mlt_words);
-					if (mlt_turn > (float)0.0) {
-						fprintf(fpout,"\t%7.3f\t%7.3f", mlt_words/mlt_turn, mlt_utter/mlt_turn);
-					} else {
-						fprintf(fpout,"\t.\t.");
-					}
-					if (mlt_utter > (float)0.0) {
-						fprintf(fpout,"\t%7.3f",mlt_words/mlt_utter);
-					} else {
-						fprintf(fpout,"\t.");
-					}
-/*
-					fprintf(fpout,"%5.0f\t%5.0f", mlt_utter, mlt_turn);
-					if (mlt_turn > (float)0.0) {
-						fprintf(fpout,"\t%7.3f", mlt_utter/mlt_turn);
-					} else {
-						fprintf(fpout,"\t.");
-					}
-*/
+					excelCommasStrCell(fpout, ".,.");
+					excelStrCell(fpout, mlt_head->sp);
+					excelCommasStrCell(fpout, ",.,.,.,.,.,.,.");
 				}
-				putc('\n',fpout);
+				excelNumCell(fpout, "%.0f", mlt_utter);
+				excelNumCell(fpout, "%.0f", mlt_turn);
+				excelNumCell(fpout, "%.0f", mlt_words);
+				if (mlt_turn > (float)0.0) {
+					excelNumCell(fpout, "%.3f", mlt_words/mlt_turn);
+					excelNumCell(fpout, "%.3f", mlt_utter/mlt_turn);
+				} else {
+					excelStrCell(fpout, "NA");
+					excelStrCell(fpout, "NA");
+				}
+				if (mlt_utter > (float)0.0) {
+					excelNumCell(fpout, "%.3f", mlt_words/mlt_utter);
+					tt = (mlt_word_sqr / mlt_utter) - ((mlt_words/mlt_utter) * (mlt_words/mlt_utter));
+					if (mlt_utter > (float)1.0 && tt >= (float)0.0) {
+						excelNumCell(fpout, "%.3f", sqrt(tt));
+					} else
+						excelStrCell(fpout, "NA");
+				} else {
+					excelStrCell(fpout, "NA");
+					excelStrCell(fpout, "NA");
+				}
+				excelRow(fpout, ExcelRowEnd);
 			}
 		} else {
 			if (mlt_head->ID) {
 				mlt_outputIDInfo(mlt_head->fname, mlt_head->ID);
 			} else
 				fprintf(fpout,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", mlt_head->fname, mlt_head->sp);
-			if (!ml_isPlusSUsed) {
-				fprintf(fpout,"%5.0f\t%5.0f\t%5.0f", mlt_utter, mlt_turn, mlt_words);
-				if (mlt_turn > (float)0.0) {
-					fprintf(fpout,"\t%7.3f\t%7.3f", mlt_words/mlt_turn, mlt_utter/mlt_turn);
-				} else {
-					fprintf(fpout,"\t.\t.");
-				}
-
-				if (mlt_utter > (float)0.0) {
-					fprintf(fpout,"\t%7.3f",mlt_words/mlt_utter);
-				} else {
-					fprintf(fpout,"\t.");
-				}
-
+			fprintf(fpout,"%5.0f\t%5.0f\t%5.0f", mlt_utter, mlt_turn, mlt_words);
+			if (mlt_turn > (float)0.0) {
+				fprintf(fpout,"\t%7.3f\t%7.3f", mlt_words/mlt_turn, mlt_utter/mlt_turn);
 			} else {
-
-				fprintf(fpout,"%5.0f\t%5.0f\t%5.0f", mlt_utter, mlt_turn, mlt_words);
-				if (mlt_turn > (float)0.0) {
-					fprintf(fpout,"\t%7.3f\t%7.3f", mlt_words/mlt_turn, mlt_utter/mlt_turn);
-				} else {
-					fprintf(fpout,"\t.\t.");
-				}
-				if (mlt_utter > (float)0.0) {
-					fprintf(fpout,"\t%7.3f",mlt_words/mlt_utter);
-				} else {
-					fprintf(fpout,"\t.");
-				}
-/*
-				fprintf(fpout,"%5.0f\t%5.0f", mlt_utter, mlt_turn);
-				if (mlt_turn > (float)0.0) {
-					fprintf(fpout,"\t%7.3f", mlt_utter/mlt_turn);
-				} else {
-					fprintf(fpout,"\t.");
-				}
-*/
+				fprintf(fpout,"\t.\t.");
+			}
+			if (mlt_utter > (float)0.0) {
+				fprintf(fpout,"\t%7.3f",mlt_words/mlt_utter);
+				tt = (mlt_word_sqr / mlt_utter) - ((mlt_words/mlt_utter) * (mlt_words/mlt_utter));
+				if (mlt_utter > (float)1.0 && tt >= (float)0.0) {
+					fprintf(fpout,"\t%7.3f", sqrt(tt));
+				} else
+					fprintf(fpout,"\tNA");
+			} else {
+				fprintf(fpout,"\tNA\tNA");
 			}
 			putc('\n',fpout);
 		}
@@ -353,33 +335,29 @@ static void mlt_pr_result(void) {
 			free(ts->ID);
 		free(ts);
 	}
+	if (onlydata == 1)
+		excelFooter(fpout);
 	mlt_head = NULL;
 }
 
-static MLTSP *mlt_FindSpeaker(char *sp, char *ID, char isSpeakerFound) {
-	char *s;
-	MLTSP *ts;
+static MLTSP *mlt_FindSpeaker(char *fname, char *sp, char *ID, char isSpeakerFound) {
+	MLTSP *ts, *tsp;
 
 	uS.remblanks(sp);
 	for (ts=mlt_head; ts != NULL; ts=ts->next_sp) {
-		if (uS.partcmp(ts->sp, sp, FALSE, FALSE)) {
-			ts->isSpeakerFound = isSpeakerFound;
-			return(ts);
+		if (uS.mStricmp(ts->fname, fname) == 0 || (combinput && onlydata != 1)) {
+			if (uS.partcmp(ts->sp, sp, FALSE, FALSE)) {
+				ts->isSpeakerFound = isSpeakerFound;
+				return(ts);
+			}
 		}
 	}
 	if ((ts=NEW(MLTSP)) == NULL)
 		out_of_mem();
-	s = strrchr(oldfname, PATHDELIMCHR);
-	if (s == NULL)
-		s = oldfname;
-	else
-		s++;
-	if ((ts->fname=(char *)malloc(strlen(s)+1)) == NULL)
+// ".xls"
+	if ((ts->fname=(char *)malloc(strlen(fname)+1)) == NULL)
 		out_of_mem();
-	strcpy(ts->fname, s);
-	s = strchr(ts->fname, '.');
-	if (s != NULL)
-		*s = EOS;
+	strcpy(ts->fname, fname);
 	if ((ts->sp=(char *)malloc(strlen(sp)+1)) == NULL)
 		out_of_mem();
 	strcpy(ts->sp, sp);
@@ -395,8 +373,14 @@ static MLTSP *mlt_FindSpeaker(char *sp, char *ID, char isSpeakerFound) {
 	ts->mlt_words = (float)0.0;
 	ts->mlt_utter = (float)0.0;
 	ts->mlt_turn  = (float)0.0;
-	ts->next_sp = mlt_head;
-	mlt_head = ts;
+	ts->mlt_word_sqr = (float)0.0;
+	ts->next_sp = NULL;
+	if (mlt_head == NULL) {
+		mlt_head = ts;
+	} else {
+		for (tsp=mlt_head; tsp->next_sp != NULL; tsp=tsp->next_sp) ;
+		tsp->next_sp = ts;
+	}
 	return(ts);
 }
 
@@ -412,11 +396,12 @@ char mlt_excludeUtter(char *line, int pos, char *isWordsFound) { // xxx, yyy, ww
 	}
 	if (!isSkipFirst) {
 		i = 0;
+		j = 0;
 		if (pos == 0 || uS.isskip(line,pos-1,&dFnt,MBF)) {
 			for (j=pos; line[j] == 'x' || line[j] == 'X' ||
-				   line[j] == 'y' || line[j] == 'Y' ||
-				   line[j] == 'w' || line[j] == 'W' || 
-				   line[j] == '(' || line[j] == ')'; j++) {
+						line[j] == 'y' || line[j] == 'Y' ||
+						line[j] == 'w' || line[j] == 'W' || 
+						line[j] == '(' || line[j] == ')'; j++) {
 				if (line[j] != '(' && line[j] != ')')
 					templineC2[i++] = line[j];
 			}
@@ -494,6 +479,7 @@ void call() {
 	char isWordsFound, sq, isSkip, addUttCnt;
 	char isPSDFound, curPSDFound;
 	float empty_utter, not_empty_utter;
+	float tLocalword = 0.0, localword = 0.0;
 
 	ts = NULL;
 	isSkip = FALSE;
@@ -512,7 +498,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
 				if (isIDSpeakerSpecified(utterance->line, templineC, TRUE)) {
 					uS.remblanks(utterance->line);
-					mlt_FindSpeaker(templineC, utterance->line, FALSE);
+					mlt_FindSpeaker(oldfname, templineC, utterance->line, FALSE);
 				}
 				continue;
 			}
@@ -530,9 +516,11 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				strcpy(templineC, utterance->speaker);
 //				ml_checktier(templineC);
 			}
-			ts = mlt_FindSpeaker(templineC, NULL, TRUE);
+			ts = mlt_FindSpeaker(oldfname, templineC, NULL, TRUE);
 			mlt_words = ts->mlt_words;
 			mlt_utter = ts->mlt_utter;
+			mlt_word_sqr = ts->mlt_word_sqr;
+			tLocalword = localword;
 			isPSDFound = ts->isPSDFound;
 		}
 		if (nomain && *utterance->speaker == '*') {
@@ -550,6 +538,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				if (mlt_excludeUtter(uttline, pos, &isWordsFound)) { // xxx, yyy, www
 					not_empty_utter = 0.0;
 					empty_utter = 0.0;
+					localword = tLocalword;
 					isSkip = TRUE;
 					break;
 				}
@@ -584,6 +573,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 		do {
 			if (mlt_excludeUtter(uttline, pos, &isWordsFound)) { // xxx, yyy, www
 				isSkip = TRUE;
+				localword = tLocalword;
 				break;
 			}
 			if (uS.isRightChar(uttline, pos, '[', &dFnt, MBF)) {
@@ -593,6 +583,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			if (!uS.isskip(uttline,pos,&dFnt,MBF) && !sq) {
 				isWordsFound = TRUE;
 				mlt_words = mlt_words + 1;
+				localword = localword + 1;
 				while (uttline[pos]) {
 					if (uS.isskip(uttline,pos,&dFnt,MBF)) {
 						if (uS.IsUtteranceDel(utterance->line, pos)) {
@@ -629,6 +620,10 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				if (uS.isRightChar(utterance->line, pos, ']', &dFnt, MBF))
 					sq = FALSE;
 				if (isWordsFound) {
+					if (localword != (float)0.0) {
+						mlt_word_sqr = mlt_word_sqr + localword * localword;
+						localword = (float)0.0;
+					}
 					mlt_utter = mlt_utter + (float)1.0;
 					isWordsFound = FALSE;
 				} else
@@ -642,8 +637,12 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				break;
 		} while (uttline[pos]) ;
 		if (!isSkip) {
+			if (localword != (float)0.0) {
+				mlt_word_sqr = mlt_word_sqr + localword * localword;
+				localword = (float)0.0;
+			}
 			if (ts != NULL) {
-				if (ts->mlt_utter != mlt_utter && ml_spchanged) {
+				if ((ts->mlt_utter != mlt_utter || (addUttCnt && empty_utter > 0.0)) && ml_spchanged) {
 					ts->mlt_turn += 1.0;
 					ml_spchanged = FALSE;
 				}
@@ -651,11 +650,12 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				ts->mlt_utter = mlt_utter;
 				if (addUttCnt)
 					ts->mlt_utter = ts->mlt_utter + empty_utter;
+				ts->mlt_word_sqr = mlt_word_sqr;
 				ts->isPSDFound = curPSDFound;
 			}
 		}
 	}
-	if (!combinput || onlydata == 1)
+	if (!combinput)
 		mlt_pr_result();
 	isFromCall = FALSE;
 }
@@ -672,7 +672,7 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 		case 'c':
 			if (!*f) {
-				fprintf(stderr,"Specify unit delemeters after +c option.\n");
+				fprintf(stderr,"Specify clause delemeters after +c option.\n");
 				ml_exit(0);
 			} 
 			if (*f == '@') {

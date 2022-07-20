@@ -1,7 +1,6 @@
 #include "ced.h"
 #include <math.h>
-#include <TextUtils.h>
-
+// NO QT #include <TextUtils.h>
 static int h;
 static int v;
 static int row, col, lrow;
@@ -299,7 +298,8 @@ static void UpdateCursorPos(int row, int col, char cnv, int extend) {
 			long old_col_win2 = global_df->col_win2;
 			long old_col_chr2 = global_df->col_chr2;
 			long old_row_win2 = global_df->row_win2;
-			long old_lineno  = global_df->lineno;
+			long old_lineno = global_df->lineno;
+			long old_wLineno = global_df->wLineno;
 			long old_LeftCol = global_df->LeftCol;
 			ROWS *old_row_txt = global_df->row_txt;
 			ROWS *old_top_win = global_df->top_win;
@@ -315,7 +315,8 @@ static void UpdateCursorPos(int row, int col, char cnv, int extend) {
 			global_df->col_win2 = old_col_win2;
 			global_df->col_chr2 = old_col_chr2;
 			global_df->row_win2 = old_row_win2;
-			global_df->lineno  = old_lineno;
+			global_df->lineno = old_lineno;
+			global_df->wLineno = old_wLineno;
 			global_df->LeftCol = old_LeftCol;
 			global_df->row_txt = old_row_txt;
 			global_df->top_win = old_top_win;
@@ -370,19 +371,9 @@ static void UpdateCursorPos(int row, int col, char cnv, int extend) {
 		} else {
 			s = global_df->row_txt->line;
 			if (isword(s[global_df->col_chr])) {
-#ifdef _UNICODE
 				for (global_df->col_chr++; isword(s[global_df->col_chr]); global_df->col_chr++) ;
-#else
-				for (global_df->col_chr++; isword(s[global_df->col_chr]) || my_CharacterByteType(s,global_df->col_chr,&cedDFnt); global_df->col_chr++) ;
-#endif
 				global_df->col_win = ComColWin(FALSE, global_df->row_txt->line, global_df->col_chr);
-#ifdef _UNICODE
 				for (global_df->col_chr2=global_df->col_chr-1; isword(s[global_df->col_chr2]) && global_df->col_chr2 >= 0; global_df->col_chr2--) ;
-#else
-				for (global_df->col_chr2=global_df->col_chr-1; 
-					 (isword(s[global_df->col_chr2]) || my_CharacterByteType(s,global_df->col_chr2,&cedDFnt)) && global_df->col_chr2 >= 0; 
-					 global_df->col_chr2--) ;
-#endif
 				global_df->col_chr2++;
 				global_df->col_win2 = ComColWin(FALSE, global_df->row_txt->line, global_df->col_chr2);
 			}
@@ -396,7 +387,8 @@ static void UpdateCursorPos(int row, int col, char cnv, int extend) {
 		global_df->col_win2 = -2L;
 		global_df->col_chr2 = -2L;
 	}
-	global_df->lineno += (global_df->row_win - old_row_win);
+	global_df->wLineno += (global_df->row_win - old_row_win);
+	global_df->lineno = countLines(global_df->row_txt);
 	global_df->window_rows_offset = 0;
 	PosAndDispl();
 }
@@ -797,7 +789,9 @@ void EndSelectCursorPosition(CPoint point, int extend) {
 				isPlayS = -2;
 		}
 		if (global_df->SnTr.EndF < global_df->SnTr.BegF && global_df->SnTr.EndF != 0L) {
-			tn = global_df->SnTr.EndF; global_df->SnTr.EndF = global_df->SnTr.BegF; global_df->SnTr.BegF = tn;
+			tn = global_df->SnTr.EndF;
+			global_df->SnTr.EndF = global_df->SnTr.BegF;
+			global_df->SnTr.BegF = tn;
 		}
 		if ((h < left_lim || h > right_lim) && (v == 1 || v == 6 || v == 5 || v == 10))
 			DisplayEndF(TRUE);

@@ -1,8 +1,9 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
+// 2011-04-07
 
 /*
 #define DEBUG_CLAN
@@ -39,13 +40,14 @@
 #include "mul.h"
 #define IS_WIN_MODE FALSE
 
-#define LAST_ERR_NUM 141
+#define LAST_ERR_NUM 159
 
 #define CHECK_CODES struct templates
 
+#define MINFILESNUM 30 // 2019-04-18 TotalNumFiles
 #define NUMLANGUAGESINTABLE 10
 
-#define NUM_GEN_OPT 4   /* number of generic options */
+#define NUM_GEN_OPT 5   /* number of generic options */
 #define D_D_SET_1(x)		(AttTYPE)(x | 1)
 #define D_D_COUNT(x)		(AttTYPE)(x & 1)
 #define D_D_SET_0(x)		(AttTYPE)(x & 0xfffe)
@@ -62,9 +64,13 @@
 #define IS_CHECK_ID(x)		(AttTYPE)(x & 8)
 #define SET_CHECK_ID_0(x)	(AttTYPE)(x & 0xfff7)
 
-//#define SET_LANG_CHECK_1(x)	(AttTYPE)(x | 16)
-//#define IS_LANG_CHECK(x)	(AttTYPE)(x & 16)
-//#define SET_LANG_CHECK_0(x)	(AttTYPE)(x & 0xffef)
+#define SET_SPK_USED_1(x)	(AttTYPE)(x | 16)
+#define IS_SPK_USED(x)		(AttTYPE)(x & 16)
+#define SET_SPK_USED_0(x)	(AttTYPE)(x & 0xffef)
+
+//#define SET_LANG_CHECK_1(x)	(AttTYPE)(x | 32)
+//#define IS_LANG_CHECK(x)	(AttTYPE)(x & 32)
+//#define SET_LANG_CHECK_0(x)	(AttTYPE)(x & 0xffdf)
 
 #define check_trans_err(wh,sp,ep,ln)						 \
 		check_err(wh,							 \
@@ -75,9 +81,14 @@
 #if defined(UNX)
 #define TPLATES struct templates
 #define ERRLIST struct errlst
-#define SP_LIST struct speakers
 #define BE_TIERS struct templates
+#define SPLIST struct speakers
 #endif
+
+TPLATES {
+	char *pattern;
+	TPLATES *nextone;
+} ;
 
 ERRLIST {
     char *st;
@@ -85,15 +96,18 @@ ERRLIST {
     ERRLIST *nexterr;
 } ;
 
-TPLATES {
-    char *pattern;
-    TPLATES *nextone;
+struct IDsp {
+	char *sp;
+	struct IDsp *nextsp;
 } ;
 
-SP_LIST {
+SPLIST {
 	char *sp;
+	char *role;
+	char isUsed;
 	long endTime;
-	SP_LIST *nextsp;
+	char hasID;
+	SPLIST *nextsp;
 } ;
 
 #define CHECK_TIERS struct check_tiers
@@ -120,6 +134,7 @@ const char *lHeaders[] = {"@Begin", "@Languages:", "@Participants:", ""};
 
 /* *********************************************************** */
 
+extern int  totalFilesNum; // 2019-04-18 TotalNumFiles
 extern char tcs;			/* 1- if all non-specified speaker tier should be selected*/
 extern char tch;
 extern char tct;
@@ -130,6 +145,10 @@ extern struct tier *defheadtier;
 extern struct tier *headtier;
 
 static AttTYPE check_GenOpt;
+static int    FileCount;
+static int    check_curLanguage;
+static double oPrc;
+static char isBulletsFound;
 static char isMediaHeaderFound;
 static char checkBullets;
 static char check_err_found;
@@ -138,21 +157,19 @@ static char isItemPrefix[256];
 static char ErrorReport[LAST_ERR_NUM];
 static char ErrorRepFlag;
 static char check_all_err_found;
-static char FileCount;
 static char err_item[17];
 static char check_lastSpDelim[25];
 static char check_isNumberShouldBeHere;
-static char check_isCaps;
-static char check_isLegacy;
 static char check_isCAFound;
 static char check_isArabic;
 static char check_isHebrew;
 static char check_isGerman;
 static char check_isBlob;
-static char check_isSign;
 static char check_isMultiBullets;
 static char check_isCheckBullets;
 static char check_isUnlinkedFound;
+static char check_applyG2Option;
+static char check_check_mismatch;
 static char check_SNDFname[FILENAME_MAX];
 static char check_fav_lang[20];
 static char check_LanguagesTable[NUMLANGUAGESINTABLE][9];
@@ -166,7 +183,8 @@ static FNType oldDepfile[FNSize];
 //2011-04-07 static struct TiersOnceList tiersUsedOnce[NUMUSEDTIERSONCE];
 
 static ERRLIST *headerr;
-static SP_LIST *headsp;
+static struct IDsp *check_idsp;
+static SPLIST *headsp;
 static CHECK_TIERS *headt, *maint, *codet;
 
 void usage() {
@@ -178,14 +196,18 @@ void usage() {
 	puts("-eN: report all error(s) except number N");
 	puts("+g1: recognize prosodic delimiter");
 	puts("-g1: ignore prosodic delimiter (default)");
+#if defined(_CLAN_DEBUG)
 	puts("+g2: check for \"CHI Target_Child\"");
 	puts("-g2: do not check for \"CHI Target_Child\" (default)");
+#endif // _CLAN_DEBUG
 	puts("+g3: check words for upper case letters, numbers and illegal apostrophes");
 	puts("-g3: do not check words in more details (default)");
 	puts("+g4: check file(s) for missing @ID tiers");
 	puts("-g4: do not check file(s) for missing @ID tiers (default)");
-//	puts("+g5: validate language codes against file ISO-639.cut");
-//	puts("-g5: do not validate language codes against file ISO-639.cut (default)");
+	puts("+g5: check for Speakers specified on @Participants tier, but not used in the file");
+	puts("-g5: do not check for Speakers not used in the file (default)");
+//	puts("+g6: validate language codes against file ISO-639.cut");
+//	puts("-g6: do not validate language codes against file ISO-639.cut (default)");
 #ifdef UNX
 	puts("+LF: specify full path F of the lib folder");
 #endif
@@ -221,14 +243,28 @@ static void check_clean_template(TPLATES *p) {
 	}
 }
 
-static void check_clean_speaker(SP_LIST *p) {
-	SP_LIST *t;
+static void check_clean_IDsp(struct IDsp *p) {
+	struct IDsp *t;
 
 	while (p != NULL) {
 		t = p;
 		p = p->nextsp;
 		if (t->sp)
 			free(t->sp);
+		free(t);
+	}
+}
+
+static void check_clean_speaker(SPLIST *p) {
+	SPLIST *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->nextsp;
+		if (t->sp)
+			free(t->sp);
+		if (t->role)
+			free(t->role);
 		free(t);
 	}
 }
@@ -282,7 +318,7 @@ static void check_mktplate(CHECK_TIERS *ts, char *s, char AtTheEnd) {
 	tp->pattern = s;
 }
 
-static CHECK_TIERS *SameNameTier(char *s, char col, CHECK_TIERS *head) {
+static CHECK_TIERS *SameNameTier(const char *s, char col, CHECK_TIERS *head) {
 	while (head != NULL) {
 		if (col == head->col && !strcmp(s, head->code))
 			return(head);
@@ -291,7 +327,7 @@ static CHECK_TIERS *SameNameTier(char *s, char col, CHECK_TIERS *head) {
 	return(NULL);
 }
 
-static CHECK_TIERS *mktier(char *s, char col, char CSUFF, char UTD) {
+static CHECK_TIERS *mktier(const char *s, char col, char CSUFF, char UTD) {
 	CHECK_TIERS *ts;
 
 	if ((ts=NEW(CHECK_TIERS)) == NULL) check_overflow();
@@ -330,6 +366,7 @@ static TPLATES *check_getPrefChars(TPLATES *prefs, char *st) {
 	return(prefs);
 }
 
+/* 2019-04-23 do not check for upper case letters
 static char check_isRightPref(TPLATES *prefs, char *w, int s) {
 	int len;
 
@@ -366,6 +403,7 @@ static char check_isException(char *w, TPLATES *prefs) {
 	}
 	return(FALSE);
 }
+*/
 
 static char *check_convertRegExp(char *s) {
 	char lc, sb;
@@ -429,7 +467,7 @@ static char *check_convertRegExp(char *s) {
 
 static void check_ParseTier(char *temp) {
 	char *s, sb, regExp;
-	CHECK_TIERS *ts;
+	CHECK_TIERS *ts, *tsWor;
 
 	for (s=temp; *temp != ':' && *temp != '\n'; temp++) {
 		if (*temp == '#') *temp = '*';
@@ -447,6 +485,11 @@ static void check_ParseTier(char *temp) {
 			ts->nexttier = maint;
 			maint = ts;
 		}
+		if ((tsWor=SameNameTier("%wor", sb, maint)) == NULL) {
+			tsWor = mktier("%wor", sb, TRUE, TRUE);
+			tsWor->nexttier = codet;
+			codet = tsWor;
+		}		
 	} else if (*s == '%') {
 		if ((ts=SameNameTier(s, sb, codet)) == NULL) {
 			ts = mktier(s, sb, FALSE, 0);
@@ -482,14 +525,39 @@ static void check_ParseTier(char *temp) {
 			if (s[0] == '@' && s[1] == 'r' && s[2] == '<') {
 				s = check_convertRegExp(s);
 			}
-			if (!strcmp(s,"*")) check_mktplate(ts,check_mkstring(s),1);
-			else if (!strcmp(s,UTTDELSYM)) ts->UTD   = 1;
-			else if (!strcmp(s,NUTTDELSYM))ts->UTD   = -1;
-			else if (!strcmp(s,UTTIGNORE)) ts->IGN   = TRUE;
-			else if (!strcmp(s,SUFFIXSYM)) ts->CSUFF = '\002';
-			else if (!strcmp(s,WORDCKECKSYM)) ts->WORDCHECK = FALSE;
-			else if (uS.fpatmat(s,UPREFSSYM)) ts->prefs = check_getPrefChars(ts->prefs, s);
-			else check_mktplate(ts,check_mkstring(s),0);
+			if (!strcmp(s,"*")) {
+				check_mktplate(ts,check_mkstring(s),1);
+				if (strcmp(ts->code, "*") == 0)
+					check_mktplate(tsWor,check_mkstring(s),1);
+			} else if (!strcmp(s,UTTDELSYM)) {
+				ts->UTD   = 1;
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->UTD   = 1;
+			} else if (!strcmp(s,NUTTDELSYM)) {
+				ts->UTD   = -1;
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->UTD   = -1;
+			} else if (!strcmp(s,UTTIGNORE)) {
+				ts->IGN   = TRUE;
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->IGN   = TRUE;
+			} else if (!strcmp(s,SUFFIXSYM)) {
+				ts->CSUFF = '\002';
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->CSUFF = '\002';
+			} else if (!strcmp(s,WORDCKECKSYM)) {
+				ts->WORDCHECK = FALSE;
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->WORDCHECK = FALSE;
+			} else if (uS.fpatmat(s,UPREFSSYM)) {
+				ts->prefs = check_getPrefChars(ts->prefs, s);
+				if (strcmp(ts->code, "*") == 0)
+					tsWor->prefs = check_getPrefChars(tsWor->prefs, s);
+			} else {
+				check_mktplate(ts,check_mkstring(s),0);
+				if (strcmp(ts->code, "*") == 0)
+					check_mktplate(tsWor,check_mkstring(s),0);
+			}
 			s = temp;
 		} else
 			temp++;
@@ -546,11 +614,13 @@ static void check_ReadDepFile(const FNType *depfile, char err) {
 	strcpy(oldDepfile, mFileName);
 	if (isRecursive) {
 		check_clean_headerr();
+		check_clean_IDsp(check_idsp);
 		check_clean_speaker(headsp);
 		check_clean__t(headt);
 		check_clean__t(maint);
 		check_clean__t(codet);
 		headerr = NULL;
+		check_idsp = NULL;
 		headsp = NULL;
 		headt = NULL;
 		maint = NULL;
@@ -600,14 +670,30 @@ static void check_ReadDepFile(const FNType *depfile, char err) {
 			for (tp=ts->tplate; tp != NULL; tp = tp->nextone) {
 				if (*tp->pattern == '*' && *(tp->pattern+1) != EOS) {
 					if (uS.ismorfchar(tp->pattern, 1, &dFnt, CHECK_MORPHS, MBF)) {
-						isItemPrefix[tp->pattern[1]] = FALSE;
+						isItemPrefix[(int)tp->pattern[1]] = FALSE;
 					} else {
 						i = strlen(tp->pattern) - 1;
 						if (uS.ismorfchar(tp->pattern, i, &dFnt, CHECK_MORPHS, MBF))
-							isItemPrefix[tp->pattern[i]] = TRUE;
+							isItemPrefix[(int)tp->pattern[i]] = TRUE;
 					}
 				}
 			}
+		}
+	}
+	for (ts=codet; ts != NULL; ts = ts->nexttier) {
+		if (strcmp(ts->code, "%wor") == 0) {
+			for (tp=ts->tplate; tp != NULL; tp = tp->nextone) {
+				if (*tp->pattern == '*' && *(tp->pattern+1) != EOS) {
+					if (uS.ismorfchar(tp->pattern, 1, &dFnt, CHECK_MORPHS, MBF)) {
+						isItemPrefix[(int)tp->pattern[1]] = FALSE;
+					} else {
+						i = strlen(tp->pattern) - 1;
+						if (uS.ismorfchar(tp->pattern, i, &dFnt, CHECK_MORPHS, MBF))
+							isItemPrefix[(int)tp->pattern[i]] = TRUE;
+					}
+				}
+			}
+			break;
 		}
 	}
 	fclose(fp);
@@ -644,20 +730,20 @@ CHECK_TIERS *ts;
 		maint = NULL;
 		codet = NULL;
 		FTime = TRUE;
+		check_idsp = NULL;
 		headsp = NULL;
 		headerr = NULL;
 		check_isNumberShouldBeHere = FALSE;
-		check_isCaps = FALSE;
-		check_isLegacy = FALSE;
 		check_isCAFound = FALSE;
 		check_isArabic = FALSE;
 		check_isHebrew = FALSE;
 		check_isGerman = FALSE;
 		check_isBlob = FALSE;
-		check_isSign = FALSE;
 		check_isMultiBullets = FALSE;
 		check_isCheckBullets = TRUE;
 		check_isUnlinkedFound = FALSE;
+		check_applyG2Option = TRUE;
+		check_check_mismatch = TRUE;
 		checkBullets = 0;
 		check_WordExceptions = NULL;
 		check_localDir[0] = EOS;
@@ -689,19 +775,18 @@ CHECK_TIERS *ts;
 		check_SNDEnd = 0L;
 		check_tierBegTime = 0L;
 		check_isNumberShouldBeHere = FALSE;
-		check_isCaps = FALSE;
-		check_isLegacy = FALSE;
 		check_isCAFound = FALSE;
 		check_isArabic = FALSE;
 		check_isHebrew = FALSE;
 		check_isGerman = FALSE;
 		check_isBlob = FALSE;
-		check_isSign = FALSE;
 		check_isMultiBullets = FALSE;
 		check_isCheckBullets = TRUE;
 		check_isUnlinkedFound = FALSE;
 		check_clean_template(check_WordExceptions);
 		check_WordExceptions = NULL;
+		check_clean_IDsp(check_idsp);
+		check_idsp = NULL;
 		check_clean_speaker(headsp);
 		headsp = NULL;
 		check_clean_headerr();
@@ -789,9 +874,14 @@ static int check_displ(int s, int e, long ln, int num) {
 	err_item[0] = EOS;
 	if (!check_adderror(s,e,num,uttline))
 		return(FALSE);
+	if (totalFilesNum > MINFILESNUM && !stin) { // 2019-04-18 TotalNumFiles
+		fprintf(stderr, "\r    	     \r");
+	}
 	fprintf(fpout,"*** File \"%s\": ", oldfname);
-	if (ln == -1L) fprintf(fpout,"end of file.\n");
-	else fprintf(fpout,"line %ld.\n", ln);
+	if (ln == -1L)
+		fprintf(fpout,"end of file.\n");
+	else
+		fprintf(fpout,"line %ld.\n", ln);
 	i  = 0;
 	if (*uttline) {
 		fputs(utterance->speaker, fpout);
@@ -819,17 +909,13 @@ static int check_displ(int s, int e, long ln, int num) {
 				isCloseAttMarker = TRUE;
 			}
 			if (isCloseAttMarker) {
-#ifdef _UNICODE
 				if (UTF8_IS_LEAD(uttline[i]) || UTF8_IS_SINGLE(uttline[i])) {
-#endif
 					isCloseAttMarker = FALSE;
 #ifndef UNX
 					sprintf(templineC2+j, "%c%c", ATTMARKER, error_end);
 					j += 2;
 #endif
-#ifdef _UNICODE
 				}
-#endif
 			}
 			if (!isAttOff && ei < 15) {
 				if (uttline[i] == HIDEN_C) {
@@ -873,21 +959,22 @@ static int check_displ(int s, int e, long ln, int num) {
 	return(TRUE);
 }
 
-static void check_mess(short wh) {
+static void check_mess(int wh) {
 	int i;
 
 	check_err_found = TRUE;
 	switch(wh) {
 		case 1: fprintf(fpout,"Expected characters are: @ or %% or *.(%d)\n", wh);
 				break;
-		case 2: fprintf(fpout,"Missing ':' character.(%d)\n", wh); break;
+		case 2: fprintf(fpout,"Missing ':' character and argument.(%d)\n", wh); break;
 		case 3: fprintf(fpout,"Missing either TAB or SPACE character.(%d)\n", wh);
 				break;
 		case 4: if (onlydata == 0 || onlydata == 3) {
-					fprintf(fpout, "Use TAB character instead of space character after Tier name.(%d)\n", wh);
+					fprintf(fpout,"Found a space character instead of TAB character after Tier name\n");
 				} else {
-					fprintf(fpout,"Found a space character......(%d)\n", wh);
+					fprintf(fpout,"Found a space character......\n");
 				}
+				fprintf(fpout,"Please run \"chstring +q +1\" command on this file to fix this error. (%d)\n", wh);
 				break;
 		case 5: fprintf(fpout,"Colon (:) character is illegal.(%d)\n", wh); break;
 		case 6: fprintf(fpout,"\"@Begin\" is missing at the beginning of the file.(%d)\n", wh);
@@ -899,13 +986,13 @@ static void check_mess(short wh) {
 				break;
 		case 10: fprintf(fpout,"Tier text is longer than %ld.(%d)\n",UTTLINELEN,wh);
 				 break;
-		case 11: fprintf(fpout,"Symbol is not declared in the depfile(s).(%d)\n", wh); break;
+		case 11: fprintf(fpout,"Symbol is not declared in the depfile.(%d)\n", wh); break;
 		case 12: fprintf(fpout,"Missing speaker name and/or role.(%d)\n", wh); break;
 		case 13: fprintf(fpout,"Duplicate speaker declaration.(%d)\n", wh); break;
-		case 14: fprintf(fpout,"Warning: Spaces before tier code.(%d)\n", wh); break;
+		case 14: fprintf(fpout,"Spaces before tier code.(%d)\n", wh); break;
 		case 15: fprintf(fpout,"Illegal role. Please see \"depfile.cut\" for list of roles.(%d)\n", wh); break;
 		case 16: fprintf(fpout,"Illegal use of extended characters in speaker names.(%d)\n", wh); break;
-		case 17: fprintf(fpout,"Tier is not declared in depfile(s) file.(%d)\n", wh);
+		case 17: fprintf(fpout,"Tier is not declared in depfile file.(%d)\n", wh);
 				 break;
 		case 18: fprintf(fpout,"Speaker ");
 				 for (i=0; utterance->speaker[i] != ':' && utterance->speaker[i]; i++)
@@ -927,8 +1014,8 @@ static void check_mess(short wh) {
 		case 29: fprintf(fpout,"Unmatched ) found on the tier.(%d)\n", wh); break;
 		case 30: fprintf(fpout,"Text is illegal.(%d)\n", wh); break;
 		case 31: fprintf(fpout,"Missing text after the colon.(%d)\n", wh); break;
-		case 32: fprintf(fpout,"Code is not declared in depfile(s).(%d)\n", wh);break;
-		case 33: fprintf(fpout,"Either symbol is not declared in depfile(s) or illegal date or time.(%d)\n", wh);
+		case 32: fprintf(fpout,"Code is not declared in depfile.(%d)\n", wh);break;
+		case 33: fprintf(fpout,"Either illegal date or time or symbol is not declared in depfile.(%d)\n", wh);
 				 break;
 		case 34: fprintf(fpout,"Illegal date representation.(%d)\n", wh); break;
 		case 35: fprintf(fpout,"Illegal time representation.(%d)\n", wh); break;
@@ -981,37 +1068,42 @@ static void check_mess(short wh) {
 				 else
 					fprintf(fpout,"Please add space between word and pause symbol: '%s'.(%d)\n", err_item, wh);
 				 break;
-		case 58: fprintf(fpout,"Tier name is longer than 7 characters.(%d)\n", wh); break;
+		case 58: fprintf(fpout,"Tier name is longer than 8 characters.(%d)\n", wh); break;
+		case 59: if (err_item[0] == EOS)
 #if defined(_MAC_CODE)
-		case 59: fprintf(fpout,"Expected second %c character.", '\245'); break;
+					fprintf(fpout,"Expected second %c character.(%d)\n", '\245', wh);
+				else
 #elif defined(_WIN32) // _MAC_CODE
-		case 59: fprintf(fpout,"Expected second %c character.", '\225'); break;
+					fprintf(fpout,"Expected second %c character.(%d)\n", '\225', wh);
+				else
 #endif
+					fprintf(fpout,"Expected second %s character.(%d)\n", err_item, wh);
+				break;
 		case 60: fprintf(fpout,"\"@ID:\" tier is missing in the file.\nPlease run \"insert\" in Commands window on this data file.(%d)\n", wh); break;
 		case 61: fprintf(fpout,"\"@Participants:\" tier is expected here.(%d)\n", wh); break;
-		case 62: fprintf(fpout, "Missing language information.(%d)\n", wh); break;
-		case 63: fprintf(fpout, "Missing Corpus name.(%d)\n", wh); break;
-		case 64: fprintf(fpout, "Wrong gender information (Choose: female or male).(%d)\n", wh); break;
+		case 62: fprintf(fpout,"Missing language information.(%d)\n", wh); break;
+		case 63: fprintf(fpout,"Missing Corpus name.(%d)\n", wh); break;
+		case 64: fprintf(fpout,"Wrong gender information (Choose: female or male).(%d)\n", wh); break;
 		case 65: if (err_item[0] == EOS)
-					fprintf(fpout, "This item can not be followed by the next symbol.(%d)\n", wh);
+					fprintf(fpout,"This item can not be followed by the next symbol.(%d)\n", wh);
 				 else
-					fprintf(fpout, "Item '%s' can not be followed by the next symbol.(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' can not be followed by the next symbol.(%d)\n", err_item, wh);
 				 break;
 		case 66: if (err_item[0] == EOS)
 					fprintf(fpout,"Illegal character in a word.\n");
 				 else
 					fprintf(fpout,"Illegal character '%s' in a word.\n", err_item);
-				 fprintf(fpout, "Or a SPACE should be added before it.(%d)\n", wh);
+				 fprintf(fpout,"Or a SPACE should be added before it.(%d)\n", wh);
 				 break;
 		case 67: if (err_item[0] == EOS)
-					fprintf(fpout, "This item must be followed by text\n");
+					fprintf(fpout,"This item must be followed by text\n");
 				 else
-					fprintf(fpout, "Item '%s' must be followed by text\n", err_item);
-				fprintf(fpout, " preceded by SPACE or be removed.(%d)\n", wh);
+					fprintf(fpout,"Item '%s' must be followed by text\n", err_item);
+				fprintf(fpout," preceded by SPACE or be removed.(%d)\n", wh);
 				break;
-		case 68: fprintf(fpout, "PARTICIPANTS TIER IS MISSING \"CHI Target_Child\".(%d)\n", wh);
+		case 68: fprintf(fpout,"PARTICIPANTS TIER IS MISSING \"CHI Target_Child\".(%d)\n", wh);
 				break;
-		case 69: fprintf(fpout,"\"%s\" is missing at the beginning of the file.(%d)\n", FONTHEADER, wh);
+		case 69: fprintf(fpout,"The UTF8 header is missing. If you edit and save the file, it will be inserted.(%d)\n", wh);
 				break;
 		case 70: fprintf(fpout,"Expected either text or \"0\" on this tier.(%d)\n", wh);
 				break;
@@ -1043,7 +1135,7 @@ static void check_mess(short wh) {
 				 else
 					fprintf(fpout,"Item '%s' must be used at the beginning of tier.(%d)\n", err_item, wh);
 				 break;
-		case 79: fprintf(fpout,"Only one occurrence of this symbol per word is allowed.(%d)\n", wh); break;
+		case 79: fprintf(fpout,"Only one occurrence of | symbol per word is allowed.(%d)\n", wh); break;
 		case 80: fprintf(fpout,"There must be at least one occurrence of '|'.(%d)\n", wh); break;
 		case 81: fprintf(fpout,"Bullet must follow utterance delimiter or be followed by end-of-line.(%d)\n", wh);
 				 break;
@@ -1069,68 +1161,68 @@ static void check_mess(short wh) {
 					fprintf(fpout,"Item '%s' must be followed by space or end-of-line.(%d)\n", err_item, wh);
 				 break;
 		case 93: if (err_item[0] == EOS)
-					fprintf(fpout, "This item must be preceded by SPACE.(%d)\n", wh);
+					fprintf(fpout,"This item must be preceded by SPACE.(%d)\n", wh);
 				 else
-					fprintf(fpout, "Item '%s' must be preceded by SPACE.(%d)", err_item, wh);
+					fprintf(fpout,"Item '%s' must be preceded by SPACE.(%d)", err_item, wh);
 				break;
-		case 94: fprintf(fpout, "Mismatch of speaker and %%mor: utterance delimiters.(%d)\n", wh); break;
-		case 95: fprintf(fpout, "Illegal use of capitalized words in compounds.(%d)\n", wh); break;
-		case 96: fprintf(fpout, "Word color is now illegal.(%d)\n", wh); break;
-// 18-07-2008		case 96: fprintf(fpout, "Illegal color name. (blue, red, green, magenta).(%d)\n", wh); break;
-		case 97: fprintf(fpout, "Illegal character inside parentheses.(%d)\n", wh); break;
-		case 98: fprintf(fpout, "Space is not allow in media file name inside bullets.(%d)\n", wh); break;
-		case 99: fprintf(fpout, "Extension is not allow at the end of media file name.(%d)\n", wh); break;
-		case 100: fprintf(fpout, "Commas at the end of PARTICIPANTS tier are not allowed.(%d)\n", wh); break;
+		case 94: fprintf(fpout,"Mismatch of speaker and %%mor: utterance delimiters.(%d)\n", wh); break;
+		case 95: fprintf(fpout,"Illegal use of capitalized words in compounds.(%d)\n", wh); break;
+		case 96: fprintf(fpout,"Word color is now illegal.(%d)\n", wh); break;
+// 18-07-2008		case 96: fprintf(fpout,"Illegal color name. (blue, red, green, magenta).(%d)\n", wh); break;
+		case 97: fprintf(fpout,"Illegal character inside parentheses.(%d)\n", wh); break;
+		case 98: fprintf(fpout,"Space is not allow in media file name inside bullets.(%d)\n", wh); break;
+		case 99: fprintf(fpout,"Extension is not allow at the end of media file name.(%d)\n", wh); break;
+		case 100: fprintf(fpout,"Commas at the end of PARTICIPANTS tier are not allowed.(%d)\n", wh); break;
 		case 101: if (err_item[0] == EOS)
 					fprintf(fpout,"This item must be followed or preceded by text.(%d)\n", wh);
 				 else
 					fprintf(fpout,"Item '%s' must be followed or preceded by text.(%d)\n", err_item, wh);
 				 break;
-		case 102: fprintf(fpout, "Italic markers are no longer legal in CHAT.(%d)\n", wh); break;
+		case 102: fprintf(fpout,"Italic markers are no longer legal in CHAT.(%d)\n", wh); break;
 		case 103: fprintf(fpout,"Illegal use of both CA and IPA on \"@Options:\" tier.(%d)\n", wh); break;
 		case 104: fprintf(fpout,"Please select \"CAfont\" or \"Ascender Uni Duo\" font for CA file as per \"@Options:\" tier.(%d)\n", wh); break;
 		case 105: fprintf(fpout,"Please select \"Charis SIL\" font for IPA file as per \"@Options:\" tier.(%d)\n", wh); break;
 		case 106: fprintf(fpout,"The whole code must be on one line. Please run chstring +q on this file.(%d)\n", wh); break;
-		case 107: fprintf(fpout,"Only double or single commas are allowed in tier.(%d)\n", wh); break;
+		case 107: fprintf(fpout,"Only single commas are allowed in tier.(%d)\n", wh); break;
 		case 108: fprintf(fpout,"All postcodes must precede final bullet.(%d)\n", wh); break;
 		case 109: fprintf(fpout,"Postcodes are not allowed on dependent tiers.(%d)\n", wh); break;
 		case 110: fprintf(fpout,"No bullet found on this tier.(%d)\n", wh); break;
 		case 111: if (err_item[0] == EOS)
-					  fprintf(fpout,"Illegal pause format. Pause has to have '.'(%d)\n", wh);
-				  else
-					  fprintf(fpout,"Pause needs '.' in '%s' or this item is in wrong location.(%d)\n", err_item, wh);
-				  break;
-		case 112: fprintf(fpout, "Missing %s tier with media file name in headers section at the top of the file.(%d)\n", MEDIAHEADER, wh); break;
-		case 113: fprintf(fpout, "Illegal keyword, use \"audio\", \"video\" or look in depfile.cut.(%d)\n", wh); break;
-		case 114: fprintf(fpout, "Add \"audio\", \"video\" or look in depfile.cut for more keywords after the media file name on %s tier.(%d)\n", MEDIAHEADER, wh); break;
-		case 115: fprintf(fpout, "Old bullets format found. Please run \"fixbullets\" program to fix this data. (%d)\n", wh); break;
-		case 116: fprintf(fpout, "Specifying Font for individual lines is illegal. Please open this file and save it again. (%d)\n", wh); break;
+					fprintf(fpout,"Illegal pause format. Pause has to have '.'(%d)\n", wh);
+				else
+					fprintf(fpout,"Pause needs '.' in '%s' or this item is in wrong location.(%d)\n", err_item, wh);
+				break;
+		case 112: fprintf(fpout,"Missing %s tier with media file name in headers section at the top of the file.(%d)\n", MEDIAHEADER, wh); break;
+		case 113: fprintf(fpout,"Illegal keyword, use \"audio\", \"video\" or look in depfile.cut.(%d)\n", wh); break;
+		case 114: fprintf(fpout,"Add \"audio\", \"video\" or look in depfile.cut for more keywords after the media file name on %s tier.(%d)\n", MEDIAHEADER, wh); break;
+		case 115: fprintf(fpout,"Old bullets format found. Please run \"fixbullets\" program to fix this data. (%d)\n", wh); break;
+		case 116: fprintf(fpout,"Specifying Font for individual lines is illegal. Please open this file and save it again. (%d)\n", wh); break;
 		case 117: if (err_item[0] == EOS)
-					  fprintf(fpout,"This character must be used in pairs. See if any are unmatched.(%d)\n", wh);
-				  else
-					  fprintf(fpout,"Character %s must be used in pairs. See if any are unmatched.(%d)\n", err_item, wh);
-				  break;
+					fprintf(fpout,"This character must be used in pairs. See if any are unmatched.(%d)\n", wh);
+				else
+					fprintf(fpout,"Character %s must be used in pairs. See if any are unmatched.(%d)\n", err_item, wh);
+				break;
 		case 118: fprintf(fpout,"Utterance delimiter must precede final bullet.(%d)\n", wh); break;
 		case 119: fprintf(fpout,"Illegal to imbed code inside the scope of the same code.(%d)\n", wh); break;
 		case 120: if (check_fav_lang[0] == EOS)
-					  fprintf(fpout,"Please use three letter language code.(%d)\n", wh);
-				  else {
-					  fprintf(fpout,"Please use \"%s\" language code instead.(%d)\n", check_fav_lang, wh); 
-					  fprintf(fpout,"    Or see if \"fixlang\" CLAN command in commands window can fix codes automaticaly.(%d)\n", wh);
-				  }
-				  break;
+				fprintf(fpout,"Please use three letter language code.(%d)\n", wh);
+			else {
+				fprintf(fpout,"Please use \"%s\" language code instead.(%d)\n", check_fav_lang, wh); 
+				fprintf(fpout,"    Or see if \"fixlang\" CLAN command in commands window can fix codes automaticaly.(%d)\n", wh);
+			}
+			break;
 		case 121: if (err_item[0] == EOS)
-					  fprintf(fpout,"Language code not found in CLAN/lib/fixes/ISO-639.cut file.(%d)\n", wh); 
-				  else
-					  fprintf(fpout,"Language code \"%s\" not found in \"CLAN/lib/fixes/ISO-639.cut\" file.(%d)\n", err_item, wh); 
-				  fprintf(fpout,"    If it is a legal code, then please add it to \"CLAN/lib/fixes/ISO-639.cut\" file.\n"); 
-				  break;
-		case 122: fprintf(fpout,"Language on @ID tier does not match anything on @Languages: tier.(%d)\n", wh); break;
+				fprintf(fpout,"Language code not found in CLAN/lib/fixes/ISO-639.cut file.(%d)\n", wh); 
+			else
+				fprintf(fpout,"Language code \"%s\" not found in \"CLAN/lib/fixes/ISO-639.cut\" file.(%d)\n", err_item, wh); 
+			fprintf(fpout,"    If it is a legal code, then please add it to \"CLAN/lib/fixes/ISO-639.cut\" file.\n"); 
+			break;
+		case 122: fprintf(fpout,"Language on @ID tier is not defined on \"@Languages:\" header tier.(%d)\n", wh); break;
 		case 123: if (err_item[0] == EOS)
-					  fprintf(fpout,"Illegal character found after Tier name. If it CA, then add \"@Options: CA\"(%d)\n", wh);
-				  else
-					  fprintf(fpout,"Illegal character '%s' found after Tier name. If it CA, then add \"@Options: CA\"(%d)\n", err_item, wh);
-				  break;
+					fprintf(fpout,"Illegal character found in tier text. If it CA, then add \"@Options: CA\"(%d)\n", wh);
+				else
+					fprintf(fpout,"Illegal character '%s' found in tier text. If it CA, then add \"@Options: CA\"(%d)\n", err_item, wh);
+			break;
 		case 124: fprintf(fpout,"Please remove \"unlinked\" from @Media header.(%d)\n", wh); break;
 		case 125: fprintf(fpout,"\"@Options\" header must immediately follow \"@Participants:\" header.(%d)\n", wh); break;
 		case 126: fprintf(fpout,"\"@ID\" header must immediately follow \"@Participants:\" or \"@Options\" header.(%d)\n", wh); break;
@@ -1140,28 +1232,58 @@ static void check_mess(short wh) {
 		case 130: fprintf(fpout,"Unmatched %c%c%c found on the tier.(%d)\n", 0xE3, 0x80, 0x94, wh); break;
 		case 131: fprintf(fpout,"Unmatched %c%c%c found on the tier.(%d)\n", 0xE3, 0x80, 0x95, wh); break;
 		case 132: fprintf(fpout,"Tabs should only be used to mark the beginning of lines.(%d)\n", wh); break;
-		case 133: fprintf(fpout,"BEG time is smaller than same speaker's previous END time by %ld msec.(%d)\n", tDiff, wh);
-				  break;
+		case 133: fprintf(fpout,"BEG time is smaller than same speaker's previous END time by %ld msec.(%d)\n", tDiff, wh); break;
 		case 134: if (err_item[0] == EOS)
-					  fprintf(fpout,"This item is illegal. Please run \"mor\", \"post\" command on this data.(%d)\n", wh);
-				  else
-					  fprintf(fpout,"Item '%s' is illegal. Please run \"mor\", \"post\" commands on this data.(%d)\n", err_item, wh);
-				  break;
+				fprintf(fpout,"This item is illegal. Please run \"mor\" command on this data.(%d)\n", wh);
+			else
+				fprintf(fpout,"Item '%s' is illegal. Please run \"mor\" command on this data.(%d)\n", err_item, wh);
+			break;
 		case 135: if (err_item[0] == EOS)
-					  fprintf(fpout,"This item is illegal.(%d)\n", wh);
-				  else
-					  fprintf(fpout,"Item '%s' is illegal.(%d)\n", err_item, wh);
-				  break;
+				fprintf(fpout,"This item is illegal.(%d)\n", wh);
+			else
+				fprintf(fpout,"Item '%s' is illegal.(%d)\n", err_item, wh);
+			break;
 		case 136: fprintf(fpout,"Unmatched %c%c%c found on the tier.(%d)\n", 0xE2, 0x80, 0x9C, wh); break;
 		case 137: fprintf(fpout,"Unmatched %c%c%c found on the tier.(%d)\n", 0xE2, 0x80, 0x9D, wh); break;
-		case 138: fprintf(fpout,"Unmatched %c%c%c found on the tier.(%d)\n", 0xE2, 0x80, 0x98, wh); break;
-		case 139: fprintf(fpout,"Unmatched %c%c%c found on the tier.(%d)\n", 0xE2, 0x80, 0x99, wh); break;
-		case 140: fprintf(fpout,"Tier \"%%MOR:\" does not link in size to it's speaker tier.(%d)\n", wh); break;
+		case 138: fprintf(fpout,"Special quote U2019 must be replaced by single quote (').(%d)\n", wh); break;
+		case 139: fprintf(fpout,"Special quote U2018 must be replaced by single quote (').(%d)\n", wh); break;
+		case 140: fprintf(fpout,"Tier \"%%MOR:\" does not link in size to its speaker tier.(%d)\n", wh); break;
 		case 141: if (err_item[0] == EOS)
-					  fprintf(fpout,"[: ...] has to be preceded by only one word and nothing else.(%d)\n", wh);
-				  else
-					  fprintf(fpout,"'%s' must be preceded by only one word and nothing else.(%d)\n", err_item, wh);
-				  break;
+				fprintf(fpout,"[: ...] has to be preceded by only one word and nothing else.(%d)\n", wh);
+			else
+				fprintf(fpout,"'%s' must be preceded by only one word and nothing else.(%d)\n", err_item, wh);
+			break;
+		case 142: fprintf(fpout,"Speaker's role on @ID tier does not match role on @Participants: tier.(%d)\n", wh); break;
+		case 143: fprintf(fpout,"The @ID line needs 10 fields.(%d)\n", wh); break;
+		case 144: fprintf(fpout,"Either illegal SES field value or symbol is not declared in depfile.(%d)\n", wh); break;
+		case 145: fprintf(fpout,"This intonational marker should be outside paired markers.(%d)\n", wh); break;
+		case 146: fprintf(fpout,"The &= symbol must include some code after '=' character.(%d)\n", wh); break;
+		case 147: fprintf(fpout,"Undeclared special form marker in depfile.(%d)\n", wh); break;
+		case 148: fprintf(fpout,"Space character is not allowed before comma(,) character on \"@Media:\" header.(%d)\n", wh); break;
+		case 149: if (err_item[0] == EOS)
+				fprintf(fpout,"Illegal character located between a word and [...] code.(%d)\n", wh);
+			else
+				fprintf(fpout,"Illegal character '%s' located between a word and [...] code.(%d)\n", err_item, wh);
+			break;
+		case 150: fprintf(fpout,"Illegal item located between a word and [...] code.(%d)\n", wh); break;
+		case 151: fprintf(fpout,"This word has only repetition segments.(%d)\n", wh); break;
+
+		case 152: fprintf(fpout,"Language is not defined on \"@Languages:\" header tier.(%d)\n", wh); break;
+		case 153: fprintf(fpout,"Age's month or day are missing initial zero.\nPlease run \"chstring +q +1\" command on this file to fix this error.(%d)\n", wh); break;
+		case 154: fprintf(fpout,"Please add \"unlinked\" to @Media header.(%d)\n", wh); break;
+		case 155: if (err_item[0] == EOS)
+				fprintf(fpout,"Please use \"0word\" instead of \"(word)\".(%d)\n", wh);
+			else {
+				i = strlen(err_item) - 1;
+				if (i > 0)
+					err_item[i] = EOS;
+				fprintf(fpout,"Please use \"0%s\" instead of \"(%s)\".(%d)\n", err_item+1, err_item+1,wh);
+			}
+			break;
+		case 156: fprintf(fpout,"Please replace ,, with F2-t (%c%c%c) character.(%d)\n", 0xE2, 0x80, 0x9E, wh); break;
+		case 157: fprintf(fpout,"Media file name has to match datafile name.(%d)\n", wh); break;
+		case 158: fprintf(fpout,"[: ...] has to have real word, not 0... or &... or xxx.(%d)\n", wh); break;
+		case 159: fprintf(fpout,"Pause markers should appear after retrace markers(%d)\n", wh); break;
 
 /* when adding new error change number in LAST_ERR_NUM */
 		default: fprintf(fpout,"Internal ERROR. #%d is not defined!\n",wh);
@@ -1177,24 +1299,32 @@ static char check_err(int wh, int s, int e, long ln) {
 	return(TRUE);
 }
 
-static void check_CodeErr(short wh) {
+static void check_CodeErr(int wh) {
 	int i, j;
 
-	if (ErrorRepFlag && !ErrorReport[wh-1]) return;
+	if (ErrorRepFlag && !ErrorReport[wh-1])
+		return;
 	for (j=0; utterance->speaker[j] != ':' && utterance->speaker[j]; j++) ;
-	if (!check_adderror(0,j,wh,utterance->speaker)) return;
+	if (!check_adderror(0,j,wh,utterance->speaker))
+		return;
+	if (totalFilesNum > MINFILESNUM && !stin) { // 2019-04-18 TotalNumFiles
+		fprintf(stderr, "\r    	     \r");
+	}
 	fprintf(fpout,"*** File \"%s\": ", oldfname);
 	fprintf(fpout,"line %ld.\n", lineno);
 	fputs(utterance->speaker, fpout);
-	for (i=0; uttline[i] != '\n' && uttline[i]; i++) putc(uttline[i],fpout);
+	for (i=0; uttline[i] != '\n' && uttline[i]; i++)
+		putc(uttline[i],fpout);
 	if (uttline[i]) i++;
 	putc('\n', fpout);
 	for (j=0; utterance->speaker[j] != ':' && utterance->speaker[j]; j++)
 		putc('^',fpout);
 	putc('\n', fpout);
 	if (uttline[i]) {
-		for (; uttline[i]; i++) putc(uttline[i],fpout);
-		if (uttline[i-1] != '\n') putc('\n', fpout);
+		for (; uttline[i]; i++)
+			putc(uttline[i],fpout);
+		if (uttline[i-1] != '\n')
+			putc('\n', fpout);
 	}
 	err_item[0] = EOS;
 	check_mess(wh);
@@ -1239,6 +1369,23 @@ static char check_correctMonth(char *s) {
 	else if (!strncmp(s, "NOV", 3))
 		return(TRUE);
 	else if (!strncmp(s, "DEC", 3))
+		return(TRUE);
+	else
+		return(FALSE);
+}
+
+static int check_SES_item(char *tmpl, char *s) {
+	if (*tmpl == 's')
+		tmpl++;
+	if (*tmpl == '<')
+		tmpl++;
+	while (*tmpl != EOS && *s != EOS) {
+		if (*tmpl != *s)
+			break;
+		tmpl++;
+		s++;
+	}
+	if ((*tmpl == '>' || *tmpl == EOS) && *s == EOS)
 		return(TRUE);
 	else
 		return(FALSE);
@@ -1316,48 +1463,6 @@ static int check_MatchDT(char *tmpl, char *s) {
 		return(FALSE);
 }
 
-// 	@r<&= ({ALNUM} | [=-_^{}])+ (: ({ALNUM} | ['/_-=^{}$&])+ )*> 
-/* ALNUM ALPHA DIGIT OR_CH PARAO PARAC ONE_T ZEROT '&' &lxs */
-
-static int check_MatchRegExp(char *pat, char *s) {
-/*	int si, pi;
-
-	si = 0;
-	pi = 0;
-	while (1) {
-		if (s[si] == EOS) {
-		} else if ((s[si] == pat[pi]) || (pat[pi] == ALNUM && isalnum((unsigned char)s[si])) ||
-				   (pat[pi] == ALPHA && isalpha((unsigned char)s[si])) ||
-				   (pat[pi] == DIGIT && isdigit((unsigned char)s[si]))) {
-			si++;
-			while (pat[pi+1] == OR_CH)
-				pi += 2;
-			pi++;
-		} else if (pat[pi+1] == OR_CH) {
-			pi += 2;
-		} else if (pat[pi] == PARAO) {
-		} else if (pat[pi] == PARAC) {
-		}
-	}
-*/
-/*
-	for (tmpl++; *tmpl; tmpl++, s++) {
-		if (*tmpl == 'd' && isdigit((unsigned char)*s)) {
-			if (*(tmpl-1) != 'd') {
-			}
-		} else if (*tmpl == '>' || *tmpl == '<')
-			s--;
-		else if (*tmpl != *s)
-			return(FALSE);
-	}
-	if (isSpace(*s) || *s == '\n' || *s == EOS)
-		return(TRUE);
-	else
-		return(FALSE);
-*/
-	return(FALSE);
-}
-
 static int check_matchnumber(TPLATES *tp, char *s) {
 	for (; tp != NULL; tp = tp->nextone) {
 		if (*tp->pattern != '*') {
@@ -1367,12 +1472,12 @@ static int check_matchnumber(TPLATES *tp, char *s) {
 	return(TRUE);
 }
 
-static int check_matchplate(TPLATES *tp, char *s) {
-	char dt = FALSE;
+static int check_matchplate(TPLATES *tp, char *s, char charType) {
+	char dt = FALSE, ses = FALSE;
 
 	for (; tp != NULL; tp = tp->nextone) {
 		if (*tp->pattern == '@') {
-			if (*(tp->pattern+1) == 'd' || *(tp->pattern+1) == 't') {
+			if ((*(tp->pattern+1) == 'd' || *(tp->pattern+1) == 't') && charType == 'D') {
 				dt = TRUE;
 				if (check_MatchDT(tp->pattern+1,s))
 					return(FALSE);
@@ -1382,8 +1487,9 @@ static int check_matchplate(TPLATES *tp, char *s) {
 					else
 						return(35);
 				}
-			} else if (*(tp->pattern+1) == 'r') {
-				if (check_MatchRegExp(tp->pattern+1,s))
+			} else if ((*(tp->pattern+1) == 's' || *(tp->pattern+1) == 'e') && charType == 's') {
+				ses = TRUE;
+				if (check_SES_item(tp->pattern+2,s))
 					return(FALSE);
 			} else if (uS.patmat(s,tp->pattern))
 				return(FALSE);
@@ -1405,22 +1511,58 @@ static int check_matchplate(TPLATES *tp, char *s) {
 			if (uS.patmat(s,tp->pattern)) return(FALSE);
 		}
 	}
-	if (dt) return(33);
-	else if (*s == '$') return(32);
-	else return(11);
+	if (dt) {
+		return(33);
+	} else if (ses) {
+		return(144);
+	} else if (*s == '$') {
+		if (check_isBlob)
+			return(FALSE);
+		else
+			return(32);
+	} else {
+		if (check_isBlob)
+			return(FALSE);
+		else
+			return(11);
+	}
 }
 
-static int check_matchSpeaker(SP_LIST *tp, char *s) {
+static int check_matchIDsp(struct IDsp *tp, char *s) {
+	for (; tp != NULL; tp = tp->nextsp) {
+		if (uS.mStricmp(s,tp->sp) == 0) {
+			return(TRUE);
+		}
+	}
+	return(FALSE);
+}
+
+
+static SPLIST *check_matchSpeaker(SPLIST *tp, char *s, char isFromID) {
 	for (; tp != NULL; tp = tp->nextsp) {
 		if (uS.patmat(s,tp->sp)) {
-			return(FALSE);
+			if (isFromID)
+				tp->hasID = TRUE;
+			return(tp);
+		}
+	}
+	return(NULL);
+}
+
+static int check_matchRole(char *sp, SPLIST *tp, char *s) {
+	for (; tp != NULL; tp = tp->nextsp) {
+		if (uS.patmat(sp,tp->sp)) {
+			if (uS.mStricmp(tp->role, s) == 0)
+				return(FALSE);
+			else
+				return(TRUE);
 		}
 	}
 	return(TRUE);
 }
 
 static char check_setLastTime(char *s, long t) {
-	SP_LIST *tp;
+	SPLIST *tp;
 
 	if (*s == '*')
 		s++;
@@ -1436,7 +1578,7 @@ static char check_setLastTime(char *s, long t) {
 }
 
 static long check_getLatTime(char *s) {
-	SP_LIST *tp;
+	SPLIST *tp;
 
 	if (*s == '*')
 		s++;
@@ -1510,7 +1652,7 @@ static char check_Tabs(long ln, char er) {
 					er = TRUE;
 			}
 			if (uttline[i] == '\t' && i > 0 && uttline[i-1] != ':') {
-				if (check_err(123,i,i,ln))
+				if (check_err(132,i,i,ln))
 					er = TRUE;
 			}
 		}
@@ -1546,6 +1688,8 @@ static char check_Colon(long ln, char er) {
 				ts = check_MatchTierName(maint,templineC,(uttline[i] ==':'));
 			else if (*uttline == '%')
 				ts = check_MatchTierName(codet,templineC,(uttline[i] ==':'));
+			else
+				ts = NULL;
 		}
 		if (uttline[i] != ':') {
 			if (ts != NULL) {
@@ -1619,23 +1763,42 @@ static char check_CheckErr(long ln, char er) {
 	return(er);
 }
 
+static char check_isMissingInitialZero(char *line, int s) { // lxs
+	int i;
+
+	for (i=s; line[i] != EOS && line[i] != '|'; i++) {
+		if (line[i] == ';' && isdigit(line[i+1]) && line[i+2] == '.') {
+			check_err(153,i,i+1,lineno);
+			return(TRUE);
+		} else if (line[i] == '.' && isdigit(line[i+1]) && line[i+2] == '|') {
+			check_err(153,i,i+1,lineno);
+			return(TRUE);
+		}
+	}
+	return(FALSE);
+}
+
 static void check_Age(CHECK_TIERS *ts, char *sp, char *line, int offset, char eChar) {
 	long ln = 0L;
 	int r, s, e;
 	char word[BUFSIZ], *st;
 
+	s = offset;
 	if (sp != NULL) {
 		uS.extractString(templineC4, sp, "@Age of ", ':');
-		if (check_matchSpeaker(headsp, templineC4)) {
+		if (check_matchSpeaker(headsp, templineC4, FALSE) == NULL) {
 			check_CodeErr(18);
 		}
+	} else {
+		if (check_isMissingInitialZero(line, s))
+			return;
 	}
-	s = offset;
 	e = s;
 	while (1) {
 		st = word;
 		while ((*st=line[s++]) == ' ' || *st == '\t' || *st == '\n') {
-			if (*st == '\n') ln += 1;
+			if (*st == '\n')
+				ln += 1;
 		}
 		if (*st == eChar)
 			break;
@@ -1646,11 +1809,7 @@ static void check_Age(CHECK_TIERS *ts, char *sp, char *line, int offset, char eC
 				break;
 		}
 		*st = EOS;
-/*
-		if (!nomap)
-			uS.uppercasestr(word, &dFnt, MBF);
-*/
-		if ((r=check_matchplate(ts->tplate,word))) {
+		if ((r=check_matchplate(ts->tplate, word, 'D'))) {
 			if (eChar == EOS)
 				offset = e - 2;
 			else
@@ -1667,7 +1826,7 @@ static void check_Sex(CHECK_TIERS *ts, char *sp, char *line) {
 
 	if (sp != NULL) {
 		uS.extractString(templineC4, sp, "@Sex of ", ':');
-		if (check_matchSpeaker(headsp, templineC4)) {
+		if (check_matchSpeaker(headsp, templineC4, FALSE) == NULL) {
 			check_CodeErr(18);
 		}
 	}
@@ -1684,12 +1843,41 @@ static void check_Sex(CHECK_TIERS *ts, char *sp, char *line) {
 	}
 }
 
-static void check_Ses(CHECK_TIERS *ts, char *sp, char *line) {
+static void check_ses(CHECK_TIERS *ts, char *sp, char *line, int offset, char eChar) {
+	long ln = 0L;
+	int r, s, e;
+	char word[BUFSIZ], *st;
+
 	if (sp != NULL) {
 		uS.extractString(templineC4, sp, "@Ses of ", ':');
-		if (check_matchSpeaker(headsp, templineC4)) {
+		if (check_matchSpeaker(headsp, templineC4, FALSE) == NULL) {
 			check_CodeErr(18);
 		}
+	}
+	s = offset;
+	e = s;
+	while (1) {
+		st = word;
+		while ((*st=line[s++]) == ' ' || *st == '\t' || *st == ',' || *st == '\n') {
+			if (*st == '\n') ln += 1;
+		}
+		if (*st == eChar)
+			break;
+		e = s;
+		while ((*++st=line[e]) != eChar) {
+			e++;
+			if (*st == '\n' || *st == ',' || *st == ' ' || *st == '\t')
+				break;
+		}
+		*st = EOS;
+		if ((r=check_matchplate(ts->tplate, word, 's'))) {
+			if (eChar == EOS)
+				offset = e - 2;
+			else
+				offset = e - 1;
+			check_err(r,s-1,offset,ln+lineno);
+		}
+		s = e;
 	}
 }
 
@@ -1700,7 +1888,7 @@ static void check_Birth(CHECK_TIERS *ts, char *sp, char *line) {
 
 	if (sp != NULL) {
 		uS.extractString(templineC4, sp, "@Birth of ", ':');
-		if (check_matchSpeaker(headsp, templineC4)) {
+		if (check_matchSpeaker(headsp, templineC4, FALSE) == NULL) {
 			check_CodeErr(18);
 		}
 	}
@@ -1724,7 +1912,7 @@ static void check_Birth(CHECK_TIERS *ts, char *sp, char *line) {
 		if (!nomap)
 			uS.uppercasestr(word, &dFnt, MBF);
 */
-		if ((r=check_matchplate(ts->tplate,word))) {
+		if ((r=check_matchplate(ts->tplate, word, 'D'))) {
 			check_err(r,s-1,e - 2,ln+lineno);
 		}
 		s = e;
@@ -1734,7 +1922,7 @@ static void check_Birth(CHECK_TIERS *ts, char *sp, char *line) {
 static void check_Educ(CHECK_TIERS *ts, char *sp, char *line) {
 	if (sp != NULL) {
 		uS.extractString(templineC4, sp, "@Education of ", ':');
-		if (check_matchSpeaker(headsp, templineC4)) {
+		if (check_matchSpeaker(headsp, templineC4, FALSE) == NULL) {
 			check_CodeErr(18);
 		}
 	}
@@ -1743,7 +1931,7 @@ static void check_Educ(CHECK_TIERS *ts, char *sp, char *line) {
 static void check_Group(CHECK_TIERS *ts, char *sp, char *line) {
 	if (sp != NULL) {
 		uS.extractString(templineC4, sp, "@Group of ", ':');
-		if (check_matchSpeaker(headsp, templineC4)) {
+		if (check_matchSpeaker(headsp, templineC4, FALSE) == NULL) {
 			check_CodeErr(18);
 		}
 	}
@@ -1755,29 +1943,25 @@ static int check_badrole(char *s, const char *c) {
 	strcpy(templineC,s);
 //	uS.uppercasestr(templineC, &dFnt, MBF);
 	if ((ts=check_FindTier(headt,c)) != NULL) {
-		if (check_matchplate(ts->tplate,templineC) == FALSE)
+		if (check_matchplate(ts->tplate,templineC, 'D') == FALSE)
 			return(FALSE);
 	} else
 		check_CodeErr(17);
 	return(TRUE);
 }
 
-static void check_addsp(char *s, char *line, long ln, char t) {
-	SP_LIST *tp;
+static void check_addIDdsp(char *s) {
+	struct IDsp *tp;
 
-	if (headsp == NULL) {
-		if ((headsp=NEW(SP_LIST)) == NULL) check_overflow();
-		tp = headsp;
+	if (check_idsp == NULL) {
+		if ((check_idsp=NEW(struct IDsp)) == NULL) check_overflow();
+		tp = check_idsp;
 	} else {
-		strcpy(templineC,s);
-		for (tp=headsp; 1; tp=tp->nextsp) {
-			if (!strcmp(tp->sp,templineC)) {
-				*line = t;
-				check_trans_err(13,s,line-1,ln);
-				return;
+		for (tp=check_idsp; 1; tp=tp->nextsp) {
+			if (!uS.mStricmp(tp->sp,templineC)) {
 			}
 			if (tp->nextsp == NULL) {
-				if ((tp->nextsp=NEW(SP_LIST)) == NULL)
+				if ((tp->nextsp=NEW(struct IDsp)) == NULL)
 					check_overflow();
 				tp = tp->nextsp;
 				break;
@@ -1787,7 +1971,47 @@ static void check_addsp(char *s, char *line, long ln, char t) {
 	tp->nextsp = NULL;
 	strcpy(templineC,s);
 	tp->sp = check_mkstring(templineC);
+}
+
+static void check_addsp(char *s, char *role, char *line, long ln, char t) {
+	SPLIST *tp;
+
+	if (headsp == NULL) {
+		if ((headsp=NEW(SPLIST)) == NULL) check_overflow();
+		tp = headsp;
+	} else {
+		strcpy(templineC,s);
+		for (tp=headsp; 1; tp=tp->nextsp) {
+			if (!strcmp(tp->sp,templineC)) {
+				if (role == NULL) {
+					*line = t;
+					check_trans_err(13,s,line-1,ln);
+				} else if (tp->role == NULL) {
+					strcpy(templineC,role);
+					tp->role = check_mkstring(templineC);
+				}
+				return;
+			}
+			if (tp->nextsp == NULL) {
+				if ((tp->nextsp=NEW(SPLIST)) == NULL)
+					check_overflow();
+				tp = tp->nextsp;
+				break;
+			}
+		}
+	}
+	tp->nextsp = NULL;
+	strcpy(templineC,s);
+	tp->sp = check_mkstring(templineC);
+	if (role == NULL)
+		tp->role = NULL;
+	else {
+		strcpy(templineC,role);
+		tp->role = check_mkstring(templineC);
+	}
+	tp->isUsed = FALSE;
 	tp->endTime = 0L;
+	tp->hasID = FALSE;
 }
 
 static void check_getpart(char *line) {
@@ -1832,6 +2056,7 @@ static void check_getpart(char *line) {
 						*e = t;
 						check_trans_err(15,s,e-1,ln);
 					}
+					check_addsp(sp,s,line,ln,t);
 				} else if (cnt == 0) {
 					for (i=0; s[i] > 32 && s[i] < 127 && s[i] != EOS; i++) ;
 					if (s[i] != EOS) {
@@ -1839,7 +2064,7 @@ static void check_getpart(char *line) {
 					} else {
 						isCommaFound = FALSE;
 						strcpy(sp, s);
-						check_addsp(s,line,ln,t);
+						check_addsp(s,NULL,line,ln,t);
 					}
 				}
 				*e = t;
@@ -1874,6 +2099,7 @@ static void check_getpart(char *line) {
 					}
 					if (check_badrole(s,PARTICIPANTS))
 						check_trans_err(15,s,e-1,ln);
+					check_addsp(sp,s,line,ln,t);
 					*e = t;
 				}
 				for (line=e; *line; line++) {
@@ -1893,7 +2119,7 @@ static void check_getpart(char *line) {
 	if (isCommaFound) {
 		check_err(100,-1,-1,ln);
 	}
-	if (NAME_ROLE_COUNT(check_GenOpt) && !tchFound) {
+	if (NAME_ROLE_COUNT(check_GenOpt) && !tchFound && check_applyG2Option) {
 		check_err(68,-1,-1,ln);
 	}
 /*
@@ -1905,8 +2131,37 @@ putchar('\n');
 */
 }
 
+static void check_isLangMatch(char *langs, long ln, int s, int wh, char isOneTime) {
+	int i, j, langCnt;
+	char t;
+
+	i = 0;
+	langCnt = 0;
+	while (langs[i]) {
+		for (; uS.isskip(langs,i,&dFnt,TRUE) || langs[i] == '\n'; i++) ;
+		if (langs[i] == EOS)
+			break;
+		for (j=i; !uS.isskip(langs,j,&dFnt,TRUE) && langs[j] != '=' && langs[j] != '\n' && langs[j] != EOS; j++) ;
+		t = langs[j];
+		langs[j] = EOS;
+		for (langCnt=0; langCnt < NUMLANGUAGESINTABLE; langCnt++) {
+			if (strcmp(check_LanguagesTable[langCnt], langs+i) == 0)
+				break;
+		}
+		langs[j] = t;
+		if (langCnt >= NUMLANGUAGESINTABLE) {
+			check_err(wh,s+i,s+j-1,ln+lineno);
+		}
+		if (isOneTime)
+			break;
+		if (langs[j] == '=')
+			for (; !uS.isskip(langs,j,&dFnt,TRUE) && langs[j] != '\n' && langs[j] != EOS; j++) ;
+		i = j;
+	}
+}
+
 static char check_OverAll(void) {
-	long linenum = 1L, tlinenum;
+	long linenum = 1L, tlinenum = 0L;
 	char er = FALSE, UTF8SymCnt;
 	char beg = FALSE, end = FALSE, font = FALSE, idt = FALSE;
 	char  lSP[SPEAKERLEN+1];
@@ -1935,10 +2190,6 @@ static char check_OverAll(void) {
 		uttline[i] = (char)getc_cr(fpin, NULL);
 		if (uttline[i] == '\n' || feof(fpin)) {
 			uttline[i] = EOS;
-			if (uS.partcmp(uttline, CKEYWORDHEADER, FALSE, TRUE)) {
-				i = 0;
-				continue;
-			}
 			if (uS.partcmp(uttline, FONTHEADER, FALSE, TRUE)) {
 				if (font >= 0)
 					font++;
@@ -1951,11 +2202,16 @@ static char check_OverAll(void) {
 					font++;
 				continue;
 			}
+			if (uS.isInvisibleHeader(uttline)) {
+				i = 0;
+				continue;
+			}
 			if (uS.partcmp(uttline, "@Options:",FALSE,FALSE) || uS.partcmp(uttline, "@Languages:",FALSE,FALSE)) {
 				for (j=0; uttline[j] != EOS; j++) {
-					if (!strncmp(uttline+j, "CA", 2)) {
+					if (!strncmp(uttline+j, "CA", 2) || !strncmp(uttline+j, "CA-Unicode", 10)) {
 						check_isCAFound = TRUE;
-						break;
+					} else if (!strncmp(uttline+j, "notarget", 8)) {
+						check_applyG2Option = FALSE;
 					}
 				}
 			}
@@ -1969,9 +2225,9 @@ static char check_OverAll(void) {
 				if (linenum % 250 == 0) fprintf(stderr,"\r%ld ", linenum);
 			}
 			er = check_CheckFirstCh(linenum,er);
+			er = check_CheckErr(linenum,er);
 			er = check_Tabs(linenum,er);
 			er = check_Colon(linenum,er);
-			er = check_CheckErr(linenum,er);
 			i = 0;
 			linenum += 1L;
 			if (*uttline == '@') {
@@ -2026,14 +2282,14 @@ static char check_OverAll(void) {
 				}
 			} else if (uS.partcmp(uttline, "@ID:", FALSE, FALSE)) {
 				if (!uS.partcmp(lSP,"@Participants",FALSE,FALSE) && !uS.partcmp(lSP,"@Options",FALSE,FALSE) &&
-					  !uS.partcmp(lSP,"@ID:",FALSE,FALSE)) {
+					!uS.partcmp(lSP,"@ID:",FALSE,FALSE)) {
 					if (check_err(126,0,strlen(uttline),tlinenum))
 						er = TRUE;
 				}
 			} else if (uS.partcmp(uttline,"@Birth of",FALSE,FALSE) || uS.partcmp(uttline,"@L1 of",FALSE,FALSE) ||
 					   uS.partcmp(uttline,"@Birthplace of",FALSE,FALSE)) {
 				if (!uS.partcmp(lSP,"@ID:",FALSE,FALSE) && !uS.partcmp(lSP,"@Birth of",FALSE,FALSE) &&
-					  !uS.partcmp(lSP,"@L1 of",FALSE,FALSE) && !uS.partcmp(lSP,"@Birthplace of",FALSE,FALSE)) {
+					!uS.partcmp(lSP,"@L1 of",FALSE,FALSE) && !uS.partcmp(lSP,"@Birthplace of",FALSE,FALSE)) {
 					if (check_err(127,0,strlen(uttline),tlinenum))
 						er = TRUE;
 				}
@@ -2169,21 +2425,43 @@ static void check_getExceptions(char *line) {
 	}
 }
 
-static char check_isOneLetter(char *word, char *bw) {
+static char check_isOneLetter(char *word, char *bw, int *offset) {
 	int num = 0;
 
 	for (; word != bw && *word != EOS && *word != '@' && *word != '-'; word++) {
-		if (*word != ':')
-			num++;
+		if (word[0] == (char)0xE2 && word[1] == (char)0x86 && word[2] == (char)0xAB) {
+			word += 3;
+			while (*word != EOS) {
+				if (word[0] == (char)0xE2 && word[1] == (char)0x86 && word[2] == (char)0xAB) {
+					word += 3;
+					break;
+				} else
+					word++;
+			}
+			if (*word == EOS)
+				break;
+		}
+		if (*word != ':') {
+			if (UTF8_IS_LEAD((unsigned char)*word) || UTF8_IS_SINGLE((unsigned char)*word))
+				num++;
+		}
 	}
-	if (num > 1)
+	if (num > 1) {
+		*offset = 1;
+		for (word--, num=0; num < 1; word--) {
+			if (*word != ':') {
+				if (UTF8_IS_LEAD((unsigned char)*word) || UTF8_IS_SINGLE((unsigned char)*word))
+					num++;
+			}
+			*offset = *offset + 1;
+		}
 		return(FALSE);
-	else
+	} else
 		return(TRUE);
 }
 				/* sufix or prefix */
 static char check_CheckFixes(CHECK_TIERS *ts, char *word, long ln, int s, int e) {
-	int s1, pos;
+	int s1, offset, pos;
 	char *bw, t, found, isPrefix, isCompFound;
 	TPLATES *tp;
 
@@ -2195,25 +2473,33 @@ static char check_CheckFixes(CHECK_TIERS *ts, char *word, long ln, int s, int e)
 		if (uS.isRightChar(word, pos,'+',&dFnt,MBF))
 			isCompFound = TRUE;
 
-		if (uS.ismorfchar(word, pos, &dFnt, CHECK_MORPHS, MBF) || uS.isRightChar(word, pos, '@', &dFnt, MBF)) {
-			if (!isItemPrefix[word[pos]]) {
+		if (word[pos] == '~') {
+		} else if (uS.ismorfchar(word, pos, &dFnt, CHECK_MORPHS, MBF) || uS.isRightChar(word, pos, '@', &dFnt, MBF)) {
+			if (!isItemPrefix[(int)word[pos]]) {
 				isPrefix = FALSE;
 				bw = word + pos;
 				s1 = s;
 				for (pos++, s++; word[pos] && !uS.isRightChar(word, pos, '@', &dFnt, MBF) &&
-								 !uS.ismorfchar(word, pos, &dFnt, CHECK_MORPHS, MBF) &&
-					 !uS.isRightChar(word, pos, '$', &dFnt, MBF); pos++, s++) ;
+											!uS.ismorfchar(word, pos, &dFnt, CHECK_MORPHS, MBF) &&
+											!uS.isRightChar(word, pos, '$', &dFnt, MBF); pos++, s++) ;
 				pos--;
 				s--;
 			} else
 				isPrefix = TRUE;
 			t = word[pos+1];
 			word[pos+1] = EOS;
-			if (!strcmp(bw, "@l") && !check_isOneLetter(word, bw)) {
-				check_err(76,s1-2,s1-2,ln);
+			if (!strcmp(bw, "@l") && !check_isOneLetter(word, bw, &offset)) {
+				if (s1-offset > 0 && !UTF8_IS_SINGLE((unsigned char)uttline[s1-offset]) && !UTF8_IS_LEAD((unsigned char)uttline[s1-offset])) {
+					offset++;
+				}
+				check_err(76,s1-offset,s1-2,ln);
+			}
+			if (bw[0] == '@' && bw[1] == 's' && bw[2] == ':') {
+				if (bw[3] == EOS)
+					check_err(62,s1-1,s-1,ln);
 			}
 			for (tp=ts->tplate; tp != NULL; tp = tp->nextone) {
-				if (isCompFound && !check_isSign) {
+				if (isCompFound) {
 					if (*tp->pattern == '+' && *(tp->pattern+1) != EOS) {
 						if (uS.patmat(bw,tp->pattern+1))
 							break;
@@ -2229,6 +2515,8 @@ static char check_CheckFixes(CHECK_TIERS *ts, char *word, long ln, int s, int e)
 			if (tp == NULL) {
 				if (isPrefix)
 					check_err(37,s1-1,s-1,ln);
+				else if (uttline[s1-1] == '@')
+					check_err(147,s1-1,s-1,ln);
 				else
 					check_err(20,s1-1,s-1,ln);
 			} else
@@ -2240,7 +2528,7 @@ static char check_CheckFixes(CHECK_TIERS *ts, char *word, long ln, int s, int e)
 	return(found);
 }
 
-// | & # - = + ~ ^
+// | & # - = + ~ $ ^
 static char check_MorItem(char *item, int *sErr, int *eErr, int offset) {
 	return(0);
 
@@ -2257,7 +2545,7 @@ static char check_MorItem(char *item, int *sErr, int *eErr, int offset) {
 		last = NULL;
 		while (*item != EOS) {
 			for (c=item; *c != '|' && *c != '#' &&  *c != '-' && 
-						*c != '=' && *c != '~' && *c != EOS; c++) {
+						*c != '=' && *c != '~' *c != '$' && *c != EOS; c++) {
 				if (!strncmp(c, "&amp;", 5))
 					break;
 			}
@@ -2483,7 +2771,7 @@ static char check_MorItem(char *item, int *sErr, int *eErr, int offset) {
 				}
 				sprintf(tempst2, "\nItem=%ls", org);
 				freeAll(900);
-			} else if (*last == '~') {
+			} else if (*last == '~' || *last == '$') {
 				*c = t;
 				if (t != '|') {
 					sprintf(tempst2, ": %ls\nItem=%ls", c, org);
@@ -2499,7 +2787,6 @@ static char check_MorItem(char *item, int *sErr, int *eErr, int offset) {
 				last = NULL;
 				continue;
 			}
-
 			last = c;
 			*c = t;
 			if (t != EOS)
@@ -2539,10 +2826,7 @@ static void check_CheckBrakets(char *org, long pos, int *sb, int *pb, int *ab, i
 }
 
 static char isIllegalASCII(char *w, int s) {
-	if ((unsigned char)w[s] == 0xe2 && my_CharacterByteType(w,(short)s,&dFnt) == -1 && (unsigned char)w[s+1] == 0x80 && 
-			((unsigned char)w[s+2] == 0x98 || (unsigned char)w[s+2] == 0x99))
-		return(TRUE);
-	else if ((unsigned char)w[s] == 0xc2 && my_CharacterByteType(w,(short)s,&dFnt) == -1 && (unsigned char)w[s+1] == 0xb7)
+	if ((unsigned char)w[s] == 0xc2 && my_CharacterByteType(w,(short)s,&dFnt) == -1 && (unsigned char)w[s+1] == 0xb7)
 		return(TRUE);
 	else if ((unsigned char)w[s] >= 0xee && my_CharacterByteType(w,(short)s,&dFnt) == -1 && my_CharacterByteType(w,(short)s+1,&dFnt) > 0 && my_CharacterByteType(w,(short)s+2,&dFnt) > 0) {
 		long num, t;
@@ -2562,6 +2846,16 @@ static char isIllegalASCII(char *w, int s) {
 			return(TRUE);
 	}
 	return(FALSE);
+}
+
+static int isBadQuotes(char *w, int s) {
+	if ((unsigned char)w[s] == 0xe2 && my_CharacterByteType(w,(short)s,&dFnt) == -1 && (unsigned char)w[s+1] == 0x80) {
+		if ((unsigned char)w[s+2] == 0x98)
+			return(139);
+		else if ((unsigned char)w[s+2] == 0x99)
+			return(138);
+	}
+	return(0);
 }
 
 static char isLegalUseOfDigit(char *w, int s) {
@@ -2611,19 +2905,41 @@ static char check_isEndOfWord(char *w) {
 	return(TRUE);
 }
 
+static void check_isThereStem(char *w, int pos, long ln) {
+	int i, s, matchType;
+	char isF;
+
+	isF = FALSE;
+	i = 0;
+	while (w[i] != EOS) {
+		s = uS.HandleCAChars(w+i, &matchType);
+		if (s) {
+			if (matchType == NOTCA_LEFT_ARROW_CIRCLE)
+				isF = !isF;
+			i = i + s;
+		} else
+			i++;
+		if (!isF && w[i] != EOS)
+			return;
+	}
+	check_err(151, pos-1, pos+i-2, ln);
+}
+
 static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 	char capWErrFound, capWFound, digFound, isCompFound, paransFound;
 	int s, t, len, CAo, CAOffset, isATFound;
 
 	len = strlen(w) - 1;
-	if (ts->code[0] == '*') {
+	if (ts->code[0] == '*' || uS.partcmp(ts->code, "%wor", FALSE, TRUE) || uS.partcmp(ts->code, "%xwor", FALSE, TRUE)) {
 #ifndef UNX
 		int matchType;
 
 //		if (dFnt.isUTF) {
 			s = uS.HandleCAChars(w, &matchType);
 			if (s) {
-				if (matchType == CA_APPLY_CLTOPSQ || matchType == CA_APPLY_CLBOTSQ ||
+				if (matchType == NOTCA_MISSINGWORD) {
+					check_err(48, pos-1, pos+s-2, ln);
+				} else if (matchType == CA_APPLY_CLTOPSQ || matchType == CA_APPLY_CLBOTSQ ||
 					matchType == NOTCA_GROUP_END || matchType == NOTCA_SIGN_GROUP_END) {
 					if (!check_isOnlyCAs(w, s))
 						check_err(92, pos-1, pos+s-2, ln);
@@ -2636,6 +2952,9 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 						   matchType == CA_APPLY_LAUGHINWORD || matchType == NOTCA_ARABIC_DOT_DIACRITIC || matchType == NOTCA_ARABIC_RAISED ||
 						   matchType == NOTCA_STRESS || matchType == NOTCA_GLOTTAL_STOP || matchType == NOTCA_HEBREW_GLOTTAL ||
 						   matchType == NOTCA_CARON || matchType == NOTCA_CROSSED_EQUAL || matchType == NOTCA_LEFT_ARROW_CIRCLE) {
+					if (matchType == NOTCA_LEFT_ARROW_CIRCLE) {
+						check_isThereStem(w, pos, ln);
+					}
 					if (w[s] == EOS || uS.isskip(w, s, &dFnt, MBF)) {
 						check_err(101, pos-1, pos+s-2, ln);
 					} else if (uS.HandleCAChars(w+s, &matchType)) {
@@ -2649,7 +2968,7 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 					}
 				} else if (matchType == CA_APPLY_OPTOPSQ || matchType == CA_APPLY_OPBOTSQ ||
 						   matchType == NOTCA_GROUP_START || matchType == NOTCA_SIGN_GROUP_START ||
-						   matchType == NOTCA_OPEN_QUOTE ||  matchType == NOTCA_OPEN_S_QUOTE)
+						   matchType == NOTCA_OPEN_QUOTE)
 					;
 				else
 					s = 0;
@@ -2693,7 +3012,6 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 			}
 			if (!isDotf)
 				check_err(111, pos-1, pos+strlen(w)-2, ln);
-// /* 2009-06-09 &lxs
 		} else if (uS.isRightChar(w,s,'&',&dFnt,MBF)) {
 			s++;
 			if (w[s] == EOS) {
@@ -2706,7 +3024,7 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 						 uS.isRightChar(w,s,':',&dFnt,MBF) || uS.isRightChar(w,s,'&',&dFnt,MBF)  ||
 						 uS.isRightChar(w,s,'+',&dFnt,MBF) || uS.isRightChar(w,s,'/',&dFnt,MBF)  ||
 						 uS.isRightChar(w,s,'~',&dFnt,MBF) || uS.isRightChar(w,s,'*',&dFnt,MBF)) {
-					if (w[s] == ':' && w[s+1] == ':' &&	(w[s+2] == '@' || w[s+2] == ':')) {
+					if (w[s] == ':' && w[s+1] == ':' && (w[s+2] == '@' || w[s+2] == ':')) {
 						if (uS.atUFound(w,s,&dFnt,MBF))
 							break;
 						check_err(48, pos+s-1, pos+s-1, ln);
@@ -2726,25 +3044,6 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 				}
 				s++;
 			}
-// */
-/*
-		} else if (uS.isRightChar(w,s,'&',&dFnt,MBF)) {
-			while (w[s] != EOS) {
-				if (w[s] == ':' && w[s+1] == ':' && (w[s+2] == EOS || w[s+2] == '@' || w[s+2] == ':')) {
-					if (uS.atUFound(w,s,&dFnt,MBF))
-						break;
-					check_err(48, pos+s-1, pos+s-1, ln);
-					break;
-				}
-				if (w[s] == w[s+1] && w[s] != ':') {
-					if (uS.atUFound(w,s,&dFnt,MBF))
-						break;
-					check_err(48, pos+s-1, pos+s-1, ln);
-					break;
-				}
-				s++;
-			}
-*/
 		} else if (uS.isRightChar(w,s,'#',&dFnt,MBF))  {
 			s++;
 			if (uS.isRightChar(w,s,'#',&dFnt,MBF))
@@ -2781,7 +3080,9 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 			if (uS.isRightChar(w,s,'0',&dFnt,MBF) || uS.isRightChar(w,s,'*',&dFnt,MBF))
 				s++;
 			while (w[s] != EOS) {
-				if (isdigit((unsigned char)w[s]) && my_CharacterByteType(w, (short)s, &dFnt) == 0) {
+				if (w[s] == (char)0xE2 && w[s+1] == (char)0x80 && w[s+2] == (char)0xA6) {
+					check_err(48, pos+s-1, pos+s-1, ln);
+				} else if (isdigit((unsigned char)w[s]) && my_CharacterByteType(w, (short)s, &dFnt) == 0) {
 				   	if (isATFound && isdigit((unsigned char)w[s])) ;
 					else if (!digFound && (s == 0 || !isLegalUseOfDigit(w, s))) {
 						if (uS.atUFound(w,s,&dFnt,MBF)) {
@@ -2790,33 +3091,38 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 						} else if (!check_isNumberShouldBeHere) {
 							digFound = TRUE;
 							check_err(47, pos+s-1, pos+s-1, ln);
+						} else if (check_isNumberShouldBeHere) {
+							if (s == 0) {
+								digFound = TRUE;
+								check_err(47, pos+s-1, pos+s-1, ln);
+							}
 						}
 					}
 				} else if (!isalpha((unsigned char)w[s])) {
 #ifndef UNX
-//					if (dFnt.isUTF)
-						t = uS.HandleCAChars(w+s, &matchType);
-//					else
-//						t = 0;
+					t = uS.HandleCAChars(w+s, &matchType);
 
 					if (t) {
 						if (w[s+t] == EOS && (matchType == CA_APPLY_OPTOPSQ || matchType == CA_APPLY_OPBOTSQ ||
 											  matchType == NOTCA_GROUP_START || matchType == NOTCA_SIGN_GROUP_START)) {
 							check_err(93, pos+s-1, pos+s+t-2, ln);
 						}
-						if (w[s+t] != EOS && (matchType == CA_APPLY_CONTINUATION || matchType == CA_APPLY_LATCHING)) {
-							check_err(92, pos+s-1, pos+s+t-2, ln);
-						}
-						if (w[s+t] != EOS && (matchType == NOTCA_DOUBLE_COMMA || matchType == NOTCA_VOCATIVE)) {
+						if (w[s+t] != EOS && (matchType == CA_APPLY_CONTINUATION || matchType == CA_APPLY_LATCHING ||
+											  matchType == NOTCA_DOUBLE_COMMA || matchType == NOTCA_VOCATIVE)) {
 							check_err(92, pos+s-1, pos+s+t-2, ln);
 						}
 						if (s != 0 && (matchType == NOTCA_DOUBLE_COMMA || matchType == NOTCA_VOCATIVE)) {
 							check_err(93, pos+s-1, pos+s+t-2, ln);
 						}
 						s += (t - 1);
+						if (matchType == NOTCA_LEFT_ARROW_CIRCLE && isupper(w[s+1]))
+							s++;
 					} else
 #endif
-					if (isIllegalASCII(w, s)) {
+					if ((t=isBadQuotes(w, s)) > 0) {
+						check_err(t, pos+s-1, pos+s-1, ln);
+						s += 3;
+					} else if (isIllegalASCII(w, s)) {
 						check_err(86, pos+s-1, pos+s-1, ln);
 					} else if (uS.isRightChar(w,s,'/',&dFnt,MBF)) {
 						if (uS.isRightChar(w,s+1,'/',&dFnt,MBF) && uS.isRightChar(w,s+2,'/',&dFnt,MBF) && 
@@ -2871,7 +3177,7 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 						}
 					} else if (uS.isRightChar(w,s,'`',&dFnt,MBF) && check_isArabic) {
 					} else if (uS.isRightChar(w,s,'#',&dFnt,MBF)) {
-						if (check_isLegacy || check_isEndOfWord(w+s+1)) ;
+						if (check_isEndOfWord(w+s+1)) ;
 						else {
 							if (uS.atUFound(w,s,&dFnt,MBF))
 								break;
@@ -2899,18 +3205,18 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 						}
 					} else if (uS.isRightChar(w,s,'~',&dFnt,MBF)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'+',&dFnt,MBF) ||
-								uS.isRightChar(w,s+1,'~',&dFnt,MBF) || uS.isRightChar(w,s+1,'#',&dFnt,MBF) ||
-								uS.isRightChar(w,s+1,'@',&dFnt,MBF) || uS.isRightChar(w,s+1,')',&dFnt,MBF) ||
-								uS.isRightChar(w,s+1,'"',&dFnt,MBF) || uS.isRightChar(w,s+1,'_',&dFnt,MBF)) {
+							uS.isRightChar(w,s+1,'~',&dFnt,MBF) || uS.isRightChar(w,s+1,'#',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,'@',&dFnt,MBF) || uS.isRightChar(w,s+1,')',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,'"',&dFnt,MBF) || uS.isRightChar(w,s+1,'_',&dFnt,MBF)) {
 							if (uS.atUFound(w,s,&dFnt,MBF))
 								break;
 							check_err(65, pos+s-1, pos+s-1, ln);
 						}
 					} else if (uS.isRightChar(w,s,'$',&dFnt,MBF)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'+',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'~',&dFnt,MBF) || uS.isRightChar(w,s+1,'#',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'@',&dFnt,MBF) || uS.isRightChar(w,s+1,')',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'"',&dFnt,MBF) || uS.isRightChar(w,s+1,'_',&dFnt,MBF)) {
+							uS.isRightChar(w,s+1,'~',&dFnt,MBF) || uS.isRightChar(w,s+1,'#',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,'@',&dFnt,MBF) || uS.isRightChar(w,s+1,')',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,'"',&dFnt,MBF) || uS.isRightChar(w,s+1,'_',&dFnt,MBF)) {
 							if (uS.atUFound(w,s,&dFnt,MBF))
 								break;
 							check_err(65, pos+s-1, pos+s-1, ln);
@@ -2943,35 +3249,26 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 					} else if (uS.isRightChar(w,s,'-',&dFnt,MBF)) {
 						if (w[s+1] == EOS)
 							;
-						else if (isATFound == 0 && !uS.isRightChar(w,s+1,'0',&dFnt,MBF)) {
-/* 2009-05-01
-							if (check_isLegacy || check_isSign || (isupper((unsigned char)w[0]) && my_CharacterByteType(w,0,&dFnt)==0) || check_isCAchar(w, s+1)) ;
-							else {
-								if (uS.atUFound(w,s,&dFnt,MBF))
-									break;
-								check_err(48, pos+s-1, pos+s-1, ln);
-							}
-*/
-						} else if (uS.isRightChar(w,s+1,',',&dFnt,MBF) || uS.isRightChar(w,s+1,'\'',&dFnt,MBF) ||
-							uS.isRightChar(w,s+1,'.',&dFnt,MBF) || uS.isRightChar(w,s+1,'!',&dFnt,MBF)  ||
-							uS.isRightChar(w,s+1,'?',&dFnt,MBF) || uS.isRightChar(w,s+1,'_',&dFnt,MBF)  ||
-							uS.isRightChar(w,s+1,'_',&dFnt,MBF)) {
+						else if (uS.isRightChar(w,s+1,',',&dFnt,MBF) || uS.isRightChar(w,s+1,'\'',&dFnt,MBF) ||
+								   uS.isRightChar(w,s+1,'.',&dFnt,MBF) || uS.isRightChar(w,s+1,'!',&dFnt,MBF)  ||
+								   uS.isRightChar(w,s+1,'?',&dFnt,MBF) || uS.isRightChar(w,s+1,'_',&dFnt,MBF)) {
 							if (uS.atUFound(w,s,&dFnt,MBF))
 								break;
 							check_err(66, pos+s-1, pos+s-1, ln);
 							break;
-						} else if (w[s+1] == EOS ||
-								uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'+',&dFnt,MBF) ||
-								uS.isRightChar(w,s+1,'~',&dFnt,MBF) || uS.isRightChar(w,s+1,'#',&dFnt,MBF) ||
-								uS.isRightChar(w,s+1,'@',&dFnt,MBF) || uS.isRightChar(w,s+1,')',&dFnt,MBF) ||
-								uS.isRightChar(w,s+1,'"',&dFnt,MBF) || uS.isRightChar(w,s+1,'_',&dFnt,MBF)) {
+						} else if (uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'+',&dFnt,MBF) ||
+								   uS.isRightChar(w,s+1,'~',&dFnt,MBF) || uS.isRightChar(w,s+1,'#',&dFnt,MBF) ||
+								   uS.isRightChar(w,s+1,'@',&dFnt,MBF) || uS.isRightChar(w,s+1,')',&dFnt,MBF) ||
+								   uS.isRightChar(w,s+1,'"',&dFnt,MBF)) {
 							if (uS.atUFound(w,s,&dFnt,MBF))
 								break;
 							check_err(67, pos+s-1, pos+s-1, ln);
-						} else if (!isATFound/* && w[isATFound+1] != 'l' && w[isATFound+1] != 'k'*/) {
-							if (uS.atUFound(w,s,&dFnt,MBF))
-								break;
-							check_err(48, pos+s-1, pos+s-1, ln);
+						} else if (isATFound == 0 && w[s+1] == '@') {
+//							if (!uS.isRightChar(w,s+1,'0',&dFnt,MBF)) {
+//								if (uS.atUFound(w,s,&dFnt,MBF))
+//									break;
+								check_err(48, pos+s-1, pos+s-1, ln);
+//							}
 						}
 					} else if (uS.isRightChar(w,s,'\'',&dFnt,MBF)) {
 						if (w[s+1] != EOS && (uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'\'',&dFnt,MBF) ||
@@ -3059,8 +3356,10 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 							break;
 						check_err(48, pos+s-1, pos+s-1, ln);
 					}
-				} else if (isupper((unsigned char)w[s]) && w[s]>0 && w[s]<127 && !check_isLegacy && !check_isSign && !check_isCAFound && !check_isCaps &&
-						   (s == 0 || (w[s-1] != '-' && w[s-1] != '_' && w[s-1] != '0' && w[s-1] != '(' && s != CAOffset)) && !capWErrFound) {
+				}
+/* 2019-04-23 do not check for upper case letters
+				else if (isupper((unsigned char)w[s]) && w[s]>0 && w[s]<127 && !check_isCAFound && !capWErrFound &&
+						   (s == 0 || (w[s-1] != '-' && w[s-1] != '\'' && w[s-1] != '_' && w[s-1] != '0' && w[s-1] != '(' && s != CAOffset))) {
 					if (s == 0 && check_isGerman)
 						;
 					else
@@ -3074,6 +3373,7 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 						check_err(49, pos+s-1, pos+s-1, ln);
 					}
 				}
+ */
 				s++;
 			}
 		}
@@ -3089,8 +3389,8 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 			}
 			s++;
 		}
-	} else if (uS.partcmp(ts->code, "%mor", FALSE, TRUE) ||
-				uS.partcmp(ts->code, "%trn", FALSE, TRUE)) {
+	} else if (uS.partcmp(ts->code, "%mor", FALSE, TRUE) || uS.partcmp(ts->code, "%xmor", FALSE, TRUE) ||
+			   uS.partcmp(ts->code, "%trn", FALSE, TRUE)) {
 		if (w[0] == (char)0xe2 && w[1] == (char)0x80 && w[2] == (char)0x9E && w[3] == EOS) {
 		} else if (uS.isRightChar(w,0,'[',&dFnt,MBF) && uS.isRightChar(w,len,']',&dFnt,MBF)) {
 			if (isPostCodeMark(w[1], w[2])) {
@@ -3110,13 +3410,18 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 				check_err(65, pos+s-1, pos+s-1, ln);
 				return;
 			}
+			if (w[0] == '^' && uS.partcmp(utterance->speaker, "%mor", FALSE, FALSE))
+				check_err(48, pos+s-1, pos+s-1, ln);
 			isFoundBar = 0;
 			s = 0;
 			numOfCompounds = -1;
 			while (w[s] != EOS) {
 				if (isalnum((unsigned char)w[s]) || my_CharacterByteType(w, (short)s, &dFnt) != 0) {
 				} else {
-					if (isIllegalASCII(w, s)) {
+					if ((t=isBadQuotes(w, s)) > 0) {
+						check_err(t, pos+s-1, pos+s-1, ln);
+						s += 3;
+					} else if (isIllegalASCII(w, s)) {
 						check_err(86, pos+s-1, pos+s-1, ln);
 					} else if (w[s] == HIDEN_C) {
 						check_err(65, pos+s-1, pos+s-1, ln);
@@ -3131,8 +3436,7 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 								uS.isRightChar(w,s+1,'\'',&dFnt,MBF)) {
 							check_err(65, pos+s-1, pos+s-1, ln);
 						}
-					} else if (uS.isRightChar(w,s,'+',&dFnt,MBF) || uS.isRightChar(w,s,'~',&dFnt,MBF) ||
-						uS.isRightChar(w,s,'$',&dFnt,MBF)) {
+					} else if (uS.isRightChar(w,s,'+',&dFnt,MBF) || uS.isRightChar(w,s,'~',&dFnt,MBF) || uS.isRightChar(w,s,'$',&dFnt,MBF)) {
 						if (isFoundBar == 1) {
 							isFoundBar = 0;
 							e = s;
@@ -3168,7 +3472,7 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 						}
 					} else if (uS.isRightChar(w,s,'|',&dFnt,MBF)) {
 						if (isFoundBar) {
-							check_err(79, pos+s-1, pos+s-1, ln);
+							check_err(79, pos-1, pos+s-1, ln);
 						} else
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'&',&dFnt,MBF) ||
 								uS.isRightChar(w,s+1,'=',&dFnt,MBF) || uS.isRightChar(w,s+1,'|',&dFnt,MBF) ||
@@ -3196,7 +3500,7 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 						}
 					} else if (uS.isRightChar(w,s,'=',&dFnt,MBF)) {
 						for (t=s+1; isalpha((unsigned char)w[t]) || w[t] == '/' || w[t] == '_' || UTF8_IS_LEAD(w[t]) || UTF8_IS_TRAIL(w[t]); t++) ;
-						if (w[t] != EOS && w[t] != '~' && w[t] != '+' && w[t] != '$' &&	w[t] != '%' && w[t] != '^') {
+						if (w[t] != EOS && w[t] != '~' && w[t] != '+' && w[t] != '$' && w[t] != '%' && w[t] != '^') {
 							check_err(65, pos+s-1, pos+t-2, ln);
 						}
 						s = t - 1;
@@ -3208,12 +3512,12 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 				}
 				s++;
 			}
-			if (isFoundBar != 1)
+			if (isFoundBar < 1)
 				check_err(80, pos+e-1, pos+len-1, ln);
 			if (numOfCompounds == -2 || (numOfCompounds >= 0 && numOfCompounds < 1))
 				check_err(87, pos-1, pos+len-1, ln);
 		}
-	} else if (uS.partcmp(ts->code, "%xcnl", FALSE, TRUE)) {
+	} else if (uS.partcmp(ts->code, "%cnl", FALSE, TRUE) || uS.partcmp(ts->code, "%xcnl", FALSE, TRUE)) {
 		if (w[0] == (char)0xe2 && w[1] == (char)0x80 && w[2] == (char)0x9E && w[3] == EOS) {
 		} else if (uS.isRightChar(w,0,'[',&dFnt,MBF) && uS.isRightChar(w,len,']',&dFnt,MBF)) {
 			if (isPostCodeMark(w[1], w[2])) {
@@ -3233,30 +3537,33 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 			while (w[s] != EOS) {
 				if (isalnum((unsigned char)w[s]) || my_CharacterByteType(w, (short)s, &dFnt) != 0) {
 					if ((s == 0 || isSpace(w[s-1])) && w[s] == 'g' && w[s+1] == 'e' && w[s+2] == 'n' &&
-						  (uS.isskip(w,s+3,&dFnt,TRUE) || w[s+3] == EOS)) {
+						(uS.isskip(w,s+3,&dFnt,TRUE) || w[s+3] == EOS)) {
 						check_err(135, pos+s-1, pos+s+1, ln);
 					}
 				} else {
-					if (isIllegalASCII(w, s)) {
+					if ((t=isBadQuotes(w, s)) > 0) {
+						check_err(t, pos+s-1, pos+s-1, ln);
+						s += 3;
+					} else if (isIllegalASCII(w, s)) {
 						check_err(86, pos+s-1, pos+s-1, ln);
 					} else if (w[s] == HIDEN_C) {
 						check_err(65, pos+s-1, pos+s-1, ln);
 					} else if (uS.isRightChar(w,s,':',&dFnt,MBF)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'&',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'=',&dFnt,MBF) || uS.isRightChar(w,s+1,'|',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'#',&dFnt,MBF) || uS.isRightChar(w,s+1,':',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'^',&dFnt,MBF) || uS.isRightChar(w,s+1,'~',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'+',&dFnt,MBF) || uS.isRightChar(w,s+1,'\'',&dFnt,MBF)) {
+							uS.isRightChar(w,s+1,'=',&dFnt,MBF) || uS.isRightChar(w,s+1,'|',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,'#',&dFnt,MBF) || uS.isRightChar(w,s+1,':',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,'^',&dFnt,MBF) || uS.isRightChar(w,s+1,'~',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,'+',&dFnt,MBF) || uS.isRightChar(w,s+1,'\'',&dFnt,MBF)) {
 							check_err(65, pos+s-1, pos+s-1, ln);
 						}
 					} else if (uS.isRightChar(w,s,'^',&dFnt,MBF)) {
 						check_err(135, pos+s-1, pos+s-1, ln);
 					} else if (uS.isRightChar(w,s,'?',&dFnt,MBF)) {
 						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'&',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'=',&dFnt,MBF) || uS.isRightChar(w,s+1,'#',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,':',&dFnt,MBF) || uS.isRightChar(w,s+1,'^',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'~',&dFnt,MBF) || uS.isRightChar(w,s+1,'*',&dFnt,MBF) ||
-							  uS.isRightChar(w,s+1,'+',&dFnt,MBF) || uS.isRightChar(w,s+1,'\'',&dFnt,MBF)) {
+							uS.isRightChar(w,s+1,'=',&dFnt,MBF) || uS.isRightChar(w,s+1,'#',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,':',&dFnt,MBF) || uS.isRightChar(w,s+1,'^',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,'~',&dFnt,MBF) || uS.isRightChar(w,s+1,'*',&dFnt,MBF) ||
+							uS.isRightChar(w,s+1,'+',&dFnt,MBF) || uS.isRightChar(w,s+1,'\'',&dFnt,MBF)) {
 							check_err(65, pos+s-1, pos+s-1, ln);
 						}
 					}
@@ -3274,7 +3581,10 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 		} else {
 			s = 0;
 			while (w[s] != EOS) {
-				if (isIllegalASCII(w, s)) {
+				if ((t=isBadQuotes(w, s)) > 0) {
+					check_err(t, pos+s-1, pos+s-1, ln);
+					s += 3;
+				} else if (isIllegalASCII(w, s)) {
 					check_err(86, pos+s-1, pos+s-1, ln);
 				} else if (w[s] == HIDEN_C) {
 					check_err(65, pos+s-1, pos+s-1, ln);
@@ -3310,7 +3620,10 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 		} else {
 			s = 0;
 			while (w[s] != EOS) {
-				if (isIllegalASCII(w, s)) {
+				if ((t=isBadQuotes(w, s)) > 0) {
+					check_err(t, pos+s-1, pos+s-1, ln);
+					s += 3;
+				} else if (isIllegalASCII(w, s)) {
 					check_err(86, pos+s-1, pos+s-1, ln);
 				} else if (w[s] == HIDEN_C) {
 					check_err(65, pos+s-1, pos+s-1, ln);
@@ -3344,7 +3657,7 @@ static char check_getMediaTagInfo(char *line, long *Beg, long *End) {
 		return(FALSE);
 	if (*line == '%' && (*(line+1) == 's' || *(line+1) == 'm'))
 		return(6);
-	if (*line == '%' && (*(line+1) == 'p' || *(line+1) == 't'))
+	if (*line == '%' && (*(line+1) == 'p' || *(line+1) == 't' || *(line+1) == 'n'))
 		return(0);
 	if (*line == '0' && isdigit((unsigned char)*(line+1)))
 		return(3);
@@ -3470,6 +3783,7 @@ static int check_checkBulletsConsist(char *FirstBulletFound, char *word) {
 	if (!check_isCheckBullets)
 		return(0);
 	if (isMediaHeaderFound) {
+		isBulletsFound = TRUE;
 		tBegTime = check_SNDBeg;
 		tEndTime = check_SNDEnd;
 		res = check_getMediaTagInfo(word, &check_SNDBeg, &check_SNDEnd);
@@ -3489,9 +3803,9 @@ static int check_checkBulletsConsist(char *FirstBulletFound, char *word) {
 				return(124); // remove "unlinked" from @Media header
 			}
 			check_CleanTierNames(templineC);
+			if (check_SNDEnd <= check_SNDBeg)
+				return(82); // BEG mark must be smaller than END mark
 			if (tEndTime != 0L) {
-				if (check_SNDEnd <= check_SNDBeg)
-					return(82); // BEG mark must be smaller than END mark
 				if (*FirstBulletFound == FALSE) {
 					*FirstBulletFound = TRUE;
 					if (check_SNDBeg < check_tierBegTime) {
@@ -3590,7 +3904,10 @@ static void check_removeCAChars(char *word) {
 	i = 0;
 	while (word[i]) {
 		if ((res=uS.HandleCAChars(word+i, &matchedType)) != 0) {
-			strcpy(word+i,word+i+res);
+			if (matchedType != NOTCA_LEFT_ARROW_CIRCLE)
+				strcpy(word+i,word+i+res);
+			else
+				i++;
 		} else
 			i++;
 	}
@@ -3605,11 +3922,19 @@ static char check_isBlankLine(char *line, int s) {
 		return(FALSE);
 }
 
+static char check_lastBulletOnTier(char *st) {
+	for (; *st != EOS; st++) {
+		if (*st != '\n' && !isSpace(*st))
+			return(FALSE);
+	}
+	return(TRUE);
+}
+
 static void check_ParseBlob(CHECK_TIERS *ts) {
 	long ln = 0L;
 	int s = 0, e = 0, res;
 	char word[BUFSIZ], *st, hidenc;
-	char isTextBetweenBulletsFound = FALSE, FirstBulletFound = FALSE;
+	char isTextBetweenBulletsFound = FALSE, FirstBulletFound = FALSE, isLastItemBullet = FALSE;
 
 	word[0] = EOS;
 	if (ts != NULL && ts->IGN)
@@ -3630,7 +3955,7 @@ static void check_ParseBlob(CHECK_TIERS *ts) {
 			e++;
 			if (e-s >= BUFSIZ) {
 				fprintf(stderr,"%s is too long on line %ld.\n", "Word", ln+lineno);
-				check_clean_headerr(); check_clean_speaker(headsp);
+				check_clean_headerr(); check_clean_speaker(headsp); check_clean_IDsp(check_idsp);
 				check_clean__t(headt); check_clean__t(maint);
 				check_clean__t(codet);
 				cleanupLanguages();
@@ -3642,25 +3967,30 @@ static void check_ParseBlob(CHECK_TIERS *ts) {
 		*st = EOS;
 		if (word[0] == HIDEN_C) {
 			if (*utterance->speaker == '*') {
-				if (!isTextBetweenBulletsFound) {
+				if (!isTextBetweenBulletsFound && (!check_isMultiBullets || !isLastItemBullet || !check_lastBulletOnTier(uttline+e))) {
 					check_err(73,s-1,e-1,ln+lineno);
 				}
 			}
 			if (hidenc) {
 				check_err(59,s-1,s-1,ln+lineno);
 			}
-			if ((res=check_checkBulletsConsist(&FirstBulletFound, word)) != 0)
-				check_err(res,s-1,s-1,ln+lineno);
+			if (utterance->speaker[0] == '*' /* 2018-08-06 || check_isBlob == FALSE*/) {
+				if ((res=check_checkBulletsConsist(&FirstBulletFound, word)) != 0)
+					check_err(res,s-1,s-1,ln+lineno);
+			}
 			isTextBetweenBulletsFound = FALSE;
-		} else 
+			isLastItemBullet = TRUE;
+		} else {
 			isTextBetweenBulletsFound = TRUE;
+			isLastItemBullet = TRUE;
+		}
 		s = e;
 	}
 }
 
 #if defined(_MAC_CODE) || defined(_WIN32)
 static char check_isRight2Left(char *line) {
-	wchar_t *wline;
+	unCH *wline;
 
 	if (!check_isHebrew && !check_isArabic)
 		return(FALSE);
@@ -3694,22 +4024,60 @@ static char check_isReplacementError(char *line, int s) {
 	return(FALSE);
 }
 
-static void check_CheckLanguageCodes(char *word, int s, long ln) {
-	int i, j;
-	char *st, t;
+static char check_isNumbersLang(char *lang) {
+	if (!strcmp(lang, "zh")  || !strncmp(lang, "zh-", 3)  ||
+		!strcmp(lang, "chi") || !strncmp(lang, "chi-", 4) ||
+		!strcmp(lang, "zho") || !strncmp(lang, "zho-", 4) ||
+		!strcmp(lang, "cy")  || !strcmp(lang, "cym")      ||
+		!strcmp(lang, "vi")  || !strcmp(lang, "vie")      ||
+		!strcmp(lang, "th")  || !strcmp(lang, "tha")      ||
+		!strcmp(lang, "nan") || !strcmp(lang, "yue")      ||
+		!strcmp(lang, "min") || !strcmp(lang, "hak")) {
+		return(TRUE);
+	}
+	return(FALSE);
+}
+
+static void check_CheckLanguageCodes(char *word, int s, long ln, char *isLcodeFound, char *isGlcodeFound) {
+	int i, j, li;
+	char t;
+	char *st, isAtS;
 	char old_code[20];
 
 	if (word[0] == '[' && word[1] == '-') {
-		for (i=2; isSpace(word[i]); i++) ;
+		j = 2;
+		for (i=j; isSpace(word[i]); i++) ;
 		if (word[i] == EOS || word[i] == ']')
 			return;
+		isAtS = FALSE;
 	} else if ((st=strchr(word, '@')) != NULL) {
-		if (st[1] != 's' || st[2] != ':')
+		if (st[1] != 's') {
 			return;
+		} else if (st[2] != ':') {
+			if (check_curLanguage == 0) {
+				li = 1;
+			} else if (check_curLanguage == 1) {
+				li = 0;
+			} else {
+				li = -1;
+			}
+			if (li == -1)
+				check_isNumberShouldBeHere = FALSE;
+			else if (check_isNumbersLang(check_LanguagesTable[li]))
+				check_isNumberShouldBeHere = TRUE;
+			else
+				check_isNumberShouldBeHere = FALSE;
+			*isLcodeFound = TRUE;
+			return;
+		}
 		i = (st - word) + 3;
+		if (word[i] == EOS)
+			return;
+		isAtS = TRUE;
 	} else
 		return;
-	for (j=i; word[j] != EOS && word[j] != ']' && word[j] != '&' && word[j] != '+' && word[j] != '$' && word[j] != ':'; j++) ;
+// 2019-04-17	for (j=i; word[j] != EOS && word[j] != ']' && word[j] != '&' && word[j] != '+' && word[j] != '$' && word[j] != ':'; j++) ;
+	for (j=i; (word[j] >= 'a' && word[j] <= 'z') || word[j] == '-'; j++) ;
 	t = word[j];
 	word[j] = EOS;
 	if (check_isTwoLetterCode(word+i)) {
@@ -3732,25 +4100,76 @@ static void check_CheckLanguageCodes(char *word, int s, long ln) {
 			if (strcmp(old_code, check_fav_lang)) {
 				word[j] = t;
 				check_err(120,s+i-1,s+j-2,ln);
+			} else {
+				if (isAtS) { // 2019-01-06 @s:rus
+					check_isNumberShouldBeHere = FALSE;
+					do {
+						if (check_isNumbersLang(word+i))
+							check_isNumberShouldBeHere = TRUE;
+						word[j] = t;
+						if (word[j] == '+' || word[j] == '&') {
+							i = j + 1;
+							for (j=i; (word[j] >= 'a' && word[j] <= 'z') || word[j] == '-'; j++) ;
+							t = word[j];
+							word[j] = EOS;
+						} else
+							break;
+					} while (word[i] != EOS) ;
+					*isLcodeFound = TRUE;
+				} else {
+					check_isLangMatch(word+i, 0, s+i-1, 152, TRUE);
+					if (check_isNumbersLang(word+i))
+						check_isNumberShouldBeHere = TRUE;
+					else
+						check_isNumberShouldBeHere = FALSE;
+					*isGlcodeFound = TRUE;
+					for (li=0; li < NUMLANGUAGESINTABLE; li++) {
+						if (strcmp(check_LanguagesTable[li], word+i) == 0) {
+							check_curLanguage = li;
+							break;
+						}
+					}
+
+				}
+				word[j] = t;
 			}
 		}
 	}
 	word[j] = t;
 }
 
+static char check_isGrouping(char *beg, char *end, int e) {
+
+	if (beg[0] == (char)0xE2 && beg[1] == (char)0x80 && beg[2] == (char)0xB9 && beg[3] == '(' && e >= 3 &&
+		end[e-3] == (char)0xE2 && end[e-2] == (char)0x80 && end[e-1] == (char)0xB9 && end[e] == '(')
+		return(TRUE);
+	return(FALSE);
+}
+
+static char check_isPlayBullet(char *word) {
+	if (isdigit(word[1]) || (word[1] == '%' && (word[2] == 's' || word[2] == 'm')))
+		return(TRUE);
+	return(FALSE);
+}
+
 static void check_ParseWords(CHECK_TIERS *ts) {
 	long ln = 0L;
-	int r, s = 0, e = 0, te, res, isReplaceFound = -1;
+	int j, r, s = 0, e = 0, te, res, isReplaceFound = -1;
 	int matchType;
 	char word[BUFSIZ], *st, sq, hidenc, t;
 	char FirstWordFound = FALSE, FirstBulletFound = FALSE, isTextBetweenBulletsFound = FALSE,
-		isBulletFound = FALSE, anyBulletFound, isTextFound, isPauseFound, isSpecialDelimFound, isR2L,
-		CADelFound = FALSE, isPreLanguageCodeFound = FALSE;
+		isBulletFound = FALSE, anyBulletFound, isTextFound, isPoundSymFound, isSpecialDelimFound, isR2L,
+		CADelFound = FALSE, isPreLanguageCodeFound = FALSE, isLastItemBullet,
+		isLcodeFound, tisNumberShouldBeHere, isGLcodeFound, isGNumberShouldBeHere, isPauseFound;
 	int isFasterMatched, isSlowerMatched, isCreakyMatched, isUnsureMatched, isSofterMatched, 
 		isLouderMatched, isLoPitchMatched, isHiPitchMatched, isSmileMatched, isWhisperMatched,
 		isYawnMatched, isSingingMatched, isPreciseMatched, isBreathyMatched, isLeftArrowMatched;
-	int sb = 0, pb = 0, ab = 0, cb = 0, gm = 0, sgm = 0, qt = 0, qts = 0, lpb = 0, anb = FALSE, DelFound = 0;
+	int sb = 0, pb = 0, ab = 0, cb = 0, gm = 0, sgm = 0, qt = 0, lpb = 0, anb = FALSE, DelFound = 0;
+	int pauseBeg, pauseEnd;
 
+	pauseBeg = 0;
+	pauseEnd = 0;
+	isPauseFound = FALSE;
 	isFasterMatched = -1;
 	isSlowerMatched = -1;
 	isCreakyMatched = -1;
@@ -3766,6 +4185,9 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 	isPreciseMatched= -1;
 	isBreathyMatched= -1;
 	isLeftArrowMatched = -1;
+	check_curLanguage = 0;
+	isGLcodeFound = FALSE;
+	isGNumberShouldBeHere = check_isNumberShouldBeHere;
 	word[0] = EOS;
 	if (ts->IGN)
 		return;
@@ -3773,9 +4195,10 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 		isTextFound = TRUE;
 	else
 		isTextFound = FALSE;
-	isPauseFound = FALSE;
+	isPoundSymFound = FALSE;
 	isSpecialDelimFound = FALSE;
 	anyBulletFound = FALSE;
+	isLastItemBullet = FALSE;
 #if defined(_MAC_CODE) || defined(_WIN32)
 	isR2L = check_isRight2Left(uttline);
 #else
@@ -3787,7 +4210,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 		lpb = pb;
 		while ((*st=uttline[s++]) != EOS && uS.isskip(uttline, s-1, &dFnt, MBF) && !uS.isRightChar(uttline, s-1, '[', &dFnt, MBF)) {
 			if (*st == '>')
-				isPauseFound = FALSE;
+				isPoundSymFound = FALSE;
 			if (is_italic(utterance->attLine[s-1])) {
 				check_err(102,s-1,s-1,ln+lineno);
 			}
@@ -3795,16 +4218,18 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 				if (!uS.isskip(uttline, s, &dFnt, MBF) && uttline[s] != ',' && uttline[s] != EOS && uttline[s] != '\n') {
 					if (uS.HandleCAChars(uttline+s, &matchType)) {
 						if (matchType != NOTCA_GROUP_START && matchType != NOTCA_GROUP_END &&
-							  matchType != NOTCA_SIGN_GROUP_START && matchType != NOTCA_SIGN_GROUP_END &&
-							  matchType != CA_APPLY_OPTOPSQ && matchType != CA_APPLY_CLTOPSQ &&
-							  matchType != CA_APPLY_OPBOTSQ && matchType != CA_APPLY_CLBOTSQ) {
+							matchType != NOTCA_SIGN_GROUP_START && matchType != NOTCA_SIGN_GROUP_END &&
+							matchType != CA_APPLY_OPTOPSQ && matchType != CA_APPLY_CLTOPSQ &&
+							matchType != CA_APPLY_OPBOTSQ && matchType != CA_APPLY_CLBOTSQ) {
 							check_err(92,s-1,s-1,ln+lineno);
 						}
 					} else
 						check_err(92,s-1,s-1,ln+lineno);
 				} else if (uttline[s] == ',' && uttline[s+1] == ',') {
 					check_err(107,s-1,s+1,ln+lineno);
-				} 
+				} else if (uttline[s] == ',') {
+					check_err(156,s-1,s,ln+lineno);
+				}
 			}
 			if (*st == '\n') {
 				isBulletFound = FALSE;
@@ -3852,10 +4277,12 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 		}
 		hidenc = FALSE;
 		sq = FALSE;
-		if (uttline[s-1] == HIDEN_C) hidenc = TRUE;
-		else if (uS.isRightChar(uttline,s-1,'[',&dFnt,MBF)) sq = TRUE;
+		if (uttline[s-1] == HIDEN_C)
+			hidenc = TRUE;
+		else if (uS.isRightChar(uttline,s-1,'[',&dFnt,MBF))
+			sq = TRUE;
 		else if (uS.isRightChar(uttline,s-1,'#',&dFnt,MBF)) ; // Remove to diss-allow # after '.'
-		else if (uS.isRightChar(uttline,s-1,'(',&dFnt,MBF) && uS.isPause(uttline,s-1,NULL,&r)) ; // Remove to diss-allow # after '.'
+		else if (uS.isRightChar(uttline,s-1,'(',&dFnt,MBF) && uS.isPause(uttline,s-1,NULL,&r)) ; // Remove to diss-allow (.) pause after '.'
 		else {
 			if (DelFound && ts->UTD == 1) {
 				if (DelFound == 1) {
@@ -3875,15 +4302,20 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 		check_CheckBrakets(uttline,s-1,&sb,&pb,&ab,&cb,&anb);
 		e = s;
 		if (*st == '&' && *utterance->speaker == '*') {
-			while ((*++st=uttline[e]) != EOS &&	!isSpace(*st) && *st != '\n' && *st != '>' && *st != '[' &&
-				   *st != ',' && *st != '+' && *st != '.' && *st != '?' && *st != '!') {
+			if (uttline[e] == '+' && (uttline[e+1] < '!' || uttline[e+1] > '?')) {
+				st++;
+				*st = uttline[e];
+				e++;
+			}
+			while ((*++st=uttline[e]) != EOS && !isSpace(*st) && *st != '\n' && *st != '>' && *st != '[' &&
+					*st != ',' && *st != '+' && *st != '.' && *st != '?' && *st != '!') {
 				if (is_italic(utterance->attLine[e])) {
 					check_err(102,e-1,e-1,ln+lineno);
 				}
 				e++;
 				if (e-s >= BUFSIZ) {
 					fprintf(stderr,"Word is too long, line %ld.\n",ln+lineno);
-					check_clean_headerr(); check_clean_speaker(headsp);
+					check_clean_headerr(); check_clean_speaker(headsp); check_clean_IDsp(check_idsp);
 					check_clean__t(headt); check_clean__t(maint);
 					check_clean__t(codet);
 					cleanupLanguages();
@@ -3897,7 +4329,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 					check_err(102,e-1,e-1,ln+lineno);
 				}
 				if (uS.isRightChar(uttline, e, '(', &dFnt, MBF) && uS.isPause(uttline, e, NULL, &r)) {
-					if (!uS.isRightChar(word, 0, '[', &dFnt, MBF))
+					if (!uS.isRightChar(word, 0, '[', &dFnt, MBF) && !check_isGrouping(word, uttline, e))
 						check_err(57,e,e,ln+lineno);
 				}
 				if (uS.IsUtteranceDel(uttline, e) == 2)
@@ -3905,7 +4337,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 				e++;
 				if (e-s >= BUFSIZ) {
 					fprintf(stderr,"%s is too long on line %ld.\n", (sq ? "Item in []" : "Word"), ln+lineno);
-					check_clean_headerr(); check_clean_speaker(headsp);
+					check_clean_headerr(); check_clean_speaker(headsp); check_clean_IDsp(check_idsp);
 					check_clean__t(headt); check_clean__t(maint);
 					check_clean__t(codet);
 					cleanupLanguages();
@@ -3981,6 +4413,22 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 			isSpecialDelimFound = TRUE;
 		} else
 			*st = EOS;
+		//detecting pause markers before retrace markers-BEG
+		if (strcmp(word, "[/]") == 0 || strcmp(word, "[//]") == 0 || strcmp(word, "[///]") == 0 ||
+			strcmp(word, "[/-]") == 0) {
+			if (isPauseFound && pauseBeg != pauseEnd && e > pauseBeg) {
+				check_err(159,pauseBeg-1,e-1,ln+lineno);
+			}
+		}
+		pauseBeg = 0;
+		pauseEnd = 0;
+		isPauseFound = FALSE;
+		if (uS.isRightChar(word,0,'(',&dFnt,MBF) && uS.isPause(word,0,NULL,&r)) {
+			pauseBeg = s;
+			pauseEnd = e;
+			isPauseFound = TRUE;
+		}
+		//detecting pause markers before retrace markers-END
 		if (word[0] == '[' && word[1] == ':' && word[2] == ' ') {
 			isReplaceFound = e - 1;
 			e = s + 1;
@@ -4023,7 +4471,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 //			}
 			if (res == 0) {
 				if (uttline[e] && uttline[e+1] &&
-					(*utterance->speaker == '*' || (uttline[e+1] != '\'' &&	uttline[e+1] != '"' && !isdigit((unsigned char)uttline[e+1])))) {
+					(*utterance->speaker == '*' || (uttline[e+1] != '\'' && uttline[e+1] != '"' && !isdigit((unsigned char)uttline[e+1])))) {
 					if (uttline[e] == HIDEN_C && e > 0) {
 						check_err(19,e-1,e-1,ln+lineno);
 					} else {
@@ -4036,8 +4484,20 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 			for (r=0; word[r]; ) {
 				res = uS.HandleCAChars(word+r, &matchType); // up-arrow
 				if (res) {
+/* 2019-04-17 leave this to CHATTER
 					if (matchType == CA_APPLY_RISETOHIGH || matchType == CA_APPLY_RISETOMID || matchType == CA_APPLY_LEVEL ||
-						  matchType == CA_APPLY_FALLTOMID || matchType == CA_APPLY_FALLTOLOW || matchType == CA_APPLY_UNMARKEDENDING) {
+						matchType == CA_APPLY_FALLTOMID || matchType == CA_APPLY_FALLTOLOW) {
+						if (isFasterMatched != -1 || isSlowerMatched != -1 || isCreakyMatched != -1 || isUnsureMatched != -1 ||
+							isSofterMatched != -1 || isLouderMatched != -1 || isLoPitchMatched!= -1 || isHiPitchMatched != -1||
+							isSmileMatched != -1  || isWhisperMatched != -1|| isYawnMatched != -1   || isSingingMatched != -1||
+							isPreciseMatched != -1|| isBreathyMatched != -1|| isLeftArrowMatched != -1) {
+							if (*utterance->speaker == '*')
+								check_err(145,s+r-1,s+r+res-2,ln+lineno);
+						}
+					}
+ */
+					if (matchType == CA_APPLY_RISETOHIGH || matchType == CA_APPLY_RISETOMID || matchType == CA_APPLY_LEVEL ||
+						matchType == CA_APPLY_FALLTOMID || matchType == CA_APPLY_FALLTOLOW || matchType == CA_APPLY_UNMARKEDENDING) {
 						CADelFound = TRUE;
 						if (isBulletFound) {
 							check_err(118,s-1,e-1,ln+lineno);
@@ -4124,10 +4584,6 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 						qt++;
 					} else if (matchType == NOTCA_CLOSE_QUOTE) {
 						qt--;
-					} else if (matchType == NOTCA_OPEN_S_QUOTE) {
-						qts++;
-					} else if (matchType == NOTCA_CLOSE_S_QUOTE) {
-						qts--;
 					} else if (matchType == NOTCA_LEFT_ARROW_CIRCLE) {
 						if (isLeftArrowMatched != -1)
 							isLeftArrowMatched = -1;
@@ -4140,23 +4596,26 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 			}
 //		}
 
-		if (W_CHECK_COUNT(check_GenOpt) && ts->WORDCHECK && word[0] != HIDEN_C) {
-			check_CheckWords(word, s, ln+lineno, ts);
-		}
+
+		isLcodeFound = FALSE;
+		tisNumberShouldBeHere = check_isNumberShouldBeHere;
 //		if (!nomap) uS.uppercasestr(word, &dFnt, MBF);
 		if (!strcmp(word, "/")) {
 			check_err(48,s-1,e-1,ln+lineno);
 		}
 		if (*utterance->speaker == '*') {
-			if (word[0] == '[' && word[1] == '-')
-				isPreLanguageCodeFound = TRUE;
+			j = strlen(word) - 1;
+			if (!check_isCAFound && j > 0 && word[0] == '(' && word[j] == ')') {
+				if (!uS.isPause(word, 1, NULL, NULL) && strchr(word+1, '(') == NULL)
+					check_err(155,s-1,te-1,ln+lineno);
+			}
 			if (word[0] == '#')
-				isPauseFound = TRUE;
+				isPoundSymFound = TRUE;
 			else {
-				if (word[0] == '[' && word[1] != '+' && word[1] != '^' && isPauseFound) {
+				if (word[0] == '[' && word[1] != '+' && word[1] != '^' && isPoundSymFound) {
 					check_err(71,s-1,e-1,ln+lineno);
 				}
-				isPauseFound = FALSE;
+				isPoundSymFound = FALSE;
 			}
 			if (word[0] == '(' && uS.isPause(word,0,NULL,&r) && DelFound) {
 				check_err(72,s-1,e-1,ln+lineno);
@@ -4172,20 +4631,32 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 					check_err(108,s-1,te-1,ln+lineno);
 				}
 			}
-			check_removeCAChars(word);
-			check_CheckLanguageCodes(word, s, ln+lineno);
+			if (word[0] == '[' && word[1] == '-')
+				isPreLanguageCodeFound = TRUE;
+			check_CheckLanguageCodes(word, s, ln+lineno, &isLcodeFound, &isGLcodeFound);
 		}
 
+		if (W_CHECK_COUNT(check_GenOpt) && ts->WORDCHECK && word[0] != HIDEN_C) {
+			check_CheckWords(word, s, ln+lineno, ts);
+		}
+
+		if (*utterance->speaker == '*') {
+			check_removeCAChars(word);
+		}
 		if (word[0]=='+' && (word[1] == '"' || word[1] == '^' || word[1] == '<' || word[1] == ',' || word[1] == '+') && word[2]==EOS) {
 			if (FirstWordFound || isPreLanguageCodeFound) {
 				check_err(78,s-1,e-1,ln+lineno);
 			}
 		}
 		if (word[0] == HIDEN_C) {
-			isBulletFound = TRUE;
+			if (check_isMultiBullets) {
+				if (DelFound)
+					isBulletFound = TRUE;
+			} else
+				isBulletFound = TRUE;
 			anyBulletFound = TRUE;
-			if (*utterance->speaker == '*') {
-				if (!isTextBetweenBulletsFound) {
+			if (*utterance->speaker == '*' && check_isPlayBullet(word)) {
+				if (!isTextBetweenBulletsFound && (!check_isMultiBullets || !isLastItemBullet || !check_lastBulletOnTier(uttline+e))) {
 					check_err(73,s-1,e-1,ln+lineno);
 				}
 				if (!DelFound && !check_isMultiBullets) {
@@ -4202,10 +4673,16 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 			if (hidenc) {
 				check_err(59,s-1,s-1,ln+lineno);
 			}
-			if ((res=check_checkBulletsConsist(&FirstBulletFound, word)) != 0)
-				check_err(res,s-1,s-1,ln+lineno);
-			isTextBetweenBulletsFound = FALSE;
+			if (!check_isPlayBullet(word)) {
+				isTextBetweenBulletsFound = TRUE;
+			} else if ((utterance->speaker[0] == '*' /* 2018-08-06 || check_isBlob == FALSE*/) && (!check_isMultiBullets || check_lastBulletOnTier(uttline+e))) {
+				if ((res=check_checkBulletsConsist(&FirstBulletFound, word)) != 0)
+					check_err(res,s-1,s-1,ln+lineno);
+				isTextBetweenBulletsFound = FALSE;
+			}
+			isLastItemBullet = TRUE;
 		} else if (isdigit((unsigned char)*word) && ts->CSUFF) {
+			isLastItemBullet = FALSE;
 			if (*word != '0' || isdigit((unsigned char)*(word+1))) {
 				if (check_matchnumber(ts->tplate,word) && !check_isNumberShouldBeHere)
 					check_err(38,s-1,e-1,ln+lineno);
@@ -4218,18 +4695,42 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 				isTextBetweenBulletsFound = TRUE;
 			}
 		} else {
+			isLastItemBullet = FALSE;
 			if (*word == '&') {
 				for (r=1; word[r]; r++) {
 					if (word[r]=='(') {check_err(42,s-1,e-1,ln+lineno);break;}
+				}
+				if (word[1] == '=' && word[2] == EOS) {
+					check_err(146,s-1,e-1,ln+lineno);
 				}
 			}
 			if (isalpha((unsigned char)*(word+1)) || *(word+1) < 0 || *(word+1) > 126)
 				HandleParans(word,0,0);
 			if (uS.isRightChar(word, 0, '[', &dFnt, MBF)) {
 				for (r=1; word[r]; r++) {
-					if (word[r]=='\n') {check_err(106,s-1,e-1,ln+lineno);break;}
+					if (word[r]=='\n') {
+						check_err(106,s-1,e-1,ln+lineno);
+						break;
+					}
 				}
 				if (*utterance->speaker == '*') {
+					if (utterance->line[s-1] == '[' && utterance->line[s] != '+' && utterance->line[s] != '-') {
+						for (r=s-2; r >= 0; r--) {
+							if (utterance->line[r] == ')') {
+								for (j=r; j >= 0 && utterance->line[j] != '(' && !uS.isskip(utterance->line, j, &dFnt, MBF); j--) ;
+								if (j < 0)
+									check_err(150,j,r,ln+lineno);
+							}
+							if (!uS.isskip(utterance->line, r, &dFnt, MBF) || utterance->line[r] == ']')
+								break;
+							if (utterance->line[r] == '\n' || utterance->line[r] == '<' || utterance->line[r] == '>') {
+							} else if (utterance->line[r] == ',') {
+//								check_err(149,r,r,ln+lineno);
+							} else if (!isSpace(utterance->line[r])) {
+								check_err(149,r,r,ln+lineno);
+							}
+						}
+					}
 					if (!FirstWordFound) {
 						if (word[1] == '<' || word[1] == '>' || word[1] == ':' || word[1] == '/' || word[1] == '"') {
 							check_err(52,s-1,te-1,ln+lineno);
@@ -4240,6 +4741,15 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 						if (check_isReplacementError(uttline, s-1)) {
 							check_err(141,s-1,te-1,ln+lineno);
 						}
+
+						for (j=2; isSpace(word[j]); j++) ;
+						uS.isSqCodes(word+j, templineC3, &dFnt, TRUE);
+						if (templineC3[0] == '0' || uS.mStricmp(templineC3, "xxx]") == 0 || uS.mStricmp(templineC3, "xx]") == 0 ||
+							uS.mStricmp(templineC3, "yyy]") == 0 || uS.mStricmp(templineC3, "yy]") == 0||
+							uS.mStricmp(templineC3, "www]") == 0 || uS.mStricmp(templineC3, "ww]") == 0) {
+							check_err(158,s-1,te-1,ln+lineno);
+						}
+
 					}
 				}
 				if (uS.patmat(word,"[\\%fnt: *:*]")) {
@@ -4247,7 +4757,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 				}
 				if ((isalpha((unsigned char)*word) || *word < 0 || *word > 126) && ts->CSUFF)
 					check_CheckFixes(ts,word,ln+lineno,s,e);
-				if ((r=check_matchplate(ts->tplate,word)))
+				if ((r=check_matchplate(ts->tplate, word, 'D')))
 					check_err(r,s-1,te-1,ln+lineno);
 			} else if (*word != EOS) {
 				if (word[0] != '+') {
@@ -4257,26 +4767,30 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 				if (ts->CSUFF == '\002') {
 					if (isalpha((unsigned char)*word) || *word < 0 || *word > 126) {
 						if (!check_CheckFixes(ts,word,ln+lineno,s,e)) {
-							if ((r=check_matchplate(ts->tplate,word)))
+							if ((r=check_matchplate(ts->tplate, word, 'D')))
 								check_err(r,s-1,te-1,ln+lineno);
 						}
 					} else {
-						if ((r=check_matchplate(ts->tplate,word)))
+						if ((r=check_matchplate(ts->tplate, word, 'D')))
 							check_err(r,s-1,te-1,ln+lineno);
 					}
 				} else {
-					if ((r=check_matchplate(ts->tplate,word)))
+					if ((r=check_matchplate(ts->tplate, word, 'D')))
 						check_err(r,s-1,te-1,ln+lineno);
 					if ((isalpha((unsigned char)*word) || *word < 0 || *word > 126) && ts->CSUFF)
 						check_CheckFixes(ts,word,ln+lineno,s,e);
 				}
 			}
 		}
+		if (isLcodeFound)
+			check_isNumberShouldBeHere = tisNumberShouldBeHere;
 		s = e;
 	}
 	if (*utterance->speaker == '*' && !anyBulletFound && checkBullets) {
 		check_err(110,-1,-1,lineno);
 	}
+	if (isGLcodeFound)
+		check_isNumberShouldBeHere = isGNumberShouldBeHere;
 	if (!DelFound && ts->UTD == 1 && !check_isCAFound)
 		check_err(21,s-2,s-2,ln+lineno-1L);
 	if (*utterance->speaker == '*') {
@@ -4358,41 +4872,12 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 	if (sgm < 0) check_err(131,-1,-1,lineno);
 	if (qt > 0) check_err(136,-1,-1,lineno);
 	if (qt < 0) check_err(137,-1,-1,lineno);
-	if (qts > 0) check_err(138,-1,-1,lineno);
-	if (qts < 0) check_err(139,-1,-1,lineno);
-}
-
-static void check_isNotMatch(char *langs, long ln, int s) {
-	int i, j, langCnt;
-	char t;
-
-	i = 0;
-	langCnt = 0;
-	while (langs[i]) {
-		for (; uS.isskip(langs,i,&dFnt,TRUE) || langs[i] == '\n'; i++) ;
-		if (langs[i] == EOS)
-			break;
-		for (j=i; !uS.isskip(langs,j,&dFnt,TRUE) && langs[j] != '=' && langs[j] != '\n' && langs[j] != EOS; j++) ;
-		t = langs[j];
-		langs[j] = EOS;
-		for (langCnt=0; langCnt < NUMLANGUAGESINTABLE; langCnt++) {
-			if (strcmp(check_LanguagesTable[langCnt], langs+i) == 0)
-				break;
-		}
-		if (langCnt >= NUMLANGUAGESINTABLE) {
-			check_err(122,s+i,s+j-1,ln+lineno);
-		}
-		langs[j] = t;
-		if (langs[j] == '=')
-			for (; !uS.isskip(langs,j,&dFnt,TRUE) && langs[j] != '\n' && langs[j] != EOS; j++) ;
-		i = j;
-	}
 }
 
 static char check_ID(CHECK_TIERS *ts) {
 	int r, s = 0, e = 0, cnt;
 	long ln = 0L;
-	char word[BUFSIZ], *st;
+	char word[BUFSIZ], *st, spkr[BUFSIZ+1];
 	CHECK_TIERS *tts;
 
 	cnt = 0;
@@ -4438,7 +4923,7 @@ static char check_ID(CHECK_TIERS *ts) {
 		if (isalnum((unsigned char)*(word+1)) || (*(word+1) < 1 && *(word+1) != EOS) || *(word+1) > 126)
 			HandleParans(word,0,0);
 		if (cnt == 0) {
-			check_isNotMatch(word, ln, s);
+			check_isLangMatch(word, ln, s, 122, FALSE);
 			if (word[0] == EOS)
 				check_err(62,s,e-2,ln+lineno);
 		} else if (cnt == 1) {
@@ -4447,9 +4932,13 @@ static char check_ID(CHECK_TIERS *ts) {
 		} else if (cnt == 2) {
 			if (word[0] == EOS)
 				check_err(12,s,e-2,ln+lineno);
-			else if (check_matchSpeaker(headsp, word)) {
+			else if (check_matchSpeaker(headsp, word, TRUE) == NULL) {
 				check_err(18,s,e-2,ln+lineno);
+			} else if (check_matchIDsp(check_idsp, word)) {
+				check_err(13,s,e-2,ln+lineno);
 			}
+			check_addIDdsp(word);
+			strcpy(spkr, word);
 		} else if (cnt == 3) {
 			if ((tts=check_FindTier(headt,IDOF)) != NULL) {
 				check_Age(tts, NULL, uttline, s, '|');
@@ -4461,20 +4950,28 @@ static char check_ID(CHECK_TIERS *ts) {
 			}
 		} else if (cnt == 5) {
 		} else if (cnt == 6) {
+			if ((tts=check_FindTier(headt,IDOF)) != NULL) {
+				check_ses(tts, NULL, uttline, s, '|');
+			}
 		} else if (cnt == 7) {
 			if (word[0] == EOS)
 				check_err(12,s,e-2,ln+lineno);
 			else if ((tts=check_FindTier(headt,PARTICIPANTS)) != NULL) {
-				if (check_matchplate(tts->tplate,word))
+				if (check_matchplate(tts->tplate, word, 'D'))
 					check_err(15,s,e-2,ln);
 			}
+			if (check_matchRole(spkr, headsp, word))
+				check_err(142,s,e-2,ln+lineno);
 		} else if (cnt == 8) {
 		} else if (cnt == 9) {
-		} else if ((r=check_matchplate(ts->tplate,word)))
+		} else if ((r=check_matchplate(ts->tplate, word, 'D')))
 			check_err(r,s-1,e-2,ln+lineno);
 
 		s = e;
 		cnt++;
+	}
+	if (cnt != 10) {
+		check_err(143,s,s,ln+lineno);
 	}
 	return(TRUE);
 }
@@ -4585,22 +5082,91 @@ static char check_ParseScope(char *line) {
 	return(TRUE);
 }
 
-static int excludeMorItems(char *word) {
-	if (uS.patmat(word, "end|*") || uS.patmat(word, "beg|*") || uS.patmat(word, "cm|*") || 
-		  uS.patmat(word, "bq|*") || uS.patmat(word, "eq|*")) {
-		return(FALSE);
+static char check_SpecialDelim(char *ch, int index) {
+	if (ch[index] == ';' && !uS.isskip(ch, index, &dFnt, MBF)) {
+		return(TRUE);
+	} else if (ch[index] == ',' && !uS.isskip(ch, index, &dFnt, MBF)) {
+		return(TRUE);
 	}
-	return(TRUE);
+	return(FALSE);
 }
 
-static void check_CheckRest(void) {
+static void check_cleanUpLine(const char *sp, char *ch) {
+	int index;
+
+	index = 0;
+	while (ch[index] != EOS) {
+		if (uS.isRightChar(ch, index, '[', &dFnt, MBF)) {
+			for (index++; ch[index] != EOS && !uS.isRightChar(ch, index, ']', &dFnt, MBF); index++) ;
+			if (ch[index] != EOS)
+				index++;
+		} else if (ch[index] == HIDEN_C) {
+			for (index++; ch[index] != EOS && ch[index] != HIDEN_C; index++) ;
+			if (ch[index] != EOS)
+				index++;
+		} else if (uS.isRightChar(ch, index, '&', &dFnt, MBF)) {
+			for (index++; ch[index] != EOS; index++) {
+				if (uS.isskip(ch, index, &dFnt, MBF) || ch[index] == '>' || ch[index] == '[' || ch[index] == ',' ||
+					ch[index] == '+' || ch[index] == '.' || ch[index] == '?' || ch[index] == '!')
+					break;
+			}
+		} else if (uS.isRightChar(ch, index, ',', &dFnt, MBF) && uS.isRightChar(ch, index+1, ',', &dFnt, MBF)) {
+			if (!uS.isPlusMinusWord(ch, index) && !uS.atUFound(ch, index, &dFnt, MBF) &&
+				!isSpace(ch[index-1]) && (!isdigit(ch[index-1]) || *sp != '@') && index > 0) {
+				uS.shiftright(ch+index, 1);
+				ch[index] = ' ';
+				index += 3;
+			} else
+				index += 2;
+		} else if (ch[index] == '.') {
+			if (!uS.isPlusMinusWord(ch, index) && !uS.atUFound(ch, index, &dFnt, MBF) && !uS.isPause(ch,index,NULL,NULL) &&
+				!isSpace(ch[index-1]) && (!isdigit(ch[index-1]) || (*sp == '*' && !isdigit(ch[index+1]))) && index > 0) {
+				uS.shiftright(ch+index, 1);
+				ch[index] = ' ';
+				index += 2;
+			} else
+				index++;
+			while (ch[index] == '.' || ch[index] == '?' || ch[index] == '!')
+				index++;
+		} else if (ch[index] == '?' || ch[index] == '!' || check_SpecialDelim(ch, index)) {
+			if (!uS.isPlusMinusWord(ch, index) && !uS.atUFound(ch, index, &dFnt, MBF) &&
+				!isSpace(ch[index-1]) && (!isdigit(ch[index-1]) || *sp == '*') && index > 0) {
+				uS.shiftright(ch+index, 1);
+				ch[index] = ' ';
+				index += 2;
+			} else
+				index++;
+			while (ch[index] == '.' || ch[index] == '?' || ch[index] == '!')
+				index++;
+		} else
+			index++;
+	}
+}
+
+static void check_isMissiingID(void) {
+	SPLIST *tp;
+
+	if (totalFilesNum > MINFILESNUM && !stin) { // 2019-04-18 TotalNumFiles
+		fprintf(stderr, "\r    	     \r");
+	}
+	for (tp=headsp; tp != NULL; tp = tp->nextsp) {
+		if (tp->hasID == FALSE) {
+			fprintf(fpout,"*** File \"%s\": line 3.\n", oldfname);
+			fprintf(fpout,"Missing @ID header for speaker *%s.\n", tp->sp);
+		}
+	}
+}
+
+static char check_CheckRest(void) {
 	int  i, j;
-	char t, isSkip;
+	char t, isSkip, *s;
 	BE_TIERS *head_bg, *tb;
 	CHECK_CODES *headcodes, *tc;
 	char CodeLegalPos;
 	CHECK_TIERS *ts;
+	SPLIST *tp;
 
+	isBulletsFound = FALSE;
 	isMediaHeaderFound = FALSE;
 	check_lastSpDelim[0] = EOS;
 	head_bg = NULL;
@@ -4615,14 +5181,11 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 */
 		isSkip = FALSE;
 		if (!stout) {
-			if (lineno % 100 == 0) fprintf(stderr,"\r%ld ", lineno);
+			if (lineno % 100 == 0)
+				fprintf(stderr,"\r%ld ", lineno);
 		}
 		if (*utterance->speaker == '@') {
-			if (uS.partcmp(utterance->speaker, CKEYWORDHEADER, FALSE, TRUE))
-				continue;
-			if (uS.partcmp(utterance->speaker, FONTHEADER, FALSE, TRUE))
-				continue;
-			if (uS.isUTF8(utterance->speaker))
+			if (uS.isUTF8(utterance->speaker) || uS.isInvisibleHeader(utterance->speaker))
 				continue;
 			strcpy(templineC, utterance->speaker);
 //			uS.uppercasestr(templineC, &dFnt, MBF);
@@ -4635,31 +5198,37 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				tb->nextone = head_bg;
 				head_bg = tb;
 			} else if (uS.patmat(templineC, "@Eg")) {
-				if (head_bg == NULL)
+				if (head_bg == NULL) {
 					check_err(46,-1,-1,lineno);
-				else {
-					BE_TIERS *to;
+				} else {
+					BE_TIERS *to = NULL;
 					for (tb=head_bg; tb != NULL; tb=tb->nextone) {
-						if (!strcmp(tb->pattern, uttline)) break;
+						if (!strcmp(tb->pattern, uttline))
+							break;
 						to = tb;
 					}
-					if (tb == NULL)
+					if (tb == NULL) {
 						check_err(46,-1,-1,lineno);
-					else {
+					} else if (to != NULL) {
 						if (tb == head_bg) head_bg = tb->nextone;
 						else to->nextone = tb->nextone;
+						free(tb->pattern);
+						free(tb);
+					} else if (tb == head_bg) {
+						head_bg = tb->nextone;
 						free(tb->pattern);
 						free(tb);
 					}
 				}
 			} else if (uS.partcmp(utterance->speaker,"@Languages:",FALSE,FALSE)) {
 				int langCnt;
-				char isIPAFound = FALSE;
+				char isIPAFound = FALSE, isFirstLang;
 				char old_code[20];
 
 				isSkip = TRUE;
 				i = 0;
 				langCnt = 0;
+				isFirstLang = TRUE;
 				while (uttline[i]) {
 					for (; uS.isskip(uttline, i, &dFnt, MBF) || uttline[i] == '\n'; i++) ;
 					if (uttline[i] == EOS)
@@ -4667,27 +5236,21 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					for (j=i; !uS.isskip(uttline, j, &dFnt, MBF) && uttline[j] != '=' && uttline[j] != '\n' && uttline[j] != EOS; j++) ;
 					t = uttline[j];
 					uttline[j] = EOS;
-					if (!strcmp(uttline+i, "zh")  || !strncmp(uttline+i, "zh-", 3)  ||
-						  !strcmp(uttline+i, "chi") || !strncmp(uttline+i, "chi-", 4) ||
-						  !strcmp(uttline+i, "zho") || !strncmp(uttline+i, "zho-", 4) ||
-						  !strcmp(uttline+i, "cy")  || !strcmp(uttline+i, "cym")      ||
-						  !strcmp(uttline+i, "vi")  || !strcmp(uttline+i, "vie")      ||
-						  !strcmp(uttline+i, "th")  || !strcmp(uttline+i, "tha")      ||
-						  !strcmp(uttline+i, "nan") || !strcmp(uttline+i, "yue")      ||
-						  !strcmp(uttline+i, "min"))
-						check_isNumberShouldBeHere = TRUE;
-					else if (!strcmp(uttline+i, "ar") || !strcmp(uttline+i, "ara"))
+					if (check_isNumbersLang(uttline+i)) {
+						if (isFirstLang)
+							check_isNumberShouldBeHere = TRUE;
+					} else if (!strcmp(uttline+i, "ar") || !strcmp(uttline+i, "ara")) {
 						check_isArabic = TRUE;
-					else if (!strcmp(uttline+i, "he") || !strcmp(uttline+i, "heb"))
+					} else if (!strcmp(uttline+i, "he") || !strcmp(uttline+i, "heb")) {
 						check_isHebrew = TRUE;
-					else if (!strcmp(uttline+i, "de") || !strcmp(uttline+i, "deu"))
+					} else if (!strcmp(uttline+i, "de") || !strcmp(uttline+i, "deu")) {
 						check_isGerman = TRUE;
-					else if (!strncmp(uttline+i, "sgn-", 4))
-						check_isSign = TRUE;
-					else if (!strcmp(uttline+i, "CA"))
+					} else if (!strcmp(uttline+i, "CA") || !strcmp(uttline+i, "CA-Unicode")) {
 						check_isCAFound = TRUE;
-					else if (!strcmp(uttline+i, "IPA"))
+					} else if (!strcmp(uttline+i, "IPA")) {
 						isIPAFound = TRUE;
+					}
+					isFirstLang = FALSE;
 					if (langCnt < NUMLANGUAGESINTABLE) {
 						strncpy(check_LanguagesTable[langCnt], uttline+i, 8);
 						check_LanguagesTable[langCnt][8] = EOS;
@@ -4746,7 +5309,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					for (j=i; !uS.isskip(uttline, j, &dFnt, MBF) && uttline[j] != '=' && uttline[j] != '\n' && uttline[j] != EOS; j++) ;
 					t = uttline[j];
 					uttline[j] = EOS;
-					check_isNotMatch(uttline+i, 0, i);
+					check_isLangMatch(uttline+i, 0, i, 152, TRUE);
 					uttline[j] = t;
 					i = j;
 				}
@@ -4761,24 +5324,23 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					for (j=i; !uS.isskip(uttline, j, &dFnt, MBF) && uttline[j] != '=' && uttline[j] != '\n' && uttline[j] != EOS; j++) ;
 					t = uttline[j];
 					uttline[j] = EOS;
-					if (!uS.mStricmp(uttline+i, "caps"))
-						check_isCaps = TRUE;
-					else if (!uS.mStricmp(uttline+i, "num"))
-						check_isNumberShouldBeHere = TRUE;
-					else if (!uS.mStricmp(uttline+i, "legacy"))
-						check_isLegacy = TRUE;
-					else if (!uS.mStricmp(uttline+i, "heritage"))
+					if (!uS.mStricmp(uttline+i, "heritage")) {
 						check_isBlob = TRUE;
-					else if (!strcmp(uttline+i, "multi"))
+					} else if (!strcmp(uttline+i, "multi")) {
 						check_isMultiBullets = TRUE;
-					else if (!strcmp(uttline+i, "bullets"))
+					} else if (!strcmp(uttline+i, "bullets")) {
 						check_isCheckBullets = FALSE;
-					else if (!uS.mStricmp(uttline+i, "sign"))
-						check_isSign = TRUE;
-					else if (!strcmp(uttline+i, "CA"))
+					} else if (!strcmp(uttline+i, "CA") || !strcmp(uttline+i, "CA-Unicode")) {
 						check_isCAFound = TRUE;
-					else if (!strcmp(uttline+i, "IPA"))
+					} else if (!strcmp(uttline+i, "IPA")) {
 						isIPAFound = TRUE;
+					} else if (!strcmp(uttline+i, "notarget")) {
+						check_applyG2Option = FALSE;
+					} else if (!strcmp(uttline+i, "mismatch")) {
+						check_check_mismatch = FALSE;
+					} else if (!strcmp(uttline+i, "dummy")) {
+						return(FALSE);
+					}
 					uttline[j] = t;
 					if (uttline[j] == '=')
 						for (; !uS.isskip(uttline, j, &dFnt, MBF) && uttline[j] != '\n' && uttline[j] != EOS; j++) ;
@@ -4812,10 +5374,14 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				isVideoFound = FALSE;
 				check_isUnlinkedFound = FALSE;
 				while (uttline[i]) {
-					for (; uS.isskip(uttline, i, &dFnt, MBF) || uttline[i] == ',' || uttline[i] == '\n'; i++) ;
+					for (; uS.isskip(uttline, i, &dFnt, MBF) || uttline[i] == ',' || uttline[i] == '\n'; i++) {
+						if (uttline[i] == ',' && i > 0 && isSpace(uttline[i-1])) {
+							check_err(148,i-1,i-1,lineno);
+						}
+					}
 					if (uttline[i] == EOS)
 						break;
-					for (j=i; !uS.isskip(uttline, j, &dFnt, MBF) && uttline[j] != ',' && uttline[j] != '\n' && uttline[j] != EOS; j++) ;
+					for (j=i; (!uS.isskip(uttline, j, &dFnt, MBF) || uttline[j] == '.') && uttline[j] != ',' && uttline[j] != '\n' && uttline[j] != EOS; j++) ;
 					t = uttline[j];
 					uttline[j] = EOS;
 					cnt++;
@@ -4823,7 +5389,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 						if (uttline[i-1] == '.' && cnt == 2) {
 							uttline[j] = t;
 							check_err(99,i,j-1,lineno);
-						} else if (check_matchplate(ts->tplate,uttline+i)) {
+						} else if (check_matchplate(ts->tplate,uttline+i, 'D')) {
 							uttline[j] = t;
 							check_err(113,i,j-1,lineno);
 						} else if (!uS.mStricmp(uttline+i, "audio"))
@@ -4832,6 +5398,20 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 							isVideoFound = TRUE;
 						else if (!uS.mStricmp(uttline+i, "unlinked"))
 							check_isUnlinkedFound = TRUE;
+					} else if (check_check_mismatch) {
+						extractFileName(templineC3, oldfname);
+						if ((s=strrchr(templineC3, '.')) != NULL)
+							*s = EOS;
+						if (uS.mStricmp(uttline+i, templineC3)) {
+							s = strrchr(templineC3, '.');
+							if (s != NULL && (uS.mStricmp(s, ".elan") == 0 || uS.mStricmp(s, ".praat") == 0)) {
+								*s = EOS;
+								if (uS.mStricmp(uttline+i, templineC3)) {
+									check_err(157,i,j-1,lineno);
+								}
+							} else
+								check_err(157,i,j-1,lineno);
+						}
 					}
 					uttline[j] = t;
 					i = j;
@@ -4849,30 +5429,53 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				check_CleanTierNames(templineC);
 				if ((ts=check_FindTier(headt,templineC)) == NULL)
 					check_CodeErr(17);
-				else if (uS.patmat(templineC,AGEOF)) check_Age(ts, templineC, uttline, 0, EOS);
-				else if (uS.patmat(templineC,SEXOF)) check_Sex(ts, templineC, uttline);
-				else if (uS.patmat(templineC,SESOF)) check_Ses(ts, templineC, uttline);
-				else if (uS.patmat(templineC,BIRTHOF)) check_Birth(ts, templineC, uttline);
-				else if (uS.patmat(templineC,EDUCOF)) check_Educ(ts, templineC, uttline);
-				else if (uS.patmat(templineC,GROUPOF)) check_Group(ts, templineC, uttline);
-				else if (uS.patmat(templineC,IDOF)) check_ID(ts);
-				else if (!isSkip) check_ParseWords(ts);
+				else if (uS.patmat(templineC,AGEOF))
+					check_Age(ts, templineC, uttline, 0, EOS);
+				else if (uS.patmat(templineC,SEXOF))
+					check_Sex(ts, templineC, uttline);
+				else if (uS.patmat(templineC,SESOF))
+					check_ses(ts, templineC, uttline, 0, EOS);
+				else if (uS.patmat(templineC,BIRTHOF))
+					check_Birth(ts, templineC, uttline);
+				else if (uS.patmat(templineC,EDUCOF))
+					check_Educ(ts, templineC, uttline);
+				else if (uS.patmat(templineC,GROUPOF))
+					check_Group(ts, templineC, uttline);
+				else if (uS.patmat(templineC,IDOF))
+					check_ID(ts);
+				else if (!isSkip)
+					check_ParseWords(ts);
 			}
-		} else if (*utterance->speaker == '*') {
+		} else if (*utterance->speaker=='*' || uS.partcmp(utterance->speaker, "%wor:",FALSE,FALSE)) {
 			check_clean_template(headcodes);
 			headcodes = NULL;
 			CodeLegalPos = TRUE;
 			if (check_checktier(utterance->speaker) && !nomain) {
 				check_CleanTierNames(templineC);
-				if ((ts=check_FindTier(maint,templineC)) == NULL)
+				if (*utterance->speaker=='%') {
+					if ((ts=check_FindTier(codet,templineC)) == NULL)
+						check_CodeErr(17);
+					else {
+						if (check_isBlob)
+							check_ParseBlob(ts);
+						else {
+							check_ParseWords(ts);
+							check_ParseScope(uttline);
+						}
+					}
+				} else if ((ts=check_FindTier(maint,templineC)) == NULL)
 					check_CodeErr(17);
-				else if (check_matchSpeaker(headsp,templineC+1))
+				else if ((tp=check_matchSpeaker(headsp,templineC+1, FALSE)) == NULL)
 					check_CodeErr(18);
-				else if (check_isBlob)
-					check_ParseBlob(ts);
 				else {
-					check_ParseWords(ts);
-					check_ParseScope(uttline);
+					if (tp != NULL)
+						tp->isUsed = TRUE;
+					if (check_isBlob)
+						check_ParseBlob(ts);
+					else {
+						check_ParseWords(ts);
+						check_ParseScope(uttline);
+					}
 				}
 			}
 		} else if (utterance->speaker[1] != 'x') /* if (*utterance->speaker == '%') */ {
@@ -4888,9 +5491,10 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					check_ParseWords(ts);
 				if (uS.partcmp(utterance->speaker, "%mor:", FALSE, FALSE)) {
 					mor_link.error_found = FALSE;
+					check_cleanUpLine(org_spName, org_spTier);
 					strcpy(spareTier1, utterance->line);
-					filterwords(utterance->speaker,spareTier1,excludeMorItems);
-					createMorUttline(templineC4, org_spTier, spareTier1, TRUE);
+//					filterwords(utterance->speaker,spareTier1,excludeMorItems);
+					createMorUttline(templineC4, org_spTier, "%mor:", spareTier1, TRUE, TRUE);
 					if (mor_link.error_found) {
 						check_err(140, -1, -1, lineno);
 					}
@@ -4910,7 +5514,8 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				}
 			}
 			if (tc == NULL) {
-				if ((tc=NEW(CHECK_CODES)) == NULL) check_overflow();
+				if ((tc=NEW(CHECK_CODES)) == NULL)
+					check_overflow();
 				if ((tc->pattern=(char *)malloc(strlen(templineC)+1)) == NULL)
 					check_overflow();
 				strcpy(tc->pattern, templineC);
@@ -4918,14 +5523,41 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				headcodes = tc;
 			}
 		} else { /* sp == '%x...: */
+// Duplicate tiers: off 2019-07-22 on 2021-11-11
+			for (tc=headcodes; tc != NULL; tc=tc->nextone) {
+				if (!strcmp(tc->pattern, templineC)) {
+					check_CodeErr(40);
+					break;
+				}
+			}
 			check_ParseBlob(NULL);
+
+			if (tc == NULL) {
+				if ((tc=NEW(CHECK_CODES)) == NULL) check_overflow();
+				if ((tc->pattern=(char *)malloc(strlen(templineC)+1)) == NULL)
+					check_overflow();
+				strcpy(tc->pattern, templineC);
+				tc->nextone = headcodes;
+				headcodes = tc;
+			}
 		}
 	}
-	if (head_bg) {
+/* in 2018-10-03 out 2018-10-07
+	if (!check_isUnlinkedFound && !isBulletsFound) {
+		check_err(154,-1,-1,-1L);
+	}
+*/
+	if (head_bg != NULL) {
 		check_err(45,-1,-1,lineno);
+		for (tb=head_bg; tb != NULL; tb=tb->nextone) {
+			uS.remblanks(tb->pattern);
+			fprintf(fpout, "    @Bg:\t%s\n", tb->pattern);
+		}
+		putc('\n', fpout);
 		check_clean_template(head_bg);
 	}
 	check_clean_template(headcodes);
+	return(TRUE);
 }
 /* 2011-04-07
 static char check_unUsedSpeakers(TPLATES *tp) {
@@ -4976,19 +5608,37 @@ static char check_unUsedSpeakers(TPLATES *tp) {
 }
 */
 void call() {
-	if (FileCount >= 0 && FileCount < 2)
-		FileCount++;
+	double prc, ffc, ftf;
+	SPLIST *tp;
+
+	check_applyG2Option = TRUE;
+	FileCount++;
+	if (totalFilesNum > MINFILESNUM && !stin) { // 2019-04-18 TotalNumFiles
+		ffc = (float)FileCount;
+		ftf = (float)totalFilesNum;
+		prc = (ffc * 100.0000) / ftf;
+		if (prc >= oPrc) {
+			fprintf(stderr,"\r%.1lf%% ", prc);
+			oPrc = prc + 0.1;
+		}
+	}
 	if (check_OverAll()) {
 		check_err_found = FALSE;
+/* 2017-04-11
 		if (fpout != stdout)
 			fprintf(stderr, "\rFirst pass DONE.\n");
-		if (!isRecursive)
+		if (!isRecursive && onlydata != 3)
 			fprintf(fpout, "First pass DONE.\n");
-		check_CheckRest();
+*/
+		if (!check_CheckRest())
+			return;
+		check_isMissiingID();
+/* 2017-04-11
 		if (fpout != stdout)
 			fprintf(stderr,"\rSecond pass DONE.\n");
-		if (!isRecursive)
+		if (!isRecursive && onlydata != 3)
 			fprintf(fpout, "Second pass DONE.\n");
+*/
 	} else {
 		check_err_found = TRUE;
 		if (fpout != stdout)
@@ -5005,8 +5655,10 @@ void call() {
 		check_all_err_found  = TRUE;
 		if (fpout != stdout)
 			fprintf(stderr,"Warning: Please repeat CHECK until no error messages are reported!\n\n");
+/* 2017-04-11
 		if (!isRecursive && onlydata != 3)
 			fprintf(fpout,"Warning: Please repeat CHECK until no error messages are reported!\n\n");
+*/
 	} else if (ErrorRepFlag) {
 		if (onlydata != 3) {
 			if (ErrorRepFlag == '+') {
@@ -5018,6 +5670,7 @@ void call() {
 			}
 		}
 	} else {
+/* 2017-04-11
 		if (fpout != stdout)
 			fprintf(stderr,"Success! No errors found.\n");
 		else if (onlydata == 3 && isRecursive)
@@ -5029,6 +5682,19 @@ void call() {
 			else
 				fprintf(fpout,"    Success! No errors found.\n");
 		}
+*/
+	}
+	if (IS_SPK_USED(check_GenOpt)) {
+		for (tp=headsp; tp != NULL; tp = tp->nextsp) {
+			if (tp->isUsed == FALSE) {
+				check_all_err_found  = TRUE;
+				if (totalFilesNum > MINFILESNUM && !stin) { // 2019-04-18 TotalNumFiles
+					fprintf(stderr, "\r    	     \r");
+				}
+				fprintf(fpout,"*** File \"%s\": line 3.\n", oldfname);
+				fprintf(fpout,"Speaker \"%s\" is not used in this file.\n", tp->sp);
+			}
+		}
 	}
 }
 
@@ -5037,7 +5703,7 @@ void getflag(char *f, char *f1, int *i) {
 
 		f++;
 		switch(*f++) {
-		case 'c':
+			case 'c':
 				j = atoi(f) + 1;
 				if (j < 1 || j > 2) {
 					fprintf(stderr,"The range of +cN is 0 to 1.\n");
@@ -5046,7 +5712,7 @@ void getflag(char *f, char *f1, int *i) {
 				}
 				checkBullets = j;
 				break;
-		case 'e':
+			case 'e':
 				if (*f) {
 					j = atoi(f);
 					if (j < 1 || j > LAST_ERR_NUM) {
@@ -5076,7 +5742,7 @@ void getflag(char *f, char *f1, int *i) {
 					cutt_exit(0);
 				}
 				break;
-		case 'g':
+			case 'g':
 				if ((n=atoi(f)) > NUM_GEN_OPT || n < 1) {
 					fprintf(stderr,"The range of N in %cg is 1 to %d.\n", *(f-2), NUM_GEN_OPT);
 					cleanupLanguages();
@@ -5102,17 +5768,22 @@ void getflag(char *f, char *f1, int *i) {
 						check_GenOpt = SET_CHECK_ID_1(check_GenOpt);
 					else
 						check_GenOpt = SET_CHECK_ID_0(check_GenOpt);
+				} else if (n == 5) {
+					if (*(f-2) == '+')
+						check_GenOpt = SET_SPK_USED_1(check_GenOpt);
+					else
+						check_GenOpt = SET_SPK_USED_0(check_GenOpt);
 				}
 				break;
 #ifdef UNX
-		case 'L':
-			strcpy(lib_dir, f);
-			j = strlen(lib_dir);
-			if (j > 0 && lib_dir[j-1] != '/')
-				strcat(lib_dir, "/");
-			break;
+			case 'L':
+				strcpy(lib_dir, f);
+				j = strlen(lib_dir);
+				if (j > 0 && lib_dir[j-1] != '/')
+					strcat(lib_dir, "/");
+				break;
 #endif
-		default:
+			default:
 				maingetflag(f-2,f1,i);
 				break;
 		}
@@ -5123,8 +5794,9 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 
 	isWinMode = IS_WIN_MODE;
 	chatmode = CHAT_MODE;
-	CLAN_PROG_NUM = CHECK;
-	OnlydataLimit = 3;
+	CLAN_PROG_NUM = CHECK_P;
+// 2017-04-11	OnlydataLimit = 3;
+	OnlydataLimit = 2;
 	UttlineEqUtterance = TRUE;
 	initLanguages();
 	check_GenOpt = 0;
@@ -5143,17 +5815,22 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 			}
 		}
 	}
+	oPrc = 0.0;
+	FileCount = 0;
 	bmain(argc,argv,NULL);
+	if (totalFilesNum > MINFILESNUM && !stin) { // 2019-04-18 TotalNumFiles
+		fprintf(stderr, "\r    	     \r");
+	}
 	cleanupLanguages();
-	if (FileCount > 1) {
+	if (FileCount > 0) { // 2019-04-17 changed from 1 to 0
 /* 2011-04-07
 		for (i=0; i < NUMUSEDTIERSONCE; i++) {
 			if (tiersUsedOnce[i].spCode[0] != EOS) {
 				if (tiersUsedOnce[i].freq < 5 && tiersUsedOnce[i].fileNum == 2)
-					fprintf(stderr,"Warning: found speaker \"%s\" found %d times in just %d file(s)\n",
-							tiersUsedOnce[i].spCode, tiersUsedOnce[i].freq, tiersUsedOnce[i].fileNum);
+					fprintf(stderr,"Warning: found speaker \"%s\" %d times in just %d file(s)\n",
+						tiersUsedOnce[i].spCode, tiersUsedOnce[i].freq, tiersUsedOnce[i].fileNum);
 				else if (tiersUsedOnce[i].freq < 3 && tiersUsedOnce[i].fileNum == 1)
-					fprintf(stderr,"Warning: found speaker \"%s\" found %d times in just %d file(s)\n",
+					fprintf(stderr,"Warning: found speaker \"%s\" %d times in just %d file(s)\n",
 							tiersUsedOnce[i].spCode, tiersUsedOnce[i].freq, tiersUsedOnce[i].fileNum);
 			}
 		}
@@ -5164,6 +5841,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 			fprintf(stderr, "\nTHERE WERE SOME ERROR(S) FOUND.\n");
 	}
 	check_clean_headerr();
+	check_clean_IDsp(check_idsp);
 	check_clean_speaker(headsp);
 	check_clean__t(headt);
 	check_clean__t(maint);

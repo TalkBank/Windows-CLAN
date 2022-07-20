@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -24,6 +24,7 @@
 OBJS {
 	char *speaker;
 	char *utte;
+	char isDepsSpName;
 	char *deps;
 	FNType *fn;
 	long lineno;
@@ -35,28 +36,22 @@ OBJS {
 
 extern char maxwd_which;
 
-char maxwd_word[512];
-char uniq_length;
-int  mxd_pos;
-int  bo;
-long TotalCnt = -1L;
-
-/* ******************** maxwd prototypes ********************** */
-
-void maxwd_pr_result(void);
-
-/* *********************************************************** */
+static char maxwd_word[512];
+static char uniq_length, ftime, maxwd_isMorExcluded;
+static int  mxd_pos;
+static int  bo;
+static long TotalCnt = -1L;
 
 void usage() {
-   puts("MAXWD searches for the longest word in a file or set of files.");
-   printf("Usage: maxwd [bS cN gN o xN %s] filename(s)\n",mainflgs());
-   printf("+bS: add all S characters to morpheme delimiters list (default: %s)\n", rootmorf);
-   puts("-bS: remove all S characters from be morphemes list (-b: empty morphemes list)");
-   puts("+cN: display N longest utterances/words");
-   puts("+gN: look for longest utterance instead of longest word");
-   puts("     1 - number of morph; 2 - number of word; 3 - number of chars");
-   puts("+j : consider ONLY unique length utterances/words");
-   mainusage(TRUE);
+	puts("MAXWD searches for the longest word in a file or set of files.");
+	printf("Usage: maxwd [a bS cN gN xN %s] filename(s)\n",mainflgs());
+	puts("+a : consider ONLY unique length utterances/words");
+	printf("+bS: add all S characters to morpheme delimiters list (default: %s)\n", rootmorf);
+	puts("-bS: remove all S characters from be morphemes list (-b: empty morphemes list)");
+	puts("+cN: display N longest utterances/words");
+	puts("+gN: look for longest utterance instead of longest word");
+	puts("     1 - number of morph; 2 - number of word; 3 - number of chars");
+	mainusage(TRUE);
 }
 
 static void makering(int w) {
@@ -66,6 +61,7 @@ static void makering(int w) {
 		out_of_mem();
 	maxwd_head->speaker = NULL;
 	maxwd_head->utte = NULL;
+	maxwd_head->isDepsSpName = FALSE;
 	maxwd_head->deps = NULL;
 	maxwd_head->fn = NULL;
 	maxwd_head->lineno = 0;
@@ -78,6 +74,7 @@ static void makering(int w) {
 			out_of_mem();
 		temp->speaker = NULL;
 		temp->utte = NULL;
+		temp->isDepsSpName = FALSE;
 		temp->deps = NULL;
 		temp->fn = NULL;
 		temp->lineno = 0;
@@ -147,6 +144,10 @@ void getflag(char *f, char *f1, int *i) {
 
 	f++;
 	switch(*f++) {
+		case 'a':
+			uniq_length = TRUE;
+			no_arg_option(f);
+			break;
 		case 'b':
 				morf = getfarg(f,f1,i);
 				if (*(f-2) == '-') {
@@ -175,7 +176,7 @@ void getflag(char *f, char *f1, int *i) {
 				break;
 		case 'g':
 				if ((maxwd_which=(char)atoi(getfarg(f,f1,i))) < 1 || maxwd_which > 3) {
-					fprintf(stderr,	"Argument to option %s should be between 1 and 3\n", (f-2));
+					fprintf(stderr, "Argument to option %s should be between 1 and 3\n", (f-2));
 					cutt_exit(0);
 				}
 				if (filterUttLen != 0L && CntFUttLen == 0) {
@@ -196,24 +197,39 @@ void getflag(char *f, char *f1, int *i) {
 				TotalCnt = j;
 				makering(j);
 				break;
-		case 'j':
-				uniq_length = TRUE;
-				no_arg_option(f);
-				break;
-		default:
+		case 't':
+			if (*(f-2) == '-' && *f == '%') {
+				if (!uS.mStricmp(f, "%mor") || !uS.mStricmp(f, "%mor:")) {
+					maxwd_isMorExcluded = TRUE;
+				}
+			} else
 				maingetflag(f-2,f1,i);
+			break;
+		default:
+				if (*(f-1) == 'o' && *f == '*') {
+					fprintf(stderr, "The +o option for speaker tier is not allowed. Illegal option: %s\n", (f-2));
+					cutt_exit(0);
+				} else
+					maingetflag(f-2,f1,i);
 				break;
 		}
 }
 
 void init(char f) {
 	if (f) {
+		ftime = TRUE;
 		bo = 0;
 		maxwd_which = 0;
 		mxd_pos = 0;
 		TotalCnt = -1L;
 		maxwd_head = NULL;
 		uniq_length = FALSE;
+		maxwd_isMorExcluded = FALSE;
+		addword('\0','\0',"+</?>");
+		addword('\0','\0',"+</->");
+		addword('\0','\0',"+<///>");
+		addword('\0','\0',"+<//>");
+		addword('\0','\0',"+</>");  // list R6 in mmaininit funtion in cutt.c
 		addword('\0','\0',"+xxx");
 		addword('\0','\0',"+yyy");
 		addword('\0','\0',"+www");
@@ -224,6 +240,17 @@ void init(char f) {
 		maininitwords();
 		mor_initwords();
 	} else {
+		if (ftime) {
+			ftime = FALSE;
+			if (maxwd_which == 1) {
+				if (maxwd_isMorExcluded) {
+					nomain = FALSE;
+				} else {
+					nomain = TRUE;
+					maketierchoice("%mor",'+',FALSE);
+				}
+			}
+		}
 		if (filterUttLen != 0L && CntFUttLen == 0) {
 			fprintf(stderr,"Please specify count type with +x option\n");
 			fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
@@ -238,7 +265,7 @@ void init(char f) {
 	}
 }
 
-void maxwd_pr_result(void) {
+static void maxwd_pr_result(void) {
 	OBJS *temp, *tt;
 	long cnt = 0L;
 
@@ -271,8 +298,10 @@ void maxwd_pr_result(void) {
 				for (i=strlen(tt->utte)-1; i>=0 && tt->utte[i] == '\n'; i--) ;
 				tt->utte[++i] = EOS;
 				for (i=0; tt->utte[i] == ' ' || tt->utte[i] == '\t'; i++) ;
+				if (tt->deps != NULL && tt->isDepsSpName)
+					fputs(tt->deps, fpout);
 				printout(tt->speaker,tt->utte+i,NULL,NULL,TRUE);
-				if (tt->deps != NULL)
+				if (tt->deps != NULL && !tt->isDepsSpName)
 					fputs(tt->deps, fpout);
 			} else {
 				if (onlydata < 2)
@@ -282,6 +311,28 @@ void maxwd_pr_result(void) {
 		}
 		temp = temp->prevobj;
 	} while (temp != maxwd_head) ;
+}
+
+static void addToDeps(OBJS *tt, char *sp, char *line) {
+	char *t;
+
+	if (tt == NULL)
+		return;
+	if (tt->deps == NULL) {
+		tt->deps = (char *)malloc(strlen(sp)+strlen(line)+1);
+		if (tt->deps == NULL) out_of_mem();
+		*tt->deps = EOS;
+	} else {
+		t = tt->deps;
+		tt->deps = (char *)malloc(strlen(t)+strlen(sp)+strlen(line)+1);
+		if (tt->deps == NULL) out_of_mem();
+		strcpy(tt->deps, t);
+		free(t);
+	}
+	if (sp[0] == '*')
+		tt->isDepsSpName = TRUE;
+	strcat(tt->deps, sp);
+	strcat(tt->deps, line);
 }
 
 static OBJS *rearange(OBJS *temp) {
@@ -305,6 +356,7 @@ static OBJS *rearange(OBJS *temp) {
 	tt = tt->nextobj;
 	tt->speaker = NULL;
 	tt->utte = NULL;
+	tt->isDepsSpName = FALSE;
 	tt->deps = NULL;
 	tt->fn = NULL;
 	tt->lineno = 0;
@@ -357,6 +409,7 @@ printf("\n");
 		tt->cont = NULL;
 		tt->speaker = NULL;
 		tt->utte = NULL;
+		tt->isDepsSpName = FALSE;
 		tt->deps = NULL;
 		tt->fn = NULL;
 	} else if (temp->size == csize) {
@@ -374,6 +427,7 @@ printf("\n");
 		if (tt == NULL) out_of_mem();
 		tt->speaker = NULL;
 		tt->utte = NULL;
+		tt->isDepsSpName = FALSE;
 		tt->deps = NULL;
 		tt->fn = NULL;
 		tt->lineno = 0;
@@ -440,6 +494,11 @@ do {
 } while (temp != maxwd_head) ;
 printf("\n");
 */
+	if (spareTier1[0] != EOS) {
+		addToDeps(tt, spareTier1, spareTier2);
+		spareTier1[0] = EOS;
+		spareTier2[0] = EOS;
+	}
 	return(tt);
 }
 
@@ -448,7 +507,7 @@ static int maxwd_count(char *c) {
 
 	while (*c != EOS) {
 		if (*c != '+' && *c != '-' && *c != '#'  &&
-			*c != '`' && *c != '~' && *c != '\'') {
+			*c != '`' && *c != '~' && *c != '$' && *c != '\'') {
 			if (*c == '@') break;
 			else if (*c == '^') {
 				c++;
@@ -470,6 +529,8 @@ static void findword() {
 	int i;
 	int csize;
 
+	spareTier1[0] = EOS;
+	spareTier2[0] = EOS;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
@@ -488,31 +549,13 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 	}
 }
 
-static void addToDeps(OBJS *tt) {
-	char *t;
-
-	if (tt == NULL)
-		return;
-	if (tt->deps == NULL) {
-		tt->deps = (char *)malloc(strlen(utterance->speaker)+strlen(utterance->line)+1);
-		if (tt->deps == NULL) out_of_mem();
-		*tt->deps = EOS;
-	} else {
-		t = tt->deps;
-		tt->deps = (char *)malloc(strlen(t)+strlen(utterance->speaker)+strlen(utterance->line)+1);
-		if (tt->deps == NULL) out_of_mem();
-		strcpy(tt->deps, t);
-		free(t);
-	}
-	strcat(tt->deps, utterance->speaker);
-	strcat(tt->deps, utterance->line);
-}
-
 static void findutt() {
 	int csize;
 	char delf = TRUE, sq, tmp, isAmbigFound;
 	OBJS *cmain;
 
+	spareTier1[0] = EOS;
+	spareTier2[0] = EOS;
 	cmain = NULL;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
@@ -523,20 +566,27 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 */
 		if (*utterance->speaker == '@') {
 			if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
-				fputs(utterance->speaker,fpout);
-				fputs(utterance->line,fpout);
+				printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 			}
 			continue;
 		}
 		if (CheckOutTier(utterance->speaker)) {
-			if (*utterance->speaker == '%') {
-				addToDeps(cmain);
+			if (maxwd_which && !maxwd_isMorExcluded && uS.partcmp(utterance->speaker,"%mor",FALSE,FALSE)) {
+			} else {
+				if (*utterance->speaker == '%') {
+					addToDeps(cmain, utterance->speaker, utterance->line);
+				}
+				continue;
 			}
-			continue;
 		}
 		csize = 0;
-		if (chatmode)
+		if (chatmode) {
 			delf = TRUE;
+			if (maxwd_which == 1 && onlydata == 2 && !maxwd_isMorExcluded) {
+				strcpy(spareTier1, org_spName);
+				strcpy(spareTier2, org_spTier);
+			}
+		}
 		mxd_pos = 0;
 		bo = 0;
 		if (cMediaFileName[0] != EOS)

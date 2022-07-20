@@ -15,6 +15,8 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 extern char isPlayAudioFirst;
+extern float scalingSize;
+
 int CMainFrame::m_nDefCmdShow = SW_SHOWMAXIMIZED;
 
 static TCHAR BASED_CODE szSec[] = _T("Settings");
@@ -86,9 +88,25 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	}
 
 	// TODO: Remove this if you don't want tool tips or a resizeable toolbar
-	m_wndToolBar.SetBarStyle(m_wndToolBar.GetBarStyle() |
-		CBRS_TOOLTIPS | CBRS_FLYBY | CBRS_SIZE_DYNAMIC);
+	m_wndToolBar.SetBarStyle(m_wndToolBar.GetBarStyle() | CBRS_TOOLTIPS | CBRS_FLYBY | CBRS_SIZE_DYNAMIC);
 
+/* lxslxslxs
+	float tf;
+	long size;
+
+	tf = 15;
+	tf = tf * scalingSize;
+	size = (long)tf;
+	SIZE sizeButton, sizeImage;
+	sizeImage.cy = size;
+	tf = 16;
+	tf = tf * scalingSize;
+	size = (long)tf;
+	sizeImage.cx = size;
+	sizeButton.cy = sizeImage.cy + 6;
+	sizeButton.cx = sizeImage.cx + 7;
+	m_wndToolBar.SetSizes(sizeButton, sizeImage);
+*/
 	// TODO: Delete these three lines if you don't want the toolbar to
 	//  be dockable
 	m_wndToolBar.EnableDocking(CBRS_ALIGN_ANY);
@@ -113,14 +131,15 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 	HINSTANCE hInst = AfxGetInstanceHandle();
 
 	// see if the class already exists
-	if (!GetClassInfo(hInst, MAIN_WINDOW_CLASS, &wndcls)) {
-		GetClassInfo(hInst, cs.lpszClass, &wndcls);
+	if (!GetClassInfo /*AfxCtxGetClassInfo*/(hInst, MAIN_WINDOW_CLASS, &wndcls)) {
+		GetClassInfo /*AfxCtxGetClassInfo*/(hInst, cs.lpszClass, &wndcls);
 		// otherwise we need to register a new class
 		wndcls.lpszClassName = MAIN_WINDOW_CLASS;
 		wndcls.hIcon = hIcon;
 		if (!AfxRegisterClass(&wndcls))
 			AfxThrowResourceException();
 	}
+
 	cs.lpszClass = MAIN_WINDOW_CLASS;
 	return TRUE;
 }

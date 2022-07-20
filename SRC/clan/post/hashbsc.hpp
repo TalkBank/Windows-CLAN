@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -21,31 +21,35 @@ const address NOSPACELEFT = -3L;
 const int MaxHashKeySize = 1024;
 
 #define HASHBSC_VERSION_NUMBER (2*1024 + 0*1024*1024 + 0*1024*1024*1024)
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=mac68k 
 #endif
+*/
 
 struct cHashHeader {
-	long	mVersionNumber;		/* version number */
-	long	mSizeBackbone;		/* number of elements in direct access */
-	long	mNumberOfItems;		/* number of items of hash */
-	long	mNumberOfCrashes;	/* number of hits of hash */
+	long32	mVersionNumber;		/* version number */
+	long32	mSizeBackbone;		/* number of elements in direct access */
+	long32	mNumberOfItems;		/* number of items of hash */
+	long32	mNumberOfCrashes;	/* number of hits of hash */
 };
 
 struct cCellBB {
 	address data;
 	address next;
-	long	size;
+	long32	size;
 };
 
+/* 2019-10-10
 #ifdef _MAC_CODE
 #pragma options align=reset 
 #endif
+*/
 
 	/* FCE := function_compare_elements */
 typedef	int (*FCE) ( unsigned char* element1, unsigned char* element2 );
 	/* FCH := function_compute_hashkey */
-typedef	long (*FCH) ( unsigned char* element, long hashsize );
+typedef	long32 (*FCH) ( unsigned char* element, long32 hashsize );
 	/* RWE := function_read/write_element */
 typedef void (*RWE) ( void* adr, address vmadr, int nbbytes );
 
@@ -61,8 +65,8 @@ class cHashBasic {
   public:
 		cHashBasic () { mCompareElements=0; mComputeHashkey=0; }
 		~cHashBasic () {}
-virtual address	Create( long sizeBB );				/* initial creation in virtual memory */
-virtual int	Open( address vmadr );				/* initial opening in vitual memory */
+virtual address	Create( long32 sizeBB, int type=0 );				/* initial creation in virtual memory */
+virtual int	Open( address vmadr, int type );				/* initial opening in vitual memory */
 virtual address Add( unsigned char* element, int sizeofelement );  	/* add 1 element */
 virtual unsigned char* Look( unsigned char* element );			/* look for 1 element */
 virtual address LookAddressOf( unsigned char* element );		/* look for 1 element */
@@ -73,7 +77,7 @@ virtual address LookAddressOf( unsigned char* element );		/* look for 1 element 
 	void	Stat(FILE* f);
 	unsigned char* Give(int firsttime); /* for Dump and for iteration */
 	void	Dump( FILE* f, void (*fun)(FILE* f1, unsigned char* c) );
-	long	ActualSize() {return mHeader.mNumberOfItems;};
+	long32	ActualSize() {return mHeader.mNumberOfItems;};
 };
 
 #endif /* __HASHBSC_HPP__ */

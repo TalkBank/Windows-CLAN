@@ -18,7 +18,6 @@
 #define isEqShift(x) (((HIBYTE(x)&1) && (GetAsyncKeyState(VK_SHIFT) & 0x8000)) || \
 					  (!(HIBYTE(x)&1) && !(GetAsyncKeyState(VK_SHIFT) & 0x8000)))
 
-extern BOOL HandleCAKeyShortcuts(UINT nChar, BOOL isVK, wchar_t *CAChar, char num);
 
 class CCedDlgs : public CDialog
 {
@@ -40,6 +39,7 @@ public:
 	CString	m_Tier;
 	BOOL	m_Mixed_Stereo_Wave;
 	BOOL	m_Update_Clan;
+	BOOL	m_No_CheckMess;
 	//}}AFX_DATA
 
 
@@ -501,7 +501,7 @@ public:
 
 // Implementation
 protected:
-	char CAKeyShortcuts;
+	char text_isFKeyPressed;
 
 	// Generated message map functions
 	//{{AFX_MSG(CStdIn)

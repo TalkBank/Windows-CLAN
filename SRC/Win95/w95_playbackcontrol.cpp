@@ -113,22 +113,22 @@ void CPlaybackControler::OnCancel() {
 
 	UpdateData(TRUE);
 	PBC.enable = false;
-	PBC.LoopCnt = atoi(m_loop);
+	PBC.LoopCnt = uS.atoi(m_loop);
 	if (PBC.LoopCnt < 1)
 		PBC.LoopCnt = 1;
-	PBC.backspace = atol(m_shift);
+	PBC.backspace = uS.atol(m_shift);
 	if (PBC.backspace < 0L)
 		PBC.backspace = -PBC.backspace;
-	PBC.speed = atol(m_speed);
+	PBC.speed = uS.atol(m_speed);
 	if (PBC.speed < 0L)
 		PBC.speed = 100L;
-	PBC.step_length = atol(m_seglen);
+	PBC.step_length = uS.atol(m_seglen);
 	if (PBC.step_length < 0L)
 		PBC.step_length = 0L;
-	PBC.pause_len = atoi(m_PauseLen);
+	PBC.pause_len = uS.atoi(m_PauseLen);
 	if (PBC.pause_len < 0)
 		PBC.pause_len = 0;
-	PBC.cur_pos = atoi(m_CursorPos);
+	PBC.cur_pos = uS.atoi(m_CursorPos);
 	if (PBC.cur_pos < 0)
 		PBC.cur_pos = 0;
 	if (PBC.cur_pos > PBC.total_len)
@@ -155,22 +155,22 @@ void CPlaybackControler::OnDestroy()
 
 	UpdateData(TRUE);
 	PBC.enable = false;
-	PBC.LoopCnt = atoi(m_loop);
+	PBC.LoopCnt = uS.atoi(m_loop);
 	if (PBC.LoopCnt < 1)
 		PBC.LoopCnt = 1;
-	PBC.backspace = atol(m_shift);
+	PBC.backspace = uS.atol(m_shift);
 	if (PBC.backspace < 0L)
 		PBC.backspace = -PBC.backspace;
-	PBC.speed = atol(m_speed);
+	PBC.speed = uS.atol(m_speed);
 	if (PBC.speed < 0L)
 		PBC.speed = 100L;
-	PBC.step_length = atol(m_seglen);
+	PBC.step_length = uS.atol(m_seglen);
 	if (PBC.step_length < 0L)
 		PBC.step_length = 0L;
-	PBC.pause_len = atoi(m_PauseLen);
+	PBC.pause_len = uS.atoi(m_PauseLen);
 	if (PBC.pause_len < 0)
 		PBC.pause_len = 0;
-	PBC.cur_pos = atoi(m_CursorPos);
+	PBC.cur_pos = uS.atoi(m_CursorPos);
 	if (PBC.cur_pos < 0)
 		PBC.cur_pos = 0;
 	if (PBC.cur_pos > PBC.total_len)
@@ -193,7 +193,7 @@ void CPlaybackControler::OnDestroy()
 void CPlaybackControler::OnChangePlaybackShiftRate() 
 {
 	UpdateData(TRUE);
-	PBC.backspace = atol(m_shift);
+	PBC.backspace = uS.atol(m_shift);
 	if (PBC.backspace < 0L)
 		PBC.backspace = -PBC.backspace;
 }
@@ -201,7 +201,7 @@ void CPlaybackControler::OnChangePlaybackShiftRate()
 void CPlaybackControler::OnChangePlaybackSpeed() 
 {
 	UpdateData(TRUE);
-	PBC.speed = atol(m_speed);
+	PBC.speed = uS.atol(m_speed);
 	if (PBC.speed < 0L)
 		PBC.speed = 100L;
 }
@@ -209,7 +209,7 @@ void CPlaybackControler::OnChangePlaybackSpeed()
 void CPlaybackControler::OnChangeSegmentLength() 
 {
 	UpdateData(TRUE);
-	PBC.step_length = atol(m_seglen);
+	PBC.step_length = uS.atol(m_seglen);
 	if (PBC.step_length < 0L)
 		PBC.step_length = 0L;
 }
@@ -217,7 +217,7 @@ void CPlaybackControler::OnChangeSegmentLength()
 void CPlaybackControler::OnChangePlaybackLoopNumber() 
 {
 	UpdateData(TRUE);
-	PBC.LoopCnt = atoi(m_loop);
+	PBC.LoopCnt = uS.atoi(m_loop);
 	if (PBC.LoopCnt < 1)
 		PBC.LoopCnt = 1;
 }
@@ -225,7 +225,7 @@ void CPlaybackControler::OnChangePlaybackLoopNumber()
 void CPlaybackControler::OnChangePlaybackCursorPos() 
 {
 	UpdateData(TRUE);
-	PBC.cur_pos = atoi(m_CursorPos);
+	PBC.cur_pos = uS.atoi(m_CursorPos);
 	if (PBC.cur_pos < 0)
 		PBC.cur_pos = 0;
 	if (PBC.cur_pos > PBC.total_len)
@@ -245,7 +245,7 @@ void CPlaybackControler::OnChangePlaybackCursorPos()
 void CPlaybackControler::OnChangePlaybackPauseLen() 
 {
 	UpdateData(TRUE);
-	PBC.pause_len = atoi(m_PauseLen);
+	PBC.pause_len = uS.atoi(m_PauseLen);
 	if (PBC.pause_len < 0)
 		PBC.pause_len = 0;
 }
@@ -255,17 +255,13 @@ void CPlaybackControler::OnPlaybackOpenmedia()
 	char ret;
 
 	if (PBCglobal_df != NULL) {
-		if ((ret=GetNewMediaFile(FALSE, 3))) {
+		if ((ret = GetNewMediaFile(FALSE, isAllType))) {
 			if (ret == isAudio) { /* sound */
 			} else if (ret == isVideo) { /* movie */
 				if (global_df->SnTr.SoundFile[0] != EOS) {
 					global_df->SnTr.SoundFile[0] = EOS;
 					if (global_df->SnTr.isMP3 == TRUE) {
 						global_df->SnTr.isMP3 = FALSE;
-						if (global_df->SnTr.mp3.hSys7SoundData)
-							DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
-						global_df->SnTr.mp3.theSoundMedia = NULL;
-						global_df->SnTr.mp3.hSys7SoundData = NULL;
 					} else {
 						if (global_df->SnTr.SoundFPtr != NULL)
 							fclose(global_df->SnTr.SoundFPtr);

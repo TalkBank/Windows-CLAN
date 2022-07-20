@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -18,6 +18,7 @@
 #include "vocdefs.h"
 #include "tokens.h"
 #include "dcompute.h"
+extern char vocd_show_warnings;
 
 /*
  * ttr_fromseq
@@ -231,14 +232,14 @@ int average_ttr (char **token_seq,int tkns,int n,double *t,double *sd, long no_s
 {
 	int      tokens, types=0;
 	char   **tkn_ptr;
-	char   **rtoken_list;
+	char   **rtoken_list = NULL;
 	NODE    *root=NULL;
 	long     no_segments;
 	double   ttr;
 	double   std;
 	int      i, j, index;
 	double  *ttr_list;    
-	int     *replacement_list;
+	int     *replacement_list = NULL;
 
 	/* determine the number of segments to be used to calculate the average TTR */
 	if ((flags & RANDOM_TTR) && no_samples)
@@ -440,6 +441,7 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 	NT_Values *nt_tuples = NULL, *nt_ptr;
 	D_Values d;
 	int N;
+//	long pcnt, tcnt;
 	char *t;
 	double T, SD;
 	int discard = 0;
@@ -449,76 +451,96 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 	double d_min, min_ls_val;
 	int no_trials;
 	DMIN_Values dmin_trials[MAX_TRIALS];
-	double dmin_av;
+	double dmin_av = 0.0;
 	int types;
 	double ttr;
 
+	if (flags & RANDOM_TTR)
+		no_trials = MAX_TRIALS;
+	else
+		no_trials = 1;
 	if (tkns_in_seq==0) {
-		fprintf(stderr,"\n*** File \"%s\": Speaker: \"%s\"\n", fname, speaker->code);
-		fprintf(stderr, "vocd: WARNING: Token count is zero\n\n");
+		if (vocd_show_warnings) {
+			fprintf(stderr,"\n*** File \"%s\": Speaker: \"%s\"\n", fname, speaker->code);
+			fprintf(stderr, "vocd: WARNING: Token count is zero\n\n");
+		}
 //		if (ofp != NULL)
 //			fprintf(stderr, "vocd: Terminating ...\n");
 		if (ofp != NULL && onlydata == 4) {
-			if (speaker->IDs != NULL)
-				fprintf(ofp,"%s", speaker->IDs);
+			if (speaker->fname != NULL)
+				outputStringForExcel(ofp, speaker->fname, 1);
 			else {
+				char *f;
+// ".xls"
 				strcpy(FileName2, oldfname);
-				t = strrchr(FileName2, PATHDELIMCHR);
-				if (t != NULL) {
-					t++;
-					strcpy(FileName2, t);
+				f = strrchr(FileName2, PATHDELIMCHR);
+				if (f != NULL) {
+					f++;
+					strcpy(FileName2, f);
 				}
-				t = strchr(FileName2, '.');
-				if (t != NULL)
-					*t = EOS;
-				if (!combinput || onlydata == 4)
-					fprintf(ofp,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", FileName2, speaker->code);
+				f = strchr(FileName2, '.');
+				if (f != NULL)
+					*f = EOS;
+				if (!combinput)
+					fprintf(ofp,"%s,", FileName2);
 				else
-					fprintf(ofp,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", POOLED_FNAME, speaker->code);
+					fprintf(ofp,"%s,", POOLED_FNAME);
 			}
-			fprintf(ofp,".\t.\t.\t");
+			if (speaker->IDs != NULL)
+				outputIDForExcel(ofp, speaker->IDs, 1);
+			else {
+				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,", speaker->code);
+			}
+			fprintf(ofp,".,.,.,");
 			for (j=0;j<no_trials;j++) {
-				fprintf(ofp,".\t");
+				fprintf(ofp,".,");
 			}
 			fprintf(ofp,".\n");
 		}
 		return 3;
 	}
-	if (flags & RANDOM_TTR)
-		no_trials = MAX_TRIALS;
-	else
-		no_trials = 1;
 	if ( (flags & NOREPLACEMENT) && (tkns_in_seq < to) ) {
-		fprintf(stderr,"\n*** File \"%s\": Speaker: \"%s\"\n", fname, speaker->code);
-		fprintf(stderr, "vocd: WARNING: Not enough tokens for random sampling without replacement.\n\n");
+		if (vocd_show_warnings) {
+			fprintf(stderr,"\n*** File \"%s\": Speaker: \"%s\"\n", fname, speaker->code);
+			fprintf(stderr, "vocd: WARNING: Not enough tokens for random sampling without replacement.\n\n");
+		}
 //		if (ofp != NULL)
 //			fprintf(stderr, "vocd: Terminating ...\n");
 		if (ofp != NULL && onlydata == 4) {
-			if (speaker->IDs != NULL)
-				fprintf(ofp,"%s", speaker->IDs);
+			if (speaker->fname != NULL)
+				outputStringForExcel(ofp, speaker->fname, 1);
 			else {
+				char *f;
+// ".xls"
 				strcpy(FileName2, oldfname);
-				t = strrchr(FileName2, PATHDELIMCHR);
-				if (t != NULL) {
-					t++;
-					strcpy(FileName2, t);
+				f = strrchr(FileName2, PATHDELIMCHR);
+				if (f != NULL) {
+					f++;
+					strcpy(FileName2, f);
 				}
-				t = strchr(FileName2, '.');
-				if (t != NULL)
-					*t = EOS;
-				if (!combinput || onlydata == 4)
-					fprintf(ofp,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", FileName2, speaker->code);
+				f = strchr(FileName2, '.');
+				if (f != NULL)
+					*f = EOS;
+				if (!combinput)
+					fprintf(ofp,"%s,", FileName2);
 				else
-					fprintf(ofp,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", POOLED_FNAME, speaker->code);
+					fprintf(ofp,"%s,", POOLED_FNAME);
 			}
-			fprintf(ofp,".\t.\t.\t");
+			if (speaker->IDs != NULL)
+				outputIDForExcel(ofp, speaker->IDs, 1);
+			else {
+				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,", speaker->code);
+			}
+			fprintf(ofp,".,.,.,");
 			for (j=0;j<no_trials;j++) {
-				fprintf(ofp,".\t");
+				fprintf(ofp,".,");
 			}
 			fprintf(ofp,".\n");
 		}
 		return 2;
 	}
+//	pcnt = no_trials * (to - from + 1);
+//	tcnt = pcnt;
 	for (j=0; j<no_trials; j++) {
 		/* calculate the number of <n,t> values to be returned */
 		no_NTvalues = (to-from)/incr + 1;
@@ -536,6 +558,16 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 		/* calculate average TTR values for a range of segment sizes */
 		nt_ptr = nt_tuples;
 		for (N=from;N<=to;N+=incr) {
+/*
+			if (pcnt < tcnt) {
+				tcnt = tcnt - 1;
+#if !defined(CLAN_SRV)
+				fprintf(stderr, "\r%ld ", pcnt);
+				my_flush_chr();
+#endif
+			}
+			pcnt--;
+*/
 			/* compute <n,t> values */
 			average_ttr (token_seq,tkns_in_seq,N,&T,&SD, no_samples, flags); 
 			nt_ptr->N  = N;
@@ -591,6 +623,12 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 		dmin_trials[j].mls  = min_ls_val;
 		free(nt_tuples);
 	} /* end for */
+/*
+#if !defined(CLAN_SRV)
+	fprintf(stderr, "\r          \r");
+	my_flush_chr();
+#endif
+*/
 	if (onlydata == 0) {
 		if (ofp != NULL) {
 			fprintf(ofp,"\n");
@@ -647,31 +685,38 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 		}
 	} else if (onlydata == 4) {
 		if (ofp != NULL) {
-			if (speaker->IDs != NULL)
-				fprintf(ofp,"%s", speaker->IDs);
+			if (speaker->fname != NULL)
+				outputStringForExcel(ofp, speaker->fname, 1);
 			else {
+				char *f;
+// ".xls"
 				strcpy(FileName2, oldfname);
-				t = strrchr(FileName2, PATHDELIMCHR);
-				if (t != NULL) {
-					t++;
-					strcpy(FileName2, t);
+				f = strrchr(FileName2, PATHDELIMCHR);
+				if (f != NULL) {
+					f++;
+					strcpy(FileName2, f);
 				}
-				t = strchr(FileName2, '.');
-				if (t != NULL)
-					*t = EOS;
-				if (!combinput || onlydata == 4)
-					fprintf(ofp,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", FileName2, speaker->code);
+				f = strchr(FileName2, '.');
+				if (f != NULL)
+					*f = EOS;
+				if (!combinput)
+					fprintf(ofp,"%s,", FileName2);
 				else
-					fprintf(ofp,"%s\t.\t.\t%s\t.\t.\t.\t.\t.\t.\t.\t", POOLED_FNAME, speaker->code);
+					fprintf(ofp,"%s,", POOLED_FNAME);
+			}
+			if (speaker->IDs != NULL)
+				outputIDForExcel(ofp, speaker->IDs, 1);
+			else {
+				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,", speaker->code);
 			}
 		}
 		ttr = ttr_fromseq (token_seq, tkns_in_seq, &types);
 		if (ofp != NULL)
-			fprintf(ofp,"%i\t%i\t%.3f\t", types, tkns_in_seq, ttr);
+			fprintf(ofp,"%i,%i,%.3f,", types, tkns_in_seq, ttr);
 		dmin_av = 0.0;
 		for (j=0;j<no_trials;j++) {
 			if (ofp != NULL)
-				fprintf(ofp,"%.2f\t", dmin_trials[j].dmin);
+				fprintf(ofp,"%.2f,", dmin_trials[j].dmin);
 			dmin_av += dmin_trials[j].dmin ;
 		}
 		dmin_av = dmin_av/( (double) no_trials );

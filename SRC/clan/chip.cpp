@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -23,7 +23,7 @@
 /* changed default uttwindow to be six also to be consistent with the	*/
 /* literature (5/91).                                                   */
 
-/* INCLUDE THE FOLLOWING FILES */
+/* INCLUDE THE FOLLOWING FILES                                          */
 #include "cu.h"		/* All the normal includes are in here				*/
 #include <math.h>	/* Floating point stuff (DC)						*/
 #include "c_curses.h"
@@ -95,7 +95,7 @@ void usage(void)	/* Print proper usage and exit.  (Called by CLAN.)  */
 	printf("+g : Enable the substitution option.\n");
 //	puts(  "+hF: file F has words to be included");
 	puts(  "-hF: file F has words to be excluded");
-	printf("-nC: Do not code: b (adu), c (chi), or s (asr & csr) responses.\n");
+	printf("-nC: Do not code C: b (adu), c (chi), or s (asr & csr) responses.\n");
 	printf("+qN: Set the utterance window to N utterances before the response (2-%d).\n", MAXUTTWINDOW);
 	printf("+xN: Set minimum repetition index for coding.\n");
 	mainusage(FALSE);
@@ -155,6 +155,7 @@ void init(char first) {
 		addword('\0','\0',"+unk|xxx");
 		addword('\0','\0',"+unk|yyy");
 		addword('\0','\0',"+*|www");
+		// defined in "mmaininit" and "globinit" - nomap = TRUE;
 		maininitwords();
 		mor_initwords();
 		ftime = TRUE;
@@ -177,6 +178,11 @@ void init(char first) {
 	} else {
 		if (ftime) {
 			ftime = FALSE;
+//			OverWriteFile = FALSE;
+			if (onlydata == 3) {
+				stout = FALSE;
+				AddCEXExtension = ".xls";
+			}
 			if (isMorTier) {
 				maketierchoice("%mor",'+',FALSE);
 			} else {
@@ -916,28 +922,27 @@ static void print_data()
 		fprintf(fpout, "===========================================================\n");
 		if (!combinput)
 			fprintf(fpout, "File: %s\n\n", oldfname);
-		fprintf(fpout, "%s	CAfont:13:7\n", FONTHEADER);
-		fprintf(fpout, "Measure\t\tADU\tCHI\tASR\tCSR\n");
+		if (onlydata != 3) {
+			if (stout) {
+				char  fontName[256];
+				strcpy(fontName, "CAfont:13:7\n");
+				cutt_SetNewFont(fontName, EOS);
+			} else
+				fprintf(fpout,"%s	CAfont:13:7\n", FONTHEADER);
+		}
+		/* Output TOTAL UTTERANCES */
+		fprintf(fpout, "Total ");
+		output_adult_codes(fpout);
+		fprintf(fpout, " scored utterances: %.0f\n", adu_dat.utters);
+		fprintf(fpout, "Total ");
+		output_child_codes(fpout);
+		fprintf(fpout, " scored utterances: %.0f\n", chi_dat.utters);
+		fprintf(fpout, "\n");
+
+		fprintf(fpout, "Measure  \tADU\tCHI\tASR\tCSR\n");
 		fprintf(fpout, "-----------------------------------------------------------\n");
 
 /*	fprintf(fpout, "%s\tUtterances for all speakers: %d\n", oldfname, TOTAL_UTTER_NUM);*/
-
-	/* Output TOTAL UTTERANCES */
-		fprintf(fpout, "Utterances\t");
-		if (DOING_ADU) {
-		   fprintf(fpout, "%.0f\t", adu_dat.utters);
-		} else fprintf(fpout, "adu\t");
-		if (DOING_CHI) {
-		   fprintf(fpout, "%.0f\t", chi_dat.utters);
-		} else fprintf(fpout, "chi\t");
-		if (DOING_SLF) {
-		   fprintf(fpout, "%.0f\t", adu_dat.utters);
-		   fprintf(fpout, "%.0f", chi_dat.utters);
-		} else {
-			fprintf(fpout, "asr\t");
-			fprintf(fpout, "csr");
-		}
-		fprintf(fpout, "\n");
 
 		/* Output TOTAL RESPONSES */
 		fprintf(fpout, "Responses\t");
@@ -957,7 +962,7 @@ static void print_data()
 		fprintf(fpout, "\n");
 
 		/* Output OVERLAP */
-		fprintf(fpout, "Overlap\t\t");
+		fprintf(fpout, "Overlap  \t");
 		if (DOING_ADU) {
 			fprintf(fpout, "%.0f\t", adu_dat.responses);
 		} else fprintf(fpout, "adu\t");
@@ -1034,8 +1039,8 @@ static void print_data()
 			} else fprintf(fpout, "0.00\t");
 			if (chi_dat.utters > 0) {
 				if (DOING_CLASS) {
-					fprintf(fpout, "%2.3f\t", (csr_dat.clresponses / chi_dat.utters));
-				} else fprintf(fpout, "%2.3f\t", (csr_dat.responses / chi_dat.utters));
+					fprintf(fpout, "%2.3f", (csr_dat.clresponses / chi_dat.utters));
+				} else fprintf(fpout, "%2.3f", (csr_dat.responses / chi_dat.utters));
 			} else fprintf(fpout, "0.00");
 
 		} else {
@@ -1160,7 +1165,7 @@ static void print_data()
 							rep_index = single_interaction(utters[previous], utters[current], codes, aduslf);
 							if (rep_index > MININDEX)
 								asr_dat.dist = asr_dat.dist + previous;
-							if ((onlydata != 2) && (rep_index >= 0.0)) {
+							if (onlydata != 2 && onlydata != 3 && rep_index >= 0.0) {
 								if (rep_index > MININDEX) {
 									strcat(codes, " $DIST = ");
 									sprintf(dist, "%d", previous);
@@ -1177,7 +1182,7 @@ static void print_data()
 							rep_index = single_interaction(utters[previous], utters[current], codes, chislf);
 							if (rep_index > MININDEX)
 								csr_dat.dist = csr_dat.dist + previous;
-							if ((onlydata != 2) && (rep_index >= 0.0)) {
+							if (onlydata != 2 && onlydata != 3 && rep_index >= 0.0) {
 								if (rep_index > MININDEX) {
 									strcat(codes, " $DIST = ");
 									sprintf(dist, "%d", previous);
@@ -1207,7 +1212,7 @@ static void print_data()
 							rep_index = single_interaction(utters[previous], utters[current], codes, adult);
 							if (rep_index > MININDEX)
 								adu_dat.dist = adu_dat.dist+previous;
-							if ((onlydata != 2) && (rep_index >= 0.0)) {
+							if (onlydata != 2 && onlydata != 3 && rep_index >= 0.0) {
 								if (rep_index > MININDEX) {
 									strcat(codes, " $DIST = ");
 									sprintf(dist, "%d", previous);
@@ -1233,7 +1238,7 @@ static void print_data()
 							rep_index = single_interaction(utters[previous], utters[current], codes, child);
 							if (rep_index > MININDEX)
 								chi_dat.dist = chi_dat.dist+previous;
-							if ((onlydata != 2) && (rep_index >= 0.0)) {
+							if (onlydata != 2 && onlydata != 3 && rep_index >= 0.0) {
 								if (rep_index > MININDEX) {
 									strcat(codes, " $DIST = ");
 									sprintf(dist, "%d", previous);
@@ -1285,7 +1290,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	isWinMode = IS_WIN_MODE;
 	CLAN_PROG_NUM = CHIP;
 	chatmode = CHAT_MODE;
-	OnlydataLimit = 2;
+	OnlydataLimit = 3;
 	UttlineEqUtterance = FALSE;	   /* Copy of input data is saved		*/
 	bmain(argc, argv, print_data); /* Call to the CLAN main routine */
 }
@@ -1339,7 +1344,7 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 			
 		case 'q':		/* Set utterance window */
-			UTTWINDOW = atoi(f) + 1;
+			UTTWINDOW = atoi(f);
 			if (UTTWINDOW < 2 || UTTWINDOW > MAXUTTWINDOW) {
 				fprintf(stderr,"Range of utterance window is 2-%d.\n", MAXUTTWINDOW);
 				chip_exit(NULL, TRUE);

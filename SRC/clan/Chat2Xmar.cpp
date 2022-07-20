@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -355,49 +355,13 @@ static ALLTIERS *addTierAnnotation(ALLTIERS *root, const FNType *mediaFName, con
 	return(root);
 }
 
-static void makeAnotation(char *an, char *bs, char *es) {
-	long i;
-
-	for (; (isSpace(*bs) || *bs == '\n') && bs < es; bs++) ;
-	for (es--; (isSpace(*es) || *es == '\n') && bs <= es; es--) ;
-	es++;
-	i = 0L;
-	for (; bs < es; bs++) {
-		if (*bs == '&') {
-			strcpy(an+i, "&amp;");
-			i = strlen(an);
-		} else if (*bs == '"') {
-			strcpy(an+i, "&quot;");
-			i = strlen(an);
-		} else if (*bs == '\'') {
-			strcpy(an+i, "&apos;");
-			i = strlen(an);
-		} else if (*bs == '<') {
-			strcpy(an+i, "&lt;");
-			i = strlen(an);
-		} else if (*bs == '>') {
-			strcpy(an+i, "&gt;");
-			i = strlen(an);
-		} else if (*bs == '\n')
-			an[i++] = ' ';
-		else if (*bs == '\t')
-			an[i++] = ' ';
-		else if (*bs >= 0 && *bs < 32) {
-			sprintf(an+i,"{0x%x}", *bs);
-			i = strlen(an);
-		} else
-			an[i++] = *bs;
-	}
-	an[i] = EOS;
-}
-
 static void addHeaders(char *name, char *line) {
 	char	*bs, *es;
 	HEADERS *t;
 
 	bs = line;
 	es = line + strlen(line);
-	makeAnotation(templineC, bs, es);
+	textToXML(templineC, bs, es);
 
 	if (RootHeaders == NULL) {
 		if ((RootHeaders=NEW(HEADERS)) == NULL) out_of_mem();
@@ -670,7 +634,7 @@ static void PrintTiers(void) {
 }
 
 void call() {
-	long		Beg, End, BegSp, EndSp, t;
+	long		Beg, End, BegSp = 0L, EndSp = 0L, t;
 	long		bulletsCnt, numTiers;
 	double		timeSecs;
 	FNType		mediaFName[FNSize], oldMediaFName[FNSize];
@@ -727,7 +691,7 @@ void call() {
 				strcpy(templineC, "CHAT:");
 				strcat(templineC, utterance->speaker);
 				t = strlen(templineC);
-				makeAnotation(templineC+t, utterance->line, utterance->line+strlen(utterance->line));
+				textToXML(templineC+t, utterance->line, utterance->line+strlen(utterance->line));
 				addTimes(EndSp, templineC);
 /*
 				if (errFp == NULL && ftime) {
@@ -785,7 +749,7 @@ void call() {
 					}
 					if (Beg == 1L)
 						Beg = 0L;
-					makeAnotation(templineC, bs, es);
+					textToXML(templineC, bs, es);
 					if (templineC[0] != EOS) {
 						if (utterance->speaker[0] == '*') {
 							strcpy(name, utterance->speaker);
@@ -840,7 +804,7 @@ void call() {
 				fprintf(stderr,"%s:\t%s", utterance->speaker, utterance->line);
 			}
 		}
-		makeAnotation(templineC, bs, es);
+		textToXML(templineC, bs, es);
 		if (templineC[0] != EOS) {
 			if (utterance->speaker[0] == '*') {
 				strcpy(name, utterance->speaker);

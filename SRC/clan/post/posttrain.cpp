@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -57,7 +57,7 @@ int main( int argc, char** argv );
 				break;
 		}
 	}
-#elif UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#elif defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 	#define CLAN_MAIN_RETURN int
 	#define main_return return(0);
 #else
@@ -66,7 +66,7 @@ int main( int argc, char** argv );
 	#define main_return return
 #endif
 
-extern char isReportConnlError;
+extern char isReportConllError;
 
 static int style;
 static int brillstyle = FullRules;
@@ -93,7 +93,7 @@ void call(
 #endif
 	if (style&BrillsRules) {
 		if (style&PrintForTest) {
-#if UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#if defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 			res = strcmp(outfilename, "con");
 #else
 			res = uS.FNTypecmp(outfilename, "con", 0L);
@@ -159,7 +159,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 	withmatrix = 4;
 	inmemory = 1;
 
-	init_connl();
+	init_conll();
 	init_mortags();
 	init_tags();
 	init_rules();
@@ -186,10 +186,10 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 		msg("+cF: create new POST database file with the name F\n");
 		msg("-c : add to an existing version of %s\n", dbname);
 		msg("-cF: add to an existing POST database file with the name F\n");
-		if (isReportConnlError)
-			msg("+dv : do not report missing elements from \"connl.cut\" file\n");
+		if (isReportConllError)
+			msg("+dv : do not report missing elements from \"conll.cut\" file\n");
 		else
-			msg("+dv : report missing elements from \"connl.cut\" file\n");
+			msg("+dv : report missing elements from \"conll.cut\" file\n");
 		msg("+eF: the affixes and stems in file F are used for training (default: \"tags.cut\" file is used)\n");
 		msg("-e : no specific file of affixes and stems is used for training (default: if no \"tags.cut\" file found)\n");
 		msg("+mN: load the disambiguation matrices N into memory (about 700K)\n");
@@ -225,7 +225,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 			switch( argv[i][1] ) {
 				case 'd' :
 					if (argv[i][2] == 'v' || argv[i][2] == 'V') {
-						isReportConnlError = !isReportConnlError;
+						isReportConllError = !isReportConllError;
 					} else {
 						msg ( "bad parameter after +d: should be a database file name\n" );
 						main_return;
@@ -238,7 +238,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 					style |= BrillsRules;
 					if ( argv[i][0] == '-' ) style |= BrillsOnly;
 					if ( argv[i][2] == 'o' ) {
-#if UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#if defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 						strcpy(output_for_brill, argv[i]+3);
 #else
 						uS.str2FNType(output_for_brill, 0L, argv[i]+3);
@@ -297,7 +297,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 					}
 					break;
 				case 'o' :
-#if UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#if defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 					strcpy(outfilename, argv[i]+2);
 #else
 					uS.str2FNType(outfilename, 0L, argv[i]+2);
@@ -312,7 +312,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 							msg ( "there must be a file name after +e\n" );
 							main_return;
 						} else {
-#if UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#if defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 							strcpy(gb_filter_name, argv[i]+2);
 #else
 							uS.str2FNType(gb_filter_name, 0L, argv[i]+2);
@@ -391,7 +391,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 		gbin_filter_open();
 	}
 
-	readConnlFile(dbname);
+	readConllFile(dbname);
 #ifdef POSTCODE
 	isWinMode = IS_WIN_MODE;
 	chatmode = CHAT_MODE;
@@ -408,7 +408,7 @@ CLAN_MAIN_RETURN main( int argc, char** argv)
 		}
 	}
 #endif
-	freeConnl();
+	freeConll();
 	free_trainproc();
 	gbin_filter_free();
 	gbout_filter_free();

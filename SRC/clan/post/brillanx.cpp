@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -119,7 +119,7 @@ int open_brillrule_dic( const char* filename, int readonly )
 
 int nb_brillrules()
 {
-	long* rec = hashGetCI( _brillrule_hashdic_, BRILLNBRULES );
+	long32* rec = hashGetCI( _brillrule_hashdic_, BRILLNBRULES );
 	if (!rec)
 		return 0;
 	else
@@ -129,7 +129,7 @@ int nb_brillrules()
 int onemore_brillrule()
 {
 	int n = nb_brillrules()+1;
-	long rec[2];
+	long32 rec[2];
 	rec[0] = 2;
 	rec[1] = n;
 	hashPutCI( _brillrule_hashdic_, BRILLNBRULES, rec );
@@ -142,7 +142,7 @@ int add_brillrule( char* word, char* tag, char* new_rule, int at_number )
 	char rulename[128];
 	sprintf( rulename, "(%s) (%s)", word, tag );
 
-	long* old_rec = hashGetCI( _brillrule_hashdic_, rulename );
+	long32* old_rec = hashGetCI( _brillrule_hashdic_, rulename );
 	if (!old_rec) {	// first rule to add.
 		char num[10];
 		if (at_number == 0)
@@ -151,7 +151,7 @@ int add_brillrule( char* word, char* tag, char* new_rule, int at_number )
 		strcat( new_rule, num );
 
 		int p = alloc_and_write_string( new_rule );
-		long rec[2];
+		long32 rec[2];
 		rec[0] = 2;
 		rec[1] = p;
 		hashPutCI( _brillrule_hashdic_, rulename, rec );
@@ -178,8 +178,8 @@ int add_brillrule( char* word, char* tag, char* new_rule, int at_number )
 
 	// not found.
 	// alloc and copy for old 
-	long* new_rec = new long [(old_rec[0]+1)*sizeof(long)];
-	memcpy( new_rec, old_rec, old_rec[0]*sizeof(long) );
+	long32* new_rec = new long32 [(old_rec[0]+1)*sizeof(long32)];
+	memcpy( new_rec, old_rec, old_rec[0]*sizeof(long32) );
 
 	// modify for new at end
 	if ( at_number == 0 )
@@ -196,7 +196,7 @@ int add_brillrule( char* word, char* tag, char* new_rule, int at_number )
 	// add reference to number.
 	char strnum[24];
 	sprintf( strnum, "%d", at_number );
-	long short_rec[2];
+	long32 short_rec[2];
 	short_rec[0] = 2;
 	short_rec[1] = p;
 	hashPutCI( _brillrule_hashdic_, strnum, short_rec );
@@ -208,10 +208,10 @@ static void replace_number( int after, int before )
 {
 	char str[24];
 	sprintf( str, "%d", before );
-	long* _rec = hashGetCI( _brillrule_hashdic_, str );
+	long32* _rec = hashGetCI( _brillrule_hashdic_, str );
 	if ( ! _rec ) return;
 	if ( _rec[1] == -1 ) return;
-	long oldp = _rec[1];
+	long32 oldp = _rec[1];
 
 	// changes the number in the rule.
 	char tr[MAXSIZEBRILLRULE];
@@ -251,7 +251,7 @@ int add_brillrule_at_number( int num, char* word, char* tag, char* rule )
 		// add a rule entry to nbr.
 		char strnum[24];
 		sprintf( strnum, "%d", nbr );
-		long short_rec[2];
+		long32 short_rec[2];
 		short_rec[0] = 2;
 		short_rec[1] = -1;
 		hashPutCI( _brillrule_hashdic_, strnum, short_rec );
@@ -273,7 +273,7 @@ int suppress_brillrule( char* word, char* tag, char* bad_rule, int full )
 	char rulename[128];
 	sprintf( rulename, "(%s) (%s)", word, tag );
 
-	long* old_rec = hashGetCI( _brillrule_hashdic_, rulename );
+	long32* old_rec = hashGetCI( _brillrule_hashdic_, rulename );
 	if (!old_rec)
 		return 0; // rules does not exist
 
@@ -305,7 +305,7 @@ int suppress_brillrule_by_number( int n, int full )
 {
 	char str[24];
 	sprintf( str, "%d", n );
-	long* _rec = hashGetCI( _brillrule_hashdic_, str );
+	long32* _rec = hashGetCI( _brillrule_hashdic_, str );
 	if ( ! _rec ) return 0;
 	if ( _rec[1] == -1 ) return 0;
 	int prev = _rec[1];
@@ -325,24 +325,24 @@ int suppress_brillrule_by_number( int n, int full )
 	return 1;
 }
 
-long* get_brillrule(const char* word, char* tag, char* ctn, int& _nrec)
+long32* get_brillrule(const char* word, char* tag, char* ctn, int& _nrec)
 {
 	char rulename[128];
 	sprintf( rulename, "(%s) (%s)", word, tag );
-	long* _rec = hashGetCI( _brillrule_hashdic_, rulename );
+	long32* _rec = hashGetCI( _brillrule_hashdic_, rulename );
 	_nrec = -1;
 	if (!_rec || _rec[0] <1)
 		return 0;
 	else {
-		long* _store = new long [_rec[0]*sizeof(long)];
-		memcpy( _store, _rec, _rec[0]*sizeof(long) );
+		long32* _store = new long32 [_rec[0]*sizeof(long32)];
+		memcpy( _store, _rec, _rec[0]*sizeof(long32) );
 		_nrec = 2;
 		read_string( _rec[1], ctn );
 		return _store;
 	}
 }
 
-char* get_next_brillrule(char* ctn, int& _nrec, long* _rec)
+char* get_next_brillrule(char* ctn, int& _nrec, long32* _rec)
 {
 	if ( _nrec >= _rec[0] ) return 0;
 	read_string( _rec[ _nrec ], ctn );
@@ -354,7 +354,7 @@ char* get_brillrule_by_number(int number, char* ctn)
 {
 	char str[24];
 	sprintf( str, "%d", number );
-	long* _rec = hashGetCI( _brillrule_hashdic_, str );
+	long32* _rec = hashGetCI( _brillrule_hashdic_, str );
 	if ( ! _rec ) return 0;
 	if ( _rec[1] == -1 ) return 0;
 	if ( !ctn ) return (char*)1;	// test if number exists only

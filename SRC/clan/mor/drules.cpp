@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -19,13 +19,12 @@ extern long mem_ctr;
 /* or run out of space to store rules */
 BOOL
 read_drules(FILE *rulefile) {
-	extern int DEBUG_CLAN;
 	extern DRULE_PTR drule_list;
 	extern int drules_linenum;
 	DRULE_PTR cur_rule;
-	CRULE_COND_PTR choose_conds;
-	CRULE_COND_PTR prev_conds;
-	CRULE_COND_PTR next_conds;
+	CRULE_COND_PTR choose_conds = NULL;
+	CRULE_COND_PTR prev_conds = NULL;
+	CRULE_COND_PTR next_conds = NULL;
 	char line[MAXLINE];
 	char keyword[MAX_WORD];
 	char *line_ptr;
@@ -105,6 +104,7 @@ read_drules(FILE *rulefile) {
 BOOL
 get_drule_conds(STRING *cond_name, STRING *line, CRULE_COND_PTR cond_ptr) {
 	extern int drules_linenum;
+	int  hyphenI;
 	CRULE_COND_PTR cond_tmp;
 	STRING *line_ptr;
 	char pattern[MAX_PATLEN];
@@ -134,6 +134,8 @@ get_drule_conds(STRING *cond_name, STRING *line, CRULE_COND_PTR cond_ptr) {
 		cond_type = NEXTSURF_CHK;
 	else if (strcmp(cond_name,"NEXTCAT") == 0)
 		cond_type = NEXTCAT_CHK;
+	else
+		cond_type = 0;
 
 
 	/* long clause to process statements accordingly */
@@ -143,6 +145,18 @@ get_drule_conds(STRING *cond_name, STRING *line, CRULE_COND_PTR cond_ptr) {
 			fprintf(stderr,"*ERROR* unexpected end of line at line %d\n",drules_linenum);
 			return(FAIL);
 		}
+
+// 2019-07-30 change dash to 0x2013
+		for (hyphenI=0; line_ptr[hyphenI] != EOS; hyphenI++) {
+			if (line_ptr[hyphenI] == '-') {
+//fprintf(stderr, "%s\n", line_ptr);
+				uS.shiftright(line_ptr+hyphenI, 2);
+				line_ptr[hyphenI++] = 0xE2;
+				line_ptr[hyphenI++] = 0x80;
+				line_ptr[hyphenI++] = 0x93;
+			}
+		}
+
 		/* check if we want negation of pattern */
 		if (*line_ptr == '!') {
 			cond_type += NOT;
@@ -221,7 +235,6 @@ apply_drules(
      int num_next)
 {
 	extern DRULE_PTR drule_list;
-	extern int DEBUG_CLAN;
 	DRULE_PTR cur_rule;
 	CRULE_COND_PTR cur_cond;
 	int i;
@@ -431,7 +444,7 @@ next_loop:
 								if (get_vname(cur_cond->op_cat,ts,lop_cat)) {
 									strcpy(ts, "[end]");
 									if (get_vname(n_cat,ts,ln_cat)) {
-										if (ln_cat[0] != EOS && lop_cat != EOS) {
+										if (ln_cat[0] != EOS && lop_cat[0] != EOS) {
 											if (uS.patmat(ln_cat, lop_cat))
 												res = true;
 										}
@@ -453,7 +466,7 @@ next_loop:
 								if (get_vname(cur_cond->op_cat,ts,lop_cat)) {
 									strcpy(ts, "[end]");
 									if (get_vname(n_cat,ts,ln_cat)) {
-										if (ln_cat[0] != EOS && lop_cat != EOS) {
+										if (ln_cat[0] != EOS && lop_cat[0] != EOS) {
 											if (uS.patmat(ln_cat, lop_cat))
 												res = false;
 										}

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -44,14 +44,14 @@
 #include <sstream>
 #include <queue>
 #include <list>
+#include "ksutil.h"
+#include "blmvm.h"
+#include "maxent.h"
 #if defined(_MAC_CODE) || defined(_WIN32)
 	#include "cu.h"
 #elif defined(UNX)
 	#include "../cu.h"
 #endif
-#include "ksutil.h"
-#include "blmvm.h"
-#include "maxent.h"
 
 #if defined(_MAC_CODE) || defined(_WIN32) || defined(UNX)
   #if !defined(UNX)
@@ -783,6 +783,9 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 
 	// the main part of the work starts here
 	char res, isOldGRA;
+	char isPostCodeExclude, isSpTier;
+	char isMorTier; //2019-05-01
+	int  postRes;
 	string str;
 	string origstr;
 // 2009-07-30	vector<string> sent;
@@ -792,32 +795,72 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 	long linenum = 0;
 	int uttnum = 0;
 
+	spareTier1[0] = EOS;
 	posline = "";
 	graline = "";
 	// read a line
+	isSpTier = FALSE;
+	isMorTier = FALSE; //2019-05-01
+	isPostCodeExclude = TRUE;
 	fgets_megrasp_lc = '\0';
 	if( !fgets_megrasp(templineC, UTTLINELEN, fpin) ) {
 		return 0;
 	}
 	str = templineC;
 	res = 1;
+	isOldGRA = 0;
 	// main loop
 	do {
 		// increase line counter
 		linenum++;
 #if defined(_MAC_CODE) || defined(_WIN32)
-		if (linenum % 2000 /* PERIOD */ == 0) {
-			fprintf(stderr,"\r%d ",linenum);
+		if (linenum % 2000 == 0) { // PERIOD
+// lxs 2019-03-15 if (!isRecursive)
+				fprintf(stderr,"\r%d ",linenum);
 			my_flush_chr();
 			if (isKillProgram)
 				megraps_exit(0);
 		}
 #endif
-		if (strncmp(templineC, "%gra:", 5) == 0)
-			isOldGRA = 1;
-		else if (templineC[0] == '@' || templineC[0] == '*' || templineC[0] == '%')
+		if (strncmp(templineC, "%gra:", 5) == 0) {
+			isMorTier = FALSE; //2019-05-01
+			if (!isPostCodeExclude)
+				isOldGRA = 1;
+			else
+				isOldGRA = 0;
+			if (isSpTier) {
+				if (!checktier(spareTier1)) {
+					isPostCodeExclude = TRUE;
+				} else {
+					postRes = isPostCodeFound("*", spareTier1);
+					isPostCodeExclude = (postRes == 5 || postRes == 1);
+				}
+			}
+			isSpTier = FALSE;
+		} else if (templineC[0] == '@' || templineC[0] == '%') {
+			if (strncmp(templineC, "%mor:", 5) == 0) //2019-05-01
+				isMorTier = TRUE;
+			else
+				isMorTier = FALSE;
+			if (isSpTier) {
+				if (!checktier(spareTier1)) {
+					isPostCodeExclude = TRUE;
+				} else {
+					postRes = isPostCodeFound("*", spareTier1);
+					isPostCodeExclude = (postRes == 5 || postRes == 1);
+				}
+			}
 			isOldGRA = 0;
-		
+			isSpTier = FALSE;
+		} else if (templineC[0] == '*') {
+			isMorTier = FALSE; //2019-05-01
+			isOldGRA = 0;
+			isSpTier = TRUE;
+			strcpy(spareTier1, templineC);
+		} else if (isSpTier) {
+			strcat(spareTier1, templineC);
+		}
+
 		// remove new line and carriage return characters
 		if( str.find( "\r", 0 ) != string::npos ) {
 			str.erase( str.find( "\r", 0 ), 1 );
@@ -826,10 +869,10 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 		if( str.find( "\n", 0 ) != string::npos ) {
 			str.erase( str.find( "\n", 0 ), 1 );
 		}
-		
+
 		// save the original line for printing later
 		origstr = str;
-		
+
 		// remove material in square brackets
 		int sp1 = 0;
 		int sp2 = str.length() - 1;
@@ -837,25 +880,38 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 			sp2 = str.find( "]", sp1 );
 			str.erase( sp1, sp2 - sp1 + 1 );
 		}
-		
+
+		if (isMorTier) { //2019-05-01 convert 0word to word
+			while( ( sp1 = str.find( " 0", 0 ) ) != string::npos ) {
+				str.erase( sp1+1, 1 );
+			}
+			while( ( sp1 = str.find( "\t0", 0 ) ) != string::npos ) {
+				str.erase( sp1+1, 1 );
+			}
+		}
+
+		// make contractions into two separate tokens
+		while( str.find( "$", 0 ) != string::npos ) {
+			str[str.find( "$", 0 )] = ' ';
+		}
+
 		// make contractions into two separate tokens
 		while( str.find( "~", 0 ) != string::npos ) {
 			str[str.find( "~", 0 )] = ' ';
 		}
-		
-		// is this a %pos line?
-		if( str.substr( 0, posprefix.length() ) == posprefix ) {
+
+		// is this a %MOR line?
+		if( !isPostCodeExclude && str.substr( 0, posprefix.length() ) == posprefix ) {
 			uttnum++;
-			str = str.substr( posprefix.length() + 1, str.size() - 
-							 ( posprefix.length() + 1 ) );
+			str = str.substr( posprefix.length() + 1, str.size() - ( posprefix.length() + 1 ) );
 			inpos = 1;
 			if( ingra ) {
 				ingra = -1;
 			}
 			posline = str;
 		}
-		// or a %GRA line?
-		else if( str.substr( 0, trainprefix.length() ) == trainprefix ) {
+		// or a %GRT line?
+		else if( !isPostCodeExclude && str.substr( 0, trainprefix.length() ) == trainprefix ) {
 			
 			str = str.substr( trainprefix.length() + 1, str.size() - 
 							 ( trainprefix.length() + 1 ) );
@@ -864,9 +920,9 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 				inpos = -1;
 			}
 			graline = str;
-		}
-		else {
-			if( str[0] == '\t' ) {
+		} else {
+			if (isPostCodeExclude) {
+			} else if( str[0] == '\t' ) {
 				str = str.substr( 1, str.size() - 1 );
 				if( inpos > 0 ) {
 					inpos++;
@@ -876,8 +932,7 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 					ingra++;
 					graline = graline + " " + str;
 				}
-			}    
-			else {
+			} else {
 				if( inpos ) {
 					inpos = -1;
 				}
@@ -890,12 +945,12 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 					inpos = 0;
 					ingra = 0;
 					if( posline != "" ) {
-						
+/* 2018-08-09
 						// change possessive 's into a separate token
 						while( posline.find( "-POSS", 0 ) != string::npos ) {
 							posline.replace( posline.find( "-POSS", 0 ), 5, " poss|s" );
 						}
-						
+*/
 						// process the sentence
 						string word;
 						string pos;
@@ -919,9 +974,9 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 								fputs("----------------------------------------\n",stderr);
 								fprintf(stderr, "*** File \"%s\": line %ld.\n", oldfname, linenum);
 								fprintf(stderr, "Error in utterance number %d\n", uttnum);
-								fprintf(stderr, "\n%s\n", posline.c_str());
-								fprintf(stderr, "\n%s\n", graline.c_str());
-								fprintf(stderr, "\nSkipping this utterance.\n");
+								fprintf(stderr, "%s\n", posline.c_str());
+								fprintf(stderr, "%s\n", graline.c_str());
+								fprintf(stderr, "Skipping this utterance.\n\n");
 								
 								errnum++;
 								
@@ -964,9 +1019,9 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 									fputs("----------------------------------------\n",stderr);
 									fprintf(stderr, "*** File \"%s\": line %ld.\n", oldfname, linenum);
 									fprintf(stderr, "Error in utterance number %d\n", uttnum);
-									fprintf(stderr, "\n%s\n", posline.c_str());
-									fprintf(stderr, "\n%s\n", graline.c_str());
-									fprintf(stderr, "\nSkipping this utterance.\n");
+									fprintf(stderr, "%s\n", posline.c_str());
+									fprintf(stderr, "%s\n", graline.c_str());
+									fprintf(stderr, "Skipping this utterance.\n\n");
 									
 									errnum++;
 									
@@ -1014,6 +1069,10 @@ static int parseFile( FILE *fpin, FILE *fpout, ME_Model &memod, string &posprefi
 						
 						// parse
 						parse( fpout, q, memod, graprefix, corr, labcorr, tot );
+						// free all remaining items
+						for( int i = 0; i < q.size(); i++ ) {
+							delete q[i];
+						}
 					}
 				}
 			}
@@ -1066,7 +1125,7 @@ void usage() {
 	fprintf(stderr, "-pS: prefix for POS lines, must be three characters (default: mor)\n");
 	fprintf(stderr, "-mS: model name (default: megrasp.mod)\n");
 #ifdef UNX
-	fprintf(stderr, "+lF: specify full path of the folder with \"megrasp.mod\" file\n");
+	fprintf(stderr, "+LF: specify full path of the folder with \"megrasp.mod\" file\n");
 #endif
 #if !defined(_MAC_CODE) && !defined(_WIN32) && !defined(UNX)
 	fprintf(stderr, "-oS: output file name (default: input file name + .txt)\n");
@@ -1086,6 +1145,7 @@ void usage() {
 void init(char f) {
 	if (f) {
 		ftime = 1;
+		addword('\0','\0',"+[- *]");
 		isFoundDataFile = 0;
 		heldout = 0; // use how many training instances as held out data?
 		BEAMSIZE = 5;
@@ -1197,7 +1257,7 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 #endif
 #ifdef UNX
-		case 'l':
+		case 'L':
 			int j;
 			if (*f == '/')
 				strcpy(mor_lib_dir, f);
@@ -1245,27 +1305,44 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			break;
 		case 'p':
-			if (*f == '%')
-				posprefix = (string)f + ":";
-			else
-				posprefix = (string)"%" + f + ":";
-			if( posprefix.length() > 27 ) {
-				fprintf(stderr, "Line prefix is too long, must be 25 characters or fewer.\n");
+			if (*f != '1') {
+				if (*f == '%')
+					posprefix = (string)f + ":";
+				else
+					posprefix = (string)"%" + f + ":";
+				if( posprefix.length() > 27 ) {
+					fprintf(stderr, "Line prefix is too long, must be 25 characters or fewer.\n");
 #if defined(_MAC_CODE) || defined(_WIN32)
-				megraps_exit( 0 );
+					megraps_exit( 0 );
 #else
-				exit(1);
+					exit(1);
 #endif
+				}
 			}
 			break;
 		case 't':
-			TRAIN = 1;
+			if (*f == EOS)
+				TRAIN = 1;
+			else
+				maingetflag(f-2,f1,i);
 			break;
 #if !defined(_MAC_CODE) && !defined(_WIN32) && !defined(UNX)
 		case 'h':
 			usage();
 			break;
 #else
+		case 's':
+			if (*f == '[' && *(f+1) == '-') {
+				maingetflag(f-2,f1,i);
+/* enabled 2017-12-04, disabled 2018-04-04
+			} else if (*f == '[' && *(f+1) == '+') {
+				maingetflag(f-2,f1,i);
+*/
+			} else {
+				fprintf(stderr, "Please specify only language codes, \"[- ...]\", with +/-s option.\n");
+				cutt_exit(0);
+			}
+			break;
 		default:
 			maingetflag(f-2,f1,i);
 			break;
@@ -1307,6 +1384,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	CLAN_PROG_NUM = MEGRASP;
 	OnlydataLimit = 0;
 	UttlineEqUtterance = FALSE;
+	replaceFile = TRUE;
 	bmain(argc,argv,NULL);
 	if (isKillProgram) {
   #if defined(_MAC_CODE) || defined(_WIN32)

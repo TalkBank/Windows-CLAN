@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -31,7 +31,7 @@
 	void usage() { }
 	void init(char f) { }
 	void getflag(char *f, char *f1, int *i) { }
-#elif UNX || (!defined(POSTCODE) && !defined(MAC_CODE))
+#elif defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 	#define CLAN_MAIN_RETURN int
 	#define main_return return(0);
 #else
@@ -47,7 +47,7 @@ static int replace_file = 0;	// old file is replaced by new file
 static int compute_exps( int id, FILE* out)
 {
 	int n, y; char* T;
-	long postLineno = 0L;
+	long32 postLineno = 0L;
 	rightSpTier = 1;
 	char Compound_line[UTTLINELEN];
 	while ( (n = get_tier(id, T, y, postLineno)) != 0 ) {

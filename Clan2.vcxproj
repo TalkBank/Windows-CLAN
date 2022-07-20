@@ -86,7 +86,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>imm32.lib;qtmlclient.lib;winmm.lib;libcurl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>imm32.lib;winmm.lib;libcurl.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\Libraries;src\Win95\curl\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -112,7 +112,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>.;src\ced;src\clan;src\win95;src\Win95\curl;C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\CIncludes;C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\ComponentIncludes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WINVER=0x0501;_CRT_SECURE_NO_DEPRECATE;_DEBUG;WIN32;_WINDOWS;POSTCODE;TARGET_OS_WIN32;CALL_NOT_IN_CARBON=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WINVER=0x0501;_CRT_SECURE_NO_DEPRECATE;_DEBUG;_CLAN_DEBUG;WIN32;_WINDOWS;POSTCODE;TARGET_OS_WIN32;CALL_NOT_IN_CARBON=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <StructMemberAlignment>2Bytes</StructMemberAlignment>
@@ -131,7 +131,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>imm32.lib;QTMLClient.lib;CVClient.lib;QTVR.lib;QTSClient.lib;winmm.lib;libcurl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>imm32.lib;winmm.lib;libcurl.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>C:\Program Files\Microsoft Visual Studio 12.0\QT7SDK\Libraries;src\Win95\curl\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -148,10 +148,25 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="SRC\clan\c-nnla.cpp" />
+    <ClCompile Include="SRC\clan\c-qpa.cpp" />
+    <ClCompile Include="SRC\clan\Chat2Conll.cpp" />
+    <ClCompile Include="SRC\clan\Chat2Srt.cpp" />
+    <ClCompile Include="SRC\clan\codes-p.cpp" />
     <ClCompile Include="SRC\clan\Conll2Chat.cpp" />
-    <ClCompile Include="SRC\clan\imdi.cpp" />
+    <ClCompile Include="SRC\clan\corelex.cpp" />
+    <ClCompile Include="SRC\clan\flucalc.cpp" />
+    <ClCompile Include="SRC\clan\Lena2Chat.cpp" />
+    <ClCompile Include="SRC\clan\medialine.cpp" />
+    <ClCompile Include="SRC\clan\Play2Chat.cpp" />
     <ClCompile Include="src\Clan\post\anaalgo.cpp" />
     <ClCompile Include="SRC\clan\Anvil2Chat.cpp" />
+    <ClCompile Include="SRC\clan\rtf2chat.cpp" />
+    <ClCompile Include="SRC\clan\salt2chat.cpp" />
+    <ClCompile Include="SRC\clan\Srt2Chat.cpp" />
+    <ClCompile Include="SRC\clan\sugar.cpp" />
+    <ClCompile Include="SRC\clan\text2chat.cpp" />
+    <ClCompile Include="SRC\clan\validateXWOR.cpp" />
     <ClCompile Include="src\Clan\vocd\args.cpp" />
     <ClCompile Include="src\Clan\Mor\Arules.cpp" />
     <ClCompile Include="src\Clan\post\atom.cpp" />
@@ -182,6 +197,7 @@
     <ClCompile Include="src\Win95\Clan2.cpp" />
     <ClCompile Include="src\Win95\Clan2Doc.cpp" />
     <ClCompile Include="src\Win95\Clan2View.cpp" />
+    <ClCompile Include="SRC\clan\cmdi.cpp" />
     <ClCompile Include="src\Ced\codes.cpp" />
     <ClCompile Include="src\Clan\combo.cpp" />
     <ClCompile Include="SRC\clan\COMBTIER.CPP" />
@@ -209,15 +225,11 @@
     <ClCompile Include="SRC\clan\eval.cpp" />
     <ClCompile Include="src\Clan\vocd\filter.cpp" />
     <ClCompile Include="SRC\clan\FixBullets.cpp" />
-    <ClCompile Include="SRC\clan\Fixca.cpp" />
-    <ClCompile Include="SRC\clan\fixCAOverlapsSyms.cpp" />
     <ClCompile Include="SRC\clan\Fixit.cpp" />
-    <ClCompile Include="SRC\clan\fixlang.cpp" />
     <ClCompile Include="SRC\clan\fixMP3sBullets.cpp" />
     <ClCompile Include="src\Clan\Flo.cpp" />
     <ClCompile Include="SRC\CLAN\fontconvert.cpp" />
     <ClCompile Include="src\Clan\freq.cpp" />
-    <ClCompile Include="src\Clan\Freqmerg.cpp" />
     <ClCompile Include="src\Clan\Freqpos.cpp" />
     <ClCompile Include="SRC\Win95\FStructViewer.cpp" />
     <ClCompile Include="SRC\Ced\g711.cpp" />
@@ -231,9 +243,7 @@
     <ClCompile Include="SRC\ced\ids.cpp" />
     <ClCompile Include="SRC\clan\indent.cpp" />
     <ClCompile Include="src\Clan\post\input.cpp" />
-    <ClCompile Include="SRC\clan\Insert.cpp" />
     <ClCompile Include="SRC\clan\ipsyn.cpp" />
-    <ClCompile Include="SRC\clan\joinitems.cpp" />
     <ClCompile Include="src\Ced\Key.cpp" />
     <ClCompile Include="src\Clan\Keymap.cpp" />
     <ClCompile Include="SRC\clan\kideval.cpp" />
@@ -248,7 +258,6 @@
     <ClCompile Include="SRC\clan\makemod.cpp" />
     <ClCompile Include="SRC\clan\megrasp\maxent.cpp" />
     <ClCompile Include="src\Clan\Maxwd.cpp" />
-    <ClCompile Include="src\Win95\mediaplayer.cpp" />
     <ClCompile Include="SRC\clan\megrasp\megrasp.cpp" />
     <ClCompile Include="SRC\CLAN\POST\memory.cpp" />
     <ClCompile Include="src\Clan\mllib.cpp" />
@@ -259,10 +268,10 @@
     <ClCompile Include="src\Clan\Mor\Morlib.cpp" />
     <ClCompile Include="SRC\clan\mortable.cpp" />
     <ClCompile Include="src\Clan\post\mortags.cpp" />
-    <ClCompile Include="SRC\Ced\mp3.cpp" />
-    <ClCompile Include="SRC\ced\MP3ImporterPatch.cpp" />
-    <ClCompile Include="src\Win95\MpegWindow.cpp" />
     <ClCompile Include="src\Clan\post\msg.cpp" />
+    <ClCompile Include="SRC\Win95\Mpeg.cpp" />
+    <ClCompile Include="SRC\Win95\MpegDlg.cpp" />
+    <ClCompile Include="SRC\Win95\MpegEventDispatch.cpp" />
     <ClCompile Include="src\Win95\MSUtils.cpp" />
     <ClCompile Include="SRC\clan\mul.cpp" />
     <ClCompile Include="SRC\Win95\MVHelp.cpp" />
@@ -278,16 +287,12 @@
     <ClCompile Include="src\Clan\post\posttrain.cpp" />
     <ClCompile Include="SRC\clan\pp.cpp" />
     <ClCompile Include="SRC\clan\Praat2Chat.cpp" />
-    <ClCompile Include="src\Win95\QT.cpp" />
-    <ClCompile Include="src\Win95\QTDlg.cpp" />
     <ClCompile Include="SRC\clan\Quotes.cpp" />
     <ClCompile Include="SRC\CLAN\POST\registry.cpp" />
     <ClCompile Include="src\Clan\Rely.cpp" />
     <ClCompile Include="SRC\clan\REPEAT.CPP" />
     <ClCompile Include="SRC\clan\RETRACE.CPP" />
-    <ClCompile Include="SRC\CLAN\RTFin.cpp" />
     <ClCompile Include="src\Clan\post\rules.cpp" />
-    <ClCompile Include="src\Clan\saltin.cpp" />
     <ClCompile Include="SRC\clan\script.cpp" />
     <ClCompile Include="src\Ced\search.cpp" />
     <ClCompile Include="SRC\Ced\sendpraat.cpp" />
@@ -296,19 +301,14 @@
     <ClCompile Include="src\Ced\sound.cpp" />
     <ClCompile Include="src\Clan\vocd\speaker.cpp" />
     <ClCompile Include="SRC\clan\post\splitchat.cpp" />
-    <ClCompile Include="SRC\clan\spreadsheet.cpp" />
     <ClCompile Include="src\Win95\StdAfx.cpp" />
     <ClCompile Include="src\Clan\post\storage.cpp" />
     <ClCompile Include="SRC\CLAN\stringparser.cpp" />
-    <ClCompile Include="SRC\clan\subtitles.cpp" />
-    <ClCompile Include="SRC\clan\syncoding.cpp" />
     <ClCompile Include="src\Clan\post\tags.cpp" />
     <ClCompile Include="src\Ced\Text.cpp" />
-    <ClCompile Include="src\Clan\Textin.cpp" />
     <ClCompile Include="SRC\CLAN\tierorder.cpp" />
     <ClCompile Include="src\Ced\tiers.cpp" />
     <ClCompile Include="src\Clan\Timedur.cpp" />
-    <ClCompile Include="SRC\clan\tlangcodes.cpp" />
     <ClCompile Include="src\Clan\vocd\tokens.cpp" />
     <ClCompile Include="SRC\CLAN\POST\trainbrill.cpp" />
     <ClCompile Include="src\Clan\post\trainproc.cpp" />
@@ -318,6 +318,10 @@
     <ClCompile Include="SRC\clan\usedlex.cpp" />
     <ClCompile Include="src\Ced\utils.cpp" />
     <ClCompile Include="SRC\clan\vocd\vocd.cpp" />
+    <ClCompile Include="SRC\Win95\W95_cl_kideval.cpp" />
+    <ClCompile Include="SRC\Win95\W95_feedback.cpp" />
+    <ClCompile Include="SRC\Win95\W95_SaveMovieToWave.cpp" />
+    <ClCompile Include="SRC\Win95\w95_Unzip.cpp" />
     <ClCompile Include="SRC\Win95\W95_cl_eval.cpp" />
     <ClCompile Include="SRC\Win95\W95_cl_filein.cpp" />
     <ClCompile Include="SRC\Win95\W95_cl_folders.cpp" />
@@ -345,6 +349,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SRC\ced\my_vkf.h" />
+    <ClInclude Include="SRC\ced\prefs.h" />
     <ClInclude Include="src\Clan\vocd\args.h" />
     <ClInclude Include="SRC\CLAN\POST\Atom.hpp" />
     <ClInclude Include="SRC\clan\megrasp\blmvm.h" />
@@ -366,7 +371,6 @@
     <ClInclude Include="src\Clan\cu.h" />
     <ClInclude Include="SRC\Win95\curl\curl.h" />
     <ClInclude Include="SRC\Win95\curl\curl_easy.h" />
-    <ClInclude Include="SRC\Win95\curl\curl_types.h" />
     <ClInclude Include="SRC\clan\cutt-xml.h" />
     <ClInclude Include="SRC\CLAN\POST\darray.hpp" />
     <ClInclude Include="SRC\CLAN\POST\darrayP.hpp" />
@@ -386,18 +390,16 @@
     <ClInclude Include="src\Win95\MainFrm.h" />
     <ClInclude Include="SRC\CLAN\POST\MAXCONST.HPP" />
     <ClInclude Include="SRC\clan\megrasp\maxent.h" />
-    <ClInclude Include="src\Win95\mediaplayer.h" />
     <ClInclude Include="SRC\CLAN\POST\memory.hpp" />
     <ClInclude Include="SRC\clan\mllib.h" />
     <ClInclude Include="src\Ced\MMedia.h" />
     <ClInclude Include="SRC\CLAN\POST\MOR.HPP" />
     <ClInclude Include="src\Clan\Mor\Morph.h" />
     <ClInclude Include="SRC\CLAN\POST\MORTAGS.HPP" />
-    <ClInclude Include="SRC\Ced\mp3.h" />
-    <ClInclude Include="SRC\ced\MP3ImporterPatch.h" />
-    <ClInclude Include="SRC\ced\MP3ImporterPatchDispatch.h" />
-    <ClInclude Include="src\Win95\MpegWindow.h" />
     <ClInclude Include="SRC\CLAN\POST\MSG.HPP" />
+    <ClInclude Include="SRC\Win95\Mpeg.h" />
+    <ClInclude Include="SRC\Win95\MpegDlg.h" />
+    <ClInclude Include="SRC\Win95\MpegEventDispatch.h" />
     <ClInclude Include="src\Win95\MSUtil.h" />
     <ClInclude Include="SRC\clan\mul.h" />
     <ClInclude Include="SRC\Win95\MVHelp.h" />
@@ -405,8 +407,6 @@
     <ClInclude Include="SRC\clan\my_unix.h" />
     <ClInclude Include="src\Clan\Progs.h" />
     <ClInclude Include="src\Clan\Mor\Proto.h" />
-    <ClInclude Include="src\Win95\QT.h" />
-    <ClInclude Include="src\Win95\QTDlg.h" />
     <ClInclude Include="SRC\CLAN\POST\registry.hpp" />
     <ClInclude Include="SRC\CLAN\POST\registryp.hpp" />
     <ClInclude Include="src\Win95\resource.h" />
@@ -420,6 +420,13 @@
     <ClInclude Include="src\Clan\vocd\tokens.h" />
     <ClInclude Include="SRC\CLAN\POST\useful.hpp" />
     <ClInclude Include="src\Clan\vocd\vocdefs.h" />
+    <ClInclude Include="SRC\Win95\W95_cl_kideval.h" />
+    <ClInclude Include="SRC\Win95\W95_feedback.h" />
+    <ClInclude Include="SRC\Win95\W95_feedbackClass.h" />
+    <ClInclude Include="SRC\Win95\W95_progressClass.h" />
+    <ClInclude Include="SRC\Win95\w95_QTReplace.h" />
+    <ClInclude Include="SRC\Win95\W95_SaveMovieToWave.h" />
+    <ClInclude Include="SRC\Win95\w95_Unzip.h" />
     <ClInclude Include="SRC\Win95\W95_cl_eval.h" />
     <ClInclude Include="SRC\Win95\W95_cl_folders.h" />
     <ClInclude Include="SRC\Win95\W95_cl_search.h" />

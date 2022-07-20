@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -63,8 +63,6 @@ extern "C"
 #define MacFxdsys	40
 #define MacCAFont	41
 #define WINCAFont	42
-#define MACTitusUC	43
-#define WINTitusUC	44
 
 typedef struct {
 #ifdef _MAC_CODE

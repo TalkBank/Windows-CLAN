@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -19,13 +19,13 @@
  * Hash function for words.
  */
 
-inline long funHashWord(unsigned char *key, int lkey, long hsize)
+inline long32 funHashWord(unsigned char *key, int lkey, long32 hsize)
 {
  	register int i;
-  	long ret=1L;
+  	long32 ret=1L;
 
 	for (i=0;i<lkey;i++)
-		ret += labs(ret*(long)key[i])+i;
+		ret += labs(ret*(long32)key[i])+i;
 
 	ret  = labs(ret);
 
@@ -54,14 +54,14 @@ inline int funBitTest(unsigned char *a, int bnum)
  * Hash function for numbers.
  */
 
-inline long funHashNumber(unsigned char *key, int lkey, long hsize)
+inline long32 funHashNumber(unsigned char *key, int lkey, long32 hsize)
 {
  	register int i;
-  	static long prem[10]={2L,3L,5L,7L,11L,13L,17L,19L,23L,29L};
-  	long ret=1L;
+  	static long32 prem[10]={2L,3L,5L,7L,11L,13L,17L,19L,23L,29L};
+  	long32 ret=1L;
 
 	for (i=0;i<lkey;i++)
-		ret += labs(ret*(long)(key[i]+2)*prem[i%10]+(long)i);
+		ret += labs(ret*(long32)(key[i]+2)*prem[i%10]+(long32)i);
 
 	ret = labs(ret);
 
@@ -80,7 +80,7 @@ msg (" = %ld\n", ret );
 	return ret;
 }
 
-static long FHASH_Atom( unsigned char * W, long hsize )
+static long32 FHASH_Atom( unsigned char * W, long32 hsize )
 {
 	Int4 wl = ((cAtom*)W)->WordLength() ;
 	return funHashWord( ((cAtom*)W)->Str(), wl, hsize );
@@ -91,7 +91,7 @@ static int FCMP_Atom( unsigned char * W1, unsigned char * W2 )
 	return !strcmp( (char*)((cAtom*)W1)->Str(), (char*)((cAtom*)W2)->Str() );
 }
 
-static long FHASH_AtomL( unsigned char * W, long hsize )
+static long32 FHASH_AtomL( unsigned char * W, long32 hsize )
 {
 	Int4 wl = ((cAtom*)W)->WordLength() ;
 	Int4* I4 = (Int4*)(((cAtom*)W)->Str()) ;
@@ -99,7 +99,7 @@ static long FHASH_AtomL( unsigned char * W, long hsize )
 	if (vmIsReversed()) for (i = 0; i < wl/sizeof(Int4) ; i++) {
 		flipLong(&I4[i]);
 	}
-	long r = funHashNumber( ((cAtom*)W)->Str(), wl, hsize );
+	long32 r = funHashNumber( ((cAtom*)W)->Str(), wl, hsize );
 	if (vmIsReversed()) for (i = 0; i < wl/sizeof(Int4) ; i++) {
 		flipLong(&I4[i]);
 	}
@@ -185,7 +185,7 @@ static void FWRITE_Atom( void* adr, address vmadr, int nbbytes )
 	}
 }
 
-address cHashAtom::Create( long sizeBB, int type )
+address cHashAtom::Create( long32 sizeBB, int type )
 {
 	type_key = type;
 	if (type == 1) {
@@ -199,7 +199,7 @@ address cHashAtom::Create( long sizeBB, int type )
 		SetReadRWE( FREAD_Atom );
 		SetWriteRWE( FWRITE_Atom );
 	}
-	return cHashBasic::Create( sizeBB );
+	return cHashBasic::Create( sizeBB, type );
 }
 
 int cHashAtom::Open( address vmadr, int type )
@@ -216,7 +216,7 @@ int cHashAtom::Open( address vmadr, int type )
 		SetReadRWE( FREAD_Atom );
 		SetWriteRWE( FWRITE_Atom );
 	}
-	return cHashBasic::Open( vmadr );
+	return cHashBasic::Open( vmadr, type );
 }
 
 address cHashAtom::AddI( cAtom* a )
@@ -283,21 +283,21 @@ address cHashAtom::LookC_AddressOf( cAtom* a ) /* look for one element (atom) */
 	return cHashBasic::LookAddressOf( (unsigned char *) a );
 }
 
-long cAtom::NbOcc()
+long32 cAtom::NbOcc()
 {
 	return Property3();
 }
 /*
 void cAtom::vmRead(address vadr, cAtom* mptr)
 {
-	// READ the 4 first long int of the Atom.
+	// READ the 4 first long32 int of the Atom.
 	mptr->m_WordLength = vmReadLong( vadr );
-	mptr->m_Prop1 = vmReadLong( vadr + (long)(sizeof(long int)) );
-	mptr->m_Prop2 = vmReadLong( vadr + (long)(2*sizeof(long int)) );
-	mptr->m_Prop3 = vmReadLong( vadr + (long)(3*sizeof(long int)) );
+	mptr->m_Prop1 = vmReadLong( vadr + (long32)(sizeof(long32 int)) );
+	mptr->m_Prop2 = vmReadLong( vadr + (long32)(2*sizeof(long32 int)) );
+	mptr->m_Prop3 = vmReadLong( vadr + (long32)(3*sizeof(long32 int)) );
 	// READ the name of the atom.
-	::vmRead ( ((unsigned char*)mptr) + (long)(4*sizeof(long int)),
-		vadr + (long)(4*sizeof(long int)), m_WordLength );
+	::vmRead ( ((unsigned char*)mptr) + (long32)(4*sizeof(long32 int)),
+		vadr + (long32)(4*sizeof(long32 int)), m_WordLength );
 }
 */
 cAtom* cHashAtom::GiveAtom(int firsttime) /* for Dump and for iteration */
@@ -309,9 +309,9 @@ cAtom* cHashAtom::GiveAtom(int firsttime) /* for Dump and for iteration */
 
 void cHashAtom::ReWriteHead( cAtom* mptr, address vadr )
 {
-	// WRITE the 4 first long int of the Atom.
+	// WRITE the 4 first long32 int of the Atom.
 	vmWriteLong( mptr->m_WordLength, vadr );
-	vmWriteLong( mptr->m_Prop1, vadr + (long)(sizeof(long int)) );
-	vmWriteLong( mptr->m_Prop2, vadr + (long)(2*sizeof(long int)) );
-	vmWriteLong( mptr->m_Prop3, vadr + (long)(3*sizeof(long int)) );
+	vmWriteLong( mptr->m_Prop1, vadr + (long32)(sizeof(long32)) );
+	vmWriteLong( mptr->m_Prop2, vadr + (long32)(2*sizeof(long32)) );
+	vmWriteLong( mptr->m_Prop3, vadr + (long32)(3*sizeof(long32)) );
 }

@@ -13,14 +13,14 @@ Then there is no pause between them at all
 #include "cu.h"
 #include "ced.h"
 #include "my_ctype.h"
-#include "mp3.h"
+#if defined(__MACH__)
+	#include "mp3.h"
+	#include <QuickTimeComponents.h>
+#endif
 #include "MMedia.h"
-#include <QuickTimeComponents.h>
 #ifdef _WIN32
-#include "QTDlg.h"
-#include <TextUtils.h>
-
-extern CQTDlg *MovDlg;
+	#include "w95_QTReplace.h"
+	#include "MpegDlg.h"
 #endif
 
 extern char SelectWholeTier(char isCAMode);
@@ -124,39 +124,6 @@ static void PreserveStateAndShowText(void) {
 #endif
 	global_df = saveGlobal_df;
 }
-
-static void SaveSoundMovieAsWAVEFile(Movie tMovie, FNType *inFile) {
-	FILE *fp;
-	FSSpec fss;
-
-	// use the default progress procedure, if any
-	SetMovieProgressProc(tMovie, (MovieProgressUPP)-1L, 0);
-
-	if ((fp=fopen(inFile, "w")) != NULL)
-		fclose(fp);
-#if defined(_WIN32)
-	Str255 filename;
-
-	c2pstrcpy (filename, inFile);
-	FSMakeFSSpec(0, 0L, (const unsigned char*)filename, &fss);
-#else // _WIN32
-	FSRef  ref;
-
-	FSPathMakeRef((UInt8 *)inFile, &ref, NULL);
-	FSGetCatalogInfo(&ref, kFSCatInfoNone, NULL, NULL, &fss, NULL);
-#endif // _MAC_CODE
-	// export the movie into a file
-	ConvertMovieToFile(	tMovie,						// the movie to convert
-						NULL,						// all tracks in the movie
-						&fss,						// the output file
-						kQTFileTypeWave,			// the output file type
-						FOUR_CHAR_CODE('TVOD'),		// the output file creator
-						smSystemScript,				// the script
-						NULL, 						// no resource ID to be returned
-						0L,							// no flags
-						NULL);						// no specific component
-}
-
 
 // BEGIN Open media files listed in bullets
 static char InGivenDirOpenPictFile(FNType *pictFName) {
@@ -312,7 +279,26 @@ static char InGivenDirOpenMovieFile(FNType *movieFName, movInfo *tMovie) {
 						movieFName[len] = EOS;
 						uS.str2FNType(movieFName, strlen(movieFName), ".dv");
 						if (access(movieFName, 0)) {
+#ifdef _WIN32
+/*
+							movieFName[len] = EOS;
+							uS.str2FNType(movieFName, strlen(movieFName), ".wmv");
+							if (access(movieFName, 0)) {
+								movieFName[len] = EOS;
+								uS.str2FNType(movieFName, strlen(movieFName), ".mp3");
+								if (access(movieFName, 0)) {
+									return(FALSE);
+								}
+							}
+*/
+							movieFName[len] = EOS;
+							uS.str2FNType(movieFName, strlen(movieFName), ".wmv");
+							if (access(movieFName, 0)) {
+								return(FALSE);
+							}
+#else
 							return(FALSE);
+#endif
 						}
 					}
 				}
@@ -401,15 +387,49 @@ static char InGivenDirOpenSoundFile(FNType *rFileName, sndInfo *tSound) {
 			if ((tSound->SoundFPtr=fopen(rFileName, "rb")) == NULL) {
 				rFileName[len] = EOS;
 				uS.str2FNType(rFileName, strlen(rFileName), ".mp3");
-				if (GetMovieMedia(rFileName,&tSound->mp3.theSoundMedia,&tSound->mp3.hSys7SoundData) != noErr) {
+#ifdef _WIN32
+				if (access(rFileName, 0)) {
+					return(FALSE);
+				} else {
+//					return(FALSE);
+					FNType *s;
+					extractFileName(FileName2, rFileName);
+					s = strrchr(FileName2, '.');
+					if (s != NULL && uS.mStricmp(s, ".mp3") == 0)
+						*s = EOS;
+					strcpy(FileName1, rFileName);
+					s = strrchr(FileName1, '.');
+					if (s != NULL && uS.mStricmp(s, ".mp3") == 0)
+						*s = EOS;
+					strcat(FileName1, ".wav");
+					if (global_df->SnTr.SoundFPtr != NULL)
+						fclose(global_df->SnTr.SoundFPtr);
+
+					strcpy(global_df->MvTr.rMovieFile, rFileName);
+					u_strcpy(global_df->MvTr.MovieFile, FileName2, FILENAME_MAX);
+					PlayMovie(&global_df->MvTr, global_df, TRUE);
+					SaveSoundMovieAsWAVEFile(rFileName, FileName1);
+					if (MpegDlg != NULL)
+						MpegDlg->OnCancel();
+					if ((tSound->SoundFPtr = fopen(FileName1, "rb")) == NULL) {
+						return(FALSE);
+					}
+					global_df->MvTr.rMovieFile[0] = EOS;
+					global_df->MvTr.MovieFile[0] = EOS;
+					u_strcpy(global_df->SnTr.SoundFile, FileName2, FILENAME_MAX);
+					strcpy(rFileName, FileName1);
+				}
+#else
+				if (GetMovieMedia(rFileName, &tSound->mp3.theSoundMedia, &tSound->mp3.hSys7SoundData) != noErr) {
 					return(FALSE);
 				} else {
 					tSound->isMP3 = TRUE;
 				}
+#endif
 			}
 		}
 	}
-	strcpy(tSound->rSoundFile,rFileName);
+	strcpy(tSound->rSoundFile, rFileName);
 	return(TRUE);
 }
 
@@ -450,10 +470,12 @@ static char mOpenSoundFile(void) {
 			if (global_df->SoundWin)
 				DisposeOfSoundWin();
 			global_df->SnTr.isMP3 = TRUE;
-			if (GetMovieMedia(rFileName,&global_df->SnTr.mp3.theSoundMedia,&global_df->SnTr.mp3.hSys7SoundData) != noErr) {
+#ifdef _MAC_CODE
+			if (GetMovieMedia(rFileName, &global_df->SnTr.mp3.theSoundMedia, &global_df->SnTr.mp3.hSys7SoundData) != noErr) {
 				sprintf(global_df->err_message, "+Can't open sound file: %s", mFileName);
 				return(0);
 			}
+#endif
 		}
 	} else {
 		wmove(global_df->w1, global_df->row_win, global_df->col_win-global_df->LeftCol);
@@ -477,10 +499,12 @@ static char mOpenSoundFile(void) {
 	if (!CheckRateChan(&global_df->SnTr, global_df->err_message)) {
 		if (global_df->SnTr.isMP3 == TRUE) {
 			global_df->SnTr.isMP3 = FALSE;
+#ifdef _MAC_CODE
 			if (global_df->SnTr.mp3.hSys7SoundData)
 				DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
 			global_df->SnTr.mp3.theSoundMedia = NULL;
 			global_df->SnTr.mp3.hSys7SoundData = NULL;
+#endif
 		} else {
 			if (global_df->SnTr.SoundFPtr != NULL)
 				fclose(global_df->SnTr.SoundFPtr);
@@ -521,9 +545,11 @@ char findSoundFileInWd(sndInfo *tSound, char *errMess) {
 				fclose(tSound->SoundFPtr);
 			tSound->SoundFPtr = 0;
 			tSound->isMP3 = TRUE;
-			if (GetMovieMedia(rFileName,&tSound->mp3.theSoundMedia,&tSound->mp3.hSys7SoundData) != noErr) {
+#ifdef _MAC_CODE
+			if (GetMovieMedia(rFileName, &tSound->mp3.theSoundMedia, &tSound->mp3.hSys7SoundData) != noErr) {
 				return(0);
 			}
+#endif
 		}
 	} else {
 		tSound->SoundFile[0] = EOS;
@@ -539,10 +565,12 @@ char findSoundFileInWd(sndInfo *tSound, char *errMess) {
 	if (!CheckRateChan(tSound, errMess)) {
 		if (tSound->isMP3 == TRUE) {
 			tSound->isMP3 = FALSE;
+#ifdef _MAC_CODE
 			if (tSound->mp3.hSys7SoundData)
 				DisposeHandle(tSound->mp3.hSys7SoundData);
 			tSound->mp3.theSoundMedia = NULL;
 			tSound->mp3.hSys7SoundData = NULL;
+#endif
 		} else {
 			if (tSound->SoundFPtr != NULL)
 				fclose(tSound->SoundFPtr);
@@ -645,11 +673,15 @@ void PutSoundStats(Size ws) {
 		cb = cb - (cbm * 1000 * 60) - (cbsm * 1000);
 		sprintf(global_df->err_message+strlen(global_df->err_message), "%ld:%ld.%s%s%ld", 
 				cbm, cbsm, ((cb < 100)? "0" : ""), ((cb < 10)? "0" : ""), cb);
+		cb = conv_to_msec_rep(global_df->SnTr.BegF);
+		sprintf(global_df->err_message+strlen(global_df->err_message), "(%ld)", cb);
 	} else if (cb / 1000 > 0) {
 		cbsm = cb / 1000;
 		cb = cb - (cbsm * 1000);
 		sprintf(global_df->err_message+strlen(global_df->err_message), "%ld.%s%s%lds",
 				cbsm, ((cb < 100)? "0" : ""), ((cb < 10)? "0" : ""), cb);
+		cb = conv_to_msec_rep(global_df->SnTr.BegF);
+		sprintf(global_df->err_message+strlen(global_df->err_message), "(%ld)", cb);
 	} else {
 		sprintf(global_df->err_message+strlen(global_df->err_message), "%ldMs", cb);
 	}
@@ -687,9 +719,9 @@ void DisposeOfSoundWin(void) {
 	    mem_err(TRUE, global_df);
 }
 
-void CleanMediaName(wchar_t *tMediaFileName) {
+void CleanMediaName(unCH *tMediaFileName) {
 	char qf;
-	wchar_t *s;
+	unCH *s;
 	int i;
 
 	for (i=0; isSpace(tMediaFileName[i]); i++) ;
@@ -724,7 +756,13 @@ void CleanMediaName(wchar_t *tMediaFileName) {
 	uS.remFrontAndBackBlanks(tMediaFileName);
 	s = strrchr(tMediaFileName, '.');
 	if (s != NULL)
-		*s = EOS;	
+		*s = EOS;
+	if (global_df->VideosNameIndex >= 0 && global_df->VideosNameIndex < 10) {
+		if (global_df->VideosNameExts[global_df->VideosNameIndex][0] != EOS) {
+			strcat(tMediaFileName, "-");
+			strcat(tMediaFileName, global_df->VideosNameExts[global_df->VideosNameIndex]);
+		}
+	}
 }
 
 char syncAudioAndVideo(unCH *buf) {
@@ -739,11 +777,16 @@ char syncAudioAndVideo(unCH *buf) {
 		return(FALSE);
 	}
 #elif _WIN32
-	if (MovDlg == NULL || MovDlg->qt == NULL || (MovDlg->qt)->theMovie == NULL) {
+/* // NO QT
+	if (MovDlg != NULL && MovDlg->qt != NULL && (MovDlg->qt)->theMovie != NULL) {
+	} else 
+*/
+	if (MpegDlg != NULL && MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->m_wmpPlayer != NULL) {
+	} else {
 		return(FALSE);
 	}
 #endif
-	strcat(ced_line, "-clanw");
+//	strcat(ced_line, "-clanw");
 	strcat(ced_line, ".wav");
 	if (uS.mStricmp(buf, global_df->SnTr.SoundFile) == 0 || uS.mStricmp(ced_line, global_df->SnTr.SoundFile) == 0)
 		return(TRUE);
@@ -794,17 +837,31 @@ void SelectMediaFile(void) {
 	isWhatType = 0;
 	s = strrchr(FileName2, '.');
 	if (s != NULL) {
+#ifdef _WIN32
 		if (!uS.FNTypeicmp(s, ".aiff", 0L) || !uS.FNTypeicmp(s, ".aif", 0L)  ||
-			  !uS.FNTypeicmp(s, ".wav", 0L)  || !uS.FNTypeicmp(s, ".wave", 0L) ||
-			  !uS.FNTypeicmp(s, ".mp3", 0L)) {
+			!uS.FNTypeicmp(s, ".wav", 0L)  || !uS.FNTypeicmp(s, ".wave", 0L) ||
+			!uS.FNTypeicmp(s, ".mp3", 0L)) {
 			isWhatType = isAudio;
 		} else if (!uS.FNTypeicmp(s, ".mov", 0L)  || !uS.FNTypeicmp(s, ".mp4", 0L)  ||
 				   !uS.FNTypeicmp(s, ".m4v", 0L)  || !uS.FNTypeicmp(s, ".flv", 0L)  ||
 				   !uS.FNTypeicmp(s, ".mpeg", 0L) || !uS.FNTypeicmp(s, ".mpg", 0L)  ||
 				   !uS.FNTypeicmp(s, ".avi", 0L)  || !uS.FNTypeicmp(s, ".dv", 0L)   || 
+				   !uS.FNTypeicmp(s, ".dat", 0L)  || !uS.FNTypeicmp(s, ".wmv", 0L)) {
+			isWhatType = isVideo;
+		}
+#else
+		if (!uS.FNTypeicmp(s, ".aiff", 0L) || !uS.FNTypeicmp(s, ".aif", 0L) ||
+			!uS.FNTypeicmp(s, ".wav", 0L) || !uS.FNTypeicmp(s, ".wave", 0L) ||
+			!uS.FNTypeicmp(s, ".mp3", 0L)) {
+			isWhatType = isAudio;
+		} else if (!uS.FNTypeicmp(s, ".mov", 0L) || !uS.FNTypeicmp(s, ".mp4", 0L) ||
+				   !uS.FNTypeicmp(s, ".m4v", 0L) || !uS.FNTypeicmp(s, ".flv", 0L) ||
+				   !uS.FNTypeicmp(s, ".mpeg", 0L) || !uS.FNTypeicmp(s, ".mpg", 0L) ||
+				   !uS.FNTypeicmp(s, ".avi", 0L) || !uS.FNTypeicmp(s, ".dv", 0L) ||
 				   !uS.FNTypeicmp(s, ".dat", 0L)) {
 			isWhatType = isVideo;
 		}
+#endif
 		*s = EOS;
 	}
 	s = strrchr(FileName2, ' ');
@@ -840,18 +897,43 @@ void SelectMediaFile(void) {
 			MoveDown(-1);
 	}
 	BeginningOfFile(-1);
-	if (uS.partcmp(global_df->row_txt->line, "@Begin", FALSE, FALSE))
-		MoveDown(-1);
-	if (uS.partcmp(global_df->row_txt->line, "@Languages:", FALSE, FALSE))
-		MoveDown(-1);
-	if (uS.partcmp(global_df->row_txt->line, "@Participants:", FALSE, FALSE))
-		MoveDown(-1);
-	if (uS.partcmp(global_df->row_txt->line, "@Options:", FALSE, FALSE))
-		MoveDown(-1);
+	if (uS.partcmp(global_df->row_txt->line, "@Begin", FALSE, FALSE)) {
+		do {
+			MoveDown(-1);
+		} while (isSpace(global_df->row_txt->line[0]) && !AtBotEnd(global_df->row_txt,global_df->tail_text,FALSE)) ;
+	}
+	if (uS.partcmp(global_df->row_txt->line, "@Languages:", FALSE, FALSE)) {
+		do {
+			MoveDown(-1);
+		} while (isSpace(global_df->row_txt->line[0]) && !AtBotEnd(global_df->row_txt,global_df->tail_text,FALSE)) ;
+	}
+	if (uS.partcmp(global_df->row_txt->line, "@Participants:", FALSE, FALSE)) {
+		do {
+			MoveDown(-1);
+		} while (isSpace(global_df->row_txt->line[0]) && !AtBotEnd(global_df->row_txt,global_df->tail_text,FALSE)) ;
+	}
+	if (uS.partcmp(global_df->row_txt->line, "@Options:", FALSE, FALSE)) {
+		do {
+			MoveDown(-1);
+		} while (isSpace(global_df->row_txt->line[0]) && !AtBotEnd(global_df->row_txt,global_df->tail_text,FALSE)) ;
+	}
 	if (uS.partcmp(global_df->row_txt->line, "@ID:", FALSE, FALSE)) {
 		do {
 			MoveDown(-1);
+			if (AtBotEnd(global_df->row_txt,global_df->tail_text,FALSE))
+				break;
 		} while (uS.partcmp(global_df->row_txt->line, "@ID:", FALSE, FALSE)) ;
+	}
+	if (uS.partcmp(global_df->row_txt->line, "L1 of ", FALSE, FALSE) ||
+		uS.partcmp(global_df->row_txt->line, "@Birth of ", FALSE, FALSE) ||
+		uS.partcmp(global_df->row_txt->line, "@Birthplace of ", FALSE, FALSE)) {
+		do {
+			MoveDown(-1);
+		} while ((isSpace(global_df->row_txt->line[0]) ||
+				  uS.partcmp(global_df->row_txt->line, "L1 of ", FALSE, FALSE) ||
+				  uS.partcmp(global_df->row_txt->line, "@Birth of ", FALSE, FALSE) ||
+				  uS.partcmp(global_df->row_txt->line, "@Birthplace of ", FALSE, FALSE))
+				 && !AtBotEnd(global_df->row_txt,global_df->tail_text,FALSE)) ;
 	}
 	strcpy(templineC, "@Media:	");
 	strcat(templineC, FileName2);
@@ -969,7 +1051,7 @@ static char FindPictInfo(char isAlwaysFind) {
 static char FindMediaInfoInLine(unCH *line, int index, char mediaType, unCH *MediaFileName, char *bf, char isLocateMedia) {
 	register int i;
 	long beg, end;
-	char nf, isWhatType, isDashFound;
+	char nf, isWhatType = 0, isDashFound, isOldBullet;
 	unCH buf[FILENAME_MAX];
 	movInfo tempMovie;
 	movInfo *tMovie;
@@ -987,7 +1069,13 @@ static char FindMediaInfoInLine(unCH *line, int index, char mediaType, unCH *Med
 	else
 		index += 5;
 
-	if (!is_unCH_digit(line[index])) {
+	buf[0] = EOS;
+	if (is_unCH_digit(line[index])) {
+		if (global_df->mediaFileName[0] != EOS) {
+			strcpy(buf, global_df->mediaFileName);
+		}
+		isOldBullet = FALSE;
+	} else {
 		for (; line[index] && (isSpace(line[index]) || line[index] == '_'); index++) ;
 		if (line[index] != '"')
 			return(0);
@@ -999,12 +1087,8 @@ static char FindMediaInfoInLine(unCH *line, int index, char mediaType, unCH *Med
 		buf[i] = EOS;
 		if (line[index] != '"')
 			return(0);
+		isOldBullet = TRUE;
 	}
-
-	if (global_df->mediaFileName[0] != EOS) {
-		strcpy(buf, global_df->mediaFileName);
-	}
-
 	if (line[index] == EOS || line[index] == HIDEN_C)
 		return(0);
 
@@ -1016,10 +1100,12 @@ static char FindMediaInfoInLine(unCH *line, int index, char mediaType, unCH *Med
 		if (global_df->SnTr.SoundFile[0] != EOS && !syncAudioAndVideo(buf)) {
 			if (global_df->SnTr.isMP3 == TRUE) {
 				global_df->SnTr.isMP3 = FALSE;
+#ifdef _MAC_CODE
 				if (global_df->SnTr.mp3.hSys7SoundData)
 					DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
 				global_df->SnTr.mp3.theSoundMedia = NULL;
 				global_df->SnTr.mp3.hSys7SoundData = NULL;
+#endif
 			} else if (global_df->SnTr.SoundFPtr != 0) {
 				fclose(global_df->SnTr.SoundFPtr);
 			}
@@ -1046,7 +1132,7 @@ static char FindMediaInfoInLine(unCH *line, int index, char mediaType, unCH *Med
 							global_df->err_message[0] = EOS;
 							global_df->SnTr.errMess = NULL;
 						} else
-							CantFindMedia(global_df->err_message, tempMovie.MovieFile);
+							CantFindMedia(global_df->err_message, tempMovie.MovieFile, isOldBullet);
 						if (!isLocateMedia) {
 							if (MediaFileName != NULL)
 								strcpy(MediaFileName, tempMovie.MovieFile);
@@ -1072,7 +1158,7 @@ static char FindMediaInfoInLine(unCH *line, int index, char mediaType, unCH *Med
 							global_df->err_message[0] = EOS;
 							global_df->SnTr.errMess = NULL;
 						} else
-							CantFindMedia(global_df->err_message, buf);
+							CantFindMedia(global_df->err_message, buf, isOldBullet);
 						if (!isLocateMedia) {
 							if (MediaFileName != NULL)
 								strcpy(MediaFileName, buf);
@@ -1128,21 +1214,22 @@ static char FindMediaInfoInLine(unCH *line, int index, char mediaType, unCH *Med
 			if (bf != NULL)
 				*bf = FALSE;
 		}
-	}
+	} else
+		tMovie = NULL;
 	for (; line[index] && !is_unCH_digit(line[index]) && line[index] != HIDEN_C; index++) ;
 	if (!is_unCH_digit(line[index]))
 		return(-1);
 	for (i=0; line[index] && is_unCH_digit(line[index]); index++)
 		buf[i++] = line[index];
 	buf[i] = EOS;
-	beg = atol(buf);
+	beg = uS.atol(buf);
 	for (; line[index] && !is_unCH_digit(line[index]) && line[index] != HIDEN_C; index++) ;
 	if (!is_unCH_digit(line[index]))
 		return(-1);
 	for (i=0; line[index] && is_unCH_digit(line[index]); index++)
 		buf[i++] = line[index];
 	buf[i] = EOS;
-	end = atol(buf);
+	end = uS.atol(buf);
 	if (isWhatType == isVideo) {
 		if (bf != NULL && *bf == FALSE) {
 			tMovie->MBeg = beg;
@@ -1171,6 +1258,7 @@ static char FindMediaInfoInLine(unCH *line, int index, char mediaType, unCH *Med
 
 static char FindSndInfo(char *isWhatType) {
 	register int i;
+	char isOldBullet;
 	unCH buf[BUFSIZ];
 	LINE *tl;
 	int nf;
@@ -1187,11 +1275,16 @@ static char FindSndInfo(char *isWhatType) {
 		tl = tl->next_char;
 	}
 
+	buf[0] = EOS;
 	if (is_unCH_digit(tl->c)) {
 		if (global_df->mediaFileName[0] == EOS) {
 			sprintf(global_df->err_message, "+Missing %s tier with media file name in headers section at the top of the file", MEDIAHEADER);
 			return(-1);
 		}
+		if (global_df->mediaFileName[0] != EOS) {
+			strcpy(buf, global_df->mediaFileName);
+		}
+		isOldBullet = FALSE;
 	} else {
 		i = 0;
 		while (tl != global_df->tail_row && tl->c != ':' && tl->c != HIDEN_C) {
@@ -1222,10 +1315,7 @@ static char FindSndInfo(char *isWhatType) {
 			sprintf(global_df->err_message, "+%s tier is corrupted, missing '\"' around file name.", SOUNDTIER);
 			return(-1);
 		}
-	}
-
-	if (global_df->mediaFileName[0] != EOS) {
-		strcpy(buf, global_df->mediaFileName);
+		isOldBullet = TRUE;
 	}
 
 	uS.lowercasestr(buf, &dFnt, FALSE);
@@ -1243,10 +1333,12 @@ static char FindSndInfo(char *isWhatType) {
 		if (global_df->SnTr.SoundFile[0] != EOS && !syncAudioAndVideo(buf)) {
 			if (global_df->SnTr.isMP3 == TRUE) {
 				global_df->SnTr.isMP3 = FALSE;
+#ifdef _MAC_CODE
 				if (global_df->SnTr.mp3.hSys7SoundData)
 					DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
 				global_df->SnTr.mp3.theSoundMedia = NULL;
 				global_df->SnTr.mp3.hSys7SoundData = NULL;
+#endif
 			} else if (global_df->SnTr.SoundFPtr != 0) {
 				fclose(global_df->SnTr.SoundFPtr);
 			}
@@ -1268,12 +1360,16 @@ static char FindSndInfo(char *isWhatType) {
 						global_df->err_message[0] = EOS;
 						global_df->SnTr.errMess = NULL;
 					} else
-						CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile);
+						CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile, isOldBullet);
+					global_df->MvTr.MovieFile[0] = EOS;
 					return(-2);
-				} else
+				} else {
 					*isWhatType = isVideo;
-			} else
+				}
+			} else {
+				global_df->MvTr.MovieFile[0] = EOS;
 				*isWhatType = isAudio;
+			}
 		} else {
 			strcpy(global_df->MvTr.MovieFile, buf);
 			if (mOpenMovieFile(&global_df->MvTr) != 0) {
@@ -1284,12 +1380,15 @@ static char FindSndInfo(char *isWhatType) {
 						global_df->err_message[0] = EOS;
 						global_df->SnTr.errMess = NULL;
 					} else
-						CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile);
+						CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile, isOldBullet);
 					return(-2);
-				} else
+				} else {
+					global_df->MvTr.MovieFile[0] = EOS;
 					*isWhatType = isAudio;
-			} else
+				}
+			} else {
 				*isWhatType = isVideo;
+			}
 		}
 	}
 
@@ -1304,10 +1403,10 @@ static char FindSndInfo(char *isWhatType) {
 	buf[i] = EOS;
 	DrawSoundCursor(0);
 	if (*isWhatType == isVideo || nf == -1)
-		global_df->MvTr.MBeg = atol(buf);
+		global_df->MvTr.MBeg = uS.atol(buf);
 
 	if (*isWhatType == isAudio)
-		global_df->SnTr.BegF = AlignMultibyteMediaStream(conv_from_msec_rep(atol(buf)), '-');
+		global_df->SnTr.BegF = AlignMultibyteMediaStream(conv_from_msec_rep(uS.atol(buf)), '-');
 
 	if (*isWhatType == isVideo || nf == -1)
 		global_df->MvTr.MEnd = 0L;
@@ -1328,10 +1427,10 @@ static char FindSndInfo(char *isWhatType) {
 		buf[i++] = tl->c;
 	buf[i] = EOS;
 	if (*isWhatType == isVideo || nf == -1)
-		global_df->MvTr.MEnd = atol(buf);
+		global_df->MvTr.MEnd = uS.atol(buf);
 
 	if (*isWhatType == isAudio) {
-		global_df->SnTr.EndF = AlignMultibyteMediaStream(conv_from_msec_rep(atol(buf)), '-');
+		global_df->SnTr.EndF = AlignMultibyteMediaStream(conv_from_msec_rep(uS.atol(buf)), '-');
 		if (global_df->SnTr.IsSoundOn && isDisplayWave && (!PlayingContSound || PlayingContSound == '\004')) {
 			DisplayEndF(FALSE);
 			if (global_df->SnTr.BegF != global_df->SnTr.EndF && global_df->SnTr.EndF != 0L)
@@ -1362,8 +1461,8 @@ char FindSndInfoAndCopyIt(FNType *fname, long *beg, long *end) {
 	} else {
 		if (isWhatType == isVideo && sendMessageTargetApp == PRAAT) {
 			FNType	*ext;
-			Movie	cMovie;
 #ifdef _MAC_CODE
+			Movie	cMovie;
 			WindowProcRec *windProc;
 
 			windProc = WindowProcs(FindAWindowNamed(Movie_sound_str));
@@ -1373,9 +1472,10 @@ char FindSndInfoAndCopyIt(FNType *fname, long *beg, long *end) {
 				return(FALSE);
 #endif
 #ifdef _WIN32
-			if (MovDlg == NULL || MovDlg->qt == NULL)
+			if (MpegDlg != NULL && MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->m_wmpPlayer != NULL) {
+			} else {
 				return(FALSE);
-			cMovie = (MovDlg->qt)->theMovie;
+			}
 #endif
 
 			strcpy(FileName1, global_df->MvTr.rMovieFile);
@@ -1385,7 +1485,11 @@ char FindSndInfoAndCopyIt(FNType *fname, long *beg, long *end) {
 			else
 				uS.str2FNType(FileName1, strlen(FileName1), ".wav");
 			if (access(FileName1, 0))
+#ifdef _MAC_CODE
 				SaveSoundMovieAsWAVEFile(cMovie, FileName1);
+#else //_WIN32
+				SaveSoundMovieAsWAVEFile(global_df->MvTr.rMovieFile, FileName1);
+#endif
 			strcat(fname, FileName1);
 			*beg = global_df->MvTr.MBeg;
 			*end = global_df->MvTr.MEnd;
@@ -1419,7 +1523,10 @@ void CopyAndFreeMovieData(char all) {
 
 int SoundMode(int i) {
 	char isWhatType;
+	char isMovieDialog;
+#ifdef _MAC_CODE // NO QT
 	Movie cMovie;
+#endif
 	long beg = 0L, end = 0L;
 #ifdef _MAC_CODE
 	WindowPtr win;
@@ -1436,7 +1543,7 @@ int SoundMode(int i) {
 	if (!global_df->EditorMode || global_df->RowLimit) {
 		RemoveLastUndo();
 		if (global_df->RowLimit)
-			strcpy(global_df->err_message, "+Illegal in in this window.");
+			strcpy(global_df->err_message, "+Illegal in this window.");
 		else
 			strcpy(global_df->err_message, "+Illegal in coder mode.");
 		return(63);
@@ -1445,27 +1552,44 @@ int SoundMode(int i) {
 		draw_mid_wm();
 	ChangeCurLineAlways(0);
 	if (i != 2) {
-		cMovie = NULL;
+		isMovieDialog = FALSE;
 		FindTextCodeLine(cl_T(SOUNDTIER), cl_T(SOUNDTIER));
 #ifdef _MAC_CODE
+		cMovie = NULL;
 		if (theMovie != NULL && theMovie->MvMovie != NULL) {
 			if (theMovie->isPlaying) {
 				stopMoviePlaying();
 			}
-			if (global_df->MvTr.MovieFile[0] != EOS && global_df->MvTr.rMovieFile[0] != EOS)
+			if (global_df->MvTr.MovieFile[0] != EOS && global_df->MvTr.rMovieFile[0] != EOS) {
+				isMovieDialog = TRUE;
 				cMovie = theMovie->MvMovie;
+			}
 		}
 #elif _WIN32
+/* // NO QT
+		cMovie = NULL;
 		if (MovDlg != NULL && MovDlg->qt != NULL && (MovDlg->qt)->theMovie != NULL) {
 			if (!(MovDlg->qt)->IsQTMovieDone()) {
 				stopMoviePlaying();
 			}
-			if (global_df->MvTr.MovieFile[0] != EOS && global_df->MvTr.rMovieFile[0] != EOS)
+			if (global_df->MvTr.MovieFile[0] != EOS && global_df->MvTr.rMovieFile[0] != EOS) {
+				isMovieDialog = TRUE;
 				cMovie = (MovDlg->qt)->theMovie;
+			}
+		}
+*/
+		if (MpegDlg != NULL && MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->m_wmpPlayer != NULL) {
+			if (!(MpegDlg->mpeg)->IsMpegMovieDone()) {
+				stopMoviePlaying();
+			}
+			if (global_df->MvTr.MovieFile[0] != EOS && global_df->MvTr.rMovieFile[0] != EOS) {
+				isMovieDialog = TRUE;
+// NO QT				cMovie = NULL;
+			}
 		}
 #endif
 		ced_line[0] = EOS;
-		if (cMovie != NULL) {
+		if (isMovieDialog) {
 			beg = global_df->MvTr.MBeg;
 			end = global_df->MvTr.MEnd;
 			strcpy(ced_line, global_df->MvTr.MovieFile);
@@ -1474,7 +1598,7 @@ int SoundMode(int i) {
 		if ((FindSndInfo(&isWhatType) <= 0)) {
 			wmove(global_df->w1, global_df->row_win, global_df->col_win-global_df->LeftCol);
 			wrefresh(global_df->w1);
-			if (cMovie != NULL) {
+			if (isMovieDialog) {
 				isWhatType = isVideo;
 				global_df->err_message[0] = EOS;
 			} else if (global_df->SnTr.errMess == NULL) {
@@ -1494,7 +1618,7 @@ int SoundMode(int i) {
 									global_df->err_message[0] = EOS;
 									global_df->SnTr.errMess = NULL;
 								} else
-									CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile);
+									CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile, FALSE);
 								return(63);
 							}
 						} else {
@@ -1520,7 +1644,7 @@ int SoundMode(int i) {
 									global_df->err_message[0] = EOS;
 									global_df->SnTr.errMess = NULL;
 								} else
-									CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile);
+									CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile, FALSE);
 								return(63);
 							}
 						} else {
@@ -1531,7 +1655,7 @@ int SoundMode(int i) {
 					}
 				}
 				if (isWhatType == 0) {
-					if ((isWhatType=GetNewMediaFile(FALSE, 3)) == 0) {
+					if ((isWhatType=GetNewMediaFile(FALSE, isAllType)) == 0) {
 						RemoveLastUndo();
 						return(63);
 					}
@@ -1548,15 +1672,16 @@ int SoundMode(int i) {
 					}
 					changeCurrentWindow(win, theMovie->df->wind, true);
 					if (theMovie != NULL && theMovie->MvMovie != NULL) {
+						isMovieDialog = TRUE;
 						cMovie = theMovie->MvMovie;
 					}
 #elif _WIN32
-					if (MovDlg != NULL && MovDlg->qt != NULL && (MovDlg->qt)->theMovie != NULL) {
-						cMovie = (MovDlg->qt)->theMovie;
+					if (MpegDlg != NULL && MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->m_wmpPlayer != NULL) {
+						isMovieDialog = TRUE;
 					}
 #endif
 					isWhatType = isVideo;
-					if (cMovie != NULL) {
+					if (isMovieDialog) {
 						beg = global_df->MvTr.MBeg;
 						end = global_df->MvTr.MEnd;
 						strcpy(ced_line, global_df->MvTr.MovieFile);
@@ -1569,7 +1694,7 @@ int SoundMode(int i) {
 			}
 		}
 		if (isWhatType == isVideo && global_df->SnTr.errMess == NULL) {
-			if (cMovie == NULL) {
+			if (!isMovieDialog) {
 				PlayMovie(&global_df->MvTr, global_df, TRUE);
 #ifdef _MAC_CODE
 				win = FindAWindowNamed(Movie_sound_str);
@@ -1581,14 +1706,15 @@ int SoundMode(int i) {
 				}
 				changeCurrentWindow(win, theMovie->df->wind, true);
 				if (theMovie != NULL && theMovie->MvMovie != NULL) {
+					isMovieDialog = TRUE;
 					cMovie = theMovie->MvMovie;
 				}
 #elif _WIN32
-				if (MovDlg != NULL && MovDlg->qt != NULL && (MovDlg->qt)->theMovie != NULL) {
-					cMovie = (MovDlg->qt)->theMovie;
+				if (MpegDlg != NULL && MpegDlg->mpeg != NULL && (MpegDlg->mpeg)->m_wmpPlayer != NULL) {
+					isMovieDialog = TRUE;
 				}
 #endif
-				if (cMovie != NULL) {
+				if (isMovieDialog) {
 					beg = global_df->MvTr.MBeg;
 					end = global_df->MvTr.MEnd;
 					strcpy(ced_line, global_df->MvTr.MovieFile);
@@ -1603,10 +1729,11 @@ int SoundMode(int i) {
 				global_df->MvTr.MEnd = end;
 			}
 			strcpy(ced_line, global_df->MvTr.MovieFile);
-			strcat(ced_line, "-clanw");
+//			strcat(ced_line, "-clanw");
 			strcat(ced_line, ".wav");
 			strcpy(global_df->SnTr.SoundFile, ced_line);
 			if (!mOpenSoundFile()) {
+#ifdef _MAC_CODE
 				if (isMovieStreaming(cMovie)) {
 					if (global_df->SnTr.errMess != NULL) {
 						do_warning(global_df->SnTr.errMess, 0);
@@ -1618,11 +1745,16 @@ int SoundMode(int i) {
 					}
 					return(63);
 				}
+#endif
 				extractPath(FileName1, global_df->MvTr.rMovieFile);
 				u_strcpy(ced_lineC, ced_line, UTTLINELEN);
 				addFilename2Path(FileName1, ced_lineC);
 				if (access(FileName1, 0))
+#ifdef _MAC_CODE
 					SaveSoundMovieAsWAVEFile(cMovie, FileName1);
+#else //_WIN32
+					SaveSoundMovieAsWAVEFile(global_df->MvTr.rMovieFile, FileName1);
+#endif
 				strcpy(global_df->SnTr.SoundFile, ced_line);
 				if (!mOpenSoundFile()) {
 					if (global_df->SnTr.errMess != NULL) {
@@ -1847,10 +1979,12 @@ static void PlayContSound() {
 				if (global_df->SnTr.SoundFile[0] != EOS) {
 					if (global_df->SnTr.isMP3 == TRUE) {
 						global_df->SnTr.isMP3 = FALSE;
+#ifdef _MAC_CODE
 						if (global_df->SnTr.mp3.hSys7SoundData)
 							DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
 						global_df->SnTr.mp3.theSoundMedia = NULL;
 						global_df->SnTr.mp3.hSys7SoundData = NULL;
+#endif
 					} else if (global_df->SnTr.SoundFPtr != 0) {
 						fclose(global_df->SnTr.SoundFPtr);
 					}
@@ -2006,7 +2140,7 @@ static void PlayContMovie(void) {
 
 int PlayContMedia(int i) {
 	int  c;
-	char isWhatType;
+	char isWhatType, isOldBullet = FALSE;
 	char type;
 	ROWS *p;
 
@@ -2072,6 +2206,7 @@ int PlayContMedia(int i) {
 				sprintf(global_df->err_message, "+Missing %s tier with media file name in headers section at the top of the file", MEDIAHEADER);
 				return(71);
 			}
+			isOldBullet = FALSE;
 		} else if (p->line[i] == '"') {
 			for (i++, c=0; p->line[i] != EOS && p->line[i] != '"'; i++, c++)
 				sp[c] = p->line[i];
@@ -2080,6 +2215,7 @@ int PlayContMedia(int i) {
 				strcpy(global_df->err_message, "+Old format bullets found. Please close this data file and run \"fixbullets\" command on it.");
 				return(71);
 			}
+			isOldBullet = TRUE;
 		}
 		if (sp[0] != EOS) {
 			uS.lowercasestr(sp, &dFnt, FALSE);
@@ -2115,7 +2251,7 @@ int PlayContMedia(int i) {
 			if (sp[0] == EOS)
 				strcpy(global_df->err_message, "+Bullet under a cursor must be corrupted. Please point to a bullet associated with movie or sound and try again.");
 			else
-				CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile);
+				CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile, isOldBullet);
 		} else if (isWhatType == isAudio) {
 			PlayContSound();
 		} else if (isWhatType == isVideo) {
@@ -2129,7 +2265,7 @@ int PlayContMedia(int i) {
 
 int PlayContSkipMedia(int i) {
 	int  c;
-	char isWhatType;
+	char isWhatType, isOldBullet = FALSE;
 	char type;
 	ROWS *p;
 
@@ -2197,10 +2333,12 @@ int PlayContSkipMedia(int i) {
 				isSkipPause = FALSE;
 				return(97);
 			}
+			isOldBullet = FALSE;
 		} else if (p->line[i] == '"') {
 			for (i++, c=0; p->line[i] != EOS && p->line[i] != '"'; i++, c++)
 				sp[c] = p->line[i];
 			sp[c] = EOS;
+			isOldBullet = TRUE;
 		}
 		if (sp[0] != EOS) {
 			uS.lowercasestr(sp, &dFnt, FALSE);
@@ -2236,7 +2374,7 @@ int PlayContSkipMedia(int i) {
 			if (sp[0] == EOS)
 				strcpy(global_df->err_message, "+Bullet under a cursor must be corrupted. Please point to a bullet associated with movie or sound and try again.");
 			else
-				CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile);
+				CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile, isOldBullet);
 		} else if (isWhatType == isAudio) {
 			PlayContSound();
 		} else if (isWhatType == isVideo) {
@@ -2344,7 +2482,7 @@ char FakeSelectWholeTier(char isEveryLine) {
 }
 
 char SelectWholeTier(char isCAMode) {
-	char res;
+	char res, isAddLineno;
 	ROWS *tr;
 
 	if (PlayingContMovie) {
@@ -2369,8 +2507,14 @@ char SelectWholeTier(char isCAMode) {
 	} else {
 		while (!AtTopEnd(global_df->row_txt, global_df->head_text, FALSE)) {
 			if (tr != global_df->row_txt && isRightBullet(global_df->row_txt->line)) {
+				if (isNL_CFound(global_df->row_txt))
+					isAddLineno = TRUE;
+				else
+					isAddLineno = FALSE;
 				global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-				global_df->lineno++;
+				if (isAddLineno)
+					global_df->lineno++;
+				global_df->wLineno++;
 				global_df->row_win++;
 				global_df->row_win2--;
 				break;
@@ -2380,7 +2524,9 @@ char SelectWholeTier(char isCAMode) {
 			if (global_df->row_win <= 0L)
 				break;
 			global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-			global_df->lineno--;
+			if (isNL_CFound(global_df->row_txt))
+				global_df->lineno--;
+			global_df->wLineno--;
 			global_df->row_win--;
 			global_df->row_win2++;
 		}
@@ -2494,7 +2640,8 @@ char findStartMediaTag(char isMove, char isCAMode) {
 	long old_col_win = global_df->col_win;
 	long old_col_chr = global_df->col_chr;
 	long old_row_win = global_df->row_win;
-	long old_lineno = global_df->lineno;
+	long old_lineno  = global_df->lineno;
+	long old_wLineno = global_df->wLineno;
 	ROWS *old_row_txt = global_df->row_txt;
 	ROWS *old_top_win = global_df->top_win;
 
@@ -2596,6 +2743,7 @@ char findStartMediaTag(char isMove, char isCAMode) {
 		global_df->col_win = old_col_win;
 		global_df->col_chr = old_col_chr;
 		global_df->lineno  = old_lineno;
+		global_df->wLineno = old_wLineno;
 		if (global_df->row_txt == global_df->cur_line) {
 			long j;
 			for (global_df->col_txt=global_df->head_row->next_char, j=global_df->col_chr; j > 0; j--)
@@ -2680,7 +2828,13 @@ int QuickTrinscribeMedia(int i) {
 		return(89);
 	}
 #elif _WIN32
+/* // NO QT
 	if (MovDlg != NULL && !(MovDlg->qt)->IsQTMovieDone() && PBC.enable && PBC.walk) {
+		stopMoviePlaying();
+		return(89);
+	}
+*/
+	if (MpegDlg != NULL && !(MpegDlg->mpeg)->IsMpegMovieDone() && PBC.enable && PBC.walk) {
 		stopMoviePlaying();
 		return(89);
 	}
@@ -2915,7 +3069,7 @@ int QuickTrinscribeMedia(int i) {
 		else if (MovieReady && theMovie != NULL && theMovie->df == global_df)
 			type = isVideo;
 #elif _WIN32
-		else if (MovDlg != NULL)
+		else if (MpegDlg != NULL)
 			type = isVideo;
 #endif
 		else
@@ -2960,10 +3114,12 @@ int QuickTrinscribeMedia(int i) {
 		} else {
 			if (global_df->SnTr.isMP3 == TRUE) {
 				global_df->SnTr.isMP3 = FALSE;
+#ifdef _MAC_CODE
 				if (global_df->SnTr.mp3.hSys7SoundData)
 					DisposeHandle(global_df->SnTr.mp3.hSys7SoundData);
 				global_df->SnTr.mp3.theSoundMedia = NULL;
 				global_df->SnTr.mp3.hSys7SoundData = NULL;
+#endif
 			} else if (global_df->SnTr.SoundFPtr != 0) {
 				fclose(global_df->SnTr.SoundFPtr);
 				global_df->SnTr.SoundFile[0] = EOS;
@@ -2981,7 +3137,7 @@ int QuickTrinscribeMedia(int i) {
 							global_df->err_message[0] = EOS;
 							global_df->SnTr.errMess = NULL;
 						} else
-							CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile);
+							CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile, FALSE);
 						type = 0;
 					} else
 						type = isVideo;
@@ -2997,7 +3153,7 @@ int QuickTrinscribeMedia(int i) {
 							global_df->err_message[0] = EOS;
 							global_df->SnTr.errMess = NULL;
 						} else
-							CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile);
+							CantFindMedia(global_df->err_message, global_df->MvTr.MovieFile, FALSE);
 						type = 0;
 					} else
 						type = isAudio;
@@ -3199,6 +3355,7 @@ void ExecSoundCom(int c) {
 	long old_col_chr2;
 	long old_row_win2;
 	long old_lineno;
+	long old_wLineno;
 	long old_LeftCol;
 	ROWS *old_row_txt;
 	ROWS *old_top_win;
@@ -3211,9 +3368,22 @@ void ExecSoundCom(int c) {
 		old_col_chr2 = global_df->col_chr2;
 		old_row_win2 = global_df->row_win2;
 		old_lineno  = global_df->lineno;
+		old_wLineno = global_df->wLineno;
 		old_LeftCol = global_df->LeftCol;
 		old_row_txt = global_df->row_txt;
 		old_top_win = global_df->top_win;
+	} else {
+		old_col_win = NULL;
+		old_col_chr = NULL;
+		old_row_win = NULL;
+		old_col_win2 = NULL;
+		old_col_chr2 = NULL;
+		old_row_win2 = NULL;
+		old_lineno  = NULL;
+		old_wLineno = NULL;
+		old_LeftCol = NULL;
+		old_row_txt = NULL;
+		old_top_win = NULL;
 	}
 	DrawCursor(0);
 	findMediaTiers();
@@ -3243,7 +3413,7 @@ void ExecSoundCom(int c) {
 			PlaySound(&global_df->SnTr, (int)'r');
 	} else if (c == -4 || c == -6 || c == -7) {
 		int i;
-		char tType;
+		char tType = 0;
 		myFInfo *saveGlobal_df;
 
 		saveGlobal_df = global_df;
@@ -3293,6 +3463,7 @@ void ExecSoundCom(int c) {
 			global_df->col_chr2 = old_col_chr2;
 			global_df->row_win2 = old_row_win2;
 			global_df->lineno  = old_lineno;
+			global_df->wLineno = old_wLineno;
 			global_df->LeftCol = old_LeftCol;
 			global_df->row_txt = old_row_txt;
 			global_df->top_win = old_top_win;
@@ -3317,6 +3488,7 @@ void ExecSoundCom(int c) {
 		global_df->col_chr2 = old_col_chr2;
 		global_df->row_win2 = old_row_win2;
 		global_df->lineno  = old_lineno;
+		global_df->wLineno = old_wLineno;
 		global_df->LeftCol = old_LeftCol;
 		global_df->row_txt = old_row_txt;
 		global_df->top_win = old_top_win;
@@ -3349,6 +3521,7 @@ int PlayMedia(int c) {
 	long old_col_chr2 = global_df->col_chr2;
 	long old_row_win2 = global_df->row_win2;
 	long old_lineno  = global_df->lineno;
+	long old_wLineno = global_df->wLineno;
 	long old_LeftCol = global_df->LeftCol;
 	ROWS *old_row_txt = global_df->row_txt;
 	ROWS *old_top_win = global_df->top_win;
@@ -3373,6 +3546,7 @@ int PlayMedia(int c) {
 				global_df->col_chr2 = old_col_chr2;
 				global_df->row_win2 = old_row_win2;
 				global_df->lineno  = old_lineno;
+				global_df->wLineno = old_wLineno;
 				global_df->LeftCol = old_LeftCol;
 				global_df->row_txt = old_row_txt;
 				global_df->top_win = old_top_win;
@@ -3398,6 +3572,7 @@ int PlayMedia(int c) {
 							global_df->col_chr2 = old_col_chr2;
 							global_df->row_win2 = old_row_win2;
 							global_df->lineno  = old_lineno;
+							global_df->wLineno = old_wLineno;
 							global_df->LeftCol = old_LeftCol;
 							global_df->row_txt = old_row_txt;
 							global_df->top_win = old_top_win;
@@ -3422,6 +3597,7 @@ int PlayMedia(int c) {
 						global_df->col_chr2 = old_col_chr2;
 						global_df->row_win2 = old_row_win2;
 						global_df->lineno  = old_lineno;
+						global_df->wLineno = old_wLineno;
 						global_df->LeftCol = old_LeftCol;
 						global_df->row_txt = old_row_txt;
 						global_df->top_win = old_top_win;
@@ -3475,7 +3651,7 @@ int PlayMedia(int c) {
 	} else {
 		strcpy(global_df->err_message, "+Media marker not found at cursor position. If you are planning to link sound to text then please use Sonic mode \"F5\"");
 /*
-		if ((ret=getNewMediaFile(TRUE, 0))) {
+		if ((ret=getNewMediaFile(TRUE, isAllType))) {
 			if (ret == isAudio) { // sound
 				global_df->SnTr.BegF = 0L;
 				global_df->SnTr.EndF = global_df->SnTr.SoundFileSize;
@@ -3516,6 +3692,7 @@ int PlayStepForward(int c) {
 	long old_col_chr = global_df->col_chr;
 	long old_row_win = global_df->row_win;
 	long old_lineno  = global_df->lineno;
+	long old_wLineno = global_df->wLineno;
 	long old_LeftCol = global_df->LeftCol;
 	ROWS *old_row_txt = global_df->row_txt;
 	ROWS *old_top_win = global_df->top_win;
@@ -3530,7 +3707,7 @@ int PlayStepForward(int c) {
 		return(81);
 	}
 #elif _WIN32
-	if (MovDlg != NULL && !(MovDlg->qt)->IsQTMovieDone() && PBC.enable && PBC.walk) {
+	if (MpegDlg != NULL && !(MpegDlg->mpeg)->IsMpegMovieDone() && PBC.enable && PBC.walk) {
 		replayMovieWithOffset(1);
 		return(81);
 	}
@@ -3547,7 +3724,11 @@ int PlayStepForward(int c) {
 	else if (MovieReady && theMovie != NULL && theMovie->df == global_df)
 		type = isVideo;
 #elif _WIN32
+/* // NO QT
 	else if (MovDlg != NULL)
+		type = isVideo;
+*/
+	else if (MpegDlg != NULL)
 		type = isVideo;
 #endif
 	else
@@ -3677,6 +3858,7 @@ int PlayStepForward(int c) {
 					global_df->col_win = old_col_win;
 					global_df->col_chr = old_col_chr;
 					global_df->lineno  = old_lineno;
+					global_df->wLineno = old_wLineno;
 					global_df->LeftCol = old_LeftCol;
 					if (global_df->row_txt == global_df->cur_line) {
 						long j;
@@ -3724,7 +3906,7 @@ int PlayStepForward(int c) {
 			return(81);
 
 /*
-			if ((ret=getNewMediaFile(TRUE, 3))) {
+			if ((ret=getNewMediaFile(TRUE, isAllType))) {
 				if (ret == isAudio && syncAudioAndVideo(global_df->MvTr.MovieFile)) {
 					ret = isVideo;
 					global_df->MvTr.MBeg = conv_to_msec_rep(global_df->SnTr.BegF);
@@ -3783,6 +3965,7 @@ int PlayStepBackward(int c) {
 	long old_col_chr = global_df->col_chr;
 	long old_row_win = global_df->row_win;
 	long old_lineno  = global_df->lineno;
+	long old_wLineno = global_df->wLineno;
 	long old_LeftCol = global_df->LeftCol;
 	ROWS *old_row_txt = global_df->row_txt;
 	ROWS *old_top_win = global_df->top_win;
@@ -3799,7 +3982,7 @@ int PlayStepBackward(int c) {
 		return(83);
 	}
 #elif _WIN32
-	if (MovDlg != NULL && !(MovDlg->qt)->IsQTMovieDone() && PBC.enable && PBC.walk) {
+	if (MpegDlg != NULL && !(MpegDlg->mpeg)->IsMpegMovieDone() && PBC.enable && PBC.walk) {
 		replayMovieWithOffset(-1);
 		return(83);
 	}
@@ -3816,7 +3999,11 @@ int PlayStepBackward(int c) {
 	else if (MovieReady && theMovie != NULL && theMovie->df == global_df)
 		type = isVideo;
 #elif _WIN32
+/* // NO QT
 	else if (MovDlg != NULL)
+		type = isVideo;
+*/
+	else if (MpegDlg != NULL)
 		type = isVideo;
 #endif
 	else
@@ -3954,6 +4141,7 @@ int PlayStepBackward(int c) {
 					global_df->col_win = old_col_win;
 					global_df->col_chr = old_col_chr;
 					global_df->lineno  = old_lineno;
+					global_df->wLineno = old_wLineno;
 					global_df->LeftCol = old_LeftCol;
 					if (global_df->row_txt == global_df->cur_line) {
 						long j;
@@ -4001,7 +4189,7 @@ int PlayStepBackward(int c) {
 			strcpy(global_df->err_message, "+Please choose media file in Walker Controller with \"Open Media\" button.");
 			return(83);
 /*
-			if ((ret=getNewMediaFile(TRUE, 3))) {
+			if ((ret=getNewMediaFile(TRUE, isAllType))) {
 				if (ret == isAudio && syncAudioAndVideo(global_df->MvTr.MovieFile)) {
 					ret = isVideo;
 					global_df->MvTr.MBeg = conv_to_msec_rep(global_df->SnTr.BegF);
@@ -4122,7 +4310,17 @@ int PlaySound(sndInfo *sndRec, int cont) {
 		global_df->MvTr.MEnd = conv_to_msec_rep(sndRec->EndF);
 		PlayMovie(&global_df->MvTr, global_df, FALSE);
 		return(0);
-	} else {
+	} else 
+#ifdef _WIN32
+			if (global_df->SnTr.isMP3 == TRUE) {
+		global_df->MvTr.MBeg = conv_to_msec_rep(sndRec->BegF);
+		global_df->MvTr.MEnd = conv_to_msec_rep(sndRec->EndF);
+		strcpy(global_df->MvTr.rMovieFile, sndRec->rSoundFile);
+		PlayMovie(&global_df->MvTr, global_df, FALSE);
+		return(0);
+	} else
+#endif
+			{
 		sndRec->BegF = AlignMultibyteMediaStream(sndRec->BegF, '+');
 		begin = sndRec->BegF;
 		end = sndRec->EndF;
@@ -4272,11 +4470,14 @@ static char MatchBulletTime(ROWS *tRow, long mtime, unCH *file, unCH *nFName, lo
 				} else {
 					for (i=0; tl!= global_df->tail_row && tl->c!= ':' && tl->c!= HIDEN_C; tl=tl->next_char)
 						sp[i++] = tl->c;
-					if (tl == global_df->tail_row || tl->c == HIDEN_C)
+					if (tl == global_df->tail_row)
 						return(FALSE);
-					sp[i++] = tl->c;
-					tl = tl->next_char;
-					sp[i] = EOS;
+					if (tl->c!= ':') {
+						sp[i++] = tl->c;
+						tl = tl->next_char;
+						sp[i] = EOS;
+					} else
+						strcpy(sp, "NON_MEDIA_BULLET");
 				}
 				if ((PlayingContMovie && PlayingContMovie != '\003') ||
 					(PlayingContSound && PlayingContSound != '\004')) {
@@ -4328,7 +4529,7 @@ static char MatchBulletTime(ROWS *tRow, long mtime, unCH *file, unCH *nFName, lo
 					for (i=0; tl != global_df->tail_row && is_unCH_digit(tl->c); tl = tl->next_char)
 						sp[i++] = tl->c;
 					sp[i] = EOS;
-					beg = atol(sp);
+					beg = uS.atol(sp);
 					if (beg == 0L)
 						beg = 1L;
 					while (tl != global_df->tail_row && !is_unCH_digit(tl->c))
@@ -4338,7 +4539,7 @@ static char MatchBulletTime(ROWS *tRow, long mtime, unCH *file, unCH *nFName, lo
 					for (i=0; tl != global_df->tail_row && is_unCH_digit(tl->c); tl = tl->next_char)
 						sp[i++] = tl->c;
 					sp[i] = EOS;
-					end = atol(sp);
+					end = uS.atol(sp);
 					*Beg = beg;
 					*End = end;
 					if (mtime >= beg && mtime < end) {
@@ -4379,11 +4580,14 @@ static char MatchBulletTime(ROWS *tRow, long mtime, unCH *file, unCH *nFName, lo
 				} else {
 					for (i=0; *line && *line != ':' && *line != HIDEN_C; line++)
 						sp[i++] = *line;
-					if (*line == EOS || *line == HIDEN_C)
+					if (*line == EOS)
 						return(FALSE);
-					sp[i++] = *line;
-					line++;
-					sp[i] = EOS;
+					if (*line == ':') {
+						sp[i++] = *line;
+						line++;
+						sp[i] = EOS;
+					} else
+						strcpy(sp, "NON_MEDIA_BULLET");
 				}
 				if ((PlayingContMovie && PlayingContMovie != '\003') ||
 					(PlayingContSound && PlayingContSound != '\004')) {
@@ -4433,7 +4637,7 @@ static char MatchBulletTime(ROWS *tRow, long mtime, unCH *file, unCH *nFName, lo
 					for (i=0; *line && is_unCH_digit(*line); line++)
 						sp[i++] = *line;
 					sp[i] = EOS;
-					beg = atol(sp);
+					beg = uS.atol(sp);
 					if (beg == 0L)
 						beg = 1L;
 					while (*line && !is_unCH_digit(*line))
@@ -4443,7 +4647,7 @@ static char MatchBulletTime(ROWS *tRow, long mtime, unCH *file, unCH *nFName, lo
 					for (i=0; *line && is_unCH_digit(*line); line++)
 						sp[i++] = *line;
 					sp[i] = EOS;
-					end = atol(sp);
+					end = uS.atol(sp);
 					*Beg = beg;
 					*End = end;
 					if (mtime >= beg && mtime < end) {
@@ -4484,11 +4688,12 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 	FNType old_pictFName[FNSize];
 	char old_pictChanged = global_df->PcTr.pictChanged;
 	FNType old_textFName[FNSize];
-	char old_textChanged = global_df->TxTr.textChanged;
+	char old_textChanged = global_df->TxTr.textChanged, isAddLineno;
 	long old_col_win = global_df->col_win;
 	long old_col_chr = global_df->col_chr;
 	long old_row_win = global_df->row_win;
 	long old_lineno = global_df->lineno;
+	long old_wLineno= global_df->wLineno;
 	long Beg, End, lastBeg, lastEnd;
 	ROWS *old_row_txt = global_df->row_txt;
 	ROWS *old_top_win = global_df->top_win;
@@ -4516,7 +4721,12 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 	lastBeg = Beg;
 	lastEnd = End;
 
-	global_df->lineno++;
+	if (global_df->row_txt->prev_row != global_df->head_text) {
+		if (isNL_CFound(global_df->row_txt->prev_row))
+			global_df->lineno++;
+	} else
+		global_df->lineno++;
+	global_df->wLineno++;
 	if (global_df->row_win < (long)global_df->EdWinSize)
 		global_df->row_win++;
 	global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
@@ -4538,8 +4748,14 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 			lastBeg = Beg;
 		if (lastEnd == 0L)
 			lastEnd = End;
+		if (isNL_CFound(global_df->row_txt))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-		global_df->lineno++;
+		if (isAddLineno)
+			global_df->lineno++;
+		global_df->wLineno++;
 		if (global_df->row_win < (long)global_df->EdWinSize)
 			global_df->row_win++;
 	}
@@ -4554,8 +4770,11 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 	global_df->col_win = old_col_win;
 	global_df->col_chr = old_col_chr;
 	global_df->lineno  = old_lineno;
+	global_df->wLineno = old_wLineno;
 
-	global_df->lineno--;
+	if (isNL_CFound(global_df->row_txt))
+		global_df->lineno--;
+	global_df->wLineno--;
 	if (global_df->row_win >= 0L)
 		global_df->row_win--;
 	global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
@@ -4570,7 +4789,9 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 		if (lastEnd == 0L)
 			lastEnd = End;
 		global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-		global_df->lineno--;
+		if (isNL_CFound(global_df->row_txt))
+			global_df->lineno--;
+		global_df->wLineno--;
 		if (global_df->row_win >= 0L)
 			global_df->row_win--;
 	}
@@ -4580,10 +4801,13 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 	global_df->col_win = old_col_win;
 	global_df->col_chr = old_col_chr;
 	global_df->lineno  = old_lineno;
+	global_df->wLineno = old_wLineno;
 
 	global_df->LeaveHighliteOn = FALSE;
 
-	global_df->lineno--;
+	if (isNL_CFound(global_df->row_txt))
+		global_df->lineno--;
+	global_df->wLineno--;
 	if (global_df->row_win >= 0L)
 		global_df->row_win--;
 	global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
@@ -4595,8 +4819,14 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 				global_df->col_win2 = -2L;
 				global_df->col_chr2 = -2L;
 				while (!AtBotEnd(global_df->row_txt,global_df->tail_text,FALSE) && !isSpeaker(global_df->row_txt->line[0])) {
+					if (isNL_CFound(global_df->row_txt))
+						isAddLineno = TRUE;
+					else
+						isAddLineno = FALSE;
 					global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-					global_df->lineno++;
+					if (isAddLineno)
+						global_df->lineno++;
+					global_df->wLineno++;
 					if (global_df->row_win < (long)global_df->EdWinSize)
 						global_df->row_win++;
 				}
@@ -4620,7 +4850,9 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 			lastBeg = Beg;
 		}
 		global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-		global_df->lineno--;
+		if (isNL_CFound(global_df->row_txt))
+			global_df->lineno--;
+		global_df->wLineno--;
 		if (global_df->row_win >= 0L)
 			global_df->row_win--;
 	}
@@ -4630,13 +4862,19 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 	global_df->col_win = old_col_win;
 	global_df->col_chr = old_col_chr;
 	global_df->lineno  = old_lineno;
+	global_df->wLineno = old_wLineno;
 	if (mtime <= lastBeg && lastBeg != 0) {
 		sprintf(global_df->err_message, "+Current position is before the first media tier.");
 		global_df->isRedrawTextWindow = TRUE;
 		return '\003';
 	}
 
-	global_df->lineno++;
+	if (global_df->row_txt->prev_row != global_df->head_text) {
+		if (isNL_CFound(global_df->row_txt->prev_row))
+			global_df->lineno++;
+	} else
+		global_df->lineno++;
+	global_df->wLineno++;
 	if (global_df->row_win < (long)global_df->EdWinSize)
 		global_df->row_win++;
 	global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
@@ -4649,7 +4887,9 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 				global_df->col_chr2 = -2L;
 				while (!AtBotEnd(global_df->row_txt,global_df->head_text,FALSE) && !isSpeaker(global_df->row_txt->line[0])) {
 					global_df->row_txt = ToPrevRow(global_df->row_txt, FALSE);
-					global_df->lineno--;
+					if (isNL_CFound(global_df->row_txt))
+						global_df->lineno--;
+					global_df->wLineno--;
 					if (global_df->row_win >= 0L && global_df->row_win < (long)global_df->EdWinSize)
 						global_df->row_win--;
 				}
@@ -4672,8 +4912,14 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 			}
 			lastEnd = End;
 		}
+		if (isNL_CFound(global_df->row_txt))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
 		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
-		global_df->lineno++;
+		if (isAddLineno)
+			global_df->lineno++;
+		global_df->wLineno++;
 		if (global_df->row_win < (long)global_df->EdWinSize)
 			global_df->row_win++;
 	}
@@ -4687,6 +4933,7 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 	global_df->col_win = old_col_win;
 	global_df->col_chr = old_col_chr;
 	global_df->lineno  = old_lineno;
+	global_df->wLineno = old_wLineno;
 	if (mtime >= lastEnd && lastEnd != 0) {
 		sprintf(global_df->err_message, "+Current position is after the last media tier.");
 		global_df->isRedrawTextWindow = TRUE;
@@ -4774,7 +5021,7 @@ int MovieThumbNails(int i) {
 	long		totalPicts;
 	ROWS		*curRow;
 	FONTINFO	tFont;
-	MovieTNInfo *Picts, *t;
+	MovieTNInfo *Picts, *t = NULL;
 
 	DrawMouseCursor(2);
 	DrawSoundCursor(0);
@@ -4850,7 +5097,7 @@ int MovieThumbNails(int i) {
 				if (Picts == NULL) {
 					Picts = NEW(MovieTNInfo);
 					t = Picts;
-				} else {
+				} else if (t != NULL) {
 					t->nextPict = NEW(MovieTNInfo);
 					t = t->nextPict;
 				}
@@ -4921,6 +5168,7 @@ int FindPrevMediaTier(int c) {
 		long old_col_chr = global_df->col_chr;
 		long old_row_win = global_df->row_win;
 		long old_lineno  = global_df->lineno;
+		long old_wLineno = global_df->wLineno;
 		long old_LeftCol = global_df->LeftCol;
 		ROWS *old_row_txt = global_df->row_txt;
 		ROWS *old_top_win = global_df->top_win;
@@ -4931,7 +5179,13 @@ int FindPrevMediaTier(int c) {
 			return(96);
 		}
 #elif _WIN32
+/* // NO QT
 		if (MovDlg != NULL && !(MovDlg->qt)->IsQTMovieDone() && PBC.enable && PBC.walk) {
+			stopMoviePlaying();
+			return(96);
+		}
+*/
+		if (MpegDlg != NULL && !(MpegDlg->mpeg)->IsMpegMovieDone() && PBC.enable && PBC.walk) {
 			stopMoviePlaying();
 			return(96);
 		}
@@ -4950,7 +5204,11 @@ int FindPrevMediaTier(int c) {
 		else if (MovieReady && theMovie != NULL && theMovie->df == global_df)
 			type = isVideo;
 #elif _WIN32
+/* // NO QT
 		else if (MovDlg != NULL)
+			type = isVideo;
+*/
+		else if (MpegDlg != NULL)
 			type = isVideo;
 #endif
 		else
@@ -4971,6 +5229,7 @@ int FindPrevMediaTier(int c) {
 					global_df->col_win = old_col_win;
 					global_df->col_chr = old_col_chr;
 					global_df->lineno  = old_lineno;
+					global_df->wLineno = old_wLineno;
 					global_df->LeftCol = old_LeftCol;
 					if (global_df->row_txt == global_df->cur_line) {
 						long j;
@@ -5026,6 +5285,7 @@ int FindPrevMediaTier(int c) {
 			global_df->col_win = old_col_win;
 			global_df->col_chr = old_col_chr;
 			global_df->lineno  = old_lineno;
+			global_df->wLineno = old_wLineno;
 			global_df->LeftCol = old_LeftCol;
 			if (global_df->row_txt == global_df->cur_line) {
 				long j;
@@ -5093,6 +5353,7 @@ int FindNextMediaTier(int c) {
 		long old_col_chr = global_df->col_chr;
 		long old_row_win = global_df->row_win;
 		long old_lineno  = global_df->lineno;
+		long old_wLineno = global_df->wLineno;
 		long old_LeftCol = global_df->LeftCol;
 		ROWS *old_row_txt = global_df->row_txt;
 		ROWS *old_top_win = global_df->top_win;
@@ -5115,6 +5376,7 @@ int FindNextMediaTier(int c) {
 					global_df->col_win = old_col_win;
 					global_df->col_chr = old_col_chr;
 					global_df->lineno  = old_lineno;
+					global_df->wLineno = old_wLineno;
 					global_df->LeftCol = old_LeftCol;
 					if (global_df->row_txt == global_df->cur_line) {
 						long j;
@@ -5137,6 +5399,7 @@ int FindNextMediaTier(int c) {
 								global_df->col_win = old_col_win;
 								global_df->col_chr = old_col_chr;
 								global_df->lineno  = old_lineno;
+								global_df->wLineno = old_wLineno;
 								global_df->LeftCol = old_LeftCol;
 								if (global_df->row_txt == global_df->cur_line) {
 									long j;
@@ -5158,6 +5421,7 @@ int FindNextMediaTier(int c) {
 							global_df->col_win = old_col_win;
 							global_df->col_chr = old_col_chr;
 							global_df->lineno  = old_lineno;
+							global_df->wLineno = old_wLineno;
 							global_df->LeftCol = old_LeftCol;
 							if (global_df->row_txt == global_df->cur_line) {
 								long j;
@@ -5185,7 +5449,11 @@ int FindNextMediaTier(int c) {
 		else if (MovieReady && theMovie != NULL && theMovie->df == global_df)
 			type = isVideo;
 #elif _WIN32
+/* // NO QT
 		else if (MovDlg != NULL)
+			type = isVideo;
+*/
+		else if (MpegDlg != NULL)
 			type = isVideo;
 #endif
 		else
@@ -5238,6 +5506,7 @@ int FindNextMediaTier(int c) {
 				global_df->col_win = old_col_win;
 				global_df->col_chr = old_col_chr;
 				global_df->lineno  = old_lineno;
+				global_df->wLineno = old_wLineno;
 				global_df->LeftCol = old_LeftCol;
 				if (global_df->row_txt == global_df->cur_line) {
 					long j;
@@ -5292,6 +5561,7 @@ int FindNextMediaTier(int c) {
 							global_df->col_win = old_col_win;
 							global_df->col_chr = old_col_chr;
 							global_df->lineno  = old_lineno;
+							global_df->wLineno = old_wLineno;
 							global_df->LeftCol = old_LeftCol;
 							if (global_df->row_txt == global_df->cur_line) {
 								long j;
@@ -5362,6 +5632,7 @@ int FindNextMediaTier(int c) {
 				global_df->col_win = old_col_win;
 				global_df->col_chr = old_col_chr;
 				global_df->lineno  = old_lineno;
+				global_df->wLineno = old_wLineno;
 				global_df->LeftCol = old_LeftCol;
 				if (global_df->row_txt == global_df->cur_line) {
 					long j;
@@ -5395,6 +5666,7 @@ int FindNextMediaTier(int c) {
 				global_df->col_win = old_col_win;
 				global_df->col_chr = old_col_chr;
 				global_df->lineno  = old_lineno;
+				global_df->wLineno = old_wLineno;
 				global_df->LeftCol = old_LeftCol;
 				if (global_df->row_txt == global_df->cur_line) {
 					long j;

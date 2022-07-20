@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2014 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -13,13 +13,13 @@
 
 
 #ifndef MEMORY_LEAK_COUNT
-long Memory_unfreed_bytes(NOARGS)
+long32 Memory_unfreed_bytes(NOARGS)
 {
   return 0;
 }
 #else
-static long bytes_unfreed;
-long Memory_unfreed_bytes(NOARGS)
+static long32 bytes_unfreed;
+long32 Memory_unfreed_bytes(NOARGS)
 {
   return bytes_unfreed;
 }
@@ -47,10 +47,10 @@ static NORET mem_add_to_rgy( VOIDP temp , size_t bytes )
 
 static NORET mem_remove_from_rgy( VOIDP temp )
 {
-  long num_bytes;
+  long32 num_bytes;
 
   dont_check = 1;
-  num_bytes = (long)Registry_get(valid_blocks, temp);
+  num_bytes = (long32)Registry_get(valid_blocks, temp);
   assert(num_bytes != 0);
 #ifdef MEMORY_LEAK_COUNT
   bytes_unfreed -= num_bytes;
