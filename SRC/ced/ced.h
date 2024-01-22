@@ -392,6 +392,7 @@ struct MOVIEINFO {
 	unCH MovieFile[FILENAME_MAX];
 	FNType rMovieFile[FNSize];
 	long  MBeg, MEnd;
+	long  nextBegF;
 	movInfo *nMovie;
 } ;
 
@@ -418,6 +419,7 @@ struct SOUNDINFO {
 	int   SNDWprint_row2;
 	long  BegF, EndF;
 	long  dBegF, dEndF;
+	long  nextBegF;
 	long  contPlayBeg, contPlayEnd;
 	long  SoundFileSize;
 	long  WBegF, WEndF, WBegFM, WEndFM;
@@ -1090,6 +1092,7 @@ extern void AddSpeakerNames(int sp);
 extern void InitFileDialog(void);
 extern void InitSelectedTiers(void);
 extern void InitEvalOptions(void);
+extern void InitEvaldOptions(void);
 extern void InitKidevalOptions(void);
 extern void InitSelectedSearch(void);
 extern void get_selected_file(int fnum, FNType *s, int max);

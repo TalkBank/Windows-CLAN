@@ -25,6 +25,8 @@ static char isDrawCursor = 1;
 static long CaretHeight = 0L;
 #endif
 
+static unCH full_utt[UTTLINELEN+2];
+
 char showColorKeywords = TRUE;
 NewFontInfo cedDFnt;
 Boolean IsColorMonitor;
@@ -2254,7 +2256,8 @@ COLORTEXTLIST *createColorTextKeywordsList(COLORTEXTLIST *lRootColorText, char *
 	return(lRootColorText);
 }
 
-COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, AttTYPE *sAtts,unCH *sData,int lnoff,int ecol,COLORTEXTLIST *cl) {
+COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, WINDOW *w, int row, AttTYPE *sAtts, unCH *sData, int lnoff, int ecol, COLORTEXTLIST *cl) {
+	char cFlag;
 	int i, j, col;
 	COLORTEXTLIST *t;
 
@@ -2271,7 +2274,8 @@ COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, AttTYPE *s
 
 	init_punct(0);
 	for (t=lRootColorText; t != NULL; t=t->nextCT) {
-		if (is_match_word(t->cWordFlag)) {
+		cFlag = t->cWordFlag;
+		if (is_match_word(cFlag)) {
 			col = lnoff;
 			while (col < ecol) {
 				while ((uS.isskip(sData, col, &dFnt, TRUE)/* || sData[col] == '='*/)  && col < ecol)
@@ -2280,14 +2284,14 @@ COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, AttTYPE *s
 					templine3[j-col] = sData[j];
 				}
 				templine3[j-col] = EOS;
-				if (!is_case_word(t->cWordFlag))
+				if (!is_case_word(cFlag))
 					uS.uppercasestr(templine3, &dFnt, C_MBF);
-				if (is_wild_card(t->cWordFlag))
+				if (is_wild_card(cFlag))
 					i = curses_patmat(templine3, t->fWord, *sData);
 				else
 					i = !strcmp(t->fWord, templine3);
 				if (i) {
-					if (is_all_line(t->cWordFlag)) {
+					if (is_all_line(cFlag)) {
 						if (t->index < NUMCOLORPOINTS) {
 							t->sCol[t->index] = 0;
 							t->eCol[t->index] = ecol;
@@ -2316,11 +2320,40 @@ COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, AttTYPE *s
 				else
 					col = j;
 			}
+		} else if (isSpeaker(*sData) && strlen(sData) < UTTLINELEN && is_wild_card(cFlag) && is_all_line(cFlag) && w != NULL) {
+			strcpy(full_utt, sData);
+			for (row++; row < w->num_rows && !isSpeaker(w->win_data[row][0]); row++) {
+				if (strlen(sData) + strlen(w->win_data[row]) > UTTLINELEN)
+					break;
+				strcat(full_utt, w->win_data[row]);
+			}
+			for (i=0; full_utt[i] != EOS; i++) {
+				if (full_utt[i] == '\t' || full_utt[i] == '\n' || full_utt[i] == NL_C || full_utt[i] == SNL_C)
+					full_utt[i] = ' ';
+			}
+			if (!is_case_word(cFlag))
+				uS.uppercasestr(full_utt, &dFnt, C_MBF);
+			i = curses_patmat(full_utt, t->fWord, *full_utt);
+			if (i) {
+				if (t->index < NUMCOLORPOINTS) {
+					t->sCol[t->index] = 0;
+					t->eCol[t->index] = ecol;
+					t->index++;
+					for (i=0; i < ecol; i++)
+						sAtts[i] = set_color_to_1(sAtts[i]);
+					if (cl)
+						return(cl);
+					else if (global_df != NULL && global_df->ChatMode)
+						return(t);
+					else
+						return(NULL);
+				}
+			}
 		} else {
 			for (col=lnoff; col < ecol;) {
-				if (col+t->len > ecol && !is_wild_card(t->cWordFlag))
+				if (col+t->len > ecol && !is_wild_card(cFlag))
 					break;
-				if (is_wild_card(t->cWordFlag)) {
+				if (is_wild_card(cFlag)) {
 					strncpy(templine3, sData+col, ecol-col);
 					templine3[ecol-col] = EOS;
 					j = ecol;
@@ -2329,14 +2362,14 @@ COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, AttTYPE *s
 					templine3[t->len] = EOS;
 					j = col + t->len;
 				}
-				if (!is_case_word(t->cWordFlag))
+				if (!is_case_word(cFlag))
 					uS.uppercasestr(templine3, &dFnt, C_MBF);
-				if (is_wild_card(t->cWordFlag))
+				if (is_wild_card(cFlag))
 					i = curses_patmat(templine3, t->fWord, *sData);
 				else
 					i = !strcmp(t->fWord, templine3);
 				if (i) {
-					if (is_all_line(t->cWordFlag)) {
+					if (is_all_line(cFlag)) {
 						if (t->index < NUMCOLORPOINTS) {
 							t->sCol[t->index] = 0;
 							t->eCol[t->index] = ecol;
@@ -2360,7 +2393,7 @@ COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, AttTYPE *s
 						}
 					}
 				}
-				if (is_wild_card(t->cWordFlag)) {
+				if (is_wild_card(cFlag)) {
 					col = ecol;
 				} else {
 					col++;
@@ -2614,7 +2647,7 @@ void wrefresh(WINDOW *w) {
 			if (lastViewCol > ecol)
 				lastViewCol = ecol;
 			if (global_df->RootColorText != NULL && w == global_df->w1)
-				tierColor = FindColorKeywordsBounds(global_df->RootColorText, sAtts, sData, 0, lastViewCol, tierColor);
+				tierColor = FindColorKeywordsBounds(global_df->RootColorText, w, row, sAtts, sData, 0, lastViewCol, tierColor);
 			cCol = 0;
 			oldState = sAtts[0];
 			if (w->RowFInfo[row]->FHeight > 12)
@@ -2642,7 +2675,9 @@ void wrefresh(WINDOW *w) {
 					}
 					templineC4[LineNumberDigitSize] = EOS;
 				}
+				TextFont(4); // 2022-05-26 w->RowFInfo[row]->FName);
 				DrawText(templineC4, 0, strlen(templineC4));
+				TextFont(w->RowFInfo[row]->FName);
 			}
 			MoveTo(LEFTMARGIN+w->textOffset, print_cRow);
 			for (col=0; col <= lastViewCol; col++) {
@@ -2841,7 +2876,7 @@ void wrefresh(WINDOW *w) {
 			if (lastViewCol > ecol)
 				lastViewCol = ecol;
 			if (global_df->RootColorText != NULL && w == global_df->w1)
-				tierColor = FindColorKeywordsBounds(global_df->RootColorText, sAtts, sData, 0, lastViewCol, tierColor);
+				tierColor = FindColorKeywordsBounds(global_df->RootColorText, w, row, sAtts, sData, 0, lastViewCol, tierColor);
 			cCol = 0;
 			oldState = sAtts[0];
 			if (isShowLineNumbers) {

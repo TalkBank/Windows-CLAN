@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -536,7 +536,6 @@ void usage() {
 }
 
 void call() {
-	int  found;
 	long tlineno = 0;
 	char lRightspeaker, isVerbFound;
 	struct sugar_speakers *ts;
@@ -545,7 +544,6 @@ void call() {
 	ts = NULL;
 	spareTier1[0] = EOS;
 	lRightspeaker = FALSE;
-	found = 0;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
@@ -690,8 +688,7 @@ void init(char first) {
 }
 
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
-	int i, fileArgcStart, fileArgcEnd, langArgc;
-	char isFileGiven;
+	int i;
 
 	targc = argc;
 #if defined(_MAC_CODE) || defined(_WIN32)
@@ -708,15 +705,10 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	CLAN_PROG_NUM = SUGAR;
 	OnlydataLimit = 0;
 	UttlineEqUtterance = FALSE;
-	isFileGiven = FALSE;
 	for (i=1; i < argc; i++) {
 		if (*argv[i] == '+'  || *argv[i] == '-') {
-		} else
-			isFileGiven = TRUE;
+		}
 	}
-	fileArgcStart = 0;
-	fileArgcEnd = 0;
-	langArgc = 0;
 	bmain(argc,argv,sugar_pr_result);
 }
 

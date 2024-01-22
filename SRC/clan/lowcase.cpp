@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -41,17 +41,17 @@ struct lowcase_tnode		/* binary lowcase_tree for word and count */
 
 static int  arrCnt;
 static char **lowcase_array;
-static char lowcase_ftime, isFWord, isMakeBold, isMorEnabled, isCapsSpecified, isChangeToUpper;
+static char lowcase_ftime, isFWord, isMorEnabled, isCapsSpecified, isChangeToUpper;
 static FNType lc_dicname[FNSize];
 static struct lowcase_tnode *lowcase_root;
 
 void usage() {
 	puts("LOWCASE converts all words to lower case except those specified as pronouns.");
 	printf("Usage: lowcase [b c d iF %s] filename(s)\n", mainflgs());
-	puts("+b : mark upper case letters as bold, then convert them to lower case");
 	puts("+c : convert only the first word on a tier to lower case");
 	fprintf(stdout, "+d : do NOT change words from \"%s\" file, lower case the rest\n", DICNAME);
 	fprintf(stdout, "+d1: capitalize words from \"%s\" file, do NOT change the rest\n", DICNAME);
+	fprintf(stdout, "+d2: ignore \"%s\" file, lower case everything\n", DICNAME);
 	fprintf(stdout, "+iF: file F with capitalize words (default: %s)\n", DICNAME);
 #ifdef UNX
 	puts("+LF: specify full path F of the lib folder");
@@ -124,7 +124,7 @@ static void addWordToArray(char *w) {
 }
 
 static void createSortedArray(struct lowcase_tnode *p) {
-	struct lowcase_tnode *t;
+//	struct lowcase_tnode *t;
 
 	if (p != NULL) {
 		createSortedArray(p->left);
@@ -136,7 +136,7 @@ static void createSortedArray(struct lowcase_tnode *p) {
 				createSortedArray(p->right);
 				break;
 			}
-			t = p;
+//			t = p;
 			p = p->right;
 		} while (1);
 	}
@@ -205,29 +205,6 @@ static void read_file(FILE *fdic) {
 	}
 }
 
-static void OpenBriCaps(FNType *mFileName) {
-	int  index, t, len;
-	FNType tFName[FNSize];
-	FILE *bricaps;
-
-	index = 1;
-	t = strlen(mFileName);
-	while ((index=Get_File(tFName, index)) != 0) {
-		len = strlen(tFName) - 4;
-		if (tFName[0] != '.' && len >= 0 && uS.FNTypeicmp(tFName+len, ".cut", 0) == 0) {
-			addFilename2Path(mFileName, tFName);
-			if ((bricaps=fopen(mFileName, "r"))) {
-				fprintf(stderr,"\rUsing BriCaps: %s.\n", mFileName);
-				read_file(bricaps);
-				fclose(bricaps);
-				bricaps = NULL;
-			}
-			mFileName[t] = EOS;
-		}
-	}
-}
-
-
 static void lowcase_readdict() {
 	FILE *fdic;
 	FNType mFileName[FNSize];
@@ -245,14 +222,13 @@ static void lowcase_readdict() {
 	}
 	arrCnt = 0;
 	if (fdic != NULL) {
-		fprintf(stderr, "Using dep-files \"%s\"\n", mFileName);
-		read_file(fdic);
+		if (isChangeToUpper == 2) {
+			fprintf(stderr,"Warning: Ignoring caps.cut file.\n");
+		} else {
+			fprintf(stderr, "Using dep-files \"%s\"\n", mFileName);
+			read_file(fdic);
+		}
 		fclose(fdic);
-	}
-	strcpy(mFileName,lib_dir);
-	addFilename2Path(mFileName, "Bricaps");
-	if (!SetNewVol(mFileName)) {
-		OpenBriCaps(mFileName);
 	}
 	SetNewVol(wd_dir);
 	initArray();
@@ -267,7 +243,6 @@ void init(char f) {
 		isChangeToUpper = 10;
 		isFWord = FALSE;
 		isCapsSpecified = FALSE;
-		isMakeBold = FALSE;
 		stout = FALSE;
 		lowcase_array = NULL;
 		lowcase_root = NULL;
@@ -304,6 +279,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 
 static char gotmatch(char *word) {
 	int i, cond, e;
+	char *s;
 	long low, high, mid;
 
 	strcpy(templineC4,word);
@@ -314,6 +290,8 @@ static char gotmatch(char *word) {
 		} else
 			i++;
 	}
+	if ((s=strchr(templineC4, '@')) != NULL)
+		*s = EOS;
 	uS.uppercasestr(templineC4, &dFnt, MBF);
 	e = strlen(templineC4) - 1;
 	if (e < 0)
@@ -354,17 +332,17 @@ getnewword:
 				for (i++; line[i] != '>' && line[i]; i++) {
 					if (isdigit(line[i])) ;
 					else if (line[i]== ' ' || line[i]== '\t' || line[i]== '\n') ;
-					else if ((i-1 == temp+1 || !isalpha(line[i-1])) &&
-							 line[i] == '-' && !isalpha(line[i+1])) ;
-					else if ((i-1 == temp+1 || !isalpha(line[i-1])) &&
+					else if ((i-1 == temp+1 || !uS.my_isalpha(line+i-1)) &&
+							 line[i] == '-' && !uS.my_isalpha(line+i+1)) ;
+					else if ((i-1 == temp+1 || !uS.my_isalpha(line+i-1)) &&
 							 (line[i] == 'u' || line[i] == 'U') &&
-							 !isalpha(line[i+1])) ;
-					else if ((i-1 == temp+1 || !isalpha(line[i-1])) &&
+							 !uS.my_isalpha(line+i+1)) ;
+					else if ((i-1 == temp+1 || !uS.my_isalpha(line+i-1)) &&
 							 (line[i] == 'w' || line[i] == 'W') &&
-							 !isalpha(line[i+1])) ;
-					else if ((i-1 == temp+1 || !isalpha(line[i-1])) &&
+							 !uS.my_isalpha(line+i+1)) ;
+					else if ((i-1 == temp+1 || !uS.my_isalpha(line+i-1)) &&
 							 (line[i] == 's' || line[i] == 'S') &&
-							 !isalpha(line[i+1])) ;
+							 !uS.my_isalpha(line+i+1)) ;
 					else
 						break;
 				}
@@ -446,64 +424,18 @@ static int isNextCharUpper(char *line, NewFontInfo *finfo) {
 				if (*line == ':' || *line == '/' || *line == '(' || *line == ')' || uS.HandleCAChars(line, NULL))
 					;
 				else
-					return(isupper((unsigned char)*line));
+					return(uS.my_isupper(line));
 			} else
 				return(FALSE);
 		} else {
 			if (*line == ':' || *line == '/' || *line == '(' || *line == ')')
 				;
 			else
-				return(isupper((unsigned char)*line));
+				return(uS.my_isupper(line));
 		}
 		line++;
 	}
 	return(FALSE);
-}
-
-static long makeBold(char *line, AttTYPE *atts, NewFontInfo *finfo) {
-	int  isUpperC;
-	long isFound;
-	char isHiden, isSq;
-
-	isSq = FALSE;
-	isHiden = FALSE;
-	isUpperC = FALSE;
-	isFound = 0L;
-	while (*line) {
-		if (*line == '[')
-			isSq = TRUE;
-		else if (*line == ']')
-			isSq = FALSE;
-		if (*line == HIDEN_C)
-			isHiden = !isHiden;
-
-		if (isSq || isHiden)
-			isUpperC = FALSE;
-		else if (finfo->isUTF) {
-			if (UTF8_IS_SINGLE((unsigned char)*line)) {
-				if (*line == ':' || *line == '/' || *line == '(' || *line == ')' || uS.HandleCAChars(line, NULL))
-					;
-				else
-					isUpperC = (isupper((unsigned char)*line) && (isUpperC || isNextCharUpper(line+1, finfo)));
-			} else
-				isUpperC = FALSE;
-		} else {
-			if (*line == ':' || *line == '/' || *line == '(' || *line == ')')
-				;
-			else
-				isUpperC = (isupper((unsigned char)*line) && (isUpperC || isNextCharUpper(line+1, finfo)));
-		}
-
-		if (isUpperC) {
-			if (isupper((unsigned char)*line))
-				*line = (char)tolower((unsigned char)*line);
-			*atts = set_bold_to_1(*atts);
-			isFound++;
-		}
-		line++;
-		atts++;
-	}
-	return(isFound);
 }
 
 void call() {
@@ -537,12 +469,6 @@ void call() {
 		} else {
 			if (*utterance->speaker == '*') {
 				RightSpeaker = TRUE;
-				if (isMakeBold)
-					isFound += makeBold(utterance->line, utterance->attLine, &dFnt);
-			}
-			if (isMakeBold) {
-				printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
-				continue;
 			}
 
 			strcpy(templineC,utterance->speaker);
@@ -571,22 +497,22 @@ void call() {
 				t = utterance->line[i];
 				utterance->line[i] = EOS;
 				if (gotmatch(utterance->line+pos)) {
-					if (isChangeToUpper && islower((unsigned char)utterance->line[pos])) {
+					if (isChangeToUpper && uS.my_islower(utterance->line+pos)) {
 						isFound++;
-						utterance->line[pos] = (char)toupper((unsigned char)utterance->line[pos]);
+						uS.my_toupper(utterance->line+pos);
 					}
-				} else if (isalpha(utterance->line[pos]) || utterance->line[pos] == '(') {
+				} else if (uS.my_isalpha(utterance->line+pos) || utterance->line[pos] == '(') {
 					if ((utterance->line[pos] == 'I' || utterance->line[pos] == 'i') &&
-						!isalpha(utterance->line[pos+1]) && utterance->line[pos+1] != ':' && 
+						!uS.my_isalpha(utterance->line+pos+1) && utterance->line[pos+1] != ':' && 
 						utterance->line[pos+1] != '(' && utterance->line[pos+1] != ')') {
-						if (islower((unsigned char)utterance->line[pos])) {
+						if (uS.my_islower(utterance->line+pos)) {
 							if (utterance->line[pos+1] == '@' && (char)tolower((unsigned char)utterance->line[pos+2]) == 'l')
 								;
-							else if (utterance->line[pos+1] == '(' && isalpha(utterance->line[pos+2]))
+							else if (utterance->line[pos+1] == '(' && uS.my_isalpha(utterance->line+pos+2))
 								;
 							else {
 								isFound++;
-								utterance->line[pos] = (char)toupper((unsigned char)utterance->line[pos]);
+								uS.my_toupper(utterance->line+pos);
 							}
 						}
 					} else if (isChangeToUpper != 1) {
@@ -595,7 +521,7 @@ void call() {
 					}
 				}
 				utterance->line[i] = t;
-				if (isFWord && isalpha(utterance->line[pos]))
+				if (isFWord && uS.my_isalpha(utterance->line+pos))
 					break;
 			}
 			printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
@@ -624,11 +550,6 @@ void call() {
 void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
-		case 'b':
-				isMakeBold = TRUE;
-				no_arg_option(f);
-				break;
-
 		case 'c':
 				isFWord = TRUE;
 				no_arg_option(f);
@@ -636,8 +557,8 @@ void getflag(char *f, char *f1, int *i) {
 
 		case 'd':
 				isChangeToUpper = (char)atoi(getfarg(f,f1,i));
-				if (isChangeToUpper > 1) {
-					fputs("The N for +d option must be between 0 - 1\n",stderr);
+				if (isChangeToUpper > 2) {
+					fputs("The N for +d option must be between 0 - 2\n",stderr);
 					cutt_exit(0);
 				}
 				break;

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -23,7 +23,6 @@
 #define PERIOD 50
 
 //2015-03-30 extern char cutt_isCAFound;
-extern char cutt_isBlobFound;
 extern struct tier *defheadtier;
 extern char OverWriteFile;
 
@@ -299,7 +298,7 @@ static char isRetrace(char *line, AttTYPE *att) {
 			ab++;
 			if (ab == 1)
 				oab = i;
-		} if (line[i] == '>' && sq == 0) {
+		} else if (line[i] == '>' && sq == 0) {
 			if (ab > 0)
 				ab--;
 			if (ab == 0)
@@ -320,14 +319,19 @@ static char isRetrace(char *line, AttTYPE *att) {
 			break;
 		}
 	}
-	return(TRUE);
+	return(FALSE);
 }
 
 static long FindAndChangeCoreLex(char *line, AttTYPE *att, long isFound) {
 	int i, pos;
-	
+
 	pos = 0;
 	while (line[pos] != EOS) {
+		if (line[pos] == HIDEN_C) {
+			for (i=pos+1; line[i] != HIDEN_C && line[i] != EOS; i++) ;
+			if (line[i] == HIDEN_C)
+				pos = i;
+		}
 		if (line[pos] == '_') {
 			line[pos] = ' ';
 			isFound++;
@@ -789,7 +793,7 @@ static void cleanAtts(char *sp, char *line, AttTYPE *attSp, AttTYPE *attLine) {
 
 	for (i=0; sp[i] != EOS; i++)
 		attSp[i] = 0;
-	if (sp[0] != '*' && !cutt_isBlobFound) {
+	if (sp[0] != '*') {
 		for (i=0; line[i] != EOS; i++)
 			attLine[i] = 0;
 		return;
@@ -800,8 +804,7 @@ static void cleanAtts(char *sp, char *line, AttTYPE *attSp, AttTYPE *attLine) {
 	uttFound = FALSE;
 	for (i=0; line[i] != EOS; i++) {
 		if (line[i] == '[') {
-			if (!cutt_isBlobFound)
-				sb = TRUE;
+			sb = TRUE;
 			preCode = FALSE;
 			bullet = FALSE;
 		} else if (line[i] == ']') {
@@ -811,16 +814,16 @@ static void cleanAtts(char *sp, char *line, AttTYPE *attSp, AttTYPE *attLine) {
 			preCode = FALSE;
 			bullet = !bullet;
 			attLine[i] = 0;
-		} else if (line[i] == '+' && !sb && !cutt_isBlobFound) {
+		} else if (line[i] == '+' && !sb) {
 			if (i == 0 || uS.isskip(line,i-1,&dFnt,C_MBF))
 				preCode = TRUE;
 		} else if (uS.IsUtteranceDel(line,i) && !sb) {
-			if (!cutt_isBlobFound && !bullet && !uS.isPause(line, i, NULL, NULL))
+			if (!bullet && !uS.isPause(line, i, NULL, NULL))
 				uttFound = TRUE;
 		} else if (isSpace(line[i]) && !sb && !uttFound) {
 			preCode = FALSE;
 			bullet = FALSE;
-		} else if (uS.isskip(line,i,&dFnt,C_MBF) && !sb && !cutt_isBlobFound) {
+		} else if (uS.isskip(line,i,&dFnt,C_MBF) && !sb) {
 			attLine[i] = 0;
 			preCode = FALSE;
 			bullet = FALSE;
@@ -964,8 +967,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			if (NO_CHANGE) {
 				if (tab || chstring_isCoreLex) {
 					i = 0;
-					if (/*//2015-03-30 !cutt_isCAFound && */!cutt_isBlobFound)
-						for (; isSpace(utterance->line[i]); i++) ;
+					for (; isSpace(utterance->line[i]); i++) ;
 					printout(utterance->speaker+j,utterance->line+i,utterance->attSp+j,utterance->attLine+i,FALSE);
 				} else {
 					if (stringOriented != 0 && utterance->line[0] == '\n' && utterance->line[1] == EOS)
@@ -975,8 +977,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			} else {
 				uS.remblanks(utterance->line);
 				i = 0;
-				if (/*//2015-03-30 !cutt_isCAFound && */!cutt_isBlobFound)
-					for (; isSpace(utterance->line[i]); i++) ;
+				for (; isSpace(utterance->line[i]); i++) ;
 				if (!chatmode) {
 					if (utterance->line[i] != EOS) {
 						j = strlen(utterance->line) - 1;
@@ -1021,7 +1022,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 #ifndef UNX
 	if (isFound == 0L && fpout != stdout && !stout && !WD_Not_Eq_OD) {
 		fprintf(stderr,"**- NO changes made in this file\n");
-		if (!replaceFile) {
+		if (!replaceFile && !chstring_isCoreLex) {
 			fclose(fpout);
 			fpout = NULL;
 			if (unlink(newfname))
@@ -1090,6 +1091,7 @@ void getflag(char *f, char *f1, int *i) {
 					if (*f == EOS) {
 						tab = TRUE;
 					} else if (*f == '1') {
+						NO_CHANGE = TRUE;
 						chstring_isCoreLex = TRUE;
 					} else {
 						fprintf(stderr,"Only +q or +q1 options are allowed\n");

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -51,6 +51,7 @@
 
 #define CHAT_MODE 2
 
+extern char Parans;
 extern struct tier *defheadtier;
 
 #define WORDLST struct WordsList
@@ -124,7 +125,8 @@ void init(char first) {
 			free(defheadtier);
 			defheadtier = NULL;
 		}
-	}
+	} else
+		Parans = 2;
 }
 
 static void FreeWordList(void) {
@@ -453,8 +455,10 @@ void call() {
 			printout(utterance->speaker,utterance->line, NULL, NULL, TRUE);
 			outlineno += ((strlen(utterance->line) + strlen(utterance->speaker)) / MAXOUTCOL) + 1L;
 		} else {
-			printout(utterance->speaker,utterance->line, NULL, NULL, FALSE);
-			outlineno += tlineno;
+			if (!uS.partcmp(utterance->speaker, "%ret:", FALSE, FALSE)) {
+				printout(utterance->speaker,utterance->line, NULL, NULL, FALSE);
+				outlineno += tlineno;
+			}
 		}
 	}
 }

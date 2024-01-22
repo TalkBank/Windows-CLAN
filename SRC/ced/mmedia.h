@@ -96,6 +96,7 @@ extern char findStartMediaTag(char isMove, char isCAMode);
 extern char PlayBuffer(int com);
 extern char CheckRateChan(sndInfo *snd, char *errMess);
 extern char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd);
+extern char HighlightNextTier(long mtime, unCH *file, char isSetBE, char isSnd);
 extern char FindSndInfoAndCopyIt(FNType *fname, long *beg, long *end);
 extern char sameKeyPressed(int key);
 extern char FakeSelectWholeTier(char isCAMode);

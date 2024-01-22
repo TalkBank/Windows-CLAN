@@ -1,0 +1,4 @@
+/* Localized versions of Info.plist keys */
+
+CFBundleGetInfoString = "For the Version number, use \"About Clan...\" inside the application";
+NSHumanReadableCopyright = "For help on the CLAN call: (412) 268-3793 or email: macw@cmu.edu";

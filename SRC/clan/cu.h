@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -285,6 +285,7 @@ struct aliasesList {
 	char *rest;
 	char isPullDownC;
 	char isNeedsArgs;
+	char isAddComUsage;
 	char loc;
 	int  ln;
 	struct aliasesList *next_alias;
@@ -383,6 +384,7 @@ extern int  isExcludePostcode(char *str);
 extern int  getNextDepTierPair(char *cleanLine, char *morItem, char *spWord, int *wi, int i);
 extern int  ml_isclause(void);
 extern int  ml_UtterClause(char *line, int pos);
+extern int  expandX(char *ch, AttTYPE *att, int x, int index);
 
 extern long DealWithAtts_cutt(char *line, long i, AttTYPE att, AttTYPE oldAtt);
 
@@ -432,6 +434,7 @@ extern void IsSearchCA(char *w);
 extern void initLanguages(void);
 extern void freeUpFeats(MORFEATS *p);
 extern void addIxesToSt(char *item, IXXS *ixes, int max, const char *sym, char isAddFront);
+extern void cleanUpMorWord(char *word, char *matched);
 extern void freeUpIxes(IXXS *ixes, int max);
 extern void cleanupGRAWord(char *word);
 extern void cleanupLanguages(void) ;

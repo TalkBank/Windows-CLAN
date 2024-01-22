@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -521,7 +521,7 @@ static int generate_d_optimum (VOCDSP *speaker, FNType *input_fname, double *d_o
 				f = strchr(FileName2, '.');
 				if (f != NULL)
 					*f = EOS;
-				if (!combinput)
+				if (!combinput || onlydata == 4)
 					fprintf(ofp,"%s,", FileName2);
 				else
 					fprintf(ofp,"%s,", POOLED_FNAME);
@@ -529,7 +529,7 @@ static int generate_d_optimum (VOCDSP *speaker, FNType *input_fname, double *d_o
 			if (speaker->IDs != NULL)
 				outputIDForExcel(ofp, speaker->IDs, 1);
 			else {
-				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,", speaker->code);
+				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,.,", speaker->code);
 			}
 			fprintf(ofp,".,.,.,");
 			for (i=0;i<t;i++) {

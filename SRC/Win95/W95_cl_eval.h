@@ -56,6 +56,8 @@ public:
 	BOOL	m_FLOOD;
 	BOOL	m_CINDERELLA;
 	BOOL	m_SANDWICH;
+	BOOL	m_COMMUNICATION;
+	BOOL	m_ILLNESS;
 	CString	m_Reading;
 	//}}AFX_DATA
 
@@ -119,6 +121,8 @@ protected:
 	afx_msg void OnFlood();
 	afx_msg void OnCinderella();
 	afx_msg void OnSandwich();
+	afx_msg void OnCommunication();
+	afx_msg void OnIllness();
 	afx_msg void OnSelectT1();
 	afx_msg void OnSelectT2();
 	afx_msg void OnSelectT3();

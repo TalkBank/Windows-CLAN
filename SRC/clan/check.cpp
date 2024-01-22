@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -157,14 +157,13 @@ static char isItemPrefix[256];
 static char ErrorReport[LAST_ERR_NUM];
 static char ErrorRepFlag;
 static char check_all_err_found;
-static char err_item[17];
+static char err_itm[512];
 static char check_lastSpDelim[25];
 static char check_isNumberShouldBeHere;
 static char check_isCAFound;
 static char check_isArabic;
 static char check_isHebrew;
 static char check_isGerman;
-static char check_isBlob;
 static char check_isMultiBullets;
 static char check_isCheckBullets;
 static char check_isUnlinkedFound;
@@ -196,10 +195,8 @@ void usage() {
 	puts("-eN: report all error(s) except number N");
 	puts("+g1: recognize prosodic delimiter");
 	puts("-g1: ignore prosodic delimiter (default)");
-#if defined(_CLAN_DEBUG)
 	puts("+g2: check for \"CHI Target_Child\"");
 	puts("-g2: do not check for \"CHI Target_Child\" (default)");
-#endif // _CLAN_DEBUG
 	puts("+g3: check words for upper case letters, numbers and illegal apostrophes");
 	puts("-g3: do not check words in more details (default)");
 	puts("+g4: check file(s) for missing @ID tiers");
@@ -738,7 +735,6 @@ CHECK_TIERS *ts;
 		check_isArabic = FALSE;
 		check_isHebrew = FALSE;
 		check_isGerman = FALSE;
-		check_isBlob = FALSE;
 		check_isMultiBullets = FALSE;
 		check_isCheckBullets = TRUE;
 		check_isUnlinkedFound = FALSE;
@@ -770,6 +766,7 @@ CHECK_TIERS *ts;
 		}
 */
 	} else {
+//		isCreateFakeMor = 2;
 		check_SNDFname[0] = EOS;
 		check_SNDBeg = 0L;
 		check_SNDEnd = 0L;
@@ -779,7 +776,6 @@ CHECK_TIERS *ts;
 		check_isArabic = FALSE;
 		check_isHebrew = FALSE;
 		check_isGerman = FALSE;
-		check_isBlob = FALSE;
 		check_isMultiBullets = FALSE;
 		check_isCheckBullets = TRUE;
 		check_isUnlinkedFound = FALSE;
@@ -871,7 +867,7 @@ static int check_displ(int s, int e, long ln, int num) {
 	long ei;
 	char isAttOff = TRUE, isCloseAttMarker;
 
-	err_item[0] = EOS;
+	err_itm[0] = EOS;
 	if (!check_adderror(s,e,num,uttline))
 		return(FALSE);
 	if (totalFilesNum > MINFILESNUM && !stin) { // 2019-04-18 TotalNumFiles
@@ -917,21 +913,21 @@ static int check_displ(int s, int e, long ln, int num) {
 #endif
 				}
 			}
-			if (!isAttOff && ei < 15) {
+			if (!isAttOff && ei < 512) {
 				if (uttline[i] == HIDEN_C) {
-					strcpy(err_item, "<bullet>");
+					strcpy(err_itm, "<bullet>");
 					ei = 15;
 				} else if (uttline[i] == ' ' && ei < 1) {
-					strcpy(err_item, "<space>");
+					strcpy(err_itm, "<space>");
 					ei = 15;
 				} else if (uttline[i] == '\t' && ei < 1) {
-					strcpy(err_item, "<tab>");
+					strcpy(err_itm, "<tab>");
 					ei = 15;
 				} else {
 					if (/*dFnt.isUTF && */(uttline[i] >= 127 || !UTF8_IS_SINGLE((unsigned char)uttline[i]))) {
-						err_item[ei++] = '\001';
+						err_itm[ei++] = '\001';
 					} else
-						err_item[ei++] = uttline[i];
+						err_itm[ei++] = uttline[i];
 				}
 			}
 			templineC2[j++] = uttline[i];
@@ -943,8 +939,8 @@ static int check_displ(int s, int e, long ln, int num) {
 			j += 2;
 #endif
 		}
-		for (ei--; ei >= 0 && err_item[ei] == '\001'; ei--) ;
-		err_item[ei+1] = EOS;
+		for (ei--; ei >= 0 && err_itm[ei] == '\001'; ei--) ;
+		err_itm[ei+1] = EOS;
 #ifndef UNX
 		if (!isAttOff) {
 			sprintf(templineC2+j, "%c%c", ATTMARKER, error_end);
@@ -1044,32 +1040,32 @@ static void check_mess(int wh) {
 				 break;
 		case 47: fprintf(fpout,"Numbers are not allowed inside words.(%d)\n", wh);
 				 break;
-		case 48: if (err_item[0] == EOS)
+		case 48: if (err_itm[0] == EOS)
 					fprintf(fpout,"Illegal character(s) found.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Illegal character(s) '%s' found.(%d)\n", err_item, wh);
+					fprintf(fpout,"Illegal character(s) '%s' found.(%d)\n", err_itm, wh);
 				 break;
 		case 49: fprintf(fpout,"Upper case letters are not allowed inside a word.(%d)\n", wh);
 				 break;
 		case 50: fprintf(fpout,"Redundant utterance delimiter.(%d)\n", wh); break;
 		case 51: fprintf(fpout,"expected [ ]; < > should be followed by [ ]\n"); break;
-		case 52: if (err_item[0] == EOS)
+		case 52: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must be preceded by text.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' must be preceded by text.(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' must be preceded by text.(%d)\n", err_itm, wh);
 				 break;
 		case 53: fprintf(fpout,"Only one \"@Begin\" can be in a file.(%d)\n", wh); break;
 		case 54: fprintf(fpout,"Only one \"@End\" can be in a file.(%d)\n", wh); break;
 				 break;
 		case 55: fprintf(fpout,"Unmatched ( found in the word.(%d)\n", wh); break;
 		case 56: fprintf(fpout,"Unmatched ) found in the word.(%d)\n", wh); break;
-		case 57: if (err_item[0] == EOS)
+		case 57: if (err_itm[0] == EOS)
 					fprintf(fpout,"Please add space between word and pause symbol.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Please add space between word and pause symbol: '%s'.(%d)\n", err_item, wh);
+					fprintf(fpout,"Please add space between word and pause symbol: '%s'.(%d)\n", err_itm, wh);
 				 break;
 		case 58: fprintf(fpout,"Tier name is longer than 8 characters.(%d)\n", wh); break;
-		case 59: if (err_item[0] == EOS)
+		case 59: if (err_itm[0] == EOS)
 #if defined(_MAC_CODE)
 					fprintf(fpout,"Expected second %c character.(%d)\n", '\245', wh);
 				else
@@ -1077,28 +1073,28 @@ static void check_mess(int wh) {
 					fprintf(fpout,"Expected second %c character.(%d)\n", '\225', wh);
 				else
 #endif
-					fprintf(fpout,"Expected second %s character.(%d)\n", err_item, wh);
+					fprintf(fpout,"Expected second %s character.(%d)\n", err_itm, wh);
 				break;
 		case 60: fprintf(fpout,"\"@ID:\" tier is missing in the file.\nPlease run \"insert\" in Commands window on this data file.(%d)\n", wh); break;
 		case 61: fprintf(fpout,"\"@Participants:\" tier is expected here.(%d)\n", wh); break;
 		case 62: fprintf(fpout,"Missing language information.(%d)\n", wh); break;
 		case 63: fprintf(fpout,"Missing Corpus name.(%d)\n", wh); break;
 		case 64: fprintf(fpout,"Wrong gender information (Choose: female or male).(%d)\n", wh); break;
-		case 65: if (err_item[0] == EOS)
+		case 65: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item can not be followed by the next symbol.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' can not be followed by the next symbol.(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' can not be followed by the next symbol.(%d)\n", err_itm, wh);
 				 break;
-		case 66: if (err_item[0] == EOS)
+		case 66: if (err_itm[0] == EOS)
 					fprintf(fpout,"Illegal character in a word.\n");
 				 else
-					fprintf(fpout,"Illegal character '%s' in a word.\n", err_item);
+					fprintf(fpout,"Illegal character '%s' in a word.\n", err_itm);
 				 fprintf(fpout,"Or a SPACE should be added before it.(%d)\n", wh);
 				 break;
-		case 67: if (err_item[0] == EOS)
+		case 67: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must be followed by text\n");
 				 else
-					fprintf(fpout,"Item '%s' must be followed by text\n", err_item);
+					fprintf(fpout,"Item '%s' must be followed by text\n", err_itm);
 				fprintf(fpout," preceded by SPACE or be removed.(%d)\n", wh);
 				break;
 		case 68: fprintf(fpout,"PARTICIPANTS TIER IS MISSING \"CHI Target_Child\".(%d)\n", wh);
@@ -1107,33 +1103,33 @@ static void check_mess(int wh) {
 				break;
 		case 70: fprintf(fpout,"Expected either text or \"0\" on this tier.(%d)\n", wh);
 				break;
-		case 71: if (err_item[0] == EOS)
+		case 71: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must be before pause (#).(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' must be before pause (#).(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' must be before pause (#).(%d)\n", err_itm, wh);
 				 break;
-		case 72: if (err_item[0] == EOS)
+		case 72: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must precede the utterance delimiter or CA delimiter.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' must precede the utterance delimiter or CA delimiter.(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' must precede the utterance delimiter or CA delimiter.(%d)\n", err_itm, wh);
 				 break;
-		case 73: if (err_item[0] == EOS)
+		case 73: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must be preceded by text or '0'.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' must be preceded by text or '0'.(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' must be preceded by text or '0'.(%d)\n", err_itm, wh);
 				 break;
 		case 74: fprintf(fpout,"Only one tab after ':' is allowed.(%d)\n", wh); break;
-		case 75: if (err_item[0] == EOS)
+		case 75: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must follow after utterance delimiter.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' must follow after utterance delimiter.(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' must follow after utterance delimiter.(%d)\n", err_itm, wh);
 				 break;
 		case 76: fprintf(fpout,"Only one letter is allowed with '@l'.(%d)\n", wh); break;
 		case 77: fprintf(fpout,"\"@Languages:\" tier is expected here.(%d)\n", wh); break;
-		case 78: if (err_item[0] == EOS)
+		case 78: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must be used at the beginning of tier.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' must be used at the beginning of tier.(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' must be used at the beginning of tier.(%d)\n", err_itm, wh);
 				 break;
 		case 79: fprintf(fpout,"Only one occurrence of | symbol per word is allowed.(%d)\n", wh); break;
 		case 80: fprintf(fpout,"There must be at least one occurrence of '|'.(%d)\n", wh); break;
@@ -1155,15 +1151,15 @@ static void check_mess(int wh) {
 		case 89: fprintf(fpout,"Missing or extra or wrong characters found in bullet.(%d)\n", wh); break;
 		case 90: fprintf(fpout,"Illegal time representation inside a bullet.(%d)\n", wh); break;
 		case 91: fprintf(fpout,"Blank lines are not allowed.(%d)\n", wh); break;
-		case 92: if (err_item[0] == EOS)
+		case 92: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must be followed by space or end-of-line.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' must be followed by space or end-of-line.(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' must be followed by space or end-of-line.(%d)\n", err_itm, wh);
 				 break;
-		case 93: if (err_item[0] == EOS)
+		case 93: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must be preceded by SPACE.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' must be preceded by SPACE.(%d)", err_item, wh);
+					fprintf(fpout,"Item '%s' must be preceded by SPACE.(%d)\n", err_itm, wh);
 				break;
 		case 94: fprintf(fpout,"Mismatch of speaker and %%mor: utterance delimiters.(%d)\n", wh); break;
 		case 95: fprintf(fpout,"Illegal use of capitalized words in compounds.(%d)\n", wh); break;
@@ -1173,10 +1169,10 @@ static void check_mess(int wh) {
 		case 98: fprintf(fpout,"Space is not allow in media file name inside bullets.(%d)\n", wh); break;
 		case 99: fprintf(fpout,"Extension is not allow at the end of media file name.(%d)\n", wh); break;
 		case 100: fprintf(fpout,"Commas at the end of PARTICIPANTS tier are not allowed.(%d)\n", wh); break;
-		case 101: if (err_item[0] == EOS)
+		case 101: if (err_itm[0] == EOS)
 					fprintf(fpout,"This item must be followed or preceded by text.(%d)\n", wh);
 				 else
-					fprintf(fpout,"Item '%s' must be followed or preceded by text.(%d)\n", err_item, wh);
+					fprintf(fpout,"Item '%s' must be followed or preceded by text.(%d)\n", err_itm, wh);
 				 break;
 		case 102: fprintf(fpout,"Italic markers are no longer legal in CHAT.(%d)\n", wh); break;
 		case 103: fprintf(fpout,"Illegal use of both CA and IPA on \"@Options:\" tier.(%d)\n", wh); break;
@@ -1187,23 +1183,28 @@ static void check_mess(int wh) {
 		case 108: fprintf(fpout,"All postcodes must precede final bullet.(%d)\n", wh); break;
 		case 109: fprintf(fpout,"Postcodes are not allowed on dependent tiers.(%d)\n", wh); break;
 		case 110: fprintf(fpout,"No bullet found on this tier.(%d)\n", wh); break;
-		case 111: if (err_item[0] == EOS)
+		case 111: if (err_itm[0] == EOS)
 					fprintf(fpout,"Illegal pause format. Pause has to have '.'(%d)\n", wh);
 				else
-					fprintf(fpout,"Pause needs '.' in '%s' or this item is in wrong location.(%d)\n", err_item, wh);
+					fprintf(fpout,"Pause needs '.' in '%s' or this item is in wrong location.(%d)\n", err_itm, wh);
 				break;
 		case 112: fprintf(fpout,"Missing %s tier with media file name in headers section at the top of the file.(%d)\n", MEDIAHEADER, wh); break;
 		case 113: fprintf(fpout,"Illegal keyword, use \"audio\", \"video\" or look in depfile.cut.(%d)\n", wh); break;
 		case 114: fprintf(fpout,"Add \"audio\", \"video\" or look in depfile.cut for more keywords after the media file name on %s tier.(%d)\n", MEDIAHEADER, wh); break;
 		case 115: fprintf(fpout,"Old bullets format found. Please run \"fixbullets\" program to fix this data. (%d)\n", wh); break;
 		case 116: fprintf(fpout,"Specifying Font for individual lines is illegal. Please open this file and save it again. (%d)\n", wh); break;
-		case 117: if (err_item[0] == EOS)
+		case 117: if (err_itm[0] == EOS)
 					fprintf(fpout,"This character must be used in pairs. See if any are unmatched.(%d)\n", wh);
 				else
-					fprintf(fpout,"Character %s must be used in pairs. See if any are unmatched.(%d)\n", err_item, wh);
+					fprintf(fpout,"Character %s must be used in pairs. See if any are unmatched.(%d)\n", err_itm, wh);
 				break;
 		case 118: fprintf(fpout,"Utterance delimiter must precede final bullet.(%d)\n", wh); break;
-		case 119: fprintf(fpout,"Illegal to imbed code inside the scope of the same code.(%d)\n", wh); break;
+		case 119: if (err_itm[0] == EOS)
+					fprintf(fpout,"Missing word after code (%d)\n", wh);
+		  		 else
+					 fprintf(fpout,"Missing word after code \"%s\" (%d)\n", err_itm, wh);
+				break;
+//		case 119: fprintf(fpout,"Illegal to imbed code inside the scope of the same code.(%d)\n", wh); break;
 		case 120: if (check_fav_lang[0] == EOS)
 				fprintf(fpout,"Please use three letter language code.(%d)\n", wh);
 			else {
@@ -1211,17 +1212,17 @@ static void check_mess(int wh) {
 				fprintf(fpout,"    Or see if \"fixlang\" CLAN command in commands window can fix codes automaticaly.(%d)\n", wh);
 			}
 			break;
-		case 121: if (err_item[0] == EOS)
+		case 121: if (err_itm[0] == EOS)
 				fprintf(fpout,"Language code not found in CLAN/lib/fixes/ISO-639.cut file.(%d)\n", wh); 
 			else
-				fprintf(fpout,"Language code \"%s\" not found in \"CLAN/lib/fixes/ISO-639.cut\" file.(%d)\n", err_item, wh); 
+				fprintf(fpout,"Language code \"%s\" not found in \"CLAN/lib/fixes/ISO-639.cut\" file.(%d)\n", err_itm, wh); 
 			fprintf(fpout,"    If it is a legal code, then please add it to \"CLAN/lib/fixes/ISO-639.cut\" file.\n"); 
 			break;
 		case 122: fprintf(fpout,"Language on @ID tier is not defined on \"@Languages:\" header tier.(%d)\n", wh); break;
-		case 123: if (err_item[0] == EOS)
+		case 123: if (err_itm[0] == EOS)
 					fprintf(fpout,"Illegal character found in tier text. If it CA, then add \"@Options: CA\"(%d)\n", wh);
 				else
-					fprintf(fpout,"Illegal character '%s' found in tier text. If it CA, then add \"@Options: CA\"(%d)\n", err_item, wh);
+					fprintf(fpout,"Illegal character '%s' found in tier text. If it CA, then add \"@Options: CA\"(%d)\n", err_itm, wh);
 			break;
 		case 124: fprintf(fpout,"Please remove \"unlinked\" from @Media header.(%d)\n", wh); break;
 		case 125: fprintf(fpout,"\"@Options\" header must immediately follow \"@Participants:\" header.(%d)\n", wh); break;
@@ -1233,25 +1234,25 @@ static void check_mess(int wh) {
 		case 131: fprintf(fpout,"Unmatched %c%c%c found on the tier.(%d)\n", 0xE3, 0x80, 0x95, wh); break;
 		case 132: fprintf(fpout,"Tabs should only be used to mark the beginning of lines.(%d)\n", wh); break;
 		case 133: fprintf(fpout,"BEG time is smaller than same speaker's previous END time by %ld msec.(%d)\n", tDiff, wh); break;
-		case 134: if (err_item[0] == EOS)
+		case 134: if (err_itm[0] == EOS)
 				fprintf(fpout,"This item is illegal. Please run \"mor\" command on this data.(%d)\n", wh);
 			else
-				fprintf(fpout,"Item '%s' is illegal. Please run \"mor\" command on this data.(%d)\n", err_item, wh);
+				fprintf(fpout,"Item '%s' is illegal. Please run \"mor\" command on this data.(%d)\n", err_itm, wh);
 			break;
-		case 135: if (err_item[0] == EOS)
+		case 135: if (err_itm[0] == EOS)
 				fprintf(fpout,"This item is illegal.(%d)\n", wh);
 			else
-				fprintf(fpout,"Item '%s' is illegal.(%d)\n", err_item, wh);
+				fprintf(fpout,"Item '%s' is illegal.(%d)\n", err_itm, wh);
 			break;
 		case 136: fprintf(fpout,"Unmatched %c%c%c found on the tier.(%d)\n", 0xE2, 0x80, 0x9C, wh); break;
 		case 137: fprintf(fpout,"Unmatched %c%c%c found on the tier.(%d)\n", 0xE2, 0x80, 0x9D, wh); break;
 		case 138: fprintf(fpout,"Special quote U2019 must be replaced by single quote (').(%d)\n", wh); break;
 		case 139: fprintf(fpout,"Special quote U2018 must be replaced by single quote (').(%d)\n", wh); break;
 		case 140: fprintf(fpout,"Tier \"%%MOR:\" does not link in size to its speaker tier.(%d)\n", wh); break;
-		case 141: if (err_item[0] == EOS)
+		case 141: if (err_itm[0] == EOS)
 				fprintf(fpout,"[: ...] has to be preceded by only one word and nothing else.(%d)\n", wh);
 			else
-				fprintf(fpout,"'%s' must be preceded by only one word and nothing else.(%d)\n", err_item, wh);
+				fprintf(fpout,"'%s' must be preceded by only one word and nothing else.(%d)\n", err_itm, wh);
 			break;
 		case 142: fprintf(fpout,"Speaker's role on @ID tier does not match role on @Participants: tier.(%d)\n", wh); break;
 		case 143: fprintf(fpout,"The @ID line needs 10 fields.(%d)\n", wh); break;
@@ -1260,10 +1261,10 @@ static void check_mess(int wh) {
 		case 146: fprintf(fpout,"The &= symbol must include some code after '=' character.(%d)\n", wh); break;
 		case 147: fprintf(fpout,"Undeclared special form marker in depfile.(%d)\n", wh); break;
 		case 148: fprintf(fpout,"Space character is not allowed before comma(,) character on \"@Media:\" header.(%d)\n", wh); break;
-		case 149: if (err_item[0] == EOS)
+		case 149: if (err_itm[0] == EOS)
 				fprintf(fpout,"Illegal character located between a word and [...] code.(%d)\n", wh);
 			else
-				fprintf(fpout,"Illegal character '%s' located between a word and [...] code.(%d)\n", err_item, wh);
+				fprintf(fpout,"Illegal character '%s' located between a word and [...] code.(%d)\n", err_itm, wh);
 			break;
 		case 150: fprintf(fpout,"Illegal item located between a word and [...] code.(%d)\n", wh); break;
 		case 151: fprintf(fpout,"This word has only repetition segments.(%d)\n", wh); break;
@@ -1271,13 +1272,13 @@ static void check_mess(int wh) {
 		case 152: fprintf(fpout,"Language is not defined on \"@Languages:\" header tier.(%d)\n", wh); break;
 		case 153: fprintf(fpout,"Age's month or day are missing initial zero.\nPlease run \"chstring +q +1\" command on this file to fix this error.(%d)\n", wh); break;
 		case 154: fprintf(fpout,"Please add \"unlinked\" to @Media header.(%d)\n", wh); break;
-		case 155: if (err_item[0] == EOS)
+		case 155: if (err_itm[0] == EOS)
 				fprintf(fpout,"Please use \"0word\" instead of \"(word)\".(%d)\n", wh);
 			else {
-				i = strlen(err_item) - 1;
+				i = strlen(err_itm) - 1;
 				if (i > 0)
-					err_item[i] = EOS;
-				fprintf(fpout,"Please use \"0%s\" instead of \"(%s)\".(%d)\n", err_item+1, err_item+1,wh);
+					err_itm[i] = EOS;
+				fprintf(fpout,"Please use \"0%s\" instead of \"(%s)\".(%d)\n", err_itm+1, err_itm+1,wh);
 			}
 			break;
 		case 156: fprintf(fpout,"Please replace ,, with F2-t (%c%c%c) character.(%d)\n", 0xE2, 0x80, 0x9E, wh); break;
@@ -1326,7 +1327,7 @@ static void check_CodeErr(int wh) {
 		if (uttline[i-1] != '\n')
 			putc('\n', fpout);
 	}
-	err_item[0] = EOS;
+	err_itm[0] = EOS;
 	check_mess(wh);
 }
 
@@ -1516,15 +1517,9 @@ static int check_matchplate(TPLATES *tp, char *s, char charType) {
 	} else if (ses) {
 		return(144);
 	} else if (*s == '$') {
-		if (check_isBlob)
-			return(FALSE);
-		else
-			return(32);
+		return(32);
 	} else {
-		if (check_isBlob)
-			return(FALSE);
-		else
-			return(11);
+		return(11);
 	}
 }
 
@@ -2185,6 +2180,7 @@ static char check_OverAll(void) {
 		check_err(1,0,0,linenum);
 		er = TRUE;
 	}
+	lineno = 1L;
 	cnt = 0;
 	while (!feof(fpin)) {
 		uttline[i] = (char)getc_cr(fpin, NULL);
@@ -2206,6 +2202,7 @@ static char check_OverAll(void) {
 				i = 0;
 				continue;
 			}
+			lineno++;
 			if (uS.partcmp(uttline, "@Options:",FALSE,FALSE) || uS.partcmp(uttline, "@Languages:",FALSE,FALSE)) {
 				for (j=0; uttline[j] != EOS; j++) {
 					if (!strncmp(uttline+j, "CA", 2) || !strncmp(uttline+j, "CA-Unicode", 10)) {
@@ -2309,6 +2306,7 @@ static char check_OverAll(void) {
 		} else
 			i++;
 	}
+	lineno = 0L;
 	*uttline = EOS;
 	if (!beg) {
 		if (check_err(6,-1,-1,-1L))
@@ -3271,7 +3269,7 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 //							}
 						}
 					} else if (uS.isRightChar(w,s,'\'',&dFnt,MBF)) {
-						if (w[s+1] != EOS && (uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'\'',&dFnt,MBF) ||
+						if (w[s+1] != EOS && (uS.isRightChar(w,s+1,'\'',&dFnt,MBF) ||
 								uS.isRightChar(w,s+1,'+',&dFnt,MBF) ||
 								uS.isRightChar(w,s+1,'~',&dFnt,MBF) || uS.isRightChar(w,s+1,'#',&dFnt,MBF) ||
 								uS.isRightChar(w,s+1,'@',&dFnt,MBF) || uS.isRightChar(w,s+1,'"',&dFnt,MBF) ||
@@ -3428,13 +3426,15 @@ static void check_CheckWords(char *w, int pos, long ln, CHECK_TIERS *ts) {
 					} else if (uS.isRightChar(w,s,'-',&dFnt,MBF) || uS.isRightChar(w,s,'&',&dFnt,MBF) ||
 							uS.isRightChar(w,s,'*',&dFnt,MBF) || uS.isRightChar(w,s,'#',&dFnt,MBF) ||
 							uS.isRightChar(w,s,'\'',&dFnt,MBF)|| uS.isRightChar(w,s,'/',&dFnt,MBF)) {
-						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&dFnt,MBF) || uS.isRightChar(w,s+1,'&',&dFnt,MBF) ||
+						if (w[s+1] == EOS || uS.isRightChar(w,s+1,'-',&dFnt,MBF) ||
+								uS.isRightChar(w,s+1,'&',&dFnt,MBF) ||
 								uS.isRightChar(w,s+1,'=',&dFnt,MBF) || uS.isRightChar(w,s+1,'|',&dFnt,MBF) ||
 								uS.isRightChar(w,s+1,'#',&dFnt,MBF) || uS.isRightChar(w,s+1,':',&dFnt,MBF) ||
 								uS.isRightChar(w,s+1,'^',&dFnt,MBF) || uS.isRightChar(w,s+1,'~',&dFnt,MBF) ||
 								uS.isRightChar(w,s+1,'*',&dFnt,MBF) || uS.isRightChar(w,s+1,'+',&dFnt,MBF) ||
 								uS.isRightChar(w,s+1,'\'',&dFnt,MBF)) {
-							check_err(65, pos+s-1, pos+s-1, ln);
+							if (uS.isRightChar(w,s,'\'',&dFnt,MBF) == FALSE)
+								check_err(65, pos+s-1, pos+s-1, ln);
 						}
 					} else if (uS.isRightChar(w,s,'+',&dFnt,MBF) || uS.isRightChar(w,s,'~',&dFnt,MBF) || uS.isRightChar(w,s,'$',&dFnt,MBF)) {
 						if (isFoundBar == 1) {
@@ -3974,7 +3974,7 @@ static void check_ParseBlob(CHECK_TIERS *ts) {
 			if (hidenc) {
 				check_err(59,s-1,s-1,ln+lineno);
 			}
-			if (utterance->speaker[0] == '*' /* 2018-08-06 || check_isBlob == FALSE*/) {
+			if (utterance->speaker[0] == '*') {
 				if ((res=check_checkBulletsConsist(&FirstBulletFound, word)) != 0)
 					check_err(res,s-1,s-1,ln+lineno);
 			}
@@ -4019,7 +4019,7 @@ static char check_isReplacementError(char *line, int s) {
 	if (uS.isRightChar(line, s, '.', &dFnt, MBF) && uS.isPause(line, s, NULL, NULL))
 		return(TRUE);
 	s++;
-	if (line[s] == '&' || line[s] == '+' || line[s] == '0')
+	if (line[s] == '&' || line[s] == '+') // 2023-02-24 || line[s] == '0')
 		return(TRUE);
 	return(FALSE);
 }
@@ -4214,6 +4214,9 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 			if (is_italic(utterance->attLine[s-1])) {
 				check_err(102,s-1,s-1,ln+lineno);
 			}
+			if (uttline[s-1] == ';' && (*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE))) {
+				check_err(48,s-1,s-1,ln+lineno);
+			}
 			if (*st == ',') {
 				if (!uS.isskip(uttline, s, &dFnt, MBF) && uttline[s] != ',' && uttline[s] != EOS && uttline[s] != '\n') {
 					if (uS.HandleCAChars(uttline+s, &matchType)) {
@@ -4244,7 +4247,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 					if (!strncmp(utterance->speaker, "%mor", 4) && check_lastSpDelim[0] != EOS && check_lastSpDelim[0] != uttline[s-1]) {
 						check_err(94,s-1,s-1,ln+lineno);
 					}
-					if (*utterance->speaker == '*') {
+					if (*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE)) {
 						check_lastSpDelim[0] = uttline[s-1];
 						check_lastSpDelim[1] = EOS;
 					}
@@ -4270,7 +4273,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 			}
 		}
 		if (*st == EOS) {
-			if (*utterance->speaker == '*' && anb) {
+			if ((*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE)) && anb) {
 				check_err(51,s-1,s-1,ln+lineno);
 			}
 			break;
@@ -4301,7 +4304,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 		}
 		check_CheckBrakets(uttline,s-1,&sb,&pb,&ab,&cb,&anb);
 		e = s;
-		if (*st == '&' && *utterance->speaker == '*') {
+		if (*st == '&' && (*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE))) {
 			if (uttline[e] == '+' && (uttline[e+1] < '!' || uttline[e+1] > '?')) {
 				st++;
 				*st = uttline[e];
@@ -4358,7 +4361,13 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 				else if (uS.isRightChar(uttline, e-1, '[', &dFnt, MBF)) 
 					sb++;
 			}
-			if (*utterance->speaker == '*') {
+			if (uttline[e] == '>' && uttline[e+1] == '[') {
+				check_err(93,e+1,e+1,ln+lineno);
+			}
+			if (uttline[e-1] == ']' && uttline[e] == '[') {
+				check_err(93,e,e,ln+lineno);
+			}
+			if (*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE)) {
 				if (uS.IsUtteranceDel(uttline, e)) {
 					if (uS.atUFound(uttline,e,&dFnt,MBF)) {
 						e++;
@@ -4408,7 +4417,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 			if (!strncmp(utterance->speaker, "%mor", 4) && uS.IsUtteranceDel(uttline, e) && check_lastSpDelim[0] != EOS && strcmp(check_lastSpDelim, word)) {
 				check_err(94,s-1,te-1,ln+lineno);
 			}
-			if (*utterance->speaker == '*')
+			if (*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE))
 				strcpy(check_lastSpDelim, word);
 			isSpecialDelimFound = TRUE;
 		} else
@@ -4450,7 +4459,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 				 uS.isRightChar(word,2,' ',&dFnt,MBF))
 			isTextFound = TRUE;
 
-		if (*utterance->speaker == '*') {
+		if (*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE)) {
 			if (anb && !uS.isRightChar(word,0,'[',&dFnt,MBF)) {
 				check_err(51,s-1,s-1,ln+lineno);
 			}
@@ -4471,7 +4480,8 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 //			}
 			if (res == 0) {
 				if (uttline[e] && uttline[e+1] &&
-					(*utterance->speaker == '*' || (uttline[e+1] != '\'' && uttline[e+1] != '"' && !isdigit((unsigned char)uttline[e+1])))) {
+					(*utterance->speaker == '*' /*(*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE)) */ ||
+					 (uttline[e+1] != '\'' && uttline[e+1] != '"' && !isdigit((unsigned char)uttline[e+1])))) {
 					if (uttline[e] == HIDEN_C && e > 0) {
 						check_err(19,e-1,e-1,ln+lineno);
 					} else {
@@ -4491,7 +4501,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 							isSofterMatched != -1 || isLouderMatched != -1 || isLoPitchMatched!= -1 || isHiPitchMatched != -1||
 							isSmileMatched != -1  || isWhisperMatched != -1|| isYawnMatched != -1   || isSingingMatched != -1||
 							isPreciseMatched != -1|| isBreathyMatched != -1|| isLeftArrowMatched != -1) {
-							if (*utterance->speaker == '*')
+							if (*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE))
 								check_err(145,s+r-1,s+r+res-2,ln+lineno);
 						}
 					}
@@ -4603,7 +4613,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 		if (!strcmp(word, "/")) {
 			check_err(48,s-1,e-1,ln+lineno);
 		}
-		if (*utterance->speaker == '*') {
+		if (*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE)) {
 			j = strlen(word) - 1;
 			if (!check_isCAFound && j > 0 && word[0] == '(' && word[j] == ')') {
 				if (!uS.isPause(word, 1, NULL, NULL) && strchr(word+1, '(') == NULL)
@@ -4627,7 +4637,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 				if (word[1] == '+' && !DelFound) {
 					check_err(75,s-1,te-1,ln+lineno);
 				}
-				if (word[1] == '+' && isBulletFound) {
+				if (*utterance->speaker == '*' && word[1] == '+' && isBulletFound) {
 					check_err(108,s-1,te-1,ln+lineno);
 				}
 			}
@@ -4640,7 +4650,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 			check_CheckWords(word, s, ln+lineno, ts);
 		}
 
-		if (*utterance->speaker == '*') {
+		if (*utterance->speaker == '*' || uS.partcmp(utterance->speaker,"%wor:",FALSE,FALSE)) {
 			check_removeCAChars(word);
 		}
 		if (word[0]=='+' && (word[1] == '"' || word[1] == '^' || word[1] == '<' || word[1] == ',' || word[1] == '+') && word[2]==EOS) {
@@ -4675,7 +4685,7 @@ static void check_ParseWords(CHECK_TIERS *ts) {
 			}
 			if (!check_isPlayBullet(word)) {
 				isTextBetweenBulletsFound = TRUE;
-			} else if ((utterance->speaker[0] == '*' /* 2018-08-06 || check_isBlob == FALSE*/) && (!check_isMultiBullets || check_lastBulletOnTier(uttline+e))) {
+			} else if ((utterance->speaker[0] == '*') && (!check_isMultiBullets || check_lastBulletOnTier(uttline+e))) {
 				if ((res=check_checkBulletsConsist(&FirstBulletFound, word)) != 0)
 					check_err(res,s-1,s-1,ln+lineno);
 				isTextBetweenBulletsFound = FALSE;
@@ -5034,7 +5044,7 @@ static char check_isDoubleScope(char *line, int pos, char *code) {
 					uS.isSqCodes(line+pos+1, templineC2, &dFnt, TRUE);
 					line[temp] = ']';
 					if (uS.mStricmp(code, templineC2) == 0) {
-						check_err(119, pos, temp, lineno);
+						check_err(???, pos, temp, lineno);
 					}
 				} else
 					pos = temp;
@@ -5053,9 +5063,23 @@ static char check_isDoubleScope(char *line, int pos, char *code) {
 */
 static char check_ParseScope(char *line) {
 	int pos, temp, sqCnt;
+	char sq, bullet, isWordFound;
 
+	sq = FALSE;
+//	if (strncmp(line, "put", 3) == 0)
+//		bullet = FALSE;
+	bullet = FALSE;
+	isWordFound = FALSE;
 	pos = strlen(line) - 1;
 	while (pos >= 0) {
+		if (line[pos] == ']')
+			sq = TRUE;
+		else if (line[pos] == '[')
+			sq = FALSE;
+		else if (line[pos] == HIDEN_C) {
+			bullet = !bullet;
+		}
+
 		if (uS.isRightChar(line, pos, ']', &dFnt, MBF)) {
 			sqCnt = 0;
 			temp = pos;
@@ -5064,11 +5088,19 @@ static char check_ParseScope(char *line) {
 					sqCnt++;
 				else if (uS.isRightChar(line, pos, '[', &dFnt, MBF))
 					sqCnt--;
+				if (line[pos] == '[')
+					sq = FALSE;
 			}
+			if (line[pos] == '[')
+				sq = FALSE;
 			if (pos >= 0) {
 				line[temp] = EOS;
 				uS.isSqCodes(line+pos+1, templineC3, &dFnt, TRUE);
 				line[temp] = ']';
+				if (isWordFound == FALSE && templineC3[0] == '/') {
+					temp = (temp - pos) + 1;
+					check_err(119, pos, pos+temp-1, lineno);
+				}
 /* 2010-07-20
 				if (check_isDoubleScope(line, pos, templineC3)) {
 					return(FALSE);
@@ -5077,6 +5109,9 @@ static char check_ParseScope(char *line) {
 			} else
 				pos = temp;
 		}
+		if (sq == FALSE && bullet == FALSE && !uS.isskip(line,pos,&dFnt,MBF) &&
+			line[pos] != HIDEN_C && line[pos] != '/' && !isUttDel(line+pos))
+			isWordFound = TRUE;
 		pos--;
 	}
 	return(TRUE);
@@ -5324,9 +5359,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					for (j=i; !uS.isskip(uttline, j, &dFnt, MBF) && uttline[j] != '=' && uttline[j] != '\n' && uttline[j] != EOS; j++) ;
 					t = uttline[j];
 					uttline[j] = EOS;
-					if (!uS.mStricmp(uttline+i, "heritage")) {
-						check_isBlob = TRUE;
-					} else if (!strcmp(uttline+i, "multi")) {
+					if (!strcmp(uttline+i, "multi")) {
 						check_isMultiBullets = TRUE;
 					} else if (!strcmp(uttline+i, "bullets")) {
 						check_isCheckBullets = FALSE;
@@ -5402,7 +5435,8 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 						extractFileName(templineC3, oldfname);
 						if ((s=strrchr(templineC3, '.')) != NULL)
 							*s = EOS;
-						if (uS.mStricmp(uttline+i, templineC3)) {
+						if (uS.mStricmp(uttline+i, templineC3) && 
+							uS.mStrnicmp(uttline+i, "http", 4) != 0) {
 							s = strrchr(templineC3, '.');
 							if (s != NULL && (uS.mStricmp(s, ".elan") == 0 || uS.mStricmp(s, ".praat") == 0)) {
 								*s = EOS;
@@ -5456,12 +5490,8 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					if ((ts=check_FindTier(codet,templineC)) == NULL)
 						check_CodeErr(17);
 					else {
-						if (check_isBlob)
-							check_ParseBlob(ts);
-						else {
-							check_ParseWords(ts);
-							check_ParseScope(uttline);
-						}
+						check_ParseWords(ts);
+						check_ParseScope(uttline);
 					}
 				} else if ((ts=check_FindTier(maint,templineC)) == NULL)
 					check_CodeErr(17);
@@ -5470,12 +5500,8 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				else {
 					if (tp != NULL)
 						tp->isUsed = TRUE;
-					if (check_isBlob)
-						check_ParseBlob(ts);
-					else {
-						check_ParseWords(ts);
-						check_ParseScope(uttline);
-					}
+					check_ParseWords(ts);
+					check_ParseScope(uttline);
 				}
 			}
 		} else if (utterance->speaker[1] != 'x') /* if (*utterance->speaker == '%') */ {
@@ -5485,8 +5511,6 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				check_CleanTierNames(templineC);
 				if ((ts=check_FindTier(codet,templineC)) == NULL)
 					check_CodeErr(17);
-				else if (check_isBlob)
-					check_ParseWords(ts);
 				else
 					check_ParseWords(ts);
 				if (uS.partcmp(utterance->speaker, "%mor:", FALSE, FALSE)) {
@@ -5735,7 +5759,7 @@ void getflag(char *f, char *f1, int *i) {
 					fpout = stdout;
 					for (n=1; n <= LAST_ERR_NUM; n++) {
 						fprintf(fpout, "%2d: ", n);
-						err_item[0] = EOS;
+						err_itm[0] = EOS;
 						check_mess(n);
 					}
 					cleanupLanguages();

@@ -27,7 +27,7 @@ CPlaybackControler::CPlaybackControler(CWnd* pParent /*=NULL*/)
 	m_shift = _T("");
 	m_speed = _T("");
 	m_seglen = _T("");
-	m_CursorPos = _T("");
+	m_CursorPos = _T("0");
 	m_PauseLen = _T("");
 	m_TotalLen = _T("");
 	//}}AFX_DATA_INIT
@@ -301,6 +301,10 @@ void SetPBCglobal_df(char isReset, long cur_pos) {
 			else
 				PBC.cur_pos = conv_to_msec_rep(cur_pos);
 			PBC.total_len = conv_to_msec_rep(PBCglobal_df->SnTr.SoundFileSize);
+			if (PBC.cur_pos < 0)
+				PBC.cur_pos = 0L;
+			if (PBC.total_len < 0)
+				PBC.total_len = 0L;
 		} else {
 			PBC.cur_pos = 0L;
 			PBC.total_len = 0L;
@@ -334,12 +338,7 @@ void CPlaybackControler::UpdateDialogWindow() {
 	m_PauseLen = cl_T(templineC3);
 	sprintf(templineC3, "%ld", PBC.cur_pos);
 	m_CursorPos = cl_T(templineC3);
-/*
-	if (PBCDlg != NULL) {
-		m_CursorPosControl.SetSel(0, -1, FALSE);
-		m_CursorPosControl.ReplaceSel(templineC3, FALSE);
-	}
-*/
+
 	sprintf(templineC3, "%ld", PBC.total_len);
 	m_TotalLen = cl_T(templineC3);
 	m_SliderControl.SetRangeMin(0, FALSE);
@@ -347,6 +346,12 @@ void CPlaybackControler::UpdateDialogWindow() {
 	UpdateData(FALSE);
 	if (!mySetSlider) {
 		mySetSlider = true;
+
+		if (PBCDlg != NULL) {
+			m_CursorPosControl.SetSel(0, -1, FALSE);
+			m_CursorPosControl.ReplaceSel(m_CursorPos, FALSE);
+		}
+
 		if (PBC.total_len == 0L) {
 			m_SliderControl.SetRangeMax(0, TRUE);
 			m_SliderControl.SetPos(0);

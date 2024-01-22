@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="14113" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="14113"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="KidevalController">
+            <connections>
+                <outlet property="CancelButton" destination="Ak2-Jd-2cm" id="BIF-cY-fVD"/>
+                <outlet property="Chinese_zhoCH" destination="46F-w6-lJO" id="r9d-J3-lW3"/>
+                <outlet property="ChooseDBField" destination="mL0-PP-wMi" id="uow-D8-834"/>
+                <outlet property="CompareDB" destination="ezz-yJ-gNm" id="XNJ-0m-LYk"/>
+                <outlet property="FreePlayCH" destination="eRi-Yc-RF8" id="X1b-L9-j62"/>
+                <outlet property="Japanese_tdCH" destination="bW3-K9-PV2" id="gJ1-6M-FTa"/>
+                <outlet property="OKbutton" destination="4Vd-ZJ-A4F" id="4tI-sz-INZ"/>
+                <outlet property="SEE_SLPField" destination="a1S-bV-bRz" id="CVO-bC-nCG"/>
+                <outlet property="bothCH" destination="mG5-ZX-OwL" id="0Pd-Cm-Hmg"/>
+                <outlet property="chooseAgeRangeCH" destination="CSc-H2-QqP" id="d8S-Ps-8Z9"/>
+                <outlet property="doNotCompareDB" destination="1At-Qc-xIB" id="yxh-qH-cAV"/>
+                <outlet property="femaleCH" destination="itk-Lw-OFs" id="xYH-Z7-A3i"/>
+                <outlet property="maleCH" destination="gvH-l7-7Mt" id="KnD-Gg-Bep"/>
+                <outlet property="window" destination="100013" id="100040"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <window title="Select KidEVAL options" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="" animationBehavior="default" id="100013" userLabel="Window" customClass="NSPanel">
+            <windowStyleMask key="styleMask" titled="YES" closable="YES"/>
+            <windowPositionMask key="initialPositionMask" leftStrut="YES" bottomStrut="YES"/>
+            <rect key="contentRect" x="60" y="56" width="425" height="263"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="2560" height="1417"/>
+            <value key="minSize" type="size" width="213" height="30"/>
+            <view key="contentView" autoresizesSubviews="NO" misplaced="YES" id="100014">
+                <rect key="frame" x="0.0" y="0.0" width="425" height="263"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="1At-Qc-xIB">
+                        <rect key="frame" x="22" y="235" width="203" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="do not compare to database" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="wR5-Dn-VSm">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="doNotCompareDBClicked:" target="-2" id="X74-rh-q6O"/>
+                        </connections>
+                    </button>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="ezz-yJ-gNm">
+                        <rect key="frame" x="227" y="235" width="165" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="compare to database" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="GFg-Cp-BRT">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="CompareDBClicked:" target="-2" id="Ydv-BR-lUZ"/>
+                        </connections>
+                    </button>
+                    <box verticalHuggingPriority="750" misplaced="YES" boxType="separator" id="NET-QT-c1k">
+                        <rect key="frame" x="12" y="230" width="409" height="5"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    </box>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="4Vd-ZJ-A4F">
+                        <rect key="frame" x="303" y="2" width="82" height="32"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="push" title="OK" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="2zO-KR-v0f">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                            <font key="font" metaFont="system"/>
+                            <string key="keyEquivalent" base64-UTF8="YES">
+DQ
+</string>
+                        </buttonCell>
+                        <connections>
+                            <action selector="OKClicked:" target="-2" id="a1x-ap-LiX"/>
+                        </connections>
+                    </button>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="Ak2-Jd-2cm">
+                        <rect key="frame" x="49" y="2" width="82" height="32"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="push" title="Cancel" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="PTd-6g-9Yq">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                            <font key="font" metaFont="system"/>
+                            <string key="keyEquivalent" base64-UTF8="YES">
+Gw
+</string>
+                        </buttonCell>
+                        <connections>
+                            <action selector="CancelClicked:" target="-2" id="Wmw-Nv-ad9"/>
+                        </connections>
+                    </button>
+                    <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" misplaced="YES" id="mL0-PP-wMi">
+                        <rect key="frame" x="44" y="203" width="326" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" sendsActionOnEndEditing="YES" title="Choose Database type below to compare input file to" id="8dL-ur-lYt">
+                            <font key="font" metaFont="system"/>
+                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                            <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                        </textFieldCell>
+                    </textField>
+                    <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" misplaced="YES" id="a1S-bV-bRz">
+                        <rect key="frame" x="4" y="174" width="417" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" sendsActionOnEndEditing="YES" title="PLEASE SEE SLP MANUAL FOR RECOMMENDED INTERPRETATION" id="xha-Jc-3Zq">
+                            <font key="font" metaFont="system"/>
+                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                            <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                        </textFieldCell>
+                    </textField>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="gvH-l7-7Mt">
+                        <rect key="frame" x="44" y="68" width="87" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="Male only" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="Ykb-gX-zdZ">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="maleClicked:" target="-2" id="fKk-JR-PCc"/>
+                        </connections>
+                    </button>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="itk-Lw-OFs">
+                        <rect key="frame" x="128" y="68" width="105" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="Female only" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="Ey3-XL-8mO">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="femaleClicked:" target="-2" id="ZZr-Pi-Bkm"/>
+                        </connections>
+                    </button>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="mG5-ZX-OwL">
+                        <rect key="frame" x="237" y="68" width="157" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="Both Male and Female" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="6FO-lJ-lEU">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="bothClicked:" target="-2" id="rAh-2l-Uha"/>
+                        </connections>
+                    </button>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="CSc-H2-QqP">
+                        <rect key="frame" x="12" y="39" width="300" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="Choose Age Range independent of input file" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="4on-oa-4pf">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="chooseAgeRangeClicked:" target="-2" id="er8-hA-Q2e"/>
+                        </connections>
+                    </button>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="eRi-Yc-RF8">
+                        <rect key="frame" x="62" y="139" width="212" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="typically-developing free play" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="HIS-S6-TCt">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="FreePlayClicked:" target="-2" id="Qf4-RX-377"/>
+                        </connections>
+                    </button>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="46F-w6-lJO">
+                        <rect key="frame" x="62" y="116" width="212" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="Chinese-ZHO" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="Gq8-cN-ZvR">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="Chinese_zhoClicked:" target="-2" id="c03-Yo-K4e"/>
+                        </connections>
+                    </button>
+                    <button verticalHuggingPriority="750" misplaced="YES" id="bW3-K9-PV2">
+                        <rect key="frame" x="62" y="93" width="212" height="21"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="check" title="Japanese-TD" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="5CC-Ur-Jm4">
+                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="Japanese_tdClicked:" target="-2" id="Qp7-E0-fkj"/>
+                        </connections>
+                    </button>
+                </subviews>
+            </view>
+            <point key="canvasLocation" x="-5.5" y="-193.5"/>
+        </window>
+    </objects>
+</document>

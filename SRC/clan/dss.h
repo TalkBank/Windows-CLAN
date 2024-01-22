@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -12,6 +12,7 @@ extern "C"
 
 #define DSSSPLEN 128
 #define DSSRULES "eng.cut"
+#define DSSBSSRULES "bss.cut"
 #define DSSJPRULES "jpn.cut"
 #define DSSNOCOMPUTE "DO_NOT_COMPUTE"
 

@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -21,7 +21,6 @@
 extern char OverWriteFile;
 extern char outputOnlyData;
 extern char cutt_isCAFound;
-extern char cutt_isBlobFound;
 extern char isRecursive;
 extern char R5_1;
 extern char GExt[];
@@ -429,7 +428,7 @@ static void script_filterscop(char *wline) {
 			}
 			if (pos < 0) {
 				pos = temp - 1;
-				if (isRecursive || cutt_isCAFound || cutt_isBlobFound)
+				if (isRecursive || cutt_isCAFound)
 					continue;
 				else
 					cutt_exit(1);

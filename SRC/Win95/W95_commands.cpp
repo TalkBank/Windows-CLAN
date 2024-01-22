@@ -5,6 +5,7 @@
 #include "cu.h"
 #include "w95_commands.h"
 #include "w95_cl_eval.h"
+#include "w95_cl_evald.h"
 #include "w95_cl_kideval.h"
 #include "w95_cl_tiers.h"
 #include "w95_cl_search.h"
@@ -293,7 +294,9 @@ void CClanWindow::SetClanWinIcons(void) {
 				HideClanWinIcons();
 		} else {
 			InitOptions();
-			if (ProgNum == EVAL) {
+			if (ProgNum == EVALD) {
+				SetDlgItemText(IDC_CLAN_FILEIN, cl_T("Option"));
+			} else if (ProgNum == EVAL) {
 				SetDlgItemText(IDC_CLAN_FILEIN, cl_T("Option"));
 			} else if (ProgNum == KIDEVAL) {
 				SetDlgItemText(IDC_CLAN_FILEIN, cl_T("Option"));
@@ -347,6 +350,7 @@ void CClanWindow::createPopupProgMenu(void) {
 		if (clan_name[pi][0] != EOS)
 			cnt = poup_insertSorted(temp, cnt, clan_name[pi]);
 	}
+	cnt = poup_insertSorted(temp, cnt, "mor");
 
 	err = m_ProgsCtrl.InsertString(0, cl_T("Progs"));
 	for (pi=0; pi < cnt; pi++) {
@@ -740,7 +744,23 @@ void CClanWindow::OnClanFilein()
 	}
 	ProgNum = get_clan_prog_num(com, FALSE);
 	UpdateData(TRUE);
-	if (ProgNum == EVAL) {
+	if (ProgNum == EVALD) {
+		DWORD cPos = m_CommandsControl.GetSel();
+		EvaldDialog(templineW);
+		if (templineW[0] != EOS) {
+			strcpy(fbufferU, templineW);
+			len = strlen(fbufferU);
+			m_Commands = fbufferU;
+			UpdateData(FALSE);
+			SetClanWinIcons();
+			GotoDlgCtrl(GetDlgItem(IDC_CLAN_COMMANDS));
+			m_CommandsControl.SetSel(len, len, FALSE);
+		}
+		else {
+			GotoDlgCtrl(GetDlgItem(IDC_CLAN_COMMANDS));
+			m_CommandsControl.SetSel(cPos, FALSE);
+		}
+	} else if (ProgNum == EVAL) {
 		DWORD cPos = m_CommandsControl.GetSel();
 		EvalDialog(templineW);
 		if (templineW[0] != EOS) {
@@ -751,7 +771,8 @@ void CClanWindow::OnClanFilein()
 			SetClanWinIcons();
 			GotoDlgCtrl(GetDlgItem(IDC_CLAN_COMMANDS));
 			m_CommandsControl.SetSel(len, len, FALSE);
-		} else {
+		}
+		else {
 			GotoDlgCtrl(GetDlgItem(IDC_CLAN_COMMANDS));
 			m_CommandsControl.SetSel(cPos, FALSE);
 		}

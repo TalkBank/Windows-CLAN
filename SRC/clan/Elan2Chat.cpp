@@ -1,8 +1,40 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
+/*
+ To make %wor wrap:
+ Elan_refillNTline:
+
+	 if (isMultiBullets) {
+		 nt->isWrap = FALSE;
+	 } else {
+		 nt->isWrap = TRUE;
+	 }
+
+ --->
+
+ // 2023-08-03 override for %wor
+ //	if (isMultiBullets)
+ //		nt->isWrap = FALSE;
+ //	else
+		 nt->isWrap = TRUE;
+---------------------------
+ Elan_isSpecialCode:
+		 if (line[i] == HIDEN_C && isdigit(line[i+1]))
+			 bulletCnt++;
+		 if (bulletCnt > 1)
+			 return(FALSE);
+
+ --->
+
+ // 2023-08-03 override for %wor
+ //		if (line[i] == HIDEN_C && isdigit(line[i+1]))
+ //			bulletCnt++;
+ //		if (bulletCnt > 1)
+ //			return(FALSE);
+*/
 
 #define CHAT_MODE 0
 
@@ -33,6 +65,7 @@ extern char cutt_isMultiFound;
 struct ElanChatTiers {
 	char isWrap;
 	char ID[IDSTRLEN+1];
+	int  IDn;
 	char *refSp;
 	char *sp;
 	char *line;
@@ -43,7 +76,7 @@ struct ElanChatTiers {
 
 static char mediaFName[FILENAME_MAX+2];
 static char isMultiBullets, isMFA;
-static ELANCHATTIERS *RootTiers, *RootUnmatchedTiers;
+static ELANCHATTIERS *e2c_RootTiers, *RootUnmatchedTiers;
 static long *Times_table, Times_index;
 static Element *Elan_stack[30];
 
@@ -51,7 +84,7 @@ void usage() {
 	printf("convert Elan XML files to CHAT files\n");
 	printf("Usage: elan2chat [b %s] filename(s)\n",mainflgs());
 	puts("+b: Specify that multiple bullets per line (default only one bullet per line).");
-	puts("+c: The input .eaf file was created by MFA aligner.");
+//	puts("+c: The input .eaf file was created by MFA aligner.");
 	mainusage(TRUE);
 }
 
@@ -61,7 +94,7 @@ void init(char s) {
 		AddCEXExtension = ".cha";
 		stout = FALSE;
 		onlydata = 1;
-		RootTiers = NULL;
+		e2c_RootTiers = NULL;
 		RootUnmatchedTiers = NULL;
 		CurrentElem = NULL;
 		Times_table = NULL;
@@ -94,11 +127,11 @@ void getflag(char *f, char *f1, int *i) {
 			isMultiBullets = TRUE;
 			no_arg_option(f);
 			break;
-		case 'c':
-			isMultiBullets = TRUE;
-			isMFA = TRUE;
-			no_arg_option(f);
-			break;
+//		case 'c':
+//			isMultiBullets = TRUE;
+//			isMFA = TRUE;
+//			no_arg_option(f);
+//			break;
 		default:
 			maingetflag(f-2,f1,i);
 			break;
@@ -134,6 +167,7 @@ static void Elan_fillNT(ELANCHATTIERS *nt, const char *ID, long beg, long end, c
 
 	nt->depTiers = NULL;
 	strcpy(nt->ID, ID);
+	nt->IDn = atoi(ID+1);
 	nt->isWrap = TRUE;
 	if (refSp == NULL) {
 		nt->refSp = (char *)malloc(strlen("")+1);
@@ -168,11 +202,12 @@ static void Elan_refillNTline(ELANCHATTIERS *nt, char *ID, long beg, long end, c
 	else
 		templineC3[0] = EOS;
 
-	if (isMultiBullets) {
+/*	// 2023-08-03 override for %wor
+	if (isMultiBullets)
 		nt->isWrap = FALSE;
-	} else {
+	else
+*/
 		nt->isWrap = TRUE;
-	}
 	if (strlen(nt->ID)+strlen(ID) < IDSTRLEN)
 		strcat(nt->ID, ID);
 	nt->end = end;
@@ -193,6 +228,7 @@ static void Elan_replaceNT(ELANCHATTIERS *nt, char *ID, long beg, long end, char
 		templineC3[0] = EOS;
 
 	strcpy(nt->ID, ID);
+	nt->IDn = atoi(ID+1);
 	nt->isWrap = TRUE;
 	if (nt->line != NULL)
 		free(nt->line);
@@ -226,6 +262,10 @@ static ELANCHATTIERS *Elan_addDepTiers(ELANCHATTIERS *depTiers, char *ID, long b
 			tnt = nt;
 			nt = nt->nextTier;
 		}
+		if (isMFA == true) {
+			if (uS.partcmp(sp, "%wor", FALSE, TRUE) || uS.partcmp(sp, "%xwor", FALSE, TRUE))
+				nt = depTiers;
+		}
 		if (nt == NULL) {
 			tnt->nextTier = NEW(ELANCHATTIERS);
 			if (tnt->nextTier == NULL)
@@ -252,12 +292,12 @@ static ELANCHATTIERS *Elan_addDepTiers(ELANCHATTIERS *depTiers, char *ID, long b
 }
 
 static ELANCHATTIERS *Elan_insertNT(ELANCHATTIERS *nt, ELANCHATTIERS *tnt) {
-	if (nt == RootTiers) {
-		RootTiers = NEW(ELANCHATTIERS);
-		if (RootTiers == NULL)
+	if (nt == e2c_RootTiers) {
+		e2c_RootTiers = NEW(ELANCHATTIERS);
+		if (e2c_RootTiers == NULL)
 			out_of_mem();
-		RootTiers->nextTier = nt;
-		nt = RootTiers;
+		e2c_RootTiers->nextTier = nt;
+		nt = e2c_RootTiers;
 	} else {
 		nt = NEW(ELANCHATTIERS);
 		if (nt == NULL)
@@ -425,21 +465,75 @@ static char insertIntoMatchedRef(ELANCHATTIERS *nt, const char *refID, char *sp,
 	return(FALSE);
 }
 
+static void Elan_addToTiersID(char *ID, const char *refID, long beg, long end, char *sp, char *line) {
+	int  IDn;
+//	char isPostCodeFound, isJustPause;
+	ELANCHATTIERS *nt, *tnt, *resNT;
+
+	if (sp[0] == '%' && refID[0] == EOS) {
+		fprintf(stderr, "\n*** ERROR: ID=%s: refID is empty\n", ID);
+		fprintf(stderr, "%s\t%s\n\n", sp, line);
+		cutt_exit(0);
+	} 
+	if (e2c_RootTiers == NULL) {
+		if ((e2c_RootTiers=NEW(ELANCHATTIERS)) == NULL)
+			out_of_mem();
+		nt = e2c_RootTiers;
+		nt->nextTier = NULL;
+	} else {
+		IDn = atoi(ID+1);
+//		isJustPause = Elan_isLineJustPause(line);
+//		isPostCodeFound = Elan_isPostCodes(line);
+		tnt= e2c_RootTiers;
+		nt = e2c_RootTiers;
+		while (nt != NULL) {
+			if (sp[0] == '*' || sp[0] == '@') {
+				if (IDn < nt->IDn) {
+					break;
+				}
+			} else if (sp[0] == '%' && refID[0] != EOS && (resNT=isIDMatch(nt, refID, FALSE)) != NULL) {
+				if (resNT->sp[0] == '*')
+					resNT->depTiers = Elan_addDepTiers(resNT->depTiers, ID, beg, end, sp, line);
+				else if (insertIntoMatchedRef(resNT, refID, sp, line) == FALSE)
+					nt->depTiers = Elan_addDepTiers(nt->depTiers, ID, beg, end, sp, line);
+				return;
+			}
+			tnt = nt;
+			nt = nt->nextTier;
+		}
+		if (nt == NULL) {
+			if (sp[0] == '%') {
+				fprintf(stderr, "\n*** ERROR: ID=%s: can't find refID (%s) speaker this tier belongs to\n", ID, refID);
+				fprintf(stderr, "%s\t%s\n\n", sp, line);
+				cutt_exit(0);
+			} else {
+				tnt->nextTier = NEW(ELANCHATTIERS);
+				if (tnt->nextTier == NULL)
+					out_of_mem();
+				nt = tnt->nextTier;
+				nt->nextTier = NULL;
+			}
+		} else
+			nt = Elan_insertNT(nt, tnt);
+	}
+	Elan_fillNT(nt, ID, beg, end, NULL, sp, line, TRUE);
+}
+
 static void Elan_addToTiers(char *ID, const char *refID, long beg, long end, const char *refSp, char *sp, char *line, char isCreateEmpty) {
 	char isRefIDMatch, isPostCodeFound, isJustPause;
 	ELANCHATTIERS *nt, *tnt, *resNT;
 
-	if (RootTiers == NULL) {
-		if ((RootTiers=NEW(ELANCHATTIERS)) == NULL)
+	if (e2c_RootTiers == NULL) {
+		if ((e2c_RootTiers=NEW(ELANCHATTIERS)) == NULL)
 			out_of_mem();
-		nt = RootTiers;
+		nt = e2c_RootTiers;
 		nt->nextTier = NULL;
 	} else {
 		isRefIDMatch = FALSE;
 		isJustPause = Elan_isLineJustPause(line);
 		isPostCodeFound = Elan_isPostCodes(line);
-		tnt= RootTiers;
-		nt = RootTiers;
+		tnt= e2c_RootTiers;
+		nt = e2c_RootTiers;
 		while (nt != NULL) {
 			if (sp[0] == '%' && refID[0] != EOS && (resNT=isIDMatch(nt, refID, FALSE)) != NULL) {
 				isRefIDMatch = TRUE;
@@ -524,6 +618,24 @@ static void Elan_addToTiers(char *ID, const char *refID, long beg, long end, con
 	Elan_fillNT(nt, ID, beg, end, refSp, sp, line, TRUE);
 }
 
+static void Elan_addHeadersTiers(char *ID, const char *refID, char *sp, char *line) {
+	ELANCHATTIERS *nt, *resNT, *headNt;
+	nt = e2c_RootTiers;
+	while (nt != NULL) {
+		if (refID[0] != EOS && (resNT=isIDMatch(nt, refID, FALSE)) != NULL) {
+			headNt = NEW(ELANCHATTIERS);
+			if (headNt == NULL)
+				out_of_mem();
+			headNt->depTiers = NULL;
+			headNt->nextTier = resNT->nextTier;
+			resNT->nextTier = headNt;
+			Elan_fillNT(headNt, ID, 0L, 0L, NULL, sp, line, FALSE);
+			break;
+		}
+		nt = nt->nextTier;
+	}
+}
+
 static char Elan_isOverlapFound(char *line, char ovChar) {
 	long i;
 
@@ -538,7 +650,7 @@ static void Elan_finalTimeSort(void) {
 	char isWrongOverlap;
 	ELANCHATTIERS *nt, *prev_nt, *prev_prev_nt;
 
-	nt = RootTiers;
+	nt = e2c_RootTiers;
 	prev_nt = nt;
 	prev_prev_nt = nt;
 	while (nt != NULL) {
@@ -546,9 +658,9 @@ static void Elan_finalTimeSort(void) {
 			if (nt->beg == prev_nt->beg && nt->end == prev_nt->end) {
 				prev_nt->nextTier = nt->nextTier;
 				nt->nextTier = prev_nt;
-				if (prev_prev_nt == RootTiers) {
-					RootTiers = nt;
-					prev_prev_nt = RootTiers;
+				if (prev_prev_nt == e2c_RootTiers) {
+					e2c_RootTiers = nt;
+					prev_prev_nt = e2c_RootTiers;
 				} else
 					prev_prev_nt->nextTier = nt;
 				prev_nt = prev_prev_nt;
@@ -563,9 +675,9 @@ static void Elan_finalTimeSort(void) {
 			} else if (nt->beg == prev_nt->beg && nt->end < prev_nt->end) {
 				prev_nt->nextTier = nt->nextTier;
 				nt->nextTier = prev_nt;
-				if (prev_prev_nt == RootTiers) {
-					RootTiers = nt;
-					prev_prev_nt = RootTiers;
+				if (prev_prev_nt == e2c_RootTiers) {
+					e2c_RootTiers = nt;
+					prev_prev_nt = e2c_RootTiers;
 				} else
 					prev_prev_nt->nextTier = nt;
 				prev_nt = prev_prev_nt;
@@ -581,9 +693,9 @@ static void Elan_finalTimeSort(void) {
 				if (isWrongOverlap == 2) {
 					prev_nt->nextTier = nt->nextTier;
 					nt->nextTier = prev_nt;
-					if (prev_prev_nt == RootTiers) {
-						RootTiers = nt;
-						prev_prev_nt = RootTiers;
+					if (prev_prev_nt == e2c_RootTiers) {
+						e2c_RootTiers = nt;
+						prev_prev_nt = e2c_RootTiers;
 					} else
 						prev_prev_nt->nextTier = nt;
 					prev_nt = prev_prev_nt;
@@ -600,22 +712,27 @@ static void Elan_finalTimeSort(void) {
 }
 
 static char Elan_isSpecialCode(char isWrap, char *line) {
-	int i, bulletCnt;
+	int i;
+//	int bulletCnt = 0; // 2023-08-03
 
-	bulletCnt = 0;
 	for (i=0; line[i] != EOS; i++) {
 		if (strncmp(line+i, "[%%", 3) == 0)
 			return(FALSE);
+/* // 2023-08-03 override for %wor
 		if (line[i] == HIDEN_C && isdigit(line[i+1]))
 			bulletCnt++;
 		if (bulletCnt > 1)
 			return(FALSE);
+*/
 	}
 	return(isWrap);
 }
 
 static void Elan_printOutTiers(ELANCHATTIERS *p) {
 	while (p != NULL) {
+//int i;
+//if (strcmp(p->ID, "a31|") == 0)
+//	i = 0;
 		if (p->sp[0] == '*' || p->line[0] != EOS)
 			printout(p->sp, p->line, NULL, NULL, Elan_isSpecialCode(p->isWrap, p->line));
 		if (p->depTiers != NULL)
@@ -770,7 +887,7 @@ static void setElanTimeOrderElem(void) {
 				for (att=TimeSlots->atts; att != NULL; att=att->next) {
 					if (!strcmp(att->name, "TIME_SLOT_ID")) {
 						index = atol(att->value+2);
-						if (isMFA) {
+						if (isMFA == TRUE) {
 							timeValue = 0L;
 							isTimeValueFound = TRUE;
 						}
@@ -799,7 +916,7 @@ static long getElanTimeValue(char *TimeSlotIDSt) {
 	
 	index = atol(TimeSlotIDSt+2);
 	if (index >= 0L && index < Times_index) {
-		if (isMFA && Times_table[index] == -1) {
+		if (isMFA == TRUE && Times_table[index] == -1) {
 			fprintf(stderr, "\nCan't find TIME_SLOT_ID \"%s\" in <TIME_ORDER> table\n", TimeSlotIDSt);
 			return(0);
 		} else
@@ -908,14 +1025,14 @@ static char getNextElanTier(UTTER *utterance, long *beg, long *end, char *ID, ch
 						parent_ref[SPEAKERLEN-1] = EOS;
 					}
 				}
-				if (parent_ref[0] == EOS && (!isMFA || tier_id[0] != '@')) {
+				if (parent_ref[0] == EOS && (isMFA == FALSE || tier_id[0] != '@')) {
 					p = strchr(tier_id, '@');
 					if (p != NULL)
 						strcpy(parent_ref, p+1);
 				}
 				utterance->speaker[0] = EOS;
 				if (parent_ref[0] == EOS) {
-					if (tier_id[0] != '*' && (!isMFA || tier_id[0] != '@'))
+					if (tier_id[0] != '*' && (isMFA == FALSE || tier_id[0] != '@'))
 						strcat(utterance->speaker, "*");
 					strcat(utterance->speaker, tier_id);
 				} else {
@@ -1081,7 +1198,8 @@ void call() {		/* this function is self-explanatory */
 	int  i;
 	const char *mediaType;
 	char ID[IDSTRLEN+1], refID[IDSTRLEN+1], refSp[SPEAKERLEN], *p;
-	char isUTFPrinted, isBeginPrinted, isLanguagesFound, isParticipantsFound, isIDFound, isOptionFound, isFirstHeaderFound;
+	char isUTFPrinted, isBeginPrinted;
+	char isLanguagesFound, isParticipantsFound, isIDFound, isOptionFound, isFirstHeaderFound, isMediaFound;
 	char *spList[32];
 	long len;
 	long beg, end;
@@ -1100,6 +1218,7 @@ void call() {		/* this function is self-explanatory */
 	isLanguagesFound = FALSE;
 	isParticipantsFound = FALSE;
 	isIDFound = FALSE;
+	isMediaFound = FALSE;
 	while (getNextElanHeader(utterance, mediaFName,spList)) {
 		uS.remblanks(utterance->speaker);
 		len = strlen(utterance->speaker) - 1;
@@ -1156,12 +1275,8 @@ void call() {		/* this function is self-explanatory */
 			}
 			if (isParticipantsFound && !isOptionFound) {
 				if (isMultiBullets) {
-					if (isMFA)
-						fprintf(fpout, "@Options:\tmulti\n");
-					else
-						fprintf(fpout, "@Options:\tmulti, heritage\n");
-				} else if (!isMFA)
-					fprintf(fpout, "@Options:\theritage\n");
+					fprintf(fpout, "@Options:\tmulti\n");
+				}
 				isOptionFound = TRUE;
 			}
 			isIDFound = TRUE;
@@ -1196,6 +1311,17 @@ void call() {		/* this function is self-explanatory */
 				fprintf(fpout, "@Begin\n");
 				isBeginPrinted = TRUE;
 			}
+		} else if (uS.partcmp(utterance->speaker, "@Birth of ", FALSE, FALSE)) {
+			Elan_makeText(utterance->line);
+			printout(utterance->speaker,utterance->line,NULL,NULL,TRUE);
+			if (!isUTFPrinted) {
+				fprintf(fpout, "%s\n", UTF8HEADER);
+				isUTFPrinted = TRUE;
+			}
+			if (!isBeginPrinted) {
+				fprintf(fpout, "@Begin\n");
+				isBeginPrinted = TRUE;
+			}
 		} else {
 			if (!isUTFPrinted) {
 				fprintf(fpout, "%s\n", UTF8HEADER);
@@ -1204,6 +1330,22 @@ void call() {		/* this function is self-explanatory */
 			if (!isBeginPrinted) {
 				fprintf(fpout, "@Begin\n");
 				isBeginPrinted = TRUE;
+			}
+			if (!isMediaFound && mediaFName[0] != EOS) {
+				p = strrchr(mediaFName, '/');
+				if (p != NULL)
+					strcpy(mediaFName, p+1);
+				p = strrchr(mediaFName, '.');
+				if (p != NULL) {
+					if (uS.mStricmp(p, ".wav") == 0 || uS.mStricmp(p, ".aif") == 0 || uS.mStricmp(p, ".aiff") == 0)
+						mediaType = "audio";
+					else
+						mediaType = "video";
+					*p = EOS;
+				} else
+					mediaType = "video";
+				fprintf(fpout, "%s\t%s, %s\n", MEDIAHEADER, mediaFName, mediaType);
+				isMediaFound = TRUE;
 			}
 			Elan_makeText(utterance->line);
 			printout(utterance->speaker,utterance->line,NULL,NULL,TRUE);
@@ -1241,12 +1383,8 @@ void call() {		/* this function is self-explanatory */
 	}
 	if (!isOptionFound) {
 		if (isMultiBullets) {
-			if (isMFA)
-				fprintf(fpout, "@Options:\tmulti\n");
-			else
-				fprintf(fpout, "@Options:\tmulti, heritage\n");
-		} else if (!isMFA)
-			fprintf(fpout, "@Options:\theritage\n");
+			fprintf(fpout, "@Options:\tmulti\n");
+		}
 	}
 	if (!isIDFound) {
 		for (i=0; i < 32; i++) {
@@ -1263,19 +1401,22 @@ void call() {		/* this function is self-explanatory */
 			}
 		}
 	}
-	p = strrchr(mediaFName, '/');
-	if (p != NULL)
-		strcpy(mediaFName, p+1);
-	p = strrchr(mediaFName, '.');
-	if (p != NULL) {
-		if (uS.mStricmp(p, ".wav") == 0 || uS.mStricmp(p, ".aif") == 0 || uS.mStricmp(p, ".aiff") == 0)
-			mediaType = "audio";
-		else
+	if (!isMediaFound) {
+		p = strrchr(mediaFName, '/');
+		if (p != NULL)
+			strcpy(mediaFName, p+1);
+		p = strrchr(mediaFName, '.');
+		if (p != NULL) {
+			if (uS.mStricmp(p, ".wav") == 0 || uS.mStricmp(p, ".aif") == 0 || uS.mStricmp(p, ".aiff") == 0)
+				mediaType = "audio";
+			else
+				mediaType = "video";
+			*p = EOS;
+		} else
 			mediaType = "video";
-		*p = EOS;
-	} else
-		mediaType = "video";
-	fprintf(fpout, "%s\t%s, %s\n", MEDIAHEADER, mediaFName, mediaType);
+		fprintf(fpout, "%s\t%s, %s\n", MEDIAHEADER, mediaFName, mediaType);
+		isMediaFound = TRUE;
+	}
 
 	ResetXMLTree();
 	sortElanSpAndDepTiers();
@@ -1283,41 +1424,54 @@ void call() {		/* this function is self-explanatory */
 
 	refSp[0] = EOS;
 	while (getNextElanTier(utterance, &beg, &end, ID, refID)) {
+//		if (strcmp(ID, "a34|") == 0)
+//			p = NULL;
 		if (lineno > tlineno) {
 			tlineno = lineno + 200;
 			fprintf(stderr,"\r%ld ",lineno);
 		}
 		lineno++;
 		uS.remblanks(utterance->speaker);
-		if (utterance->speaker[0] == '%') {
-			p = strchr(utterance->speaker, '@');
-			if (p != NULL) {
-				strcpy(refSp, "*");
-				strcat(refSp, p+1);
-				strcat(refSp, ":");
-				*p = EOS;
-			}
-		} else
-			refSp[0] = EOS;
 		len = strlen(utterance->speaker);
-		if (utterance->speaker[len-1] != ':')
-			strcat(utterance->speaker, ":");
+		if (utterance->speaker[0] == '@' && beg == 0L && end == 0L) {
+			uS.remblanks(utterance->line);
+			if (utterance->speaker[len-1] != ':' && utterance->line[0] != EOS)
+				strcat(utterance->speaker, ":");
+		} else {
+			if (utterance->speaker[0] == '%') {
+				p = strchr(utterance->speaker, '@');
+				if (p != NULL) {
+					strcpy(refSp, "*");
+					strcat(refSp, p+1);
+					strcat(refSp, ":");
+					*p = EOS;
+				}
+			} else
+				refSp[0] = EOS;
+			if (utterance->speaker[len-1] != ':')
+				strcat(utterance->speaker, ":");
+		}
 		Elan_makeText(utterance->line);
-		Elan_addToTiers(ID, refID, beg, end, refSp, utterance->speaker, utterance->line, FALSE);
+		if (isMFA == TRUE)
+			Elan_addToTiersID(ID, refID, beg, end, utterance->speaker, utterance->line);
+		else
+			Elan_addToTiers(ID, refID, beg, end, refSp, utterance->speaker, utterance->line, FALSE);
 //		fprintf(fpout, "ID=%s, IDRef=%s; (%ld-%ld)\n", ID, refID, beg, end);
 //		fprintf(fpout, "%s:\t%s\n", utterance->speaker, utterance->line);
 	}
 	fprintf(stderr, "\r	  \r");
 	cutt_isMultiFound = isMultiBullets;
-	Elan_addUnmacthed();
-	Elan_finalTimeSort();
-	Elan_printOutTiers(RootTiers);
+	if (isMFA == FALSE) {
+		Elan_addUnmacthed();
+		Elan_finalTimeSort();
+	}
+	Elan_printOutTiers(e2c_RootTiers);
 	fprintf(fpout, "@End\n");
 	freeXML_Elements();
 	if (Times_table != NULL)
 		free(Times_table);
 	Times_table = NULL;
 	Times_index = 0L;
-	RootTiers = freeTiers(RootTiers);
+	e2c_RootTiers = freeTiers(e2c_RootTiers);
 	RootUnmatchedTiers = freeTiers(RootUnmatchedTiers);
 }

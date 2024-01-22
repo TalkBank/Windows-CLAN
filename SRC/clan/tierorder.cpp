@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -242,7 +242,7 @@ static void readtiers(void) {
 		if (templineC[0] == EOS)
 			continue;
 		t = strlen(templineC) - 1;
-		if (templineC[t] != ':')
+		if (templineC[t] != ':' && templineC[0] != '*')
 			strcat(templineC, ":");
 		RootTiersOrder = add2TierOrder(RootTiersOrder, templineC);
 	}
@@ -288,6 +288,8 @@ static char isRightPlace(char *nextSp, char *thisSp) {
 	char isNextSPFound, isCurrSPFound;
 	TIERORSER *nt;
 
+	if (thisSp[0] == '%' && thisSp[1] == 'x')
+		return(FALSE);
 	if (nextSp[0] == '%')
 		isNextSPFound = FALSE;
 	else
@@ -305,13 +307,16 @@ static char isRightPlace(char *nextSp, char *thisSp) {
 		}
 	}
 
-	if (!isCurrSPFound) {
+	if (!isCurrSPFound && tierTier[0] == EOS) {
 		RootTier = freeDepTiers(RootTier);
 		TierBody = freeDepTiers(TierBody);
 		RootTiersOrder = freeTiersOrder(RootTiersOrder);
 		fprintf(stderr,"Tier \"%s\" is not specified in file: %s.\n", thisSp, tiername);
 		cutt_exit(0);
+	} else if (!isCurrSPFound && tierTier[0] != EOS) {
+		isNextSPFound = FALSE;
 	}
+
 
 	if (!isNextSPFound)
 		return(FALSE);

@@ -53,16 +53,25 @@ extern int  cl_argc;
 extern char *cl_argv[];
 extern char URL_passwd[];
 
-static BOOL DBEngTDFpTp, DBChnTDMdTp, DBJpnTDMdTp, LinkAgeTp, CmpDBTp, NotCmpDBTp;
+static BOOL DBEngToyplayTp, DBEngNarrativeTp, DBZhoToyplayTp, DBZhoNarrativeTp, DBNldToyplayTp, DBFraToyplayTp, DBFraNarrativeTp,
+	DBJpnToyplayTp, DBSpaToyplayTp, DBSpaNarrativeTp;
+static BOOL LinkAgeTp, CmpDBTp, NotCmpDBTp;
 static BOOL IndyAgeTp, OneHTp, TwoTp, TwoHTp, ThreeTp, ThreeHTp, FourTp, FourHTp, FiveTp, FiveHTp, MaleOnly, FemaleOnly, BothGen;
 static 	time_t GlobalTime;
 char spCode[TOTAL_SP_NUMBER][CODESTRLEN + 1];
 BOOL spSet[TOTAL_SP_NUMBER];
 
 void InitKidevalOptions(void) {
-	DBEngTDFpTp = TRUE;
-	DBChnTDMdTp = FALSE;
-	DBJpnTDMdTp = FALSE;
+	DBEngToyplayTp = TRUE;
+	DBEngNarrativeTp = FALSE;
+	DBZhoToyplayTp = FALSE;
+	DBZhoNarrativeTp = FALSE;
+	DBNldToyplayTp = FALSE;
+	DBFraToyplayTp = FALSE;
+	DBFraNarrativeTp = FALSE;
+	DBJpnToyplayTp = FALSE;
+	DBSpaToyplayTp = FALSE;
+	DBSpaNarrativeTp = FALSE;
 	CmpDBTp = FALSE;
 	NotCmpDBTp = FALSE;
 	IndyAgeTp = FALSE;
@@ -190,12 +199,31 @@ void CClanKideval::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_SELECT_BOTHGEN, m_BOTHGEN);
 
 
-	DDX_Control(pDX, IDC_SELECT_DB_ENGTDFP, m_DBEngTDFp_CTRL);
-	DDX_Check(pDX, IDC_SELECT_DB_ENGTDFP, m_DBEngTDFp);
-	DDX_Control(pDX, IDC_SELECT_DB_CHNTDMD, m_DBChnTDMd_CTRL);
-	DDX_Check(pDX, IDC_SELECT_DB_CHNTDMD, m_DBChnTDMd);
-	DDX_Control(pDX, IDC_SELECT_DB_JPNTD, m_DBJpnTD_CTRL);
-	DDX_Check(pDX, IDC_SELECT_DB_JPNTD, m_DBJpnTDMd);
+	DDX_Control(pDX, IDC_SELECT_ENGTOYPLAY, m_DBEngToyplay_CTRL);
+	DDX_Check(pDX, IDC_SELECT_ENGTOYPLAY, m_DBEngToyplay);
+	DDX_Control(pDX, IDC_SELECT_ENGNARRATIVE, m_DBEngNarrative_CTRL);
+	DDX_Check(pDX, IDC_SELECT_ENGNARRATIVE, m_DBEngNarrative);
+
+	DDX_Control(pDX, IDC_SELECT_ZHOTOYPLAY, m_DBZhoToyplay_CTRL);
+	DDX_Check(pDX, IDC_SELECT_ZHOTOYPLAY, m_DBZhoToyplay);
+	DDX_Control(pDX, IDC_SELECT_ZHONARRATIVE, m_DBZhoNarrative_CTRL);
+	DDX_Check(pDX, IDC_SELECT_ZHONARRATIVE, m_DBZhoNarrative);
+
+	DDX_Control(pDX, IDC_SELECT_NLDTOYPLAY, m_DBNldToyplay_CTRL);
+	DDX_Check(pDX, IDC_SELECT_NLDTOYPLAY, m_DBNldToyplay);
+
+	DDX_Control(pDX, IDC_SELECT_FRATOYPLAY, m_DBFraToyplay_CTRL);
+	DDX_Check(pDX, IDC_SELECT_FRATOYPLAY, m_DBFraToyplay);
+	DDX_Control(pDX, IDC_SELECT_FRANARRATIVE, m_DBFraNarrative_CTRL);
+	DDX_Check(pDX, IDC_SELECT_FRANARRATIVE, m_DBFraNarrative);
+
+	DDX_Control(pDX, IDC_SELECT_JPNTOYPLAY, m_DBJpnToyplay_CTRL);
+	DDX_Check(pDX, IDC_SELECT_JPNTOYPLAY, m_DBJpnToyplay);
+
+	DDX_Control(pDX, IDC_SELECT_SPATOYPLAY, m_DBSpaToyplay_CTRL);
+	DDX_Check(pDX, IDC_SELECT_SPATOYPLAY, m_DBSpaToyplay);
+	DDX_Control(pDX, IDC_SELECT_SPANARRATIVE, m_DBSpaNarrative_CTRL);
+	DDX_Check(pDX, IDC_SELECT_SPANARRATIVE, m_DBSpaNarrative);
 
 	DDX_Control(pDX, IDOK, m_OK_CTRL);
 	DDX_Control(pDX, IDCANCEL, m_CANCEL_CTRL);
@@ -240,9 +268,16 @@ BEGIN_MESSAGE_MAP(CClanKideval, CDialog)
 	ON_BN_CLICKED(IDC_SELECT_FEMALE, OnFemale)
 	ON_BN_CLICKED(IDC_SELECT_BOTHGEN, OnBothGen)
 	
-	ON_BN_CLICKED(IDC_SELECT_DB_ENGTDFP, OnDBEngTDFp)
-	ON_BN_CLICKED(IDC_SELECT_DB_CHNTDMD, OnDBChnTDMd)
-	ON_BN_CLICKED(IDC_SELECT_DB_JPNTD, OnDBJpnTDMd)
+	ON_BN_CLICKED(IDC_SELECT_ENGTOYPLAY, OnDBEngToyplay)
+	ON_BN_CLICKED(IDC_SELECT_ENGNARRATIVE, OnDBEngNarrative)
+	ON_BN_CLICKED(IDC_SELECT_ZHOTOYPLAY, OnDBZhoToyplay)
+	ON_BN_CLICKED(IDC_SELECT_ZHONARRATIVE, OnDBZhoNarrative)
+	ON_BN_CLICKED(IDC_SELECT_NLDTOYPLAY, OnDBNldToyplay)
+	ON_BN_CLICKED(IDC_SELECT_FRATOYPLAY, OnDBFraToyplay)
+	ON_BN_CLICKED(IDC_SELECT_FRANARRATIVE, OnDBFraNarrative)
+	ON_BN_CLICKED(IDC_SELECT_JPNTOYPLAY, OnDBJpnToyplay)
+	ON_BN_CLICKED(IDC_SELECT_SPATOYPLAY, OnDBSpaToyplay)
+	ON_BN_CLICKED(IDC_SELECT_SPANARRATIVE, OnDBSpaNarrative)
 
 	ON_BN_CLICKED(IDOK, OnOKClicked)
 
@@ -333,9 +368,16 @@ void CClanKideval::ResizeOptionsWindow() {
 		m_FEMALE_CTRL.ShowWindow(SW_SHOW);
 		m_BOTHGEN_CTRL.ShowWindow(SW_SHOW);
 
-		m_DBEngTDFp_CTRL.ShowWindow(SW_SHOW);
-		m_DBChnTDMd_CTRL.ShowWindow(SW_SHOW);
-		m_DBJpnTD_CTRL.ShowWindow(SW_SHOW);
+		m_DBEngToyplay_CTRL.ShowWindow(SW_SHOW);
+		m_DBEngNarrative_CTRL.ShowWindow(SW_SHOW);
+		m_DBZhoToyplay_CTRL.ShowWindow(SW_SHOW);
+		m_DBZhoNarrative_CTRL.ShowWindow(SW_SHOW);
+		m_DBNldToyplay_CTRL.ShowWindow(SW_SHOW);
+		m_DBFraToyplay_CTRL.ShowWindow(SW_SHOW);
+		m_DBFraNarrative_CTRL.ShowWindow(SW_SHOW);
+		m_DBJpnToyplay_CTRL.ShowWindow(SW_SHOW);
+		m_DBSpaToyplay_CTRL.ShowWindow(SW_SHOW);
+		m_DBSpaNarrative_CTRL.ShowWindow(SW_SHOW);
 
 		m_OK_CTRL.ShowWindow(SW_SHOW);
 
@@ -390,9 +432,17 @@ void CClanKideval::ResizeOptionsWindow() {
 		pw->MoveWindow(&client, TRUE);
 		wHeight = wHeight + (delta.bottom - delta.top) + 8;
 
-
 		wLeft = 29;
-		pw = GetDlgItem(IDC_SELECT_DB_ENGTDFP);
+		pw = GetDlgItem(IDC_SELECT_ENGTOYPLAY);
+		pw->GetWindowRect(&delta);
+		client.top = wHeight;
+		client.bottom = wHeight + (delta.bottom - delta.top);
+		client.left = wLeft;
+		client.right = client.left + (delta.right - delta.left);
+		pw->MoveWindow(&client, TRUE);
+
+		wLeft += client.right + 5;
+		pw = GetDlgItem(IDC_SELECT_ENGNARRATIVE);
 		pw->GetWindowRect(&delta);
 		client.top = wHeight;
 		client.bottom = wHeight + (delta.bottom - delta.top);
@@ -402,7 +452,16 @@ void CClanKideval::ResizeOptionsWindow() {
 		wHeight = wHeight + (delta.bottom - delta.top) + 2;
 
 		wLeft = 29;
-		pw = GetDlgItem(IDC_SELECT_DB_CHNTDMD);
+		pw = GetDlgItem(IDC_SELECT_ZHOTOYPLAY);
+		pw->GetWindowRect(&delta);
+		client.top = wHeight;
+		client.bottom = wHeight + (delta.bottom - delta.top);
+		client.left = wLeft;
+		client.right = client.left + (delta.right - delta.left);
+		pw->MoveWindow(&client, TRUE);
+
+		wLeft += client.right + 5;
+		pw = GetDlgItem(IDC_SELECT_ZHONARRATIVE);
 		pw->GetWindowRect(&delta);
 		client.top = wHeight;
 		client.bottom = wHeight + (delta.bottom - delta.top);
@@ -412,7 +471,55 @@ void CClanKideval::ResizeOptionsWindow() {
 		wHeight = wHeight + (delta.bottom - delta.top) + 2;
 
 		wLeft = 29;
-		pw = GetDlgItem(IDC_SELECT_DB_JPNTD);
+		pw = GetDlgItem(IDC_SELECT_NLDTOYPLAY);
+		pw->GetWindowRect(&delta);
+		client.top = wHeight;
+		client.bottom = wHeight + (delta.bottom - delta.top);
+		client.left = wLeft;
+		client.right = client.left + (delta.right - delta.left);
+		pw->MoveWindow(&client, TRUE);
+		wHeight = wHeight + (delta.bottom - delta.top) + 2;
+
+		wLeft = 29;
+		pw = GetDlgItem(IDC_SELECT_FRATOYPLAY);
+		pw->GetWindowRect(&delta);
+		client.top = wHeight;
+		client.bottom = wHeight + (delta.bottom - delta.top);
+		client.left = wLeft;
+		client.right = client.left + (delta.right - delta.left);
+		pw->MoveWindow(&client, TRUE);
+
+		wLeft += client.right + 5;
+		pw = GetDlgItem(IDC_SELECT_FRANARRATIVE);
+		pw->GetWindowRect(&delta);
+		client.top = wHeight;
+		client.bottom = wHeight + (delta.bottom - delta.top);
+		client.left = wLeft;
+		client.right = client.left + (delta.right - delta.left);
+		pw->MoveWindow(&client, TRUE);
+		wHeight = wHeight + (delta.bottom - delta.top) + 2;
+
+		wLeft = 29;
+		pw = GetDlgItem(IDC_SELECT_JPNTOYPLAY);
+		pw->GetWindowRect(&delta);
+		client.top = wHeight;
+		client.bottom = wHeight + (delta.bottom - delta.top);
+		client.left = wLeft;
+		client.right = client.left + (delta.right - delta.left);
+		pw->MoveWindow(&client, TRUE);
+		wHeight = wHeight + (delta.bottom - delta.top) + 2;
+
+		wLeft = 29;
+		pw = GetDlgItem(IDC_SELECT_SPATOYPLAY);
+		pw->GetWindowRect(&delta);
+		client.top = wHeight;
+		client.bottom = wHeight + (delta.bottom - delta.top);
+		client.left = wLeft;
+		client.right = client.left + (delta.right - delta.left);
+		pw->MoveWindow(&client, TRUE);
+
+		wLeft += client.right + 5;
+		pw = GetDlgItem(IDC_SELECT_SPANARRATIVE);
 		pw->GetWindowRect(&delta);
 		client.top = wHeight;
 		client.bottom = wHeight + (delta.bottom - delta.top);
@@ -457,7 +564,7 @@ void CClanKideval::ResizeOptionsWindow() {
 		client.left = wLeft;
 		client.right = client.left + (delta.right - delta.left);
 		pw->MoveWindow(&client, TRUE);
-		wHeight = wHeight + (delta.bottom - delta.top) + 10;
+		wHeight = wHeight + (delta.bottom - delta.top) + 12;
 
 		if (m_IndyAge) {
 			wLeft = 35;
@@ -624,9 +731,16 @@ void CClanKideval::ResizeOptionsWindow() {
 		m_BOTHGEN_CTRL.ShowWindow(SW_HIDE);
 // no gender in "no database"
 
-		m_DBEngTDFp_CTRL.ShowWindow(SW_HIDE);
-		m_DBChnTDMd_CTRL.ShowWindow(SW_HIDE);
-		m_DBJpnTD_CTRL.ShowWindow(SW_HIDE);
+		m_DBEngToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBEngNarrative_CTRL.ShowWindow(SW_HIDE);
+		m_DBZhoToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBZhoNarrative_CTRL.ShowWindow(SW_HIDE);
+		m_DBNldToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBFraToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBFraNarrative_CTRL.ShowWindow(SW_HIDE);
+		m_DBJpnToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBSpaToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBSpaNarrative_CTRL.ShowWindow(SW_HIDE);
 
 		m_OK_CTRL.ShowWindow(SW_SHOW);
 
@@ -894,9 +1008,16 @@ void CClanKideval::ResizeOptionsWindow() {
 		m_FEMALE_CTRL.ShowWindow(SW_HIDE);
 		m_BOTHGEN_CTRL.ShowWindow(SW_HIDE);
 
-		m_DBEngTDFp_CTRL.ShowWindow(SW_HIDE);
-		m_DBChnTDMd_CTRL.ShowWindow(SW_HIDE);
-		m_DBJpnTD_CTRL.ShowWindow(SW_HIDE);
+		m_DBEngToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBEngNarrative_CTRL.ShowWindow(SW_HIDE);
+		m_DBZhoToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBZhoNarrative_CTRL.ShowWindow(SW_HIDE);
+		m_DBNldToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBFraToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBFraNarrative_CTRL.ShowWindow(SW_HIDE);
+		m_DBJpnToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBSpaToyplay_CTRL.ShowWindow(SW_HIDE);
+		m_DBSpaNarrative_CTRL.ShowWindow(SW_HIDE);
 
 		m_OK_CTRL.ShowWindow(SW_HIDE);
 
@@ -969,29 +1090,157 @@ void CClanKideval::OnNotCmpDB() {
 	UpdateData(false);
 }
 
-void CClanKideval::OnDBEngTDFp() {
+void CClanKideval::OnDBEngToyplay() {
 	UpdateData(true);
-	m_DBEngTDFp = TRUE;
-	m_DBChnTDMd = FALSE;
-	m_DBJpnTDMd = FALSE;
+	m_DBEngToyplay = TRUE;
+	m_DBEngNarrative = FALSE;
+	m_DBZhoToyplay = FALSE;
+	m_DBZhoNarrative = FALSE;
+	m_DBNldToyplay = FALSE;
+	m_DBFraToyplay = FALSE;
+	m_DBFraNarrative = FALSE;
+	m_DBJpnToyplay = FALSE;
+	m_DBSpaToyplay = FALSE;
+	m_DBSpaNarrative = FALSE;
 	UpdateData(false);
 }
 
-void CClanKideval::OnDBChnTDMd() {
+void CClanKideval::OnDBEngNarrative() {
 	UpdateData(true);
-	m_DBEngTDFp = FALSE;
-	m_DBChnTDMd = TRUE;
-	m_DBJpnTDMd = FALSE;
+	m_DBEngToyplay = FALSE;
+	m_DBEngNarrative = TRUE;
+	m_DBZhoToyplay = FALSE;
+	m_DBZhoNarrative = FALSE;
+	m_DBNldToyplay = FALSE;
+	m_DBFraToyplay = FALSE;
+	m_DBFraNarrative = FALSE;
+	m_DBJpnToyplay = FALSE;
+	m_DBSpaToyplay = FALSE;
+	m_DBSpaNarrative = FALSE;
 	UpdateData(false);
 }
 
-void CClanKideval::OnDBJpnTDMd() {
+void CClanKideval::OnDBZhoToyplay() {
 	UpdateData(true);
-	m_DBEngTDFp = FALSE;
-	m_DBChnTDMd = FALSE;
-	m_DBJpnTDMd = TRUE;
+	m_DBEngToyplay = FALSE;
+	m_DBEngNarrative = FALSE;
+	m_DBZhoToyplay = TRUE;
+	m_DBZhoNarrative = FALSE;
+	m_DBNldToyplay = FALSE;
+	m_DBFraToyplay = FALSE;
+	m_DBFraNarrative = FALSE;
+	m_DBJpnToyplay = FALSE;
+	m_DBSpaToyplay = FALSE;
+	m_DBSpaNarrative = FALSE;
 	UpdateData(false);
 }
+
+void CClanKideval::OnDBZhoNarrative() {
+	UpdateData(true);
+	m_DBEngToyplay = FALSE;
+	m_DBEngNarrative = FALSE;
+	m_DBZhoToyplay = FALSE;
+	m_DBZhoNarrative = TRUE;
+	m_DBNldToyplay = FALSE;
+	m_DBFraToyplay = FALSE;
+	m_DBFraNarrative = FALSE;
+	m_DBJpnToyplay = FALSE;
+	m_DBSpaToyplay = FALSE;
+	m_DBSpaNarrative = FALSE;
+	UpdateData(false);
+}
+
+void CClanKideval::OnDBNldToyplay() {
+	UpdateData(true);
+	m_DBEngToyplay = FALSE;
+	m_DBEngNarrative = FALSE;
+	m_DBZhoToyplay = FALSE;
+	m_DBZhoNarrative = FALSE;
+	m_DBNldToyplay = TRUE;
+	m_DBFraToyplay = FALSE;
+	m_DBFraNarrative = FALSE;
+	m_DBJpnToyplay = FALSE;
+	m_DBSpaToyplay = FALSE;
+	m_DBSpaNarrative = FALSE;
+	UpdateData(false);
+}
+
+void CClanKideval::OnDBFraToyplay() {
+	UpdateData(true);
+	m_DBEngToyplay = FALSE;
+	m_DBEngNarrative = FALSE;
+	m_DBZhoToyplay = FALSE;
+	m_DBZhoNarrative = FALSE;
+	m_DBNldToyplay = FALSE;
+	m_DBFraToyplay = TRUE;
+	m_DBFraNarrative = FALSE;
+	m_DBJpnToyplay = FALSE;
+	m_DBSpaToyplay = FALSE;
+	m_DBSpaNarrative = FALSE;
+	UpdateData(false);
+}
+
+void CClanKideval::OnDBFraNarrative() {
+	UpdateData(true);
+	m_DBEngToyplay = FALSE;
+	m_DBEngNarrative = FALSE;
+	m_DBZhoToyplay = FALSE;
+	m_DBZhoNarrative = FALSE;
+	m_DBNldToyplay = FALSE;
+	m_DBFraToyplay = FALSE;
+	m_DBFraNarrative = TRUE;
+	m_DBJpnToyplay = FALSE;
+	m_DBSpaToyplay = FALSE;
+	m_DBSpaNarrative = FALSE;
+	UpdateData(false);
+}
+
+void CClanKideval::OnDBJpnToyplay() {
+	UpdateData(true);
+	m_DBEngToyplay = FALSE;
+	m_DBEngNarrative = FALSE;
+	m_DBZhoToyplay = FALSE;
+	m_DBZhoNarrative = FALSE;
+	m_DBNldToyplay = FALSE;
+	m_DBFraToyplay = FALSE;
+	m_DBFraNarrative = FALSE;
+	m_DBJpnToyplay = TRUE;
+	m_DBSpaToyplay = FALSE;
+	m_DBSpaNarrative = FALSE;
+	UpdateData(false);
+}
+
+void CClanKideval::OnDBSpaToyplay() {
+	UpdateData(true);
+	m_DBEngToyplay = FALSE;
+	m_DBEngNarrative = FALSE;
+	m_DBZhoToyplay = FALSE;
+	m_DBZhoNarrative = FALSE;
+	m_DBNldToyplay = FALSE;
+	m_DBFraToyplay = FALSE;
+	m_DBFraNarrative = FALSE;
+	m_DBJpnToyplay = FALSE;
+	m_DBSpaToyplay = TRUE;
+	m_DBSpaNarrative = FALSE;
+	UpdateData(false);
+}
+
+void CClanKideval::OnDBSpaNarrative() {
+	UpdateData(true);
+	m_DBEngToyplay = FALSE;
+	m_DBEngNarrative = FALSE;
+	m_DBZhoToyplay = FALSE;
+	m_DBZhoNarrative = FALSE;
+	m_DBNldToyplay = FALSE;
+	m_DBFraToyplay = FALSE;
+	m_DBFraNarrative = FALSE;
+	m_DBJpnToyplay = FALSE;
+	m_DBSpaToyplay = FALSE;
+	m_DBSpaNarrative = TRUE;
+	UpdateData(false);
+}
+
+
 
 void CClanKideval::OnIndyAge() {
 	UpdateData(true);
@@ -1583,9 +1832,16 @@ static void selectKidevalDialog(void) {
 	dlg.m_FEMALE = FemaleOnly;
 	dlg.m_BOTHGEN = BothGen;
 	dlg.m_LinkAge = LinkAgeTp;
-	dlg.m_DBEngTDFp = DBEngTDFpTp;
-	dlg.m_DBChnTDMd = DBChnTDMdTp;
-	dlg.m_DBJpnTDMd = DBJpnTDMdTp;
+	dlg.m_DBEngToyplay = DBEngToyplayTp;
+	dlg.m_DBEngNarrative = DBEngNarrativeTp;
+	dlg.m_DBZhoToyplay = DBZhoToyplayTp;
+	dlg.m_DBZhoNarrative = DBZhoNarrativeTp;
+	dlg.m_DBNldToyplay = DBNldToyplayTp;
+	dlg.m_DBFraToyplay = DBFraToyplayTp;
+	dlg.m_DBFraNarrative = DBFraNarrativeTp;
+	dlg.m_DBJpnToyplay = DBJpnToyplayTp;
+	dlg.m_DBSpaToyplay = DBSpaToyplayTp;
+	dlg.m_DBSpaNarrative = DBSpaNarrativeTp;
 
 repeat:
 	if (dlg.DoModal() == IDOK) {
@@ -1605,9 +1861,16 @@ repeat:
 		FemaleOnly = dlg.m_FEMALE;
 		BothGen = dlg.m_BOTHGEN;
 		LinkAgeTp = dlg.m_LinkAge;
-		DBEngTDFpTp = dlg.m_DBEngTDFp;
-		DBChnTDMdTp = dlg.m_DBChnTDMd;
-		DBJpnTDMdTp = dlg.m_DBJpnTDMd;
+		DBEngToyplayTp = dlg.m_DBEngToyplay;
+		DBEngNarrativeTp = dlg.m_DBEngNarrative;
+		DBZhoToyplayTp = dlg.m_DBZhoToyplay;
+		DBZhoNarrativeTp = dlg.m_DBZhoNarrative;
+		DBNldToyplayTp = dlg.m_DBNldToyplay;
+		DBFraToyplayTp = dlg.m_DBFraToyplay;
+		DBFraNarrativeTp = dlg.m_DBFraNarrative;
+		DBJpnToyplayTp = dlg.m_DBJpnToyplay;
+		DBSpaToyplayTp = dlg.m_DBSpaToyplay;
+		DBSpaNarrativeTp = dlg.m_DBSpaNarrative;
 
 		if (MaleOnly)
 			genSt = "male";
@@ -1617,15 +1880,36 @@ repeat:
 			genSt = "";
 
 		if (CmpDBTp) {
-			if (DBEngTDFpTp) {
-				dbSt = "fp";
+			if (DBEngToyplayTp) {
+				dbSt = "toyplay";
 				langSt = "eng";
-			} else if (DBChnTDMdTp) {
-				dbSt = "md";
+			} else if (DBEngNarrativeTp) {
+				dbSt = "narrative";
+				langSt = "eng";
+			} else if (DBZhoToyplayTp) {
+				dbSt = "toyplay";
 				langSt = "zho";
-			} else if (DBJpnTDMdTp) {
-				dbSt = "td";
+			} else if (DBZhoNarrativeTp) {
+				dbSt = "narrative";
+				langSt = "zho";
+			} else if (DBFraToyplayTp) {
+				dbSt = "toyplay";
+				langSt = "fra";
+			} else if (DBFraNarrativeTp) {
+				dbSt = "narrative";
+				langSt = "fra";
+			} else if (DBNldToyplayTp) {
+				dbSt = "toyplay";
+				langSt = "nld";
+			} else if (DBJpnToyplayTp) {
+				dbSt = "toyplay";
 				langSt = "jpn";
+			} else if (DBSpaToyplayTp) {
+				dbSt = "toyplay";
+				langSt = "spa";
+			} else if (DBSpaNarrativeTp) {
+				dbSt = "narrative";
+				langSt = "spa";
 			} else {
 				do_warning("Please select one database", 0);
 				goto repeat;

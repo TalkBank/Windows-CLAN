@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -324,27 +324,27 @@ void usage() {
 	puts("cd <to every server's repo>");
 	puts("git status");
 	puts("git commit -a");
-	puts("git push");
+	puts("deploy");
 	puts("\tAT THIS POINT TELL LEONID TO FINISH TRANSFER DATA TO DALI");
 	puts("*********************************************************************");
 	puts("\tTransfer CMDI files inside \"data-cmdi\" folder to \"dali.talkbank.org\" server to folder \"/var/www/web/data-cmdi/\"");
 	puts("\nAdding PIDs to Handle Server");
-	puts("\tTransfer file \"~/data/0PID_batch.txt\" to \"Mac Zee\" server to folder \"/WORK/CLAN-data/Handle/hs\"");
-	puts("After above files are transferred to \"dali.talkbank.org\" server and Mac Zee they can be deleted.");
+	puts("\tTransfer file \"~/data/0PID_batch.txt\" to \"Mac Gabby\" server to folder \"/Users/WORK/CLAN-data/Handle/hs\"");
+	puts("After above files are transferred to \"dali.talkbank.org\" server and Mac Gabby they can be deleted.");
 	puts("\nConnect to \"dali.talkbank.org\" with command \"ssh macw@dali.talkbank.org\"");
 	puts("\n  In Unix Terminal on \"dali.talkbank.org\" type:");
 	puts("/var/www/hs/stop.sh");
 	puts("cd /var/www/hs/svr_1");
 	puts("First backup and then delete folders \"bdbje\", \"txns\" and file \"txn_id\" to \"/var/www/hs/bck\"");
 	puts("/var/www/hs/start.sh&");
-	puts("Transfer file \"/var/www/hs/svr_1/admpriv.bin\" from \"dali.talkbank.org\" to \"Mac Zee\" folder \"~/Downloads/admpriv.bin\"");
-	puts("\n  In Unix Terminal on \"Mac Zee\" type:");
-	puts("cd /WORK/CLAN-data/Handle/hs/bin/");
+	puts("Transfer file \"/var/www/hs/svr_1/admpriv.bin\" from \"dali.talkbank.org\" to \"Mac Gabby\" folder \"~/Downloads/admpriv.bin\"");
+	puts("\n  In Unix Terminal on \"Mac Gabby\" type:");
+	puts("cd /Users/WORK/CLAN-data/Handle/hs/bin/");
 	puts("./hdl-admintool");
 	puts("  Choose the menu option \"Tools->Home/Unhome Prefix\"");
 	puts("  In the \"Prefix\" box enter \"0.NA/11312\"");
 	puts("  Under \"By Site Info File (siteinfo.bin)\" click \"Choose File...\"");
-	puts("  Select \"siteinfo.json\" file from directory: \"/WORK/CLAN-data/Handle/hs/siteinfo.json\"");
+	puts("  Select \"siteinfo.json\" file from directory: \"/Users/WORK/CLAN-data/Handle/hs/siteinfo.json\"");
 	puts("  Click \"Do It\" button, in next window click \"OK\" button, Then enter password \"kgb1984\"");
 	puts("\nStill inside \"hdl-admintool\" create new PIDs:");
 	puts("  Choose the menu option \"Tools->Batch Processor\"");
@@ -3901,27 +3901,27 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 				puts("cd <to every server's repo>");
 				puts("git status");
 				puts("git commit -a");
-				puts("git push");
+				puts("deploy");
 				puts("\tAT THIS POINT TELL LEONID TO FINISH TRANSFER DATA TO ALPHA");
 				puts("*********************************************************************");
 				puts("\tTransfer CMDI files inside \"data-cmdi\" folder to \"dali.talkbank.org\" server to folder \"/var/www/web/data-cmdi/\"");
 				puts("\nAdding PIDs to Handle Server");
-				puts("\tTransfer file \"~/data/0PID_batch.txt\" to \"Mac Zee\" server to folder \"/WORK/CLAN-data/Handle/hs\"");
-				puts("After above files are transferred to \"dali.talkbank.org\" server and Mac Zee they can be deleted.");
+				puts("\tTransfer file \"~/data/0PID_batch.txt\" to \"Mac Gabby\" server to folder \"/Users/WORK/CLAN-data/Handle/hs\"");
+				puts("After above files are transferred to \"dali.talkbank.org\" server and Mac Gabby they can be deleted.");
 				puts("\nConnect to \"dali.talkbank.org\" with command \"ssh macw@dali.talkbank.org\"");
 				puts("\n  In Unix Terminal on \"dali.talkbank.org\" type:");
 				puts("/var/www/hs/stop.sh");
 				puts("cd /var/www/hs/svr_1");
 				puts("First backup and then delete folders \"bdbje\", \"txns\" and file \"txn_id\" to \"/var/www/hs/bck\"");
 				puts("/var/www/hs/start.sh&");
-				puts("Transfer file \"/var/www/hs/svr_1/admpriv.bin\" from \"dali.talkbank.org\" to \"Mac Zee\" folder \"~/Downloads/admpriv.bin\"");
-				puts("\n  In Unix Terminal on \"Mac Zee\" type:");
-				puts("cd /WORK/CLAN-data/Handle/hs/bin/");
+				puts("Transfer file \"/var/www/hs/svr_1/admpriv.bin\" from \"dali.talkbank.org\" to \"Mac Gabby\" folder \"~/Downloads/admpriv.bin\"");
+				puts("\n  In Unix Terminal on \"Mac Gabby\" type:");
+				puts("cd /Users/WORK/CLAN-data/Handle/hs/bin/");
 				puts("./hdl-admintool");
 				puts("  Choose the menu option \"Tools->Home/Unhome Prefix\"");
 				puts("  In the \"Prefix\" box enter \"0.NA/11312\"");
 				puts("  Under \"By Site Info File (siteinfo.bin)\" click \"Choose File...\"");
-				puts("  Select \"siteinfo.json\" file from directory: \"/WORK/CLAN-data/Handle/hs/siteinfo.json\"");
+				puts("  Select \"siteinfo.json\" file from directory: \"/Users/WORK/CLAN-data/Handle/hs/siteinfo.json\"");
 				puts("  Click \"Do It\" button, in next window click \"OK\" button, Then enter password \"kgb1984\"");
 				puts("\nStill inside \"hdl-admintool\" create new PIDs:");
 				puts("  Choose the menu option \"Tools->Batch Processor\"");

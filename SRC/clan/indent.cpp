@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -364,7 +364,8 @@ static char handlePrevOV(I_UTT *tCloseOvUtt) {
 				} else if (col > openOv[index].OvCol) {
 					posShift = adjustForWord(templineC, i);
 					for (i--,posShift--; col>openOv[index].OvCol && posShift>0 && templineC[posShift]==' ' && templineC[posShift-1]==' '; col--,i--,posShift--)
-						strcpy(templineC+posShift, templineC+posShift+1);
+						att_cp(0, templineC+posShift, templineC+posShift+1, tempAtt+posShift, tempAtt+posShift+1);
+//						strcpy(templineC+posShift, templineC+posShift+1);
 					i++;
 					if (col > openOv[index].OvCol && openOv[index].OvCol == 0) {
 						if (tCloseOvUtt->line != NULL)

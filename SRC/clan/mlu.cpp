@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -472,7 +472,7 @@ char mlu_excludeUtter(char *line, int pos, char *isWordsFound) { // xxx, yyy, ww
 	return(FALSE);	
 }
 
-// C_NNLA, EVAL, KIDEVAL, MAXWD, WDLEN and SUGAR
+// C_NNLA, EVAL, EVALD, KIDEVAL, MAXWD, WDLEN and SUGAR
 void call() {
 	register int pos;
 	MLUSP *ts = NULL;

@@ -383,8 +383,10 @@ myFInfo *InitFileInfo(FNType *fname, long lLen, short id, char *isUTF8Header)
 	FInf->SnTr.EndF = 0L;
 	FInf->MvTr.MBeg = 0L;
 	FInf->MvTr.MEnd = 0L;
+	FInf->MvTr.nextBegF = 0L;
 	FInf->SnTr.WBegF = 0L;
 	FInf->SnTr.WEndF = 0L;
+	FInf->SnTr.nextBegF = 0L;
 	FInf->SnTr.contPlayBeg = 0L;
 	FInf->SnTr.contPlayEnd = 0L;
 	FInf->attOutputToScreen = 0;

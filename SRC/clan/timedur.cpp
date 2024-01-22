@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -379,7 +379,8 @@ static void MakeSpHeader(void) {
 			excelHeader(fpout, newfname, 75);
 		}
 		excelRow(fpout, ExcelRowStart);
-		excelStrCell(fpout, "Line #,Speaker");
+		excelStrCell(fpout, "Line #");
+		excelStrCell(fpout, "Speaker");
 		for (p=RootStats; p != NULL; p=p->nextsp) {
 			if (*p->prev_sp_name == EOS)
 				sprintf(templineC, ",%s duration of", p->sp_name);

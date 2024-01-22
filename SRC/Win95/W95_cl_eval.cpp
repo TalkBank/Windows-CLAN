@@ -30,6 +30,8 @@
 #define FLOOD_GEM		  66
 #define CINDERELLA_GEM	  67
 #define SANDWICH_GEM	  68
+#define COMMUNICATION_GEM 72
+#define ILLNESS_GEM		  73
 #define DESELECT_GEMS	  69
 #define SELECT_ALL_GEMS	  70
 #define UPDATE_DB		  71
@@ -51,7 +53,8 @@ extern char URL_passwd[];
 
 static char AnomicTp, GlobalTp, BrocaTp, WernickeTp, TranssenTp, TransmotTp,
 			ConductionTp, ControlTp, NotAphByWab, MaleOnly, FemaleOnly, SpeechGm,
-			StrokeGm, WindowGm, Impevent, Umbrella, Cat, Flood, Cinderella, Sandwich;
+			StrokeGm, WindowGm, Impevent, Umbrella, Cat, Flood, Cinderella, Sandwich,
+			Communication, Illness;
 static char AgeRange[256];
 static 	time_t GlobalTime;
 static struct SpeakersListS *spRoot;
@@ -77,6 +80,8 @@ void InitEvalOptions(void) {
 	Flood = 0;
 	Cinderella = 0;
 	Sandwich = 0;
+	Communication = 0;
+	Illness = 0;
 	AgeRange[0] = EOS;
 }
 
@@ -174,6 +179,8 @@ void CClanEval::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_PORTF_FLOOD, m_FLOOD);
 	DDX_Check(pDX, IDC_PORTF_CINDERELLA, m_CINDERELLA);
 	DDX_Check(pDX, IDC_PORTF_SANDWICH, m_SANDWICH);
+	DDX_Check(pDX, IDC_PORTF_COMM, m_COMMUNICATION);
+	DDX_Check(pDX, IDC_PORTF_ILLNESS, m_ILLNESS);
 
 	DDX_Control(pDX, IDC_SELECT_READING, m_ReadingCTRL);
 	DDX_Text(pDX, IDC_SELECT_READING, m_Reading);
@@ -209,6 +216,8 @@ BEGIN_MESSAGE_MAP(CClanEval, CDialog)
 	ON_BN_CLICKED(IDC_PORTF_FLOOD, OnFlood)
 	ON_BN_CLICKED(IDC_PORTF_CINDERELLA, OnCinderella)
 	ON_BN_CLICKED(IDC_PORTF_SANDWICH, OnSandwich)
+	ON_BN_CLICKED(IDC_PORTF_COMM, OnCommunication)
+	ON_BN_CLICKED(IDC_PORTF_ILLNESS, OnIllness)
 
 	ON_BN_CLICKED(IDC_SELECT_T1, OnSelectT1)
 	ON_BN_CLICKED(IDC_SELECT_T2, OnSelectT2)
@@ -517,6 +526,8 @@ void CClanEval::OnDGEM()
 	m_FLOOD = 0;
 	m_CINDERELLA = 0;
 	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -535,6 +546,8 @@ void CClanEval::OnSGEM()
 	m_FLOOD = 1;
 	m_CINDERELLA = 1;
 	m_SANDWICH = 1;
+	m_COMMUNICATION = 1;
+	m_ILLNESS = 1;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -544,7 +557,17 @@ void CClanEval::OnSpeech()
 {
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_SPEECH = !m_SPEECH;
+	m_SPEECH = 1;
+	m_STROKE = 0;
+	m_WINDOW = 0;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 0;
+	m_CAT = 0;
+	m_FLOOD = 0;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -553,7 +576,17 @@ void CClanEval::OnStroke()
 {
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_STROKE = !m_STROKE;
+	m_SPEECH = 0;
+	m_STROKE = 1;
+	m_WINDOW = 0;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 0;
+	m_CAT = 0;
+	m_FLOOD = 0;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -562,7 +595,17 @@ void CClanEval::OnWindow()
 {
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_WINDOW = !m_WINDOW;
+	m_SPEECH = 0;
+	m_STROKE = 0;
+	m_WINDOW = 1;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 0;
+	m_CAT = 0;
+	m_FLOOD = 0;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -571,7 +614,17 @@ void CClanEval::OnImpEvent()
 {
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_IMPEVENT = !m_IMPEVENT;
+	m_SPEECH = 0;
+	m_STROKE = 0;
+	m_WINDOW = 0;
+	m_IMPEVENT = 1;
+	m_UMBRELLA = 0;
+	m_CAT = 0;
+	m_FLOOD = 0;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -580,7 +633,17 @@ void CClanEval::OnUmbrella()
 {
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_UMBRELLA = !m_UMBRELLA;
+	m_SPEECH = 0;
+	m_STROKE = 0;
+	m_WINDOW = 0;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 1;
+	m_CAT = 0;
+	m_FLOOD = 0;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -589,7 +652,17 @@ void CClanEval::OnCat()
 {
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_CAT = !m_CAT;
+	m_SPEECH = 0;
+	m_STROKE = 0;
+	m_WINDOW = 0;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 0;
+	m_CAT = 1;
+	m_FLOOD = 0;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -598,7 +671,17 @@ void CClanEval::OnFlood()
 {
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_FLOOD = !m_FLOOD;
+	m_SPEECH = 0;
+	m_STROKE = 0;
+	m_WINDOW = 0;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 0;
+	m_CAT = 0;
+	m_FLOOD = 1;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -607,7 +690,17 @@ void CClanEval::OnCinderella()
 {
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_CINDERELLA = !m_CINDERELLA;
+	m_SPEECH = 0;
+	m_STROKE = 0;
+	m_WINDOW = 0;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 0;
+	m_CAT = 0;
+	m_FLOOD = 0;
+	m_CINDERELLA = 1;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -616,7 +709,57 @@ void CClanEval::OnSandwich()
 {
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
-	m_SANDWICH = !m_SANDWICH;
+	m_SPEECH = 0;
+	m_STROKE = 0;
+	m_WINDOW = 0;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 0;
+	m_CAT = 0;
+	m_FLOOD = 0;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 1;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 0;
+	UpdateData(false);
+	int len = strlen(m_AGE_RANGE);
+	m_AGE_RANGECTRL.SetSel(len, len, false);
+}
+
+void CClanEval::OnCommunication()
+{
+	UpdateData(true);
+	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
+	m_SPEECH = 0;
+	m_STROKE = 0;
+	m_WINDOW = 0;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 0;
+	m_CAT = 0;
+	m_FLOOD = 0;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 1;
+	m_ILLNESS = 0;
+	UpdateData(false);
+	int len = strlen(m_AGE_RANGE);
+	m_AGE_RANGECTRL.SetSel(len, len, false);
+}
+
+void CClanEval::OnIllness()
+{
+	UpdateData(true);
+	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
+	m_SPEECH = 0;
+	m_STROKE = 0;
+	m_WINDOW = 0;
+	m_IMPEVENT = 0;
+	m_UMBRELLA = 0;
+	m_CAT = 0;
+	m_FLOOD = 0;
+	m_CINDERELLA = 0;
+	m_SANDWICH = 0;
+	m_COMMUNICATION = 0;
+	m_ILLNESS = 1;
 	UpdateData(false);
 	int len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
@@ -1101,6 +1244,8 @@ static void selectEvalDialog() {
 	dlg.m_FLOOD = Flood;
 	dlg.m_CINDERELLA = Cinderella;
 	dlg.m_SANDWICH = Sandwich;
+	dlg.m_COMMUNICATION = Communication;
+	dlg.m_ILLNESS = Illness;
 	if (dlg.DoModal() == IDOK) {
 		strcpy(templineC3, clan_name[EVAL]);
 		strcat(templineC3, " @");
@@ -1131,9 +1276,13 @@ static void selectEvalDialog() {
 		Flood = dlg.m_FLOOD;
 		Cinderella = dlg.m_CINDERELLA;
 		Sandwich = dlg.m_SANDWICH;
+		Communication = dlg.m_COMMUNICATION;
+		Illness = dlg.m_ILLNESS;
 		u_strcpy(AgeRange, dlg.m_AGE_RANGE, 256);
-		if (SpeechGm && StrokeGm && WindowGm && Impevent && Umbrella && Cat && Flood && Cinderella && Sandwich) {
+		if (SpeechGm && StrokeGm && WindowGm && Impevent && Umbrella && Cat && Flood && Cinderella && Sandwich &&
+			Communication && Illness) {
 			SpeechGm = StrokeGm = WindowGm = Impevent = Umbrella = Cat = Flood = Cinderella = Sandwich = 0;
+			Communication = Illness = 0;
 		}
 		if (MaleOnly)
 			isGender = 1;
@@ -1301,6 +1450,16 @@ static void selectEvalDialog() {
 		if (Sandwich) {
 			strcat(templineC3, " +g\"");
 			strcat(templineC3, "Sandwich");
+			strcat(templineC3, "\"");
+		}
+		if (Communication) {
+			strcat(templineC3, " +g\"");
+			strcat(templineC3, "Communication");
+			strcat(templineC3, "\"");
+		}
+		if (Illness) {
+			strcat(templineC3, " +g\"");
+			strcat(templineC3, "Illness_or_Injury");
 			strcat(templineC3, "\"");
 		}
 		strcat(templineC3, " +u");

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -70,14 +70,15 @@ struct kwal_speakers_list {
 
 static char uttword[SPEAKERLEN];
 static char keyword[SPEAKERLEN];
-static char kw, kwal_sort, outputOnlyMatched, isDuplicateTiers, isKeywordOneColumn, isFPrTime;
+static char kw, kwal_sort, outputOnlyMatched, isDuplicateTiers, isFPrTime, isExpandXForAll;
+static char ftime_excel, isKeywordOneColumn, ftime_excel_titles;
 static char *kwal_total_line;
 static char kwalTSpeaker[SPEAKERLEN];
 static char kwalTSInclude;
 static char kwal_isOnlyOne;
 static char isDepTierIncluded;
 static char isBlankSpeakerName;
-static char kwal_ftime, kwal_ftime2, kwal_ftime3, ftime_excel;
+static char kwal_ftime, kwal_ftime2, kwal_ftime3;
 static int  kwal_total_line_size;
 static long kwal_tlineno;
 static KWALSP *kwal_head;
@@ -87,6 +88,7 @@ static char *keywordsList[MAXKEYS];
 
 extern int  aftwin;
 extern int  IsModUttDel;
+extern char filterUttLen_cmp;
 extern char isKWAL2013;
 extern char tch;
 extern char tct;
@@ -123,6 +125,7 @@ void init(char t) {
 	struct tier *p;
 
 	if (t) {
+		isExpandXForAll = FALSE;
 		isExpendX = FALSE;
 		kwalTSpeaker[0] = EOS;
 		kwalTSInclude = TRUE;
@@ -136,6 +139,7 @@ void init(char t) {
 		kwal_ftime2 = TRUE;
 		kwal_ftime3 = TRUE;
 		ftime_excel = TRUE;
+		ftime_excel_titles = TRUE;
 		isDuplicateTiers = FALSE;
 		isKeywordOneColumn = FALSE;
 		isFPrTime = FALSE;
@@ -210,6 +214,17 @@ void init(char t) {
 			if (!linkDep2Other) {
 				fDepTierName[0] = EOS;
 				sDepTierName[0] = EOS;
+			}
+			if (filterUttLen_cmp != 0 && outputOnlyMatched != 3 && kwal_ftime == TRUE) {
+				addword('\0','\0',"+xxx");
+				addword('\0','\0',"+yyy");
+				addword('\0','\0',"+www");
+				addword('\0','\0',"+xxx@s*");
+				addword('\0','\0',"+yyy@s*");
+				addword('\0','\0',"+www@s*");
+				addword('\0','\0',"+unk|xxx");
+				addword('\0','\0',"+unk|yyy");
+				addword('\0','\0',"+*|www");
 			}
 		}
 		for (p=headtier; p != NULL; p=p->nexttier) {
@@ -489,6 +504,31 @@ static void PrintUtt(struct utts_list *u, char *keyword) {
 				u->fname, u->lineno, keyword);
 		}
 		if (onlydata == 5) {
+			if (ftime_excel_titles) {
+				ftime_excel_titles = FALSE;
+				excelRow(fpout, ExcelRowStart);
+				excelCommasStrCell(fpout, "File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom field");
+				excelStrCell(fpout, "Line_number");
+				if (isKeywordOneColumn) {
+					for (i=0; i < MAXKEYS; i++) {
+						if (keywordsList[i] == NULL)
+							break;
+						for (j=0; j < MAXKEYS; j++) {
+							if (u->keys[j] == MAXKEYS)
+								break;
+							if (i == u->keys[j]) {
+								excelStrCell(fpout, "Keyword");
+								break;
+							}
+						}
+						if (j >= MAXKEYS || u->keys[j] == MAXKEYS)
+							excelStrCell(fpout, "Keyword");
+					}
+				} else if (keyword[0] != EOS)
+					excelStrCell(fpout, "Keyword");
+				excelStrCell(fpout, "Utterance");
+				excelRow(fpout, ExcelRowEnd);
+			}
 			if (u->line[0] == '*') {
 				for (i=0L; u->line[i] != EOS && u->line[i] != ':'; i++)
 					spareTier1[i] = u->line[i];
@@ -1325,6 +1365,8 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					isShow = ((CntWUT || CntFUttLen) && WordMode == '\0' && CheckOutTier(utterance->speaker) && utterance->nextutt == utterance);
 				if (!isShow)
 					isShow = (*utterance->speaker== '@' && CheckOutTier(utterance->speaker) /*&& utterance->nextutt == utterance*/);
+				if (isExpandXForAll == TRUE)
+					isShow = TRUE;
 			}
 			if (isShow) {
 				if (kwalTSpeaker[0] != EOS)
@@ -1337,6 +1379,16 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 						pr_idfld("@Comment:\t***", keyword,utterance->tlineno);
 					} else if (onlydata == 5) {
 						if (!isKeywordOneColumn) {
+							if (ftime_excel_titles) {
+								ftime_excel_titles = FALSE;
+								excelRow(fpout, ExcelRowStart);
+								excelCommasStrCell(fpout, "File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom field");
+								excelStrCell(fpout, "Line_number");
+								if (keyword[0] != EOS)
+									excelStrCell(fpout, "Keyword");
+								excelStrCell(fpout, "Utterance");
+								excelRow(fpout, ExcelRowEnd);
+							}
 							uS.remblanks(utterance->speaker);
 							excelRow(fpout, ExcelRowStart);
 							kwal_outputIDInfo(fpout, utterance->speaker, oldfname);
@@ -1523,6 +1575,11 @@ void getflag(char *f, char *f1, int *i) {
 				} else if (*f == '4') {
 					combinput = TRUE;
 					isKeywordOneColumn = TRUE;
+				} else if (*f == '9' && *(f+1) == '0') {
+					isExpendX = TRUE;
+					isExpandXForAll = TRUE;
+					OverWriteFile = TRUE;
+					break;
 				} else if (*f == '9' && *(f+1) == '9') {
 					isExpendX = TRUE;
 					break;

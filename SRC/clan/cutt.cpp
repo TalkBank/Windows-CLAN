@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -195,7 +195,6 @@ char OutputDrive;
 char IncludeAllDefaultCodes;
 char cutt_isMultiFound = FALSE;
 char cutt_isCAFound = FALSE;
-char cutt_isBlobFound = FALSE;
 char cutt_isSearchForQuotedItems = 0;  // 2019-07-17
 char isRemoveCAChar[NUMSPCHARS+2];
 struct tier *HeadOutTier;	/* points to the list of specified output tier   */
@@ -1368,7 +1367,7 @@ static char isPOSFound(char *line) {
 static char isRightR8Command(void) {
 	if (R8) {
 		if (CLAN_PROG_NUM == FREQ || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == MORTABLE ||
-			CLAN_PROG_NUM == CORELEX || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == SUGAR) {
+			CLAN_PROG_NUM == CORELEX || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == SUGAR) {
 			return(TRUE);
 		}
 	}
@@ -2239,7 +2238,7 @@ static char isMorAllBeforeSpace(char *matched, char *word, long i) {
 	return(TRUE);
 }
 
-static void cleanUpMorWord(char *word, char *matched) {
+void cleanUpMorWord(char *word, char *matched) {
 	char isErrReplFound;
 	long i, c;
 
@@ -2890,6 +2889,7 @@ static int excludeSpTierMorDef(char *word) {
 		uS.mStricmp(word, "yy") == 0 || uS.mStricmp(word, "yyy") == 0 || uS.mStricmp(word, "www") == 0 ||
 		uS.mStrnicmp(word,"xxx@s",5) == 0 || uS.mStrnicmp(word,"yyy@s",5) == 0 || uS.mStrnicmp(word,"www@s",5) == 0 ||
 		word[0] == '#' || word[0] == '-') {
+//		if (isCreateFakeMor && isNextRep()) {
 		return(FALSE);
 	} else if (uS.patmat(word, "(*.*)")) {
 		if (isCreateFakeMor == 0)
@@ -2978,13 +2978,11 @@ static void filterMORScop(char *wline, char linkTiers) {
 			}
 			if (pos < 0) {
 				if (chatmode) {
-					if (!cutt_isBlobFound) {
-						fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno+tlineno);
-						fprintf(stderr,"Missing '[' character\n");
-						fprintf(stderr,"text=%s\n",wline);
-					}
+					fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno+tlineno);
+					fprintf(stderr,"Missing '[' character\n");
+					fprintf(stderr,"text=%s\n",wline);
 					pos = end - 1;
-					if (isRecursive || cutt_isCAFound || cutt_isBlobFound)
+					if (isRecursive || cutt_isCAFound)
 						continue;
 					else
 						cutt_exit(1);
@@ -3348,7 +3346,7 @@ static void copyFillersToDepTier(char *spTier, char *mor_tier) {
 }
 
 // 2018-10-22 beg Nan duplicates
-#define morWsMax 100 // 1024
+#define morWsMax 120 // 1024
 
 struct morWsCom {
 	int  morWsI;
@@ -3514,17 +3512,20 @@ static int duplicateCodeMorWs(char *wline, int pos, char isRepeat, struct morWsC
 						}
 						morWsC->isDumWs[morWsC->morWsI] = TRUE;
 						morWsC->morWsI++;
-					} else if (angWsCnt > 0 && morWsC->morWsI > angWsCnt) {
+					} else if (isRepeat && angWsCnt > 0 && morWsC->morWsI > angWsCnt) {
 						if (morWsC->morWsI >= morWsMax) {
 							internalError(wline);
 						}
-						if (isRepeat) {
-							morWsC->morWs[morWsC->morWsI] = getMorWs(morWsC, lastMorWsPos, angWsCnt);
-							morWsC->isDumWs[morWsC->morWsI] = FALSE;
-						} else {
-							morWsC->morWs[morWsC->morWsI] = morWsC->morWs[0];
-							morWsC->isDumWs[morWsC->morWsI] = TRUE;
+						morWsC->morWs[morWsC->morWsI] = getMorWs(morWsC, lastMorWsPos, angWsCnt);
+						morWsC->isDumWs[morWsC->morWsI] = FALSE;
+						morWsC->morWsI++;
+						angWsCnt--;
+					} else if (!isRepeat && angWsCnt > 0) {
+						if (morWsC->morWsI >= morWsMax) {
+							internalError(wline);
 						}
+						morWsC->morWs[morWsC->morWsI] = morWsC->morWs[0];
+						morWsC->isDumWs[morWsC->morWsI] = TRUE;
 						morWsC->morWsI++;
 						angWsCnt--;
 					}
@@ -3685,6 +3686,57 @@ repeatSQ:
 	if (tempTier[0] != EOS)
 		strcpy(mor_tier, tempTier);
 }
+
+static void prepSpTier(char *line) {
+	int i, j, XLen;
+	int ab, sq;
+
+	sq = 0;
+	ab = 0;
+	for (i=0; line[i] != EOS; i++) {
+		if (line[i] == '[') {
+			sq++;
+		} else if (line[i] == ']') {
+			if (sq > 0)
+				sq--;
+		}
+		if (sq == 0) {
+			if ((i == 0 || isSpace(line[i-1])) && line[i] == '<') {
+				ab++;
+			} else if (line[i] == '>') {
+				if (ab > 0)
+					ab--;
+			}
+		}
+		if (i == 0 || isSpace(line[i])) {
+			if (i != 0)
+				i++;
+			XLen = 0;
+			if (strncmp(line+i, "xxx", 3) == 0 && (isSpace(line[i+3]) || line[i+3] == '\n'))
+				XLen = 3;
+			else if (strncmp(line+i, "xx", 2) == 0 && (isSpace(line[i+2]) || line[i+2] == '\n'))
+				XLen = 2;
+			if (XLen > 0) {
+				if (ab > 0) {
+					for (j=i; line[j] != '>' && line[j] != '[' && line[j] != EOS; j++) ;
+					if (line[j] == '>')
+						for (j++; line[j] == '>' || isSpace(line[j]); j++) ;
+				} else {
+					for (j=i+XLen; isSpace(line[j]); j++) ;
+				}
+				if ((line[j] == '[' && line[j+1] == '/' && line[j+2] == ']') ||
+					(line[j] == '[' && line[j+1] == '/' && line[j+2] == '/' && line[j+3] == ']')) {
+					line[i] = 'N';
+					line[i+1] = 'A';
+					if (XLen == 3) {
+						line[i+2] = ' ';
+					}
+				}
+			} else if (i > 0)
+				i--;
+		}
+	}
+}
 // 2018-10-22 end Nan duplicates
 
 static void rewrapComboTier(char *line) {
@@ -3765,7 +3817,7 @@ static void rewrapComboTier(char *line) {
 
 void createMorUttline(char *new_mor_tier, char *spTier, const char *dcode, char *mor_tier, char isFilterSP, char linkTiers) {
 	int  i, j, t, matchType, res;
-	char spWord[BUFSIZ], MorWord[BUFSIZ], spTierDone, dMark[4], sMark[4], missMatch, isCMFound;
+	char spWord[BUFSIZ], MorWord[BUFSIZ], spTierDone, dMark[4], sMark[4], missMatch;
 	char tBEG, tEND;
 //2019-04-29	char tOQ, tCQ;
 
@@ -3794,6 +3846,8 @@ void createMorUttline(char *new_mor_tier, char *spTier, const char *dcode, char 
 	tEND  = isRemoveCAChar[NOTCA_DOUBLE_COMMA];
 	isRemoveCAChar[NOTCA_DOUBLE_COMMA] = FALSE;
 	if (isFilterSP) {
+		if (linkTiers && isCreateFakeMor)
+			prepSpTier(spTier);
 		filterMORScop(spTier, linkTiers);
 		filterwords("*", spTier, excludeSpTierMorDef);
 		if (linkTiers) {
@@ -3836,7 +3890,6 @@ void createMorUttline(char *new_mor_tier, char *spTier, const char *dcode, char 
 	missMatch = FALSE;
 	i = 0;
 	j = 0;
-	isCMFound = FALSE;
 	new_mor_tier[0] = EOS;
 	if (linkTiers || R8)
 		spTierDone = FALSE;
@@ -3857,8 +3910,6 @@ void createMorUttline(char *new_mor_tier, char *spTier, const char *dcode, char 
 			else
 				strcat(new_mor_tier, " ");
 			strcat(new_mor_tier, MorWord);
-			if (!strcmp(MorWord, "cm|cm"))
-				isCMFound = TRUE;
 			if ((MorWord[0] != '+' || isRightMorUttDelim(MorWord, linkTiers)) && MorWord[0] != '-' && !spTierDone) {
 				while ((i=getword("*\001", spTier, spWord, NULL, i))) {
 					if (uS.isRightChar(spWord, 0, '(', &dFnt, MBF) && uS.isPause(spWord, 0, NULL,  &t)) {
@@ -4017,10 +4068,6 @@ void createMorUttline(char *new_mor_tier, char *spTier, const char *dcode, char 
 	isRemoveCAChar[NOTCA_VOCATIVE]      = tBEG;
 	isRemoveCAChar[NOTCA_DOUBLE_COMMA]  = tEND;
 	if (missMatch && linkTiers) {
-/* 2012-11-1 2012-10-16 comma to %mor
-		if (isCMFound)
-			fprintf(stderr, "\nWARNING: found \"cm|cm\" on %%mor tier.\nPlease run \"mor\", \"post\" command on data file \"%s\"\n\n", oldfname);
-*/
 		mor_link.error_found = TRUE;
 		strcpy(mor_link.fname, oldfname);
 		mor_link.lineno = lineno;
@@ -4589,9 +4636,20 @@ void freedefwdptr(char *st) {
 				tt = t;
 			}
 		}
+		if (tt == NULL)
+			break;
 		t = tt;
 		tt = tt->nextword;
 	} while (tt != NULL) ;
+}
+
+static int cutt_isPause(char *st, int posO) {
+	int pos;
+
+	for (pos=posO+1; isdigit(st[pos]) || st[pos]== '.' || st[pos]== ':' || st[pos]== '*' || st[pos]== '%' || st[pos]== '_'; pos++) ;
+	if (!uS.isRightChar(st,pos,')',&dFnt,MBF))
+		return(FALSE);
+	return(TRUE);
 }
 
 /* addword(opt,ch,wd) is used to specify the words and scop items to be excluded
@@ -4696,6 +4754,11 @@ IEMWORDS *InsertMulti(IEMWORDS *mroot, char *st, char searchTier) {
 		p->context_arr[p->total][0] = EOS;
 		p->isMatch[p->total] = FALSE;
 		p->total++;
+		if (uS.isRightChar(st, 0, '(', &dFnt, MBF) && cutt_isPause(st, 0)) {
+			pauseFound = FALSE;
+		} else if (defwdptr != NULL) {
+			freedefwdptr(st);
+		}
 		if (t == EOS)
 			break;
 		else {
@@ -4778,15 +4841,6 @@ static char SpecialPlus(char *wd, char opt, char ch) {
 			return(TRUE);
 	} else
 		return(FALSE);
-}
-
-static int cutt_isPause(char *st, int posO) {
-	int pos;
-
-	for (pos=posO+1; isdigit(st[pos]) || st[pos]== '.' || st[pos]== ':' || st[pos]== '*' || st[pos]== '%' || st[pos]== '_'; pos++) ;
-	if (!uS.isRightChar(st,pos,')',&dFnt,MBF))
-		return(FALSE);
-	return(TRUE);
 }
 
 static void cleanCode(char *code) {
@@ -6859,13 +6913,11 @@ static void filterscop(const char *sp, char *wline, char isExcludeThisScope) {
 			}
 			if (pos < 0) {
 				if (chatmode) {
-					if (!cutt_isBlobFound) {
-						fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno+tlineno);
-						fprintf(stderr,"Missing '[' character\n");
-						fprintf(stderr,"text=%s\n",wline);
-					}
+					fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno+tlineno);
+					fprintf(stderr,"Missing '[' character\n");
+					fprintf(stderr,"text=%s\n",wline);
 					pos = temp - 1;
-					if (isRecursive || cutt_isCAFound || cutt_isBlobFound)
+					if (isRecursive || cutt_isCAFound)
 						continue;
 					else
 						cutt_exit(1);
@@ -7593,7 +7645,6 @@ void mmaininit(void) {
 	isMultiGraSearch = FALSE;
 	cutt_isMultiFound = FALSE;
 	cutt_isCAFound = FALSE;
-	cutt_isBlobFound = FALSE;
 	cutt_isSearchForQuotedItems = FALSE; // 2019-07-17
 	ml_root_clause = NULL;
 	totalFilesNum = 0; // 2019-04-18 TotalNumFiles
@@ -7628,9 +7679,9 @@ void mmaininit(void) {
 		CLAN_PROG_NUM == FLO || CLAN_PROG_NUM == FREQ || CLAN_PROG_NUM == DSS || CLAN_PROG_NUM == RETRACE || CLAN_PROG_NUM == MOR_P ||
 		CLAN_PROG_NUM==CMDI_P || CLAN_PROG_NUM==LAB2CHAT ||
 		CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX || CLAN_PROG_NUM == IPSYN ||
-		CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == KIDEVAL || CLAN_PROG_NUM == MAXWD ||
+		CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == KIDEVAL || CLAN_PROG_NUM == MAXWD ||
 		CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == WDLEN ||
-		CLAN_PROG_NUM == CHAT2CONLL || CLAN_PROG_NUM == CONLL2CHAT || CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == C_NNLA ||
+		CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == C_NNLA ||
 		CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR)
 		R6 = FALSE;
 	else
@@ -7647,8 +7698,8 @@ void mmaininit(void) {
 		CLAN_PROG_NUM == MOR_P || CLAN_PROG_NUM == TRNFIX || CLAN_PROG_NUM == POSTMORTEM ||
 		CLAN_PROG_NUM == CMDI_P || CLAN_PROG_NUM == LAB2CHAT || CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX ||
 		CLAN_PROG_NUM == FLO || CLAN_PROG_NUM == IPSYN || CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == CHAT2SRT ||
-		CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == KIDEVAL ||
-		CLAN_PROG_NUM == CHAT2CONLL || CLAN_PROG_NUM == CONLL2CHAT || CLAN_PROG_NUM == FLUCALC ||
+		CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == KIDEVAL ||
+		CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == MERGE ||
 		CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == CHIP || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA ||
 		CLAN_PROG_NUM == SUGAR || CLAN_PROG_NUM == CODES_P)
 		nomap = TRUE;
@@ -7789,7 +7840,6 @@ void globinit(void) {
 	isWOptUsed = FALSE;
 	cutt_isMultiFound = FALSE;
 	cutt_isCAFound = FALSE;
-	cutt_isBlobFound = FALSE;
 	cutt_isSearchForQuotedItems = FALSE; // 2019-07-17
 	ml_root_clause = NULL;
 	if (CLAN_PROG_NUM == FREQ || CLAN_PROG_NUM == DSS || CLAN_PROG_NUM == PHONFREQ ||
@@ -7797,8 +7847,8 @@ void globinit(void) {
 		CLAN_PROG_NUM == MOR_P || CLAN_PROG_NUM == TRNFIX || CLAN_PROG_NUM == POSTMORTEM ||
 		CLAN_PROG_NUM == CMDI_P || CLAN_PROG_NUM == LAB2CHAT || CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX ||
 		CLAN_PROG_NUM == FLO || CLAN_PROG_NUM == IPSYN || CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == CHAT2SRT ||
-		CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == KIDEVAL ||
-		CLAN_PROG_NUM == CHAT2CONLL || CLAN_PROG_NUM == CONLL2CHAT || CLAN_PROG_NUM == FLUCALC ||
+		CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == KIDEVAL ||
+		CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == MERGE ||
 		CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == CHIP || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA ||
 		CLAN_PROG_NUM == SUGAR || CLAN_PROG_NUM == CODES_P)
 		nomap = TRUE;
@@ -8291,6 +8341,8 @@ void SetSPRoleIDs(char *line) {
 	for (i=0,j++; templineC2[j] != '|' && templineC2[j] != EOS; j++, i++) {
 		sp[i] = templineC2[j];
 	}
+	if (i > 0 && sp[i-1] != ':')
+		sp[i++] = ':';
 	sp[i] = EOS;
 	if (templineC2[j] == EOS) {
 		uS.remblanks(templineC2);
@@ -8366,6 +8418,8 @@ void SetSPRoleParticipants(char *line) {
 		if (line[t] == ',' || t < 0) {
 			strncpy(sp, line+b+1, e-b);
 			sp[e-b] = EOS;
+			if (e-b > 0 && sp[e-b-1] != ':')
+				strcat(sp, ":");
 			uS.remblanks(sp);
 			uS.uppercasestr(sp, &dFnt, FALSE);
 			e = t - 1;
@@ -8380,6 +8434,8 @@ void SetSPRoleParticipants(char *line) {
 			}
 			strncpy(sp, line+b+1, e-b);
 			sp[e-b] = EOS;
+			if (e-b > 0 && sp[e-b-1] != ':')
+				strcat(sp, ":");
 			uS.remblanks(sp);
 			uS.uppercasestr(sp, &dFnt, FALSE);
 			e = t - 1;
@@ -8428,6 +8484,8 @@ void InitOptions(void) {
 		options_ext[DSS][OPTIONS_EXT_LEN] = EOS;
 	option_flags[EVAL] = F_OPTION+RE_OPTION+SM_OPTION+T_OPTION+UP_OPTION;
 	strncpy(options_ext[EVAL], ".eval", OPTIONS_EXT_LEN); options_ext[EVAL][OPTIONS_EXT_LEN] = EOS;
+	option_flags[EVALD] = F_OPTION+RE_OPTION+SM_OPTION+T_OPTION+UP_OPTION;
+	strncpy(options_ext[EVALD], ".evald", OPTIONS_EXT_LEN); options_ext[EVALD][OPTIONS_EXT_LEN] = EOS;
 	option_flags[FLUCALC] = F_OPTION+RE_OPTION+SP_OPTION+SM_OPTION+T_OPTION+Z_OPTION;
 	strncpy(options_ext[FLUCALC], ".flucalc", OPTIONS_EXT_LEN); options_ext[FLUCALC][OPTIONS_EXT_LEN] = EOS;
 	option_flags[FREQ] = ALL_OPTIONS+UM_OPTION+D_OPTION+Y_OPTION;
@@ -8498,11 +8556,9 @@ void InitOptions(void) {
 	strncpy(options_ext[CHAT2ANVIL], ".c2anvl", OPTIONS_EXT_LEN); options_ext[CHAT2ANVIL][OPTIONS_EXT_LEN] = EOS;
 	option_flags[CHAT2CA] = F_OPTION+RE_OPTION+L_OPTION;
 	strncpy(options_ext[CHAT2CA], ".c2ca", OPTIONS_EXT_LEN); options_ext[CHAT2CA][OPTIONS_EXT_LEN] = EOS;
-	option_flags[CHAT2CONLL] = RE_OPTION+T_OPTION+SM_OPTION+UP_OPTION;
-	strncpy(options_ext[CHAT2CONLL], ".conll", OPTIONS_EXT_LEN); options_ext[CHAT2CONLL][OPTIONS_EXT_LEN] = EOS;
 	option_flags[CHAT2ELAN] = F_OPTION+RE_OPTION+P_OPTION+L_OPTION;
 	strncpy(options_ext[CHAT2ELAN], ".c2elan", OPTIONS_EXT_LEN); options_ext[CHAT2ELAN][OPTIONS_EXT_LEN] = EOS;
-	option_flags[CHAT2PRAAT]= F_OPTION+RE_OPTION+P_OPTION+L_OPTION;
+	option_flags[CHAT2PRAAT]= F_OPTION+RE_OPTION+P_OPTION+L_OPTION+T_OPTION;
 	strncpy(options_ext[CHAT2PRAAT], ".c2praat", OPTIONS_EXT_LEN); options_ext[CHAT2PRAAT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[CHAT2SRT] = F_OPTION+RE_OPTION+T_OPTION;
 	strncpy(options_ext[CHAT2SRT], ".srt", OPTIONS_EXT_LEN); options_ext[CHAT2SRT][OPTIONS_EXT_LEN] = EOS;
@@ -8510,10 +8566,10 @@ void InitOptions(void) {
 	strncpy(options_ext[CHAT2XMAR], ".c2xmar", OPTIONS_EXT_LEN); options_ext[CHAT2XMAR][OPTIONS_EXT_LEN] = EOS;
 	option_flags[CHECK_P] = F_OPTION+RE_OPTION+D_OPTION+P_OPTION+T_OPTION+L_OPTION;
 	strncpy(options_ext[CHECK_P], ".chck", OPTIONS_EXT_LEN); options_ext[CHECK_P][OPTIONS_EXT_LEN] = EOS;
-	option_flags[CONLL2CHAT] = RE_OPTION;
-	strncpy(options_ext[CONLL2CHAT], ".conll", OPTIONS_EXT_LEN); options_ext[CONLL2CHAT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[COMBTIER] = F_OPTION+RE_OPTION+K_OPTION+P_OPTION+L_OPTION;
 	strncpy(options_ext[COMBTIER], ".cmbtr", OPTIONS_EXT_LEN); options_ext[COMBTIER][OPTIONS_EXT_LEN] = EOS;
+	option_flags[CONVORT] = RE_OPTION+FR_OPTION;
+	strncpy(options_ext[CONVORT], ".convort", OPTIONS_EXT_LEN); options_ext[CONVORT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[CP2UTF] = F_OPTION+RE_OPTION+FR_OPTION+T_OPTION+L_OPTION+Y_OPTION;
 	strncpy(options_ext[CP2UTF], ".cp2utf", OPTIONS_EXT_LEN); options_ext[CP2UTF][OPTIONS_EXT_LEN] = EOS;
 	option_flags[DATACLEANUP]= F_OPTION+RE_OPTION+T_OPTION+P_OPTION+Y_OPTION+L_OPTION;
@@ -8548,6 +8604,8 @@ void InitOptions(void) {
 	strncpy(options_ext[MAKEMOD], ".mkmod", OPTIONS_EXT_LEN); options_ext[MAKEMOD][OPTIONS_EXT_LEN] = EOS;
 	option_flags[MEDIALINE]= F_OPTION+RE_OPTION+FR_OPTION;
 	strncpy(options_ext[MEDIALINE], ".media", OPTIONS_EXT_LEN); options_ext[MEDIALINE][OPTIONS_EXT_LEN] = EOS;
+	option_flags[MERGE] = F_OPTION+FR_OPTION+RE_OPTION+T_OPTION;
+	strncpy(options_ext[MERGE], ".mereg", OPTIONS_EXT_LEN); options_ext[MERGE][OPTIONS_EXT_LEN] = EOS;
 	option_flags[OLAC_P] = RE_OPTION;
 	strncpy(options_ext[OLAC_P], ".xml", OPTIONS_EXT_LEN); options_ext[OLAC_P][OPTIONS_EXT_LEN] = EOS;
 	option_flags[ORT] = 0L;
@@ -8562,11 +8620,15 @@ void InitOptions(void) {
 	strncpy(options_ext[REPEAT], ".rpeat", OPTIONS_EXT_LEN); options_ext[REPEAT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[RETRACE] = F_OPTION+RE_OPTION+K_OPTION+P_OPTION+L_OPTION+FR_OPTION;
 	strncpy(options_ext[RETRACE], ".retrace", OPTIONS_EXT_LEN); options_ext[RETRACE][OPTIONS_EXT_LEN] = EOS;
+	option_flags[ROLES] = RE_OPTION+FR_OPTION;
+	strncpy(options_ext[ROLES], ".roles", OPTIONS_EXT_LEN); options_ext[ROLES][OPTIONS_EXT_LEN] = EOS;
 	option_flags[RTF2CHAT] = F_OPTION+RE_OPTION+K_OPTION+P_OPTION+L_OPTION;
 	strncpy(options_ext[RTF2CHAT], ".rtf", OPTIONS_EXT_LEN); options_ext[RTF2CHAT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[SALT2CHAT] = F_OPTION+RE_OPTION+K_OPTION+L_OPTION;
 	strncpy(options_ext[SALT2CHAT], ".sltin", OPTIONS_EXT_LEN); options_ext[SALT2CHAT][OPTIONS_EXT_LEN] = EOS;
-	option_flags[SILENCE_P] = RE_OPTION+K_OPTION+SP_OPTION;
+	option_flags[SEGMENT] = F_OPTION+FR_OPTION+RE_OPTION;
+	strncpy(options_ext[SEGMENT], ".seg", OPTIONS_EXT_LEN); options_ext[SEGMENT][OPTIONS_EXT_LEN] = EOS;
+	option_flags[SILENCE_P] = RE_OPTION+K_OPTION+SP_OPTION+T_OPTION;
 	strncpy(options_ext[SILENCE_P], ".aif", OPTIONS_EXT_LEN); options_ext[SILENCE_P][OPTIONS_EXT_LEN] = EOS;
 	option_flags[SRT2CHAT] = F_OPTION+RE_OPTION+T_OPTION;
 	strncpy(options_ext[SRT2CHAT], ".cha", OPTIONS_EXT_LEN); options_ext[SRT2CHAT][OPTIONS_EXT_LEN] = EOS;
@@ -8580,6 +8642,8 @@ void InitOptions(void) {
 	strncpy(options_ext[UNIQ], ".uniq", OPTIONS_EXT_LEN); options_ext[UNIQ][OPTIONS_EXT_LEN] = EOS;
 	option_flags[USEDLEX] = RE_OPTION;
 	strncpy(options_ext[USEDLEX], ".tmp", OPTIONS_EXT_LEN); options_ext[USEDLEX][OPTIONS_EXT_LEN] = EOS;
+	option_flags[VALIDATEMFA] = F_OPTION+FR_OPTION+RE_OPTION+T_OPTION;
+	strncpy(options_ext[VALIDATEMFA], ".mfa", OPTIONS_EXT_LEN); options_ext[VALIDATEMFA][OPTIONS_EXT_LEN] = EOS;
 
 
 	option_flags[TEMPLATE] = F_OPTION;
@@ -8850,7 +8914,8 @@ char *mainflgs() {
 			strcat(templineC,"sS ");
 		} else if (CLAN_PROG_NUM == SILENCE_P) {
 			strcat(templineC,"sS  s@F ");
-		} else if (CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR) {
+		} else if (CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == C_NNLA ||
+				   CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR) {
 			strcat(templineC,"sS ");
 		} else {
 			strcat(templineC,"sS  s@F  sgS  smS ");
@@ -8891,6 +8956,7 @@ void mainusage(char isQuit) {
 			puts("+d : outputs all selected words, corresponding frequencies, and line numbers");
 			puts("+d1: outputs word with no frequency information. Usable for +s@filename option.");
 			puts("+d2: outputs in SPREADSHEET format");
+			puts("+d20: outputs in SPREADSHEET format with speaker code, one word and its count per row");
 			puts("+d3: output only type/token information in SPREADSHEET format");
 			puts("+d4: outputs only type/token information");
 			puts("+d5: outputs all words selected with +s option, including the ones with 0 frequency count");
@@ -8914,6 +8980,7 @@ void mainusage(char isQuit) {
 			puts("+d40: outputs in SPREADSHEET format and repeat the same tier for every keyword match");
 //			puts("+d41: outputs in SPREADSHEET format with each matched keyword listed one per column");
 			puts("+d7: search words linked between one dependent tier and speaker or another dependent tier");
+			puts("+d90: same as +d99, but include all speaker tiers in output");
 			puts("+d99: convert \"word [x 2]\" to \"word [/] word\" and so on");
 		} else if (CLAN_PROG_NUM == MAXWD) {
 			puts("+d : outputs one line for the length level and the next line for the word");
@@ -8931,6 +8998,7 @@ void mainusage(char isQuit) {
 		} else if (CLAN_PROG_NUM == VOCD) {
 		} else if (CLAN_PROG_NUM == UNIQ) {
 			puts("+d : outputs lines with no frequency information");
+			puts("+d5: outputs all words selected with +s option, including the ones with 0 frequency count");
 		} else if (CLAN_PROG_NUM == WDLEN) {
 			puts("+d : output in SPREADSHEET format");
 		} else if (OnlydataLimit == 1) {
@@ -9002,7 +9070,7 @@ void mainusage(char isQuit) {
 			puts("+sS: to override default function of [+ dss] or [+ dsse] postcode");
 		} else if (CLAN_PROG_NUM == GEM || CLAN_PROG_NUM == GEMFREQ) {
 			puts("+sS: select gems which are labeled by either label S or labels in file @S");
-		} else if (CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == EVAL ||
+		} else if (CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD ||
 				   CLAN_PROG_NUM == SUGAR) {
 			puts("+sS: select utterance to analyze with \"[+ ...]\" postcode.");
 		} else {
@@ -9045,7 +9113,8 @@ void mainusage(char isQuit) {
 			puts("-sS: exclude utterance from analyze with \"[+ ...]\" postcode.");
 		} else if (CLAN_PROG_NUM == GEM || CLAN_PROG_NUM == GEMFREQ) {
 			puts("-sS: select gems which are NOT labeled by either label S or labels in file @S");
-		} else if (CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == SUGAR) {
+		} else if (CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD ||
+				   CLAN_PROG_NUM == SUGAR) {
 			puts("-sS: do not select utterance to analyze with \"[+ ...]\" postcode.");
 			puts("-sS: -sm@* - exclude target replaced words, -sm** - exclude error words");
 		} else {
@@ -9066,9 +9135,10 @@ void mainusage(char isQuit) {
 	}
 	if (!combinput && ByTurn == '\0') {
 		if (option_flags[CLAN_PROG_NUM] & UP_OPTION) {
-			if (CLAN_PROG_NUM == QUOTES || CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX ||
+			if (CLAN_PROG_NUM == QUOTES || CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD ||
+				CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX ||
 				CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == KIDEVAL || CLAN_PROG_NUM == TIMEDUR ||
-				CLAN_PROG_NUM == CHAT2CONLL || CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == CODES_P)
+				CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == CODES_P)
 				puts("+u : send output to just one output file.");
 			else
 				puts("+u : merge all specified files together.");
@@ -9102,6 +9172,12 @@ void mainusage(char isQuit) {
 		puts("+/-2: -2 do not create different versions of output file names / +2 create them");
 	if (CLAN_PROG_NUM != LENA2CHAT)
 		puts("\n    \"filename(s)\" can be \"*.cha\" or a @:filename with a list of data filenames \"@:myfile.cut\"\n");
+#ifdef UNX
+	puts("-ver(sion): show version number");
+	puts("  ");
+	VersionNumber(FALSE, stdout);
+	puts("  ");
+#endif
 	if (isQuit)
 		cutt_exit(0);
 }
@@ -9353,9 +9429,11 @@ void maingetflag(char *f, char *f1, int *i) { /* sets up options */
 						strcpy(wd, wd+1);
 					if ((wd[0] == '+' || wd[0] == '~') && wd[1] == '\\' && (wd[2] == '@' || wd[2] == 'g' || wd[2] == 'm'))
 						strcpy(wd+1, wd+2);
-					if (isMultiWordSearch(wd, FALSE))
+					if (isMultiWordSearch(wd, FALSE)) {
+						if (*wd == '\\' && *(wd+1) == '+')
+							strcpy(wd, wd+1);
 						mwdptr = InsertMulti(mwdptr, wd, 0);
-					else
+					} else
 						addword('s','i',wd);
 				}
 			} else {
@@ -10498,7 +10576,7 @@ void addToLanguagesTable(char *line, char *sp) {
 	int langCnt, cnt;
 	char *s, *e, t;
 
-	if (uS.partcmp(utterance->speaker,"@Languages:",FALSE,FALSE)) {
+	if (uS.partcmp(sp,"@Languages:",FALSE,FALSE)) {
 		langCnt = 0;
 		s = line;
 		for (; *s == ',' || *s == ' ' || *s == '\t' || *s == '\n'; s++) ;
@@ -11861,7 +11939,6 @@ static int work(char *argv[], int argc, FNType *fname) {
 
 	cutt_isMultiFound = FALSE;
 	cutt_isCAFound = FALSE;
-	cutt_isBlobFound = FALSE;
 	init('\0');
 	if (linkDep2Other) {
 		checkSearchTiers();
@@ -11870,7 +11947,8 @@ static int work(char *argv[], int argc, FNType *fname) {
 		*TSoldsp = EOS;
 	if (!combinput)
 		WUCounter = 0L;
-	else if (CLAN_PROG_NUM == QUOTES || CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CODES_P ||
+	else if (CLAN_PROG_NUM == QUOTES || CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD ||
+			 CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CODES_P ||
 			 CLAN_PROG_NUM == COMBO || CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == KIDEVAL ||
 			 CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == CORELEX || CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == C_NNLA ||
 			 CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR ||
@@ -12026,7 +12104,7 @@ static int work(char *argv[], int argc, FNType *fname) {
 				}
 #else // CLAN_SRV
 				if (!stin_override) {
-					if (CLAN_PROG_NUM != C_NNLA && CLAN_PROG_NUM != C_QPA && CLAN_PROG_NUM != EVAL &&
+					if (CLAN_PROG_NUM != C_NNLA && CLAN_PROG_NUM != C_QPA && CLAN_PROG_NUM != EVAL && CLAN_PROG_NUM != EVALD &&
 						CLAN_PROG_NUM != KIDEVAL && CLAN_PROG_NUM != FLUCALC && CLAN_PROG_NUM != SUGAR) {
 						fprintf(stderr,"From file <%s>\n",fname);
 					}
@@ -12237,7 +12315,7 @@ static int work(char *argv[], int argc, FNType *fname) {
 							fprintf(fpout,"From file \"%s\"\n",fname);
 					}
 					if (CLAN_PROG_NUM != RELY && CLAN_PROG_NUM != C_NNLA && CLAN_PROG_NUM != C_QPA && CLAN_PROG_NUM != EVAL &&
-						CLAN_PROG_NUM != KIDEVAL && CLAN_PROG_NUM != FLUCALC && CLAN_PROG_NUM != SUGAR)
+						CLAN_PROG_NUM != EVALD && CLAN_PROG_NUM != KIDEVAL && CLAN_PROG_NUM != FLUCALC && CLAN_PROG_NUM != SUGAR)
 						fprintf(stderr,"From file <%s>\n",fname);
 				}
 				do {
@@ -13008,7 +13086,7 @@ char bmain(int argc, char *argv[], void (*pr_result)(void)) {
 #endif
 	res = TRUE;
 #ifdef UNX
-	if (CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == C_NNLA) {
+	if (CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == C_NNLA) {
 		char isCreateDB = 0;
 		for (i=1; i < argc; i++) {
 			if (*argv[i] == '+'  || *argv[i] == '-') {
@@ -13037,19 +13115,21 @@ char bmain(int argc, char *argv[], void (*pr_result)(void)) {
 	if (targs == NULL)
 		out_of_mem();
 	mmaininit();
-/* 2017-08-19
+#ifdef UNX
 	if (argc > 1) {
-		if (argv[1][0] == '-' || argv[1][0] == '+') {
-			if (argv[1][1] == 'v') {
-				if (argv[1][2] == EOS) {
+		i = 1;
+//		for (i=1; i < argc; i++) {
+			if (argv[i][0] == '-' || argv[i][0] == '+') {
+				if (argv[i][1] == 'v' && argv[i][2] == 'e' && argv[i][3] == 'r') {
 					VersionNumber(FALSE, stdout);
+					fprintf(stdout, "\n");
 					res = FALSE;
 					cutt_exit(0);
 				}
 			}
-		}
+//		}
 	}
-*/
+#endif
 	InitOptions();
 	if (argc >= 2) {
 		if (argv[1][0] == '+') {
@@ -13463,14 +13543,14 @@ isFileFound = TRUE;
 				fprintf(stderr, "WARNING: SELECTED DEPENDENT TIER DOES NOT LINK IN SIZE TO SECOND SELECTED TIER.\n");
 			else
 				fprintf(stderr, "WARNING: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.\n");
-			fprintf(stderr, "THIS MAY EFFECT RESULTS OF THE ANALYSES.\n\n");
+			fprintf(stderr, "THIS MAY AFFECT RESULTS OF THE ANALYSES.\n\n");
 #else
-			fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n", ATTMARKER, error_start, mor_link.fname, mor_link.lineno, ATTMARKER, error_end);
+			fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n",ATTMARKER,error_start,mor_link.fname,mor_link.lineno,ATTMARKER,error_end);
 			if (linkDep2Other)
-				fprintf(stderr, "%c%cSELECTED DEPENDENT TIER DOES NOT LINK IN SIZE TO SECOND SELECTED TIER.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+				fprintf(stderr, "%c%cSELECTED DEPENDENT TIER DOES NOT LINK IN SIZE TO SECOND SELECTED TIER.%c%c\n",ATTMARKER,error_start,ATTMARKER,error_end);
 			else
-				fprintf(stderr, "%c%cWARNING: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
-			fprintf(stderr, "%c%cTHIS MAY EFFECT RESULTS OF THE ANALYSES.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+				fprintf(stderr, "%c%cWARNING: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n",ATTMARKER,error_start,ATTMARKER,error_end);
+			fprintf(stderr, "%c%cTHIS MAY AFFECT RESULTS OF THE ANALYSES.%c%c\n\n",ATTMARKER,error_start,ATTMARKER,error_end);
 #endif
 			res = FALSE;
 		}
@@ -13864,7 +13944,7 @@ static void removeExtraSpaceFromExpandX(char *st, AttTYPE *att) {
 	}
 }
 
-static int expandX(char *ch, AttTYPE *att, int x, int index) {
+int expandX(char *ch, AttTYPE *att, int x, int index) {
 	int i, b, e, sqb, agb, n, cnt, lastElem, isRemoveAgb;
 
 	isRemoveAgb = TRUE;
@@ -15460,8 +15540,6 @@ void checkOptions(char *st) {
 			finfo.fontName[0] = EOS;
 			SetDefaultCAFinfo(&finfo);
 			selectChoosenFont(&finfo, FALSE, FALSE);
-		} else if (!strncmp(st+t, "heritage", 8)) {
-			cutt_isBlobFound = TRUE;
 		}
 	}
 }
@@ -16133,9 +16211,11 @@ int getmaincode() {
 				punctuation = GlobalPunctuation;
 			}
 			IsModUttDel = FALSE;
-		} else if (*lutter->speaker == '*')
+		} else if (*lutter->speaker == '*') {
+			if (uS.partcmp(templineC,"@ID:",FALSE, TRUE))
+				templineC[0] = EOS;
 			IsModUttDel = chatmode < 3;
-		else {
+		} else {
 			strcpy(templineC,lutter->speaker);
 			uS.uppercasestr(templineC, &dFnt, MBF);
 			if (uS.partcmp(templineC,"%PHO:",FALSE, TRUE) || uS.partcmp(templineC,"%MOD:",FALSE, TRUE)) {
@@ -16299,9 +16379,9 @@ int getmaincode() {
 										fprintf(stderr, "ERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.\n");
 										fprintf(stderr, "QUITTING.\n\n");
 #else
-										fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n", ATTMARKER, error_start, mor_link.fname, mor_link.lineno, ATTMARKER, error_end);
-										fprintf(stderr, "%c%cERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
-										fprintf(stderr, "%c%cQUITTING.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+										fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n",ATTMARKER,error_start,mor_link.fname,mor_link.lineno,ATTMARKER,error_end);
+										fprintf(stderr, "%c%cERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n",ATTMARKER,error_start,ATTMARKER,error_end);
+										fprintf(stderr, "%c%cQUITTING.%c%c\n\n",ATTMARKER,error_start,ATTMARKER,error_end);
 #endif
 										cutt_exit(0);
 									} else {
@@ -16317,9 +16397,9 @@ int getmaincode() {
 										fprintf(stderr, "ERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.\n");
 										fprintf(stderr, "QUITTING.\n\n");
 #else
-										fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n", ATTMARKER, error_start, mor_link.fname, mor_link.lineno, ATTMARKER, error_end);
-										fprintf(stderr, "%c%cERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
-										fprintf(stderr, "%c%cQUITTING.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+										fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n",ATTMARKER,error_start,mor_link.fname,mor_link.lineno,ATTMARKER,error_end);
+										fprintf(stderr, "%c%cERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n",ATTMARKER,error_start,ATTMARKER,error_end);
+										fprintf(stderr, "%c%cQUITTING.%c%c\n\n",ATTMARKER,error_start,ATTMARKER,error_end);
 #endif
 										cutt_exit(0);
 									}
@@ -17080,9 +17160,9 @@ int getwholeutter() {
 										fprintf(stderr, "ERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.\n");
 										fprintf(stderr, "QUITTING.\n\n");
 #else
-										fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n", ATTMARKER, error_start, mor_link.fname, mor_link.lineno, ATTMARKER, error_end);
-										fprintf(stderr, "%c%cERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
-										fprintf(stderr, "%c%cQUITTING.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+										fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n",ATTMARKER,error_start,mor_link.fname,mor_link.lineno,ATTMARKER,error_end);
+										fprintf(stderr, "%c%cERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n",ATTMARKER,error_start,ATTMARKER,error_end);
+										fprintf(stderr, "%c%cQUITTING.%c%c\n\n",ATTMARKER,error_start,ATTMARKER,error_end);
 #endif
 										cutt_exit(0);
 									} else {
@@ -17095,9 +17175,9 @@ int getwholeutter() {
 										fprintf(stderr, "ERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.\n");
 										fprintf(stderr, "QUITTING.\n\n");
 #else
-										fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n", ATTMARKER, error_start, mor_link.fname, mor_link.lineno, ATTMARKER, error_end);
-										fprintf(stderr, "%c%cERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
-										fprintf(stderr, "%c%cQUITTING.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+										fprintf(stderr,"\n%c%c*** File \"%s\": line %ld.%c%c\n",ATTMARKER,error_start,mor_link.fname,mor_link.lineno,ATTMARKER,error_end);
+										fprintf(stderr, "%c%cERROR: %%MOR: TIER DOES NOT LINK IN SIZE TO ITS SPEAKER TIER.%c%c\n",ATTMARKER,error_start,ATTMARKER,error_end);
+										fprintf(stderr, "%c%cQUITTING.%c%c\n\n",ATTMARKER,error_start,ATTMARKER,error_end);
 #endif
 										cutt_exit(0);
 									}

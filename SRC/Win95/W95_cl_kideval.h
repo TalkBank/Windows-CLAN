@@ -73,9 +73,16 @@ public:
 	BOOL	m_BOTHGEN;
 
 	BOOL	m_LinkAge;
-	BOOL	m_DBEngTDFp;
-	BOOL	m_DBChnTDMd;
-	BOOL	m_DBJpnTDMd;
+	BOOL	m_DBEngToyplay;
+	BOOL	m_DBEngNarrative;
+	BOOL	m_DBZhoToyplay;
+	BOOL	m_DBZhoNarrative;
+	BOOL	m_DBNldToyplay;
+	BOOL	m_DBFraToyplay;
+	BOOL	m_DBFraNarrative;
+	BOOL	m_DBJpnToyplay;
+	BOOL	m_DBSpaToyplay;
+	BOOL	m_DBSpaNarrative;
 
 	//}}AFX_DATA
 
@@ -137,9 +144,16 @@ protected:
 	CButton m_FEMALE_CTRL;
 	CButton m_BOTHGEN_CTRL;
 
-	CButton	m_DBEngTDFp_CTRL;
-	CButton	m_DBChnTDMd_CTRL;
-	CButton	m_DBJpnTD_CTRL;
+	CButton	m_DBEngToyplay_CTRL;
+	CButton	m_DBEngNarrative_CTRL;
+	CButton	m_DBZhoToyplay_CTRL;
+	CButton	m_DBZhoNarrative_CTRL;
+	CButton	m_DBNldToyplay_CTRL;
+	CButton	m_DBFraToyplay_CTRL;
+	CButton	m_DBFraNarrative_CTRL;
+	CButton	m_DBJpnToyplay_CTRL;
+	CButton	m_DBSpaToyplay_CTRL;
+	CButton	m_DBSpaNarrative_CTRL;
 
 	CButton	m_OK_CTRL;
 	CButton	m_CANCEL_CTRL;
@@ -181,14 +195,23 @@ protected:
 	afx_msg void OnFemale();
 	afx_msg void OnBothGen();
 
-	afx_msg void OnDBEngTDFp();
-	afx_msg void OnDBChnTDMd();
-	afx_msg void OnDBJpnTDMd();
+	afx_msg void OnDBEngToyplay();
+	afx_msg void OnDBEngNarrative();
+	afx_msg void OnDBZhoToyplay();
+	afx_msg void OnDBZhoNarrative();
+	afx_msg void OnDBNldToyplay();
+	afx_msg void OnDBFraToyplay();
+	afx_msg void OnDBFraNarrative();
+	afx_msg void OnDBJpnToyplay();
+	afx_msg void OnDBSpaToyplay();
+	afx_msg void OnDBSpaNarrative();
 
 	afx_msg void OnOKClicked();
 
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
+public:
+	afx_msg void OnBnClickedSelectDbJpntoyplay();
 };
 
 extern void KidevalDialog(unCH *str);

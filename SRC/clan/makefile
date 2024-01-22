@@ -60,7 +60,7 @@ all:	anvil2chat chains chat2anvil chat2ca chat2elan chat2praat chat2xmar check \
 	lowcase makemod maxwd megrasp mlt mlu modrep mor mortable ort play2chat phonfreq \
 	post postlist postmodrules postmortem praat2chat posttrain \
 	quotes rely repeat retrace salt2chat script srt2chat sugar text2chat timedur \
-	tierorder trnfix uniq vocd wdlen test
+	tierorder trnfix uniq validateMFA vocd wdlen test
 
 anvil2chat:	  	$(DD)/anvil2chat
 chains:	  		$(DD)/chains
@@ -134,6 +134,7 @@ timedur:		$(DD)/timedur
 tierorder:		$(DD)/tierorder
 trnfix:			$(DD)/trnfix
 uniq:			$(DD)/uniq
+validateMFA:		$(DD)/validateMFA
 vocd:			$(DD)/vocd
 wdlen:			$(DD)/wdlen
 
@@ -368,6 +369,9 @@ $(DD)/tierorder: tierorder.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/
 $(DD)/trnfix: TrnFix.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) TrnFix.cpp -o $(DD)/trnfix $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
+$(DD)/validateMFA: validateMFA.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) validateMFA.cpp -o $(DD)/validateMFA $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+
 $(DD)/uniq: uniq.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) uniq.cpp -o $(DD)/uniq $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
@@ -456,6 +460,7 @@ clean:
 	tierorder \
 	trnfix \
 	uniq \
+	validateMFA \
 	vocd \
 	wdlen \
 	test

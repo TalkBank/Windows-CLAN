@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -283,7 +283,11 @@ static void read_script(char *lang) {
 	}
 	if (fp == NULL) {
 		fprintf(stderr, "\nERROR: Can't locate language file: \"%s\".\n", mFileName);
+#ifdef _MAC_CODE
+		fprintf(stderr, "\n");
+#else
 		fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+#endif
 		cutt_exit(0);
 	}
 	fprintf(stderr,"    Using language file: %s\n", mFileName);

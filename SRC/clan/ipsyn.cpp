@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -3713,7 +3713,11 @@ static char read_ipsyn(char *lang) {
 	}
 	if (fp == NULL) {
 		fprintf(stderr, "\nERROR: Can't locate ipsyn rules file: \"%s\".\n", FileName1);
+#ifdef _MAC_CODE
+		fprintf(stderr, "\n");
+#else
 		fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+#endif
 		return(FALSE);
 	}
 	fprintf(stderr,"    Using IPSyn rules file: %s\n", FileName1);

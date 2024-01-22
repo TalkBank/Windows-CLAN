@@ -254,9 +254,9 @@ void LocalInit(void) {
 	DefWindowDims = FALSE;
 	isChatLineNums = FALSE;
 #if defined(_CLAN_DEBUG)
-	doReWrap = TRUE; // 2021-09-05 auto-wrap auto wrap
+	doReWrap = FALSE; // 2021-09-05 auto-wrap auto wrap
 #else
-	doReWrap = TRUE; // FALSE; // no auto-wrap auto wrap
+	doReWrap = FALSE; // TRUE; FALSE; // auto-wrap; no auto wrap
 #endif
 	isUseSPCKeyShortcuts = TRUE;
 	global_df = NULL;
@@ -343,6 +343,7 @@ void LocalInit(void) {
 	InitFileDialog();
 	InitSelectedTiers();
 	InitEvalOptions();
+	InitEvaldOptions();
 	InitKidevalOptions();
 	InitSelectedSearch();
 	main_check_init();

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -13,24 +13,6 @@
 //	#define iswspace _iswspace
 //	#define iswalnum _iswalnum
 #endif
-
-/*
-#ifdef isFNTYPEUNIQUE
-	int sprintf(FNType *st, const char *cFormat, ...);
-	int strcmp(const FNType *st1, const FNType *st2);
-	int mStricmp(const FNType *st1, const FNType *st2);
-	int mStrnicmp(const FNType *st1, const FNType *st2, size_t len);
-	size_t strlen(const FNType *st);
-	FNType  *strcpy(FNType *des, const FNType *src);
-	FNType  *strncpy(FNType *des, const FNType *src, size_t num);
-	FNType  *strcat(FNType *des, const FNType *src);
-	FNType  *strchr(FNType *src, int c);
-	FNType  *strrchr(FNType *src, int c);
-	long lowercasestr(FNType *str, NewFontInfo *finfo, char MBC);
-	long uppercasestr(FNType *str, NewFontInfo *finfo, char MBC);
-	char fpatmat(FNType *s, FNType *pat);
-#endif // isFNTYPEUNIQUE
-*/
 
 #define INSIDE_STRINGPARSER
 
@@ -51,6 +33,70 @@ extern char Parans;
 
 const char *punctuation;
 cUStr uS;
+
+unCH AccentVowels_UTF16[29][1] = {
+	{ 0x00E9 }, // é
+	{ 0x00E0 }, // à
+	{ 0x00E8 }, // è
+	{ 0x00EC }, // ì
+	{ 0x00F2 }, // ò
+	{ 0x00F9 }, // ù
+	{ 0x00E2 }, // â
+	{ 0x00EA }, // ê
+	{ 0x00EE }, // î
+	{ 0x00F4 }, // ô
+	{ 0x00FB }, // û
+	{ 0x00EB }, // ë
+	{ 0x00EF }, // ï
+	{ 0x00FC }, // ü
+	{ 0x00C9 }, // É
+	{ 0x00C0 }, // À
+	{ 0x00C8 }, // È
+	{ 0x00CC }, // Ì
+	{ 0x00D2 }, // Ò
+	{ 0x00D9 }, // Ù
+	{ 0x00C2 }, // Â
+	{ 0x00CA }, // Ê
+	{ 0x00CE }, // Î
+	{ 0x00D4 }, // Ô
+	{ 0x00DB }, // Û
+	{ 0x00CB }, // Ë
+	{ 0x00CF }, // Ï
+	{ 0x00DC }, // Ü
+	{ 0 } // NULL
+} ;
+
+char AccentVowels_UTF8[29][2] = {
+	{ 0xC3, 0xA9}, // é
+	{ 0xC3, 0xA0}, // à
+	{ 0xC3, 0xA8}, // è
+	{ 0xC3, 0xAC}, // ì
+	{ 0xC3, 0xB2}, // ò
+	{ 0xC3, 0xB9}, // ù
+	{ 0xC3, 0xA2}, // â
+	{ 0xC3, 0xAA}, // ê
+	{ 0xC3, 0xAE}, // î
+	{ 0xC3, 0xB4}, // ô
+	{ 0xC3, 0xBB}, // û
+	{ 0xC3, 0xAB}, // ë
+	{ 0xC3, 0xAF}, // ï
+	{ 0xC3, 0xBC}, // ü
+	{ 0xC3, 0x89}, // É
+	{ 0xC3, 0x80}, // À
+	{ 0xC3, 0x88}, // È
+	{ 0xC3, 0x8C}, // Ì
+	{ 0xC3, 0x92}, // Ò
+	{ 0xC3, 0x99}, // Ù
+	{ 0xC3, 0x82}, // Â
+	{ 0xC3, 0x8A}, // Ê
+	{ 0xC3, 0x8E}, // Î
+	{ 0xC3, 0x94}, // Ô
+	{ 0xC3, 0x9B}, // Û
+	{ 0xC3, 0x8B}, // Ë
+	{ 0xC3, 0x8F}, // Ï
+	{ 0xC3, 0x9C}, // Ü
+	{ 0, 0} // NULL
+} ;
 
 #if defined(_MAC_CODE)
 static long lbuf[UTTLINELEN], lformat[256];
@@ -447,14 +493,53 @@ char cUStr::isRightChar(const unCH *org, long pos, register char chr, NewFontInf
 }
 
 #define MyUpperChars(c) ((c) >= (unCH)0xC0 && (c) <= (unCH)0xDD)
+#define MyLowerChars(c) ((c) >= (unCH)0xE0 && (c) <= (unCH)0xFD)
 
 char cUStr::isUpperChar(unCH *org, int pos, NewFontInfo *finfo, char MBC) {
-	if (MBC) {
-	}
 	if (MyUpperChars(org[pos]))
 		return(TRUE);
 	else
 		return(iswupper(org[pos]) != 0);
+}
+
+int cUStr::my_isalpha(unCH *s) {
+	if (MyUpperChars(*s) || MyLowerChars(*s))
+		return(1);
+	else if (iswalpha(*s))
+		return(1);
+	return(0);
+}
+
+int cUStr::my_isupper(unCH *s) {
+	if (MyUpperChars(*s))
+		return(1);
+	else if (iswupper(*s))
+		return(1);
+	return(0);
+}
+
+void cUStr::my_tolower(unCH *s) {
+	if (MyUpperChars(*s) || MyLowerChars(*s)) {
+		*s += 0x20;
+	} else {
+		*s = towlower((unsigned char)*s);
+	}
+}
+
+int cUStr::my_islower(unCH *s) {
+	if (MyLowerChars(*s))
+		return(1);
+	else if (iswlower(*s))
+		return(1);
+	return(0);
+}
+
+void cUStr::my_toupper(unCH *s) {
+	if (MyUpperChars(*s) || MyLowerChars(*s)) {
+		*s -= 0x20;
+	} else {
+		*s = towupper((unsigned char)*s);
+	}
 }
 
 char cUStr::isSqBracketItem(const unCH *s, int pos, NewFontInfo *finfo, char MBC) {
@@ -611,9 +696,9 @@ long cUStr::lowercasestr(unCH *str, NewFontInfo *finfo, char MBC) {
 
 	count = 0L;
 	for (; *str != EOS; str++) {
-		if (iswupper(*str)) {
+		if (my_isupper(str)) {
 			count++;
-			*str = towlower(*str);
+			my_tolower(str);
 		}
 	}
 	return(count);
@@ -624,9 +709,9 @@ long cUStr::uppercasestr(unCH *str, NewFontInfo *finfo, char MBC) {
 
 	count = 0L;
 	for (; *str != EOS; str++) {
-		if (iswlower(*str)) {
+		if (my_islower(str)) {
 			count++;
-			*str = towupper(*str);
+			my_toupper(str);
 		}
 	}
 	return(count);
@@ -1371,10 +1456,17 @@ char cUStr::isConsonant(const unCH *st) {
 }
 
 char cUStr::isVowel(const unCH *st) {
+	int i;
+
 	if (uS.mStrnicmp(st,"a",1)==0 || uS.mStrnicmp(st,"e",1)==0 ||
 		uS.mStrnicmp(st,"i",1)==0 || uS.mStrnicmp(st,"o",1)==0 ||
 		uS.mStrnicmp(st,"u",1)==0 || uS.mStrnicmp(st,"y",1)==0)
 		return(TRUE);
+
+	for (i=0; AccentVowels_UTF16[i][0] != 0; i++) {
+		if (uS.mStrnicmp(st, AccentVowels_UTF16[i], 1) == 0)
+			return(TRUE);
+	}
 	return(FALSE);
 }
 
@@ -1600,171 +1692,6 @@ int cUStr::FNTypeicmp(const FNType *st1, const char *st2, long len) {
 	}
 }
 
-/*
-#ifdef isFNTYPEUNIQUE
-int cUStr::sprintf(FNType *st, const char *format, ...) {
-	int t;
-	va_list args;
-
-	va_start(args, format); 	// prepare the arguments
-	t = vsprintf((char *)st, format, args);
-	va_end(args);				// clean the stack
-	return(t);
-}
-
-int cUStr::strcmp(const FNType *st1, const FNType *st2) {
-	for (; *st1 == *st2 && *st2 != EOS; st1++, st2++) ;
-	if (*st1 == EOS && *st2 == EOS)
-		return(0);
-	else if (*st1 > *st2)
-		return(1);
-	else
-		return(-1);	
-}
-
-int cUStr::mStricmp(const FNType *st1, const FNType *st2) {
-	for (; toupper(*st1) == toupper(*st2) && *st2 != EOS; st1++, st2++) ;
-	if (*st1 == EOS && *st2 == EOS)
-		return(0);
-	else if (toupper(*st1) > toupper(*st2))
-		return(1);
-	else
-		return(-1);	
-}
-
-int cUStr::mStrnicmp(const FNType *st1, const FNType *st2, size_t len) {
-	for (; toupper(*st1) == toupper(*st2) && *st2 != EOS && len > 0; st1++, st2++, len--) ;
-	if ((*st1 == EOS && *st2 == EOS) || len <= 0)
-		return(0);
-	else if (toupper(*st1) > toupper(*st2))
-		return(1);
-	else
-		return(-1);	
-}
-
-size_t cUStr::strlen(const FNType *st) {
-	size_t len = 0;
-
-	for (; *st != EOS; st++)
-		len++;
-	return(len);
-}
-
-FNType *cUStr::strcpy(FNType *des, const FNType *src) {
-	FNType *org = des;
-
-	while (*src != EOS) {
-		*des++ = *src++;
-	}
-	*des = EOS;
-	return(org);
-}
-
-FNType *cUStr::strncpy(FNType *des, const FNType *src, size_t num) {
-	long i = 0L;
-
-	while (i < num && src[i] != EOS) {
-		des[i] = src[i];
-		i++;
-	}
-	des[i] = EOS;
-	return(des);
-}
-
-FNType *cUStr::strcat(FNType *des, const FNType *src) {
-	long i;
-
-	i = cUStr::strlen(des);
-	while (*src != EOS) {
-		des[i] = *src++;
-		i++;
-	}
-	des[i] = EOS;
-	return(des);
-}
-
-FNType *cUStr::strchr(FNType *src, int c) {
-	for (; *src != c && *src != EOS; src++) ;
-	if (*src == EOS)
-		return(NULL);
-	else
-		return(src);
-}
-
-FNType *cUStr::strrchr(FNType *src, int c) {
-	long i;
-	
-	i = cUStr::strlen(src);
-	for (; i >= 0 && src[i] != c; i--) ;
-	if (src[i] == c)
-		return(src+i);
-	else
-		return(NULL);
-}
-
-long cUStr::lowercasestr(FNType *str, NewFontInfo *finfo, char MBC) {
-	long count;
-
-	count = 0L;
-	for (; *str != EOS; str++) {
-		if (iswupper(*str)) {
-			count++;
-			*str = towlower(*str);
-		}
-	}
-	return(count);
-}
-
-long cUStr::uppercasestr(FNType *str, NewFontInfo *finfo, char MBC) {
-	long count;
-
-	count = 0L;
-	for (; *str != EOS; str++) {
-		if (iswlower(*str)) {
-			count++;
-			*str = towupper(*str);
-		}
-	}
-	return(count);
-}
-char cUStr::fpatmat(const FNType *s, const FNType *pat) {
-	register int j, k;
-	int n, m;
-
-	if (s[0] == EOS)
-		return(pat[0] == s[0]);
-	for (j = 0, k = 0; pat[k]; j++, k++) {
-		if (pat[k] == '*') {
-			k++;
-f0:
-			while (s[j] && s[j] != pat[k]) j++;
-			if (!s[j]) {
-				if (!pat[k]) return(1);
-				else return(0);
-			}
-			for (m=j+1, n=k+1; s[m] && pat[n]; m++, n++) {
-				if (pat[n] == '*') break;
-				if (s[m] != pat[n]) {
-					j++;
-					goto f0;
-				}
-			}
-		}
-		if (s[j] != pat[k]) {
-			if (pat[k] == '*') {
-				k--;
-				j--;
-			} else
-				break;
-		}
-	}
-	if (pat[k] == s[j]) return(1);
-	else return(0);
-}
-
-#endif // isFNTYPEUNIQUE
-*/
-
 int cUStr::mStricmp(const char *st1, const char *st2) {
 	for (; toupper((unsigned char)*st1) == toupper((unsigned char)*st2) && *st2 != EOS; st1++, st2++) ;
 	if (*st1 == EOS && *st2 == EOS)
@@ -1894,6 +1821,51 @@ char cUStr::isUpperChar(char *org, int pos, NewFontInfo *finfo, char MBC) {
 	}
 #endif
 }
+
+int cUStr::my_isalpha(char *s) {
+	if (UTF8_IS_LEAD((unsigned char)*s) && (unsigned char)*s == 0xc3) {
+		if (((unsigned char)*(s+1) >= 0x80 && (unsigned char)*(s+1) <= 0x9D) ||
+		    ((unsigned char)*(s+1) >= 0xA0 && (unsigned char)*(s+1) <= 0xBD))
+			return(1);
+	} else if (isalpha((unsigned char)*s))
+		return(1);		
+	return(0);
+}
+
+int cUStr::my_isupper(char *s) {
+	if (UTF8_IS_LEAD((unsigned char)*s) && (unsigned char)*s == 0xc3) {
+		if ((unsigned char)*(s+1) >= 0x80 && (unsigned char)*(s+1) <= 0x9D)
+			return(1);
+	} else if (isupper((unsigned char)*s))
+		return(1);		
+	return(0);
+}
+
+void cUStr::my_tolower(char *s) {
+	if (UTF8_IS_LEAD((unsigned char)*s) && (unsigned char)*s == 0xc3) {
+		if ((unsigned char)*(s+1) >= 0x80 && (unsigned char)*(s+1) <= 0x9D)
+			*(s+1) += 0x20;
+	} else
+		*s = (char)tolower((unsigned char)*s);
+}
+
+int cUStr::my_islower(char *s) {
+	if (UTF8_IS_LEAD((unsigned char)*s) && (unsigned char)*s == 0xc3) {
+		if ((unsigned char)*(s+1) >= 0xA0 && (unsigned char)*(s+1) <= 0xBD)
+			return(1);
+	} else if (islower((unsigned char)*s))
+		return(1);		
+	return(0);
+}
+
+void cUStr::my_toupper(char *s) {
+	if (UTF8_IS_LEAD((unsigned char)*s) && (unsigned char)*s == 0xc3) {
+		if ((unsigned char)*(s+1) >= 0xA0 && (unsigned char)*(s+1) <= 0xBD)
+			*(s+1) -= 0x20;
+	} else 
+		*s = (char)toupper((unsigned char)*s);		
+}
+
 
 char cUStr::isSqBracketItem(const char *s, int pos, NewFontInfo *finfo, char MBC) {
 	for (; s[pos] && !uS.isRightChar(s, pos, '[', finfo, MBC) && !uS.isRightChar(s, pos, ']', finfo, MBC); pos++) ;
@@ -2093,17 +2065,17 @@ long cUStr::lowercasestr(char *str, NewFontInfo *finfo, char MBC) {
 
 		for (pos=0; str[pos] != EOS; pos++) {
 			if (my_CharacterByteType(str, (short)pos, finfo) == 0) {
-				if (isupper((unsigned char)str[pos])) {
+				if (my_isupper(str+pos)) {
 					count++;
-					str[pos] = (char)tolower((unsigned char)str[pos]);
+					my_tolower(str+pos);
 				}
 			}
 		}
 	} else {
 		for (; *str != EOS; str++) {
-			if (isupper((unsigned char)*str)) {
+			if (my_isupper(str)) {
 				count++;
-				*str = (char)tolower((unsigned char)*str);
+				my_tolower(str);
 			}
 		}
 	}
@@ -2119,17 +2091,17 @@ long cUStr::uppercasestr(char *str, NewFontInfo *finfo, char MBC) {
 
 		for (pos=0; str[pos] != EOS; pos++) {
 			if (my_CharacterByteType(str, (short)pos, finfo) == 0) {
-				if (islower((unsigned char)str[pos])) {
+				if (my_islower(str+pos)) {
 					count++;
-					str[pos] = (char)toupper((unsigned char)str[pos]);
+					my_toupper(str+pos);
 				}
 			}
 		}
 	} else {
 		for (; *str != EOS; str++) {
-			if (islower((unsigned char)*str)) {
+			if (my_islower(str)) {
 				count++;
-				*str = (char)toupper((unsigned char)*str);
+				my_toupper(str);
 			}
 		}
 	}
@@ -2789,10 +2761,17 @@ char cUStr::isConsonant(const char *st) {
 }
 
 char cUStr::isVowel(const char *st) {
+	int i;
+
 	if (uS.mStrnicmp(st,"a",1)==0 || uS.mStrnicmp(st,"e",1)==0 ||
 		uS.mStrnicmp(st,"i",1)==0 || uS.mStrnicmp(st,"o",1)==0 ||
 		uS.mStrnicmp(st,"u",1)==0 || uS.mStrnicmp(st,"y",1)==0)
 		return(TRUE);
+
+	for (i=0; AccentVowels_UTF8[i][0] != 0; i++) {
+		if (uS.mStrnicmp(st, AccentVowels_UTF8[i], 2) == 0)
+			return(TRUE);
+	}
 	return(FALSE);
 }
 /*	 strings manipulation routines end   */

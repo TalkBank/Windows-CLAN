@@ -1408,8 +1408,10 @@ static char FindSndInfo(char *isWhatType) {
 	if (*isWhatType == isAudio)
 		global_df->SnTr.BegF = AlignMultibyteMediaStream(conv_from_msec_rep(uS.atol(buf)), '-');
 
-	if (*isWhatType == isVideo || nf == -1)
+	if (*isWhatType == isVideo || nf == -1) {
 		global_df->MvTr.MEnd = 0L;
+		global_df->MvTr.nextBegF = 0L;
+	}
 
 	if (*isWhatType == isAudio) {
 		global_df->SnTr.EndF = 0L;
@@ -1611,6 +1613,7 @@ int SoundMode(int i) {
 							if (mOpenMovieFile(&global_df->MvTr) == 0) {
 								global_df->MvTr.MBeg = 0L;
 								global_df->MvTr.MEnd = 0L;
+								global_df->MvTr.nextBegF = 0L;
 								isWhatType = isVideo;
 							} else {
 								if (global_df->SnTr.errMess != NULL) {
@@ -1650,6 +1653,7 @@ int SoundMode(int i) {
 						} else {
 							global_df->MvTr.MBeg = 0L;
 							global_df->MvTr.MEnd = 0L;
+							global_df->MvTr.nextBegF = 0L;
 							isWhatType = isVideo;
 						}
 					}
@@ -1862,10 +1866,10 @@ void checkContinousSndPlayPossition(long CurFP) {
 
 	SetPBCglobal_df(false, CurFP);
 	if (PlayingContSound && PlayingContSound != '\004') {
-		if (CurFP < global_df->SnTr.dBegF || CurFP > global_df->SnTr.dEndF) {
+		if (CurFP < global_df->SnTr.dBegF || CurFP > global_df->SnTr.nextBegF) {
 			DrawCursor(0);
 			DrawSoundCursor(0);
-			ret = move_cursor(conv_to_msec_rep(CurFP), global_df->SnTr.SoundFile, FALSE, TRUE);
+			ret = HighlightNextTier(conv_to_msec_rep(CurFP), global_df->SnTr.SoundFile, FALSE, TRUE);
 			if (ret == FALSE || ret == '\003') {
 				global_df->row_win2 = 0L;
 				global_df->col_win2 = -2L;
@@ -2069,6 +2073,7 @@ static void PlayContMovie(void) {
 	ChangeCurLineAlways(0);
 	global_df->MvTr.MBeg = 0L;
 	global_df->MvTr.MEnd = 0L;
+	global_df->MvTr.nextBegF = 0L;
 	cMBeg = cMEnd = 0L;
 	bf = FALSE;
 	mvfound = FALSE;
@@ -3662,6 +3667,7 @@ int PlayMedia(int c) {
 			} else if (ret == isVideo) { // movie
 				global_df->MvTr.MBeg = 0L;
 				global_df->MvTr.MEnd = 0L;
+				global_df->MvTr.nextBegF = 0L;
 				global_df->LastCommand = 49;
 				i = PlayMovie(&global_df->MvTr, global_df, FALSE);
 			} else if (ret == isPict) { // picture
@@ -4944,6 +4950,433 @@ char move_cursor(long mtime, unCH *file, char isSetBE, char isSnd) {
 	return FALSE;
 }
 
+static long getNextBulletBeg(ROWS *tRow, long cBeg, long cEnd, char isMsecs) {
+	register int i;
+	unCH *line;
+	long beg = 0L;
+	LINE *tl;
+
+	tRow = ToNextRow(tRow, FALSE);
+	while (tRow != global_df->tail_text) {
+		if (tRow == global_df->cur_line) {
+			for (tl=global_df->head_row->next_char; tl != global_df->tail_row; tl=tl->next_char) {
+				if (tl->c == HIDEN_C) {
+					tl = tl->next_char;
+					sp[0] = EOS;
+					if (is_unCH_digit(tl->c) && global_df->mediaFileName[0] != EOS) {
+						while (tl != global_df->tail_row && !is_unCH_digit(tl->c))
+							tl = tl->next_char;
+						if (tl == global_df->tail_row)
+							return(0);
+						for (i=0; tl != global_df->tail_row && is_unCH_digit(tl->c); tl = tl->next_char)
+							sp[i++] = tl->c;
+						sp[i] = EOS;
+						beg = uS.atol(sp);
+						if (beg == 0L)
+							beg = 1L;
+						if (isMsecs == FALSE)
+							beg = AlignMultibyteMediaStream(conv_from_msec_rep(beg), '-');
+						if (cBeg < beg && beg < cEnd)
+							return(beg);
+					}
+					for (; tl!= global_df->tail_row && tl->c!= HIDEN_C; tl=tl->next_char) ;
+					if (tl == global_df->tail_row)
+						return(0);
+				}
+			}
+		} else {
+			for (line=tRow->line; *line; line++) {
+				if (*line == HIDEN_C) {
+					line++;
+					if (is_unCH_digit(*line) && global_df->mediaFileName[0] != EOS) {
+						while (*line && !is_unCH_digit(*line))
+							line++;
+						if (*line == EOS)
+							return(0);
+						for (i=0; *line && is_unCH_digit(*line); line++)
+							sp[i++] = *line;
+						sp[i] = EOS;
+						beg = uS.atol(sp);
+						if (beg == 0L)
+							beg = 1L;
+						if (isMsecs == FALSE)
+							beg = AlignMultibyteMediaStream(conv_from_msec_rep(beg), '-');
+						if (cBeg < beg && beg < cEnd)
+							return(beg);
+					}
+					for (; *line && *line != HIDEN_C; line++) ;
+					if (*line == EOS)
+						return(0);
+				}
+			}
+		}
+		tRow = ToNextRow(tRow, FALSE);
+	}
+	return(0);
+}
+
+static char MatchNextBulletTime(ROWS *tRow, long mtime, unCH *file, unCH *nFName, long *Beg, long *End, char isSetBE, char isSnd) {
+	register int i;
+	unCH *line;
+	char m;
+	long beg = 0L, end = 0L, tNextBegF;
+	LINE *tl;
+
+	*Beg = beg;
+	*End = end;
+	if (tRow == global_df->cur_line) {
+		for (tl=global_df->head_row->next_char; tl != global_df->tail_row; tl=tl->next_char) {
+			if (tl->c == HIDEN_C) {
+				tl = tl->next_char;
+				if (is_unCH_digit(tl->c) && global_df->mediaFileName[0] != EOS) {
+					strcpy(sp, SOUNDTIER);
+				} else {
+					for (i=0; tl!= global_df->tail_row && tl->c!= ':' && tl->c!= HIDEN_C; tl=tl->next_char)
+						sp[i++] = tl->c;
+					if (tl == global_df->tail_row)
+						return(FALSE);
+					if (tl->c!= ':') {
+						sp[i++] = tl->c;
+						tl = tl->next_char;
+						sp[i] = EOS;
+					} else
+						strcpy(sp, "NON_MEDIA_BULLET");
+				}
+				if ((PlayingContMovie && PlayingContMovie != '\003') ||
+					(PlayingContSound && PlayingContSound != '\004')) {
+					if (global_df->PcTr.pictChanged == FALSE) {
+						if (uS.partcmp(sp, PICTTIER, FALSE, FALSE)) {
+							m = global_df->DataChanged;
+							if (GetCurHidenCode(TRUE, cl_T(PICTTIER))) {
+								FindPictInfo(FALSE);
+							}
+							if (!m)
+								global_df->DataChanged = '\0';
+						}
+					}
+					if (global_df->TxTr.textChanged == FALSE) {
+						if (uS.partcmp(sp, TEXTTIER, FALSE, FALSE)) {
+							m = global_df->DataChanged;
+							if (GetCurHidenCode(TRUE, cl_T(TEXTTIER)))
+								FindTextInfo();
+							if (!m)
+								global_df->DataChanged = '\0';
+						}
+					}
+				}
+				if (uS.partcmp(sp, SOUNDTIER, FALSE, FALSE) || uS.partcmp(sp, REMOVEMOVIETAG, FALSE, FALSE)) {
+					while (tl != global_df->tail_row && (isSpace(tl->c) || tl->c == '_'))
+						tl = tl->next_char;
+					if (tl == global_df->tail_row)
+						return(FALSE);
+					if (is_unCH_digit(tl->c) && global_df->mediaFileName[0] != EOS) {
+						strcpy(sp, global_df->mediaFileName);
+					} else {
+						if (tl->c != '"')
+							return(FALSE);
+						tl = tl->next_char;
+						if (tl == global_df->tail_row)
+							return(FALSE);
+						for (i=0; tl != global_df->tail_row && tl->c != '"'; tl = tl->next_char)
+							sp[i++] = tl->c;
+						sp[i] = EOS;
+					}
+					if (nFName != NULL)
+						strcpy(nFName, sp);
+					if (uS.mStricmp(sp, file) != 0)
+						return(FALSE);
+					while (tl != global_df->tail_row && !is_unCH_digit(tl->c))
+						tl = tl->next_char;
+					if (tl == global_df->tail_row)
+						return(FALSE);
+					for (i=0; tl != global_df->tail_row && is_unCH_digit(tl->c); tl = tl->next_char)
+						sp[i++] = tl->c;
+					sp[i] = EOS;
+					beg = uS.atol(sp);
+					if (beg == 0L)
+						beg = 1L;
+					while (tl != global_df->tail_row && !is_unCH_digit(tl->c))
+						tl = tl->next_char;
+					if (tl == global_df->tail_row)
+						return(FALSE);
+					for (i=0; tl != global_df->tail_row && is_unCH_digit(tl->c); tl = tl->next_char)
+						sp[i++] = tl->c;
+					sp[i] = EOS;
+					end = uS.atol(sp);
+					*Beg = beg;
+					*End = end;
+					if (isSnd || (!isSnd && isSetBE)) {
+						tNextBegF = getNextBulletBeg(tRow, beg, end, TRUE);
+						if (tNextBegF > 0 && tNextBegF < end)
+							end = tNextBegF;
+					}
+					if (mtime >= beg && mtime < end) {
+						if (isSnd) {
+							beg = AlignMultibyteMediaStream(conv_from_msec_rep(beg), '-');
+							end = AlignMultibyteMediaStream(conv_from_msec_rep(end), '-');
+							if (isSetBE) {
+								global_df->SnTr.BegF = beg;
+								global_df->SnTr.EndF = end;
+								SetPBCglobal_df(false, 0L);
+							} else {
+								global_df->SnTr.dBegF = beg;
+								global_df->SnTr.dEndF = end;
+								tNextBegF = getNextBulletBeg(tRow, global_df->SnTr.dBegF, global_df->SnTr.dEndF, FALSE);
+								if (tNextBegF > 0 && tNextBegF < end)
+									global_df->SnTr.nextBegF = tNextBegF;
+								else
+									global_df->SnTr.nextBegF = end;
+								if (global_df->SoundWin && PlayingContSound == TRUE) {
+									global_df->SnTr.contPlayBeg = beg;
+									global_df->SnTr.contPlayEnd = end;
+								}
+							}
+						}
+						if (!isSnd && isSetBE) {
+							global_df->MvTr.MBeg = beg;
+							global_df->MvTr.MEnd = end;
+							tNextBegF = getNextBulletBeg(tRow, global_df->MvTr.MBeg, global_df->MvTr.MEnd, TRUE);
+							if (tNextBegF > 0 && tNextBegF < end)
+								global_df->MvTr.nextBegF = tNextBegF;
+							else
+								global_df->MvTr.nextBegF = end;
+						}
+						return(TRUE);
+					}
+				}
+				for (; tl!= global_df->tail_row && tl->c!= HIDEN_C; tl=tl->next_char) ;
+				if (tl == global_df->tail_row)
+					return(FALSE);
+			}
+		}
+	} else {
+		for (line=tRow->line; *line; line++) {
+			if (*line == HIDEN_C) {
+				line++;
+				if (is_unCH_digit(*line) && global_df->mediaFileName[0] != EOS) {
+					strcpy(sp, SOUNDTIER);
+				} else {
+					for (i=0; *line && *line != ':' && *line != HIDEN_C; line++)
+						sp[i++] = *line;
+					if (*line == EOS)
+						return(FALSE);
+					if (*line == ':') {
+						sp[i++] = *line;
+						line++;
+						sp[i] = EOS;
+					} else
+						strcpy(sp, "NON_MEDIA_BULLET");
+				}
+				if ((PlayingContMovie && PlayingContMovie != '\003') ||
+					(PlayingContSound && PlayingContSound != '\004')) {
+					if (global_df->PcTr.pictChanged == FALSE) {
+						if (uS.partcmp(sp, PICTTIER, FALSE, FALSE)) {
+							m = global_df->DataChanged;
+							if (GetCurHidenCode(TRUE, cl_T(PICTTIER))) {
+								FindPictInfo(FALSE);
+							}
+							if (!m)
+								global_df->DataChanged = '\0';
+						}
+					}
+					if (global_df->TxTr.textChanged == FALSE) {
+						if (uS.partcmp(sp, TEXTTIER, FALSE, FALSE)) {
+							m = global_df->DataChanged;
+							if (GetCurHidenCode(TRUE, cl_T(TEXTTIER)))
+								FindTextInfo();
+							if (!m)
+								global_df->DataChanged = '\0';
+						}
+					}
+				}
+				if (uS.partcmp(sp, SOUNDTIER, FALSE, FALSE) || uS.partcmp(sp, REMOVEMOVIETAG, FALSE, FALSE)) {
+					while (*line && (isSpace(*line) || *line == '_'))
+						line++;
+					if (is_unCH_digit(*line) && global_df->mediaFileName[0] != EOS) {
+						strcpy(sp, global_df->mediaFileName);
+					} else {
+						if (*line != '"')
+							return(FALSE);
+						line++;
+						if (*line == EOS)
+							return(FALSE);
+						for (i=0; *line && *line != '"'; line++)
+							sp[i++] = *line;
+						sp[i] = EOS;
+					}
+					if (nFName != NULL)
+						strcpy(nFName, sp);
+					if (uS.mStricmp(sp, file) != 0)
+						return(FALSE);
+					while (*line && !is_unCH_digit(*line))
+						line++;
+					if (*line == EOS)
+						return(FALSE);
+					for (i=0; *line && is_unCH_digit(*line); line++)
+						sp[i++] = *line;
+					sp[i] = EOS;
+					beg = uS.atol(sp);
+					if (beg == 0L)
+						beg = 1L;
+					while (*line && !is_unCH_digit(*line))
+						line++;
+					if (*line == EOS)
+						return(FALSE);
+					for (i=0; *line && is_unCH_digit(*line); line++)
+						sp[i++] = *line;
+					sp[i] = EOS;
+					end = uS.atol(sp);
+					*Beg = beg;
+					*End = end;
+					if (isSnd || (!isSnd && isSetBE)) {
+						tNextBegF = getNextBulletBeg(tRow, beg, end, TRUE);
+						if (tNextBegF > 0 && tNextBegF < end)
+							end = tNextBegF;
+					}
+					if (mtime >= beg && mtime < end) {
+						if (isSnd) {
+							beg = AlignMultibyteMediaStream(conv_from_msec_rep(beg), '-');
+							end = AlignMultibyteMediaStream(conv_from_msec_rep(end), '-');
+							if (isSetBE) {
+								global_df->SnTr.BegF = beg;
+								global_df->SnTr.EndF = end;
+								SetPBCglobal_df(false, 0L);
+							} else {
+								global_df->SnTr.dBegF = beg;
+								global_df->SnTr.dEndF = end;
+								tNextBegF = getNextBulletBeg(tRow, global_df->SnTr.dBegF, global_df->SnTr.dEndF, FALSE);
+								if (tNextBegF > 0 && tNextBegF < end)
+									global_df->SnTr.nextBegF = tNextBegF;
+								else
+									global_df->SnTr.nextBegF = end;
+								if (global_df->SoundWin && PlayingContSound == TRUE) {
+									global_df->SnTr.contPlayBeg = beg;
+									global_df->SnTr.contPlayEnd = end;
+								}
+							}
+						}
+						if (!isSnd && isSetBE) {
+							global_df->MvTr.MBeg = beg;
+							global_df->MvTr.MEnd = end;
+							tNextBegF = getNextBulletBeg(tRow, global_df->MvTr.MBeg, global_df->MvTr.MEnd, TRUE);
+							if (tNextBegF > 0 && tNextBegF < end)
+								global_df->MvTr.nextBegF = tNextBegF;
+							else
+								global_df->MvTr.nextBegF = end;
+						}
+						return(TRUE);
+					}
+				}
+				for (; *line && *line != HIDEN_C; line++) ;
+				if (*line == EOS)
+					return(FALSE);
+			}
+		}
+	}
+	return(FALSE);
+}
+
+char HighlightNextTier(long mtime, unCH *file, char isSetBE, char isSnd) {
+	unCH nFName[FNSize];
+	FNType old_pictFName[FNSize];
+	char old_pictChanged = global_df->PcTr.pictChanged;
+	FNType old_textFName[FNSize];
+	char old_textChanged = global_df->TxTr.textChanged, isAddLineno;
+	long old_col_win = global_df->col_win;
+	long old_col_chr = global_df->col_chr;
+	long old_row_win = global_df->row_win;
+	long old_lineno = global_df->lineno;
+	long old_wLineno= global_df->wLineno;
+	long Beg, End, lastBeg, lastEnd;
+	ROWS *old_row_txt = global_df->row_txt;
+	ROWS *old_top_win = global_df->top_win;
+
+	if (mtime == 0L)
+		mtime = 1L;
+	global_df->isRedrawTextWindow = FALSE;
+	lastBeg = 0L;
+	lastEnd = 0L;
+	strcpy(old_pictFName, global_df->PcTr.pictFName);
+	strcpy(old_textFName, global_df->TxTr.textFName);
+	if (MatchNextBulletTime(global_df->row_txt, mtime, file, nFName, &Beg, &End, isSetBE, isSnd)) {
+		if (global_df->PcTr.pictChanged) {
+			PreserveStateAndShowPict();
+			global_df->PcTr.pictChanged = FALSE;
+		}
+		if (global_df->TxTr.textChanged) {
+			PreserveStateAndShowText();
+			global_df->TxTr.textChanged = FALSE;
+		}
+		global_df->isRedrawTextWindow = TRUE;
+		SelectWholeTier(FALSE);
+		lastBeg = Beg;
+		lastEnd = End;
+		return TRUE;
+	}
+
+	if (global_df->row_txt->prev_row != global_df->head_text) {
+		if (isNL_CFound(global_df->row_txt->prev_row))
+			global_df->lineno++;
+	} else
+		global_df->lineno++;
+	global_df->wLineno++;
+	if (global_df->row_win < (long)global_df->EdWinSize)
+		global_df->row_win++;
+	global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
+	while (global_df->row_txt != global_df->tail_text) {
+		if (MatchNextBulletTime(global_df->row_txt, mtime, file, nFName, &Beg, &End, isSetBE, isSnd)) {
+			if (global_df->PcTr.pictChanged) {
+				PreserveStateAndShowPict();
+				global_df->PcTr.pictChanged = FALSE;
+			}
+			if (global_df->TxTr.textChanged) {
+				PreserveStateAndShowText();
+				global_df->TxTr.textChanged = FALSE;
+			}
+			global_df->isRedrawTextWindow = TRUE;
+			SelectWholeTier(FALSE);
+			if (lastBeg == 0L)
+				lastBeg = Beg;
+			if (lastEnd == 0L)
+				lastEnd = End;
+			return TRUE;
+		}
+		if (isNL_CFound(global_df->row_txt))
+			isAddLineno = TRUE;
+		else
+			isAddLineno = FALSE;
+		global_df->row_txt = ToNextRow(global_df->row_txt, FALSE);
+		if (isAddLineno)
+			global_df->lineno++;
+		global_df->wLineno++;
+		if (global_df->row_win < (long)global_df->EdWinSize)
+			global_df->row_win++;
+	}
+
+//	global_df->LeaveHighliteOn = FALSE;
+
+	strcpy(global_df->PcTr.pictFName, old_pictFName);
+	global_df->PcTr.pictChanged = old_pictChanged;
+	strcpy(global_df->TxTr.textFName, old_textFName);
+	global_df->TxTr.textChanged = old_textChanged;
+	global_df->row_txt = old_row_txt;
+	global_df->top_win = old_top_win;
+	global_df->row_win = old_row_win;
+	global_df->col_win = old_col_win;
+	global_df->col_chr = old_col_chr;
+	global_df->lineno  = old_lineno;
+	global_df->wLineno = old_wLineno;
+
+	if (mtime >= lastEnd && lastEnd != 0) {
+		sprintf(global_df->err_message, "+Current position is after the last media tier.");
+		global_df->isRedrawTextWindow = TRUE;
+		return '\003';
+	}
+	global_df->isRedrawTextWindow = TRUE;
+	RemoveLastUndo();
+	return FALSE;
+}
+
 int SoundToTextSync(int c) {
 	long mtime;
 	unCH *pFName;
@@ -5922,8 +6355,10 @@ int MoveMediaEndLeft(int i) {
 					}
 				} else {
 					global_df->MvTr.MEnd -= MOVEINCREMENT;
-					if (global_df->MvTr.MEnd < 0L)
+					if (global_df->MvTr.MEnd < 0L) {
 						global_df->MvTr.MEnd = 0L;
+						global_df->MvTr.nextBegF = 0L;
+					}
 					addBulletsToText(SOUNDTIER, global_df->MvTr.MovieFile, global_df->MvTr.MBeg, global_df->MvTr.MEnd);
 					if (!sameKeyPressed(92)) {
 					} else {

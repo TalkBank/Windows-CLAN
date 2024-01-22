@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 /*
@@ -127,8 +127,11 @@ static char isR6Legal;
 static char revconc = 0;
 static char isSort = FALSE;
 static char capwd = 0;
+static char isSearchForID = FALSE;
+static char isHeaderSeleted = FALSE;
 static char isSearchForCode;
 static char zeroMatch = FALSE;
+static char isSpreadsheetOnePerRow;
 static char isSearchForSpeaker[64];
 static char isCombineSpeakers = FALSE;
 static char isMorTierFirst, isMorUsed;
@@ -327,6 +330,8 @@ void init(char first) {
 		isSort = FALSE;
 		capwd = 0;
 		revconc = 0;
+		isSearchForID = FALSE;
+		isHeaderSeleted = FALSE;
 		zeroMatch = FALSE;
 		isMorUsed = FALSE;
 		isMorTierFirst = TRUE;
@@ -341,6 +346,7 @@ void init(char first) {
 		StatFp = NULL;
 		freq_FTime = TRUE;
 		isCrossTabulation = 0;
+		isSpreadsheetOnePerRow = FALSE;
 		isCTSpreadsheet = FALSE;
 		isMultiWordsActual = FALSE;
 		rootLines = NULL;
@@ -547,6 +553,19 @@ void init(char first) {
 			}
 			if (R6 && isSearchForCode)
 				R6_freq = TRUE;
+			if (nomain && isHeaderSeleted) {
+				char tst[3];
+				strcpy(tst, "0*");
+				freedefwdptr(tst);
+				strcpy(tst, "&*");
+				freedefwdptr(tst);
+				strcpy(tst, "+*");
+				freedefwdptr(tst);
+				strcpy(tst, "-*");
+				freedefwdptr(tst);
+				strcpy(tst, "#*");
+				freedefwdptr(tst);
+			}
 		}
 		if (onlydata == 3 || onlydata == 4) {
 			if (StatFp == NULL) {
@@ -691,7 +710,10 @@ void getflag(char *f, char *f1, int *i) {
 				if (onlydata != 3)
 					onlydata = 4;
 			} else {
-				if (*f == '5') {
+				if (*f == '2' && *(f+1) == '0') {
+					isSpreadsheetOnePerRow = TRUE;
+					onlydata = 3;
+				} else if (*f == '5') {
 					if (percent > 0) {
 						fprintf(stderr, "+d5 option can't be used with +d%s%d option.\n", percentToStr(percentC), percent);
 						cutt_exit(0);
@@ -717,6 +739,10 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			break;
 		case 't':
+			if (*(f-2)=='+' && *f=='@' && (*(f+1)=='I' || *(f+1)=='i') && (*(f+2)=='D' || *(f+2)=='d'))
+				isSearchForID = TRUE;
+			if (*(f-2)=='+' && *f=='@')
+				isHeaderSeleted = TRUE;
 			if (*(f-2) == '+' && *f == '%') {
 				if (isChange_nomain)
 					nomain = TRUE;
@@ -944,6 +970,7 @@ static void freq_treeprint(struct freq_tnode *p) {
 				fprintf(fpout,"%3u ",p->count);
 			else if (onlydata == 3 || percent > 0)
 				fprintf(StatFp,"%u ",p->count);
+
 			if (onlydata == 1 || onlydata == 7 || onlydata == 8 || isCrossTabulation) {
 				fprintf(fpout,"%-10s", p->word);
 				freq_printlines(p);
@@ -951,6 +978,7 @@ static void freq_treeprint(struct freq_tnode *p) {
 				fprintf(StatFp,"%s\n", p->word);
 			else if (onlydata < 3 || onlydata > 5)
 				fprintf(fpout,"%s\n", p->word);
+
 			if (p->right == NULL)
 				break;
 			if (p->right->left != NULL) {
@@ -1817,7 +1845,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 		} else if (*utterance->speaker == '*') {
 			strcpy(templineC2, utterance->speaker);
 //			freq_checktier(templineC2);
-			ts = freq_FindSpeaker(templineC2, NULL, (nomain == FALSE || tct == TRUE));
+			ts = freq_FindSpeaker(templineC2, NULL, (nomain == FALSE || tct == TRUE || isSearchForID == TRUE));
 		}
 
 		if (onlydata == 3 || onlydata == 4) {
@@ -2049,6 +2077,8 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 								res = uS.patmat(word, tm->word_arr[tm->cnt]);
 							}
 							if (res && tm->isMatch[tm->cnt] == FALSE) {
+								strncpy(tm->matched_word_arr[tm->cnt], word, MULTIWORDMATMAX);
+								tm->matched_word_arr[tm->cnt][MULTIWORDMATMAX] = EOS;
 								tm->isMatch[tm->cnt] = TRUE;
 								strncpy(tm->context_arr[tm->cnt], templineC4, MULTIWORDCONTMAX);
 								tm->context_arr[tm->cnt][MULTIWORDCONTMAX] = EOS;
@@ -2067,7 +2097,10 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 									strcat(templineC, " ");
 									strcat(templineC4, " ");
 								}
-								strcat(templineC, tm->word_arr[tm->cnt]);
+								if (isMultiWordsActual)
+									strcat(templineC, tm->matched_word_arr[tm->cnt]);
+								else
+									strcat(templineC, tm->word_arr[tm->cnt]);
 								strcat(templineC4, tm->context_arr[tm->cnt]);
 							}
 							if (onlydata == 7)
@@ -2105,9 +2138,10 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 							strcpy(morWordParse, word);
 							if (ParseWordMorElems(morWordParse, &word_feats) == FALSE)
 								out_of_mem();
-							if (matchToMorElems(tm->morwords_arr[tm->cnt], &word_feats, FALSE, FALSE, TRUE))
+							if (matchToMorElems(tm->morwords_arr[tm->cnt], &word_feats, FALSE, FALSE, TRUE)) {
 								res = 1;
-							else
+								cleanUpMorWord(word, morWordParse);
+							} else
 								res = 0;
 							freeUpFeats(&word_feats);
 						} else if (word[0] != '-' && word[0] != '+' && tm->grafptr_arr[tm->cnt] != NULL && isWordFromGRATier(word)) {
@@ -2582,7 +2616,7 @@ static void statfreq_readpercentfile(void) {
 }
 
 static void statfreq_print_row(struct W_Struct *p, char prname, FILE *fp) {
-	float tf;
+//	float tf;
 
 	if (p != NULL) {
 		statfreq_print_row(p->left, prname, fp);
@@ -2590,7 +2624,7 @@ static void statfreq_print_row(struct W_Struct *p, char prname, FILE *fp) {
 			if (prname) {
 				excelStrCell(fp, p->word);
 			} else {
-				tf = (float)p->count;
+//				tf = (float)p->count;
 				excelNumCell(fp, "%.0f",p->count);
 			}
 			if (p->right == NULL)
@@ -2635,6 +2669,82 @@ static void statfreq_cleanup(struct W_Struct *p) {
 		} while (1);
 		free(p->word);
 		free(p);
+	}
+}
+
+static void statfreq_readinfile_writefile(FILE *StatFpOut) {
+	int i, cnt;
+	float tf;
+	char *s;
+	char *word;
+	char isMissingSpeaker;
+	char fname[BUFSIZ];
+	char id[BUFSIZ];
+	char stats[BUFSIZ];
+
+	*fname = EOS;
+	*id = EOS;
+	*stats = EOS;
+	strcpy(id, "SPEAKER NOT FOUND");
+	while (!feof(StatFp)) {
+		if (fgets_cr(templineC, UTTLINELEN, StatFp) != NULL) {
+			if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
+				continue;
+			templineC[strlen(templineC)-1] = EOS;
+			if (uS.partcmp(templineC,"@FILENAME:",FALSE,FALSE)) {
+				fgets_cr(fname, BUFSIZ, StatFp);
+				fname[strlen(fname)-1] = EOS;
+			} else if (uS.partcmp(templineC,"@ID:",FALSE,FALSE)) {
+				fgets_cr(id, BUFSIZ, StatFp);
+				id[strlen(id)-1] = EOS;
+				cnt = 0;
+				for (i=0; id[i]; i++) {
+					if (id[i] == '|') {
+						cnt++;
+						if (cnt == 2) {
+							strcpy(id, id+i+1);
+							s = strchr(id, '|');
+							if (s != NULL)
+								*s = EOS;
+						}
+					}
+				}
+				if (id[0] == '*')
+					strcpy(id, id+1);
+				s = strrchr(id, ':');
+				if (s != NULL)
+					*s = EOS;
+			} else if (uS.partcmp(templineC,"@ST:",FALSE,FALSE)) {
+				fgets_cr(stats, BUFSIZ, StatFp);
+			} else if (uS.partcmp(templineC,"@SPEAKER_FOUND@",FALSE,FALSE)) {
+				isMissingSpeaker = FALSE;
+			} else {
+				for (word=templineC; *word != ' ' && *word; word++) ;
+				for (; *word == ' '; word++) ;
+				if (*word) {
+					for (i=0; templineC[i]; i++) {
+						if (templineC[i] == '\t')
+							templineC[i] = ' ';
+					}
+					if (word[0] == '*') {
+					} else {
+						excelRow(StatFpOut, ExcelRowStart);
+						excelStrCell(StatFpOut, fname);
+						excelStrCell(StatFpOut, id);
+						excelStrCell(StatFpOut, word);
+						tf = (float)atoi(templineC);
+						excelNumCell(StatFpOut, "%.0f",tf);
+						excelRow(StatFpOut, ExcelRowEnd);
+					}
+				}
+			}
+		}
+	}
+	if (id[0] == EOS) {
+		if (isMissingSpeaker)
+			strcpy(id, "SPEAKER NOT FOUND,.,.,.,.,.,.,.,.,.,");
+		else
+			strcpy(id, "@ID NOT FOUND,.,.,.,.,.,.,.,.,.,");
 	}
 }
 
@@ -2820,28 +2930,41 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 				combinput = tCombinput;
 				if (StatFpOut != NULL) {
 					WordsHead = NULL;
-					statfreq_readinfile(FALSE, StatFpOut);
-					rewind(StatFp);
-					excelHeader(StatFpOut, newfname, 95);
-					if (!isMorUsed && chatmode != 0) {
-						excelRowOneStrCell(StatFpOut, ExcelRedCell, "This TTR number was not calculated on the basis of %%mor line forms.");
-						excelRowOneStrCell(StatFpOut, ExcelRedCell, "If you want a TTR based on lemmas, run FREQ on the %%mor line");
-						excelRowOneStrCell(StatFpOut, ExcelRedCell, "with option: +sm;*,o%");
+					if (isSpreadsheetOnePerRow) {
+						excelHeader(StatFpOut, newfname, 95);
+						excelRow(StatFpOut, ExcelRowStart);
+						excelCommasStrCell(StatFpOut, "File,Code,Word,Count");
+						excelRow(StatFpOut, ExcelRowEnd);
+						statfreq_readinfile_writefile(StatFpOut);
+						excelFooter(StatFpOut);
+					} else {
+						statfreq_readinfile(FALSE, StatFpOut);
+						rewind(StatFp);
+						excelHeader(StatFpOut, newfname, 95);
+						if (!isMorUsed && chatmode != 0) {
+							excelRowOneStrCell(StatFpOut, ExcelRedCell,
+								"This TTR number was not calculated on the basis of %%mor line forms.");
+							excelRowOneStrCell(StatFpOut, ExcelRedCell,
+								"If you want a TTR based on lemmas, run FREQ on the %%mor line");
+							excelRowOneStrCell(StatFpOut, ExcelRedCell,
+								"with option: +sm;*,o%");
+						}
+						excelRow(StatFpOut, ExcelRowStart);
+						excelCommasStrCell(StatFpOut,
+							"File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom field");
+						statfreq_print_row(WordsHead, TRUE, StatFpOut);
+						if (frame_size > 0)
+							excelCommasStrCell(StatFpOut, "Types,Token,TTR,MATTR");
+						else
+							excelCommasStrCell(StatFpOut, "Types,Token,TTR");
+						excelRow(StatFpOut, ExcelRowEnd);
+						excelRow(StatFpOut, ExcelRowStart);
+						statfreq_readinfile(TRUE, StatFpOut);
+						statfreq_cleanup(WordsHead);
+						excelRow(StatFpOut, ExcelRowEnd);
+//						printArg(argv, argc, StatFpOut, FALSE, "");
+						excelFooter(StatFpOut);
 					}
-					excelRow(StatFpOut, ExcelRowStart);
-					excelCommasStrCell(StatFpOut, "File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom field");
-					statfreq_print_row(WordsHead, TRUE, StatFpOut);
-					if (frame_size > 0)
-						excelCommasStrCell(StatFpOut, "Types,Token,TTR,MATTR");
-					else
-						excelCommasStrCell(StatFpOut, "Types,Token,TTR");
-					excelRow(StatFpOut, ExcelRowEnd);
-					excelRow(StatFpOut, ExcelRowStart);
-					statfreq_readinfile(TRUE, StatFpOut);
-					statfreq_cleanup(WordsHead);
-					excelRow(StatFpOut, ExcelRowEnd);
-//					printArg(argv, argc, StatFpOut, FALSE, "");
-					excelFooter(StatFpOut);
 					fclose(StatFp);
 					if (!f_override && StatFpOut != stdout)
 						fclose(StatFpOut);

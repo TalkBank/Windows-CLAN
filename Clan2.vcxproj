@@ -150,23 +150,27 @@
   <ItemGroup>
     <ClCompile Include="SRC\clan\c-nnla.cpp" />
     <ClCompile Include="SRC\clan\c-qpa.cpp" />
-    <ClCompile Include="SRC\clan\Chat2Conll.cpp" />
     <ClCompile Include="SRC\clan\Chat2Srt.cpp" />
     <ClCompile Include="SRC\clan\codes-p.cpp" />
-    <ClCompile Include="SRC\clan\Conll2Chat.cpp" />
+    <ClCompile Include="SRC\clan\convort.cpp" />
     <ClCompile Include="SRC\clan\corelex.cpp" />
+    <ClCompile Include="SRC\clan\eval-d.cpp" />
     <ClCompile Include="SRC\clan\flucalc.cpp" />
     <ClCompile Include="SRC\clan\Lena2Chat.cpp" />
     <ClCompile Include="SRC\clan\medialine.cpp" />
+    <ClCompile Include="SRC\clan\merge.cpp" />
     <ClCompile Include="SRC\clan\Play2Chat.cpp" />
     <ClCompile Include="src\Clan\post\anaalgo.cpp" />
     <ClCompile Include="SRC\clan\Anvil2Chat.cpp" />
+    <ClCompile Include="SRC\clan\roles.cpp" />
     <ClCompile Include="SRC\clan\rtf2chat.cpp" />
     <ClCompile Include="SRC\clan\salt2chat.cpp" />
+    <ClCompile Include="SRC\clan\segment.cpp" />
+    <ClCompile Include="SRC\clan\silence-pc.cpp" />
     <ClCompile Include="SRC\clan\Srt2Chat.cpp" />
     <ClCompile Include="SRC\clan\sugar.cpp" />
     <ClCompile Include="SRC\clan\text2chat.cpp" />
-    <ClCompile Include="SRC\clan\validateXWOR.cpp" />
+    <ClCompile Include="SRC\clan\validateMFA.cpp" />
     <ClCompile Include="src\Clan\vocd\args.cpp" />
     <ClCompile Include="src\Clan\Mor\Arules.cpp" />
     <ClCompile Include="src\Clan\post\atom.cpp" />
@@ -297,7 +301,6 @@
     <ClCompile Include="src\Ced\search.cpp" />
     <ClCompile Include="SRC\Ced\sendpraat.cpp" />
     <ClCompile Include="SRC\ced\show_gra.cpp" />
-    <ClCompile Include="SRC\clan\silence.cpp" />
     <ClCompile Include="src\Ced\sound.cpp" />
     <ClCompile Include="src\Clan\vocd\speaker.cpp" />
     <ClCompile Include="SRC\clan\post\splitchat.cpp" />
@@ -309,6 +312,7 @@
     <ClCompile Include="SRC\CLAN\tierorder.cpp" />
     <ClCompile Include="src\Ced\tiers.cpp" />
     <ClCompile Include="src\Clan\Timedur.cpp" />
+    <ClCompile Include="SRC\clan\tlangcodes.cpp" />
     <ClCompile Include="src\Clan\vocd\tokens.cpp" />
     <ClCompile Include="SRC\CLAN\POST\trainbrill.cpp" />
     <ClCompile Include="src\Clan\post\trainproc.cpp" />
@@ -318,6 +322,7 @@
     <ClCompile Include="SRC\clan\usedlex.cpp" />
     <ClCompile Include="src\Ced\utils.cpp" />
     <ClCompile Include="SRC\clan\vocd\vocd.cpp" />
+    <ClCompile Include="SRC\Win95\W95_cl_evald.cpp" />
     <ClCompile Include="SRC\Win95\W95_cl_kideval.cpp" />
     <ClCompile Include="SRC\Win95\W95_feedback.cpp" />
     <ClCompile Include="SRC\Win95\W95_SaveMovieToWave.cpp" />
@@ -420,6 +425,7 @@
     <ClInclude Include="src\Clan\vocd\tokens.h" />
     <ClInclude Include="SRC\CLAN\POST\useful.hpp" />
     <ClInclude Include="src\Clan\vocd\vocdefs.h" />
+    <ClInclude Include="SRC\Win95\W95_cl_evald.h" />
     <ClInclude Include="SRC\Win95\W95_cl_kideval.h" />
     <ClInclude Include="SRC\Win95\W95_feedback.h" />
     <ClInclude Include="SRC\Win95\W95_feedbackClass.h" />

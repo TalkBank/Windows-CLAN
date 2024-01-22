@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -1674,9 +1674,10 @@ static char isOcVP(int i, char *line, char *graWord, MORFEATS *feat, int *tOcVP)
 static void c_qpa_process_tier(struct c_qpa_speakers *ts, struct database *db, char *rightIDFound, char isOutputGem,
 							   FILE *PWordsListFP, FILE *AnalysisSheetFP) {
 	int i, j, wi, wordCnt, nextNrd, tOcSNP, tOcVP, curScore, auxBeScore;
+//	char isLastINF;
 	char word[1024], graWord[1024], lFeatPOS[256], lFeatSTEM[256], lGraWord[1024];
 	char tmp, isWordsFound, sq, aq, isSkip, *vb, *isOcSNPWord, isAnySNPFound, isAuxBeFound, isThisSNP, isSentenceUttsCorrected;
-	char isPSDFound, curPSDFound, isAmbigFound, isCountNV, isLastINF, isCountInflectionsAuxScore, isMSsCounted;
+	char isPSDFound, curPSDFound, isAmbigFound, isCountNV, isCountInflectionsAuxScore, isMSsCounted;
 	char isMOD_INFfound;
 	long stime, etime;
 	double tNum;
@@ -2671,7 +2672,7 @@ int all_OCs = 0;
 		}
 
 		if (isCountNV) {
-			isLastINF = FALSE;
+//			isLastINF = FALSE;
 //			ts->nWSs += ts->aw_nWSs; // 2020-05-15
 			j = 0;
 			i = 0;
@@ -2691,10 +2692,10 @@ int all_OCs = 0;
 								   uS.mStricmp(vb, "CJCT") == 0  || uS.mStricmp(vb, "CMOD") == 0) {
 							j++;
 						}
-						if (uS.mStricmp(vb, "INF") == 0)
-							isLastINF = TRUE;
-						else
-							isLastINF = FALSE;
+//						if (uS.mStricmp(vb, "INF") == 0)
+//							isLastINF = TRUE;
+//						else
+//							isLastINF = FALSE;
 					}
 				}
 			}
@@ -3857,7 +3858,7 @@ void call() {
 			if (utterance->speaker[0] == '*')
 				break;
 			if (uS.partcmp(utterance->speaker,"@Comment:",FALSE,FALSE)) {
-				if (strncmp(utterance->line, "EVAL DATABASE EXCLUDE", 21) == 0) {
+				if (strncmp(utterance->line, "C-QPA DATABASE EXCLUDE", 21) == 0) {
 					fprintf(stderr,"    EXCLUDED FILE: %s\n",oldfname+wdOffset);
 					return;
 				}
@@ -4074,7 +4075,11 @@ static struct VIR *readVIRFile(const char *fname, char isCheckWDdir, struct VIR 
 	}
 	if (fp == NULL) {
 		fprintf(stderr, "\nERROR: Can't locate verbs file: \"%s\".\n", mFileName);
+#ifdef _MAC_CODE
+		fprintf(stderr, "\n");
+#else
 		fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+ #endif
 		c_qpa_error(NULL, FALSE);
 	} else {
 		v = parseVIR(fp, mFileName, v);

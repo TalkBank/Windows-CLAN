@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -964,6 +964,21 @@ static char FindAndOpenLex(void) {
 }
 
 #define PrepostPARSE
+/*
+#*************************************
+# Instructions:
+# '~'	in the rule means clitic in the utterance is not treated as space, otherwise it is
+# !	used before element refers to the whole element
+# ,!	used within element after "," refers only to that choice
+# $-	means copy whatever search pattern matched in full and unchanged to the output
+# (...)	means match choices within zero or any number of times; the "to" part must be ()
+# [...]	means match choices within zero or only one time; the "to" part must be []
+# pro:*|*,n|*,!pro:dem|*	means match "pro:*|" or "n|" once, but fail at "pro:dem|";
+# 				the "to" part must be $-
+# !part|*P*P	means match only if part|*P*P not found; the "to" part must be !-
+# \	means the rule continues on the next line
+#*************************************
+*/
 // Prepost beg
 //   parse rules
 static struct mor_PATS *mor_makeFromPats(char *st) {
@@ -2934,9 +2949,10 @@ repeat:
 }
 
 static void breakUpComp(char *item, char *comp, char *output) {
+	int  i;
 	char *pc, *vb, *ua;
 	char *cat, *cc, *stem, *cs;
-	
+
 	ua = strchr(item, '^');
 	if (ua != NULL)
 		*ua = EOS;
@@ -2956,7 +2972,14 @@ static void breakUpComp(char *item, char *comp, char *output) {
 	*vb = EOS;
 	cat = item;
 	stem = vb + 1;
-	
+
+// 2023-03-28 change to dash from 0x2013
+	for (i=0; stem[i] != EOS; i++) {
+		if (stem[i] == (char)0xE2 && stem[i+1] == (char)0x80 && stem[i+2] == (char)0x93) {
+			strcpy(stem+i+1, stem+i+3);
+			stem[i] = '-';
+		}
+	}
 	strcat(output, cat);
 	strcat(output, "|+");
 	cat = comp;
@@ -2964,6 +2987,8 @@ static void breakUpComp(char *item, char *comp, char *output) {
 	cs = strchr(stem, '+');
 	if (cs == NULL)
 		cs = strchr(stem, '_');
+	if (cs == NULL)
+		cs = strchr(stem, '-');
 	while (cc && cs) {
 		*cc = EOS;
 		*cs = EOS;
@@ -2977,6 +3002,8 @@ static void breakUpComp(char *item, char *comp, char *output) {
 		cs = strchr(stem, '+');
 		if (cs == NULL)
 			cs = strchr(stem, '_');
+		if (cs == NULL)
+			cs = strchr(stem, '-');
 	}
 	strcat(output, cat);
 	strcat(output, "|");
@@ -3119,8 +3146,11 @@ static void printword(STRING *word, RESULT_REC_PTR word_list, int num_words, STR
 				strcat(c,":let");
 			/* alternative forms separated by "^" */
 			out_index = strlen(utt_out);
-			if (i != num_words && out_index > 0 && !isSpace(utt_out[out_index-1]))
+			if (i != num_words && out_index > 0 && !isSpace(utt_out[out_index-1])) {
 				strcat(utt_out,"^");
+				if (isZeroWord)//2022-08-03
+					strcat(utt_out,"0");
+			}
 			if (out_rules != NULL) {
 				templineC3[0] = EOS;
 				for (tor=out_rules; tor != NULL; tor=tor->nextOut) {

@@ -41,6 +41,7 @@ CClan2Doc::CClan2Doc()
 	SaveMovieInfo = 0;
 	SetFakeHilight = FALSE;
 	ChangeCursorInfo = 0L;
+	WC_dummy = 0;
 	isTranscribing = false;
 	isAddFStructComm[0] = EOS;
 	RestorePlayMovieInfo = FALSE;

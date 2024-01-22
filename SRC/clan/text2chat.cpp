@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -29,7 +29,6 @@ extern char OverWriteFile;
 static char isIndBlankHeaders;
 static char isLineUtt;
 static char isLowerCase;
-static char isHeritage;
 static char isPausesINV;
 
 void usage() {
@@ -38,8 +37,7 @@ void usage() {
 	puts("+c0: insert @Blank and @Indent headers when appropriate");
 	puts("+c1: each line is an utterance regardless of presence of utterance delimiter");
 	puts("+c2: convert first capitalized word of utterance and quotation to lower case");
-	puts("+c3: do not insert \"@Options: heritage\" header");
-	puts("+c4: convert lines [...] to *INV: ...");
+	puts("+c3: convert lines [...] to *INV: ...");
 	mainusage(TRUE);
 }
 
@@ -48,7 +46,6 @@ void init(char s) {
 		isIndBlankHeaders = FALSE;
 		isLineUtt = FALSE;
 		isLowerCase = FALSE;
-		isHeritage = TRUE;
 		isPausesINV = FALSE;
 		stout = FALSE;
 		onlydata = 3;
@@ -78,8 +75,6 @@ void getflag(char *f, char *f1, int *i) {
 			} else if (*f == '2') {
 				isLowerCase = TRUE;
 			} else if (*f == '3') {
-				isHeritage = FALSE;
-			} else if (*f == '4') {
 				isPausesINV = TRUE;
 			} else {
 				fprintf(stderr, "Please choose one of for +c option: '0', '1', '2' or '3'\n");
@@ -170,8 +165,6 @@ void call() {		/* this function is self-explanatory */
 		fprintf(fpout, "@Participants:\tTXT Text, INV Investigator\n");
 	else
 		fprintf(fpout, "@Participants:\tTXT Text\n");
-	if (isHeritage)
-		fprintf(fpout, "@Options:\theritage\n");
 	if (isPausesINV) {
 		fprintf(fpout, "@ID:	eng|text|TXT|||||Text|||\n");
 		fprintf(fpout, "@ID:	eng|text|INV|||||Investigator|||\n");
@@ -245,8 +238,7 @@ void call() {		/* this function is self-explanatory */
 					addTab(uttline+i);
 					fprintf(fpout, "%s\n", uttline+i);
 				} else {
-//2019-11-07					if (!isHeritage)
-						addUttDel(uttline+i);
+					addUttDel(uttline+i);
 					printTier(uttline+i);
 				}
 			}
@@ -269,8 +261,7 @@ void call() {		/* this function is self-explanatory */
 					addTab(uttline+i);
 					fprintf(fpout, "%s\n", uttline+i);
 				} else {
-//2019-11-07					if (!isHeritage)
-						addUttDel(uttline+i);
+					addUttDel(uttline+i);
 					printTier(uttline+i);
 				}
 			}
@@ -348,8 +339,7 @@ void call() {		/* this function is self-explanatory */
 				addTab(uttline+i);
 				fprintf(fpout, "%s\n", uttline+i);
 			} else {
-//2019-11-07				if (!isHeritage)
-					addUttDel(uttline+i);
+				addUttDel(uttline+i);
 				printTier(uttline+i);
 			}
 		}

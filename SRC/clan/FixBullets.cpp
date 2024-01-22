@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -52,6 +52,8 @@ extern char OverWriteFile;
 
 static long offset;
 static char isMergeBullets;
+static char isMergeFiles;
+static long last_End = 0L;
 static long tier_SNDBeg = 0L;
 static long tier_SNDEnd = 0L;
 static long tier_MOVBeg = 0L;
@@ -86,6 +88,7 @@ void init(char f) {
 		tiersRoot = NULL;
 		headsp = NULL;
 		isMergeBullets = FALSE;
+		isMergeFiles = FALSE;
 		OverWriteFile = TRUE;
 		stout = FALSE;
 		onlydata = 1;
@@ -96,6 +99,7 @@ void init(char f) {
 		free(defheadtier);
 		defheadtier = NULL;
 	} else {
+		last_End = 0L;
 		tier_SNDBeg = 0L;
 		tier_SNDEnd = 0L;
 		tier_MOVBeg = 0L;
@@ -114,12 +118,17 @@ void usage() {
 	printf("Fixes the consistency of bullet times, reformats old style bullets,\n");
 	printf("and inserts an @Media header.\n");
 	printf("Usage: fixbullets [b o %s] filename(s)\n", mainflgs());
-	puts("+b : merge multiple bulets per line into one bullets per tier");
+	puts("+b : merge multiple bullets per line into one bullets per tier");
+	puts("+m : merge all files into one file with bullets progressively offset");
 	puts("+oN: time offset value N (+o800 means add 800)");
 	puts("-oN: time offset value N (-o800 means subtract 800)");
 	mainusage(TRUE);
 }
 
+static void pr_end(void) {
+	if (isMergeFiles)
+		fprintf(fpout, "@End\n");
+}
 
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	isWinMode = IS_WIN_MODE;
@@ -127,7 +136,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	CLAN_PROG_NUM = FIXBULLETS;
 	OnlydataLimit = 0;
 	UttlineEqUtterance = TRUE;
-	bmain(argc,argv,NULL);
+	bmain(argc,argv,pr_end);
 }
 		
 void getflag(char *f, char *f1, int *i) {
@@ -136,6 +145,11 @@ void getflag(char *f, char *f1, int *i) {
 	switch(*f++) {
 		case 'b':
 			isMergeBullets = TRUE;
+			no_arg_option(f);
+			break;
+		case 'm':
+			isMergeFiles = TRUE;
+			combinput = TRUE;
 			no_arg_option(f);
 			break;
 		case 'n':
@@ -256,10 +270,68 @@ static void fixBull_addsp(char *s) {
 	tp->endTime = 0L;
 }
 
+static char getRawMediaTagInfo(char *line, long *Beg, long *End) {
+	int i;
+	long beg = 0L, end = 0L;
+	char s[256+2];
+	
+	if (*line == HIDEN_C)
+		line++;
+	
+	while (*line && (isSpace(*line) || *line == '_'))
+		line++;
+	if (*line == EOS)
+		return(FALSE);
+	
+	while (*line && !isdigit(*line) && *line != HIDEN_C)
+		line++;
+	if (!isdigit(*line))
+		return(FALSE);
+	for (i=0; *line && isdigit(*line) && i < 256; line++)
+		s[i++] = *line;
+	s[i] = EOS;
+	beg = atol(s);
+	while (*line && !isdigit(*line) && *line != HIDEN_C)
+		line++;
+	if (!isdigit(*line))
+		return(FALSE);
+	for (i=0; *line && isdigit(*line) && i < 256; line++)
+		s[i++] = *line;
+	s[i] = EOS;
+	end = atol(s);
+	*Beg = beg;
+	*End = end;
+	return(TRUE);
+}
+
+static void offsetBullets(char *word, AttTYPE *atts) {
+	long i, len, lenNew;
+	AttTYPE att;
+
+	if (word[0] == HIDEN_C && isdigit(word[1])) {
+		if (getRawMediaTagInfo(word, &cur_SNDBeg, &cur_SNDEnd)) {
+			len = strlen(word);
+			cur_SNDBeg = cur_SNDBeg + offset;
+			if (cur_SNDBeg < 0L)
+				cur_SNDBeg = 0L;
+			cur_SNDEnd = cur_SNDEnd + offset;
+			if (cur_SNDEnd < 0L)
+				cur_SNDEnd = 0L;
+			last_End = cur_SNDEnd;
+			sprintf(word, "%c%ld_%ld%c", HIDEN_C, cur_SNDBeg, cur_SNDEnd, HIDEN_C);
+			lenNew = strlen(word);
+			if (len < lenNew) {
+				att = atts[len-1];
+				for (i=len; i < lenNew; i++)
+					atts[i] = att;
+			}
+		}
+	}
+}
+
 static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts, long ln) {
 	long i, len, lenNew;
 	long tDiff;
-	char isNameChanged;
 	FNType lastFname[FILENAME_MAX], *s;
 	long lastBegTime;
 	long lastEndTime;
@@ -360,11 +432,9 @@ static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts, long
 	lastEndTime = cur_SNDEnd;
 	strcpy(lastFname, cur_SNDFname);
 	if (getOLDMediaTagInfo(word, SOUNDTIER, cur_SNDFname, &cur_SNDBeg, &cur_SNDEnd)) {
-		isNameChanged = FALSE;
 		for (i=0; cur_SNDFname[i] != EOS; i++) {
 			if (isSpace(cur_SNDFname[i])) {
 				cur_SNDFname[i] = '-';
-				isNameChanged = TRUE;
 			}
 		}
 		s = strrchr(cur_SNDFname, '.');
@@ -372,7 +442,6 @@ static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts, long
 			len = strlen(s);
 			if (len < 6) {
 				*s = EOS;
-				isNameChanged = TRUE;
 			}
 		}
 		if (offset != 0) {
@@ -471,11 +540,9 @@ static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts, long
 	lastEndTime = cur_MOVEnd;
 	strcpy(lastFname, cur_MOVFname);
 	if (getOLDMediaTagInfo(word, REMOVEMOVIETAG, cur_MOVFname, &cur_MOVBeg, &cur_MOVEnd)) {
-		isNameChanged = FALSE;
 		for (i=0; cur_MOVFname[i] != EOS; i++) {
 			if (isSpace(cur_MOVFname[i])) {
 				cur_MOVFname[i] = '-';
-				isNameChanged = TRUE;
 			}
 		}
 		s = strrchr(cur_MOVFname, '.');
@@ -483,7 +550,6 @@ static void checkBulletsConsist(CHATTIERS *tier, char *word, AttTYPE *atts, long
 			len = strlen(s);
 			if (len < 6) {
 				*s = EOS;
-				isNameChanged = TRUE;
 			}
 		}
 		if (offset != 0) {
@@ -622,6 +688,14 @@ static char foundMediaName(char *line, char *tMediaFName) {
 	return(TRUE);
 }
 
+#if defined(_COCOA_APP)
+//#include <Cocoa/Cocoa.h>
+#import <Foundation/Foundation.h>
+//#include <AVFoundation/AVFoundation.h>
+#import <AVFoundation/AVAsset.h>
+//#include <CoreMedia/CoreMedia.h>
+#endif
+
 void call() {
 	char isIDsfound, isBulletsFound, isCheckMedia;
 	FNType tMediaFName[FILENAME_MAX];
@@ -629,7 +703,10 @@ void call() {
 	CHATTIERS *tier = NULL;
 
 	isIDsfound = 0;
-	isCheckMedia = TRUE;
+	if (isMergeFiles)
+		isCheckMedia = FALSE;
+	else
+		isCheckMedia = TRUE;
 	isBulletsFound = FALSE;
 	tMediaFName[0] = EOS;
 	currentatt = 0;
@@ -649,6 +726,21 @@ void call() {
 						break;
 					}
 				}
+			}
+		}
+		if (isMergeFiles) {
+			if (uS.partcmp(utterance->speaker, "@End", FALSE, FALSE)) 
+				continue;
+			if (offset != 0) {
+				if (uS.isUTF8(utterance->speaker) || uS.isInvisibleHeader(utterance->speaker))
+					continue;
+				if (uS.partcmp(utterance->speaker, "@Begin", FALSE, FALSE) ||
+					uS.partcmp(utterance->speaker, "@Languages", FALSE, FALSE) ||
+					uS.partcmp(utterance->speaker, "@Participants", FALSE, FALSE) ||
+					uS.partcmp(utterance->speaker, "@ID", FALSE, FALSE) ||
+					uS.partcmp(utterance->speaker, "@Media", FALSE, FALSE)
+					) 
+					continue;
 			}
 		}
 		if (tiersRoot == NULL) {
@@ -736,7 +828,10 @@ void call() {
 				atts[j] = tier->attLine[i];
 				spareTier2[j+1] = EOS;
 				if (tier->line[i] == HIDEN_C) {
-					checkBulletsConsist(tier, spareTier2, atts, tier->ln);
+					if (isMergeFiles)
+						offsetBullets(spareTier2, atts);
+					else
+						checkBulletsConsist(tier, spareTier2, atts, tier->ln);
 					if (!isMergeBullets) {
 						att_cp(ni, spareTier1, spareTier2, attLine, atts);
 						ni = strlen(spareTier1);
@@ -783,4 +878,56 @@ void call() {
 		}
 	}
 	tiersRoot = freeTiers(tiersRoot);
+	if (isMergeFiles) {
+#if defined(_COCOA_APP)
+		char *e;
+
+		if (oldfname[0] == '/')
+			strcpy(tMediaFName, oldfname);
+		else {
+			strcpy(tMediaFName, wd_dir);
+			addFilename2Path(tMediaFName, oldfname);
+		}
+		e = strrchr(tMediaFName, '.');
+		if (e != NULL) {
+			*e = EOS;
+			strcat(tMediaFName, ".mp4");
+			if (access(tMediaFName, 0)) {
+				*e = EOS;
+				strcat(tMediaFName, ".wav");
+			}
+		}
+
+		if (access(tMediaFName, 0)) {
+			printf("\n%c%cCAN'T OPEN MEDIA FILE: ", ATTMARKER, error_start);
+			printf("%s", tMediaFName);
+			printf("%c%c\n", ATTMARKER, error_end);
+			printf("%c%cTHE BULLET TIME WILL NOT BE ACCURATE.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+		} else if (uS.mStricmp(e, ".wav") == 0) {
+			printf("\n%c%cFOUND AUDIO, not video, MEDIA FILE: ", ATTMARKER, error_start);
+			printf("%s", tMediaFName);
+			printf("%c%c\n\n", ATTMARKER, error_end);
+		}
+		
+		NSURL *audioURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:tMediaFName]];
+		AVAsset *audioAsset = [AVAsset assetWithURL:audioURL];
+		
+		NSURL *videoURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:tMediaFName]];
+		AVAsset *videoAsset = [AVAsset assetWithURL:videoURL];
+		
+		CMTime duration;
+		if (CMTimeGetSeconds(audioAsset.duration) < CMTimeGetSeconds(videoAsset.duration)) {
+			duration = audioAsset.duration;
+		} else {
+			duration = videoAsset.duration;
+		}
+		Float64 durationTime = CMTimeGetSeconds(duration);
+		if (durationTime > 0.0)
+			offset += (long)(durationTime * 1000.0000);
+		else
+			offset = last_End;
+#else
+		offset = last_End;
+#endif
+	}
 }

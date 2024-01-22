@@ -28,6 +28,7 @@ public:
 	char RestorePlayMovieInfo;
 	char DoWalkerController;
 	char re_wrap;
+	char WC_dummy;
 	char redo_soundwave;
 	char RedisplayWindow;
 	char SaveMovieInfo;

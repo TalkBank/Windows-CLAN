@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -38,6 +38,7 @@ enum {
 	CORELEX,
 	DSS,
 	EVAL,
+	EVALD,
 	FLUCALC,
 	IPSYN,
 	KIDEVAL,
@@ -56,12 +57,10 @@ enum {
 	ANVIL2CHAT,
 	CHAT2ANVIL,
 	CHAT2CA,
-	CHAT2CONLL,
 	CHAT2ELAN,
 	CHAT2PRAAT,
 	CHAT2SRT,
 	CHAT2XMAR,
-	CONLL2CHAT,
 	ELAN2CHAT,
 	LAB2CHAT,
 	LENA2CHAT,
@@ -75,6 +74,7 @@ enum {
 
 	CHSTRING,
 	COMPOUND,
+	CONVORT,
 	DATES,
 	DATACLEANUP,
 	FIXMP3,
@@ -85,14 +85,18 @@ enum {
 	LONGTIER,
 	MAKEMOD,
 	MEDIALINE,
+	MERGE,
 	OLAC_P,
 	ORT,
 	PHONFREQ,
 	REPEAT,
 	RETRACE,
+	ROLES,
+	SEGMENT,
 	TIERORDER,
 	UNIQ,
 	USEDLEX,
+	VALIDATEMFA,
 
 	COMBTIER,
 	CP2UTF,

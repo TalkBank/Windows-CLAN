@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -61,12 +61,6 @@ void chat2anvil_getflag(char *f,char *f1, int *i);
 void chat2anvil_init(char c);
 void chat2anvil_call(void);
 
-void Chat2Conll_main(int argc, char *argv[]);
-void Chat2Conll_usage(void);
-void Chat2Conll_getflag(char *f,char *f1, int *i);
-void Chat2Conll_init(char c);
-void Chat2Conll_call(void);
-
 void chat2elan_main(int argc, char *argv[]);
 void chat2elan_usage(void);
 void chat2elan_getflag(char *f,char *f1, int *i);
@@ -121,12 +115,6 @@ void codes_getflag(char *f,char *f1, int *i);
 void codes_init(char c);
 void codes_call(void);
 
-void Conll2Chat_main(int argc, char *argv[]);
-void Conll2Chat_usage(void);
-void Conll2Chat_getflag(char *f,char *f1, int *i);
-void Conll2Chat_init(char c);
-void Conll2Chat_call(void);
-
 void combo_main(int argc, char *argv[]);
 void combo_usage(void);
 void combo_getflag(char *f,char *f1, int *i);
@@ -138,6 +126,12 @@ void combtier_usage(void);
 void combtier_getflag(char *f,char *f1, int *i);
 void combtier_init(char c);
 void combtier_call(void);
+
+void convort_main(int argc, char *argv[]);
+void convort_usage(void);
+void convort_getflag(char *f,char *f1, int *i);
+void convort_init(char c);
+void convort_call(void);
 
 void cooccur_main(int argc, char *argv[]);
 void cooccur_usage(void);
@@ -204,6 +198,12 @@ void eval_usage(void);
 void eval_getflag(char *f,char *f1, int *i);
 void eval_init(char c);
 void eval_call(void);
+
+void evald_main(int argc, char *argv[]);
+void evald_usage(void);
+void evald_getflag(char *f,char *f1, int *i);
+void evald_init(char c);
+void evald_call(void);
 
 void fixbullets_main(int argc, char *argv[]);
 void fixbullets_usage(void);
@@ -357,6 +357,12 @@ void megrasp_getflag(char *f,char *f1, int *i);
 void megrasp_init(char c);
 void megrasp_call(void);
 
+void merge_main(int argc, char *argv[]);
+void merge_usage(void);
+void merge_getflag(char *f,char *f1, int *i);
+void merge_init(char c);
+void merge_call(void);
+
 void mlt_main(int argc, char *argv[]);
 void mlt_usage(void);
 void mlt_getflag(char *f,char *f1, int *i);
@@ -447,6 +453,12 @@ void retrace_getflag(char *f,char *f1, int *i);
 void retrace_init(char c);
 void retrace_call(void);
 
+void roles_main(int argc, char *argv[]);
+void roles_usage(void);
+void roles_getflag(char *f,char *f1, int *i);
+void roles_init(char c);
+void roles_call(void);
+
 void rtf2chat_main(int argc, char *argv[]);
 void rtf2chat_usage(void);
 void rtf2chat_getflag(char *f,char *f1, int *i);
@@ -459,19 +471,23 @@ void salt2chat_getflag(char *f,char *f1, int *i);
 void salt2chat_init(char c);
 void salt2chat_call(void);
 
-#ifndef _COCOA_APP
 void silence_main(int argc, char *argv[]);
 void silence_usage(void);
 void silence_getflag(char *f,char *f1, int *i);
 void silence_init(char c);
 void silence_call(void);
-#endif
 
 void script_main(int argc, char *argv[]);
 void script_usage(void);
 void script_getflag(char *f,char *f1, int *i);
 void script_init(char c);
 void script_call(void);
+
+void segment_main(int argc, char *argv[]);
+void segment_usage(void);
+void segment_getflag(char *f,char *f1, int *i);
+void segment_init(char c);
+void segment_call(void);
 
 void srt2chat_main(int argc, char *argv[]);
 void srt2chat_usage(void);
@@ -526,6 +542,12 @@ void usedlex_usage(void);
 void usedlex_getflag(char *f,char *f1, int *i);
 void usedlex_init(char c);
 void usedlex_call(void);
+
+void validatemfa_main(int argc, char *argv[]);
+void validatemfa_usage(void);
+void validatemfa_getflag(char *f,char *f1, int *i);
+void validatemfa_init(char c);
+void validatemfa_call(void);
 
 void vocd_main(int argc, char *argv[]);
 void vocd_usage(void);
@@ -701,6 +723,12 @@ void func_init(void) {
 	clan_getflag[EVAL]		= eval_getflag;
 	clan_init[EVAL]			= eval_init;
 	clan_call[EVAL]			= eval_call;
+
+	clan_main[EVALD]		= evald_main;
+	clan_usage[EVALD]		= evald_usage;
+	clan_getflag[EVALD]		= evald_getflag;
+	clan_init[EVALD]		= evald_init;
+	clan_call[EVALD]		= evald_call;
 
 	clan_main[FLUCALC]		= flucalc_main;
 	clan_usage[FLUCALC] 	= flucalc_usage;
@@ -907,12 +935,6 @@ void func_init(void) {
 	clan_init[CHAT2CA]		= toCA_init;
 	clan_call[CHAT2CA]		= toCA_call;
 
-	clan_main[CHAT2CONLL]	= Chat2Conll_main;
-	clan_usage[CHAT2CONLL]	= Chat2Conll_usage;
-	clan_getflag[CHAT2CONLL]= Chat2Conll_getflag;
-	clan_init[CHAT2CONLL]	= Chat2Conll_init;
-	clan_call[CHAT2CONLL]	= Chat2Conll_call;
-
 	clan_main[CHAT2ELAN]	= chat2elan_main;
 	clan_usage[CHAT2ELAN]	= chat2elan_usage;
 	clan_getflag[CHAT2ELAN]	= chat2elan_getflag;
@@ -943,12 +965,6 @@ void func_init(void) {
 	clan_init[CHECK_P]		= check_init;
 	clan_call[CHECK_P]		= check_call;
 
-	clan_main[CONLL2CHAT]	= Conll2Chat_main;
-	clan_usage[CONLL2CHAT]	= Conll2Chat_usage;
-	clan_getflag[CONLL2CHAT]= Conll2Chat_getflag;
-	clan_init[CONLL2CHAT]	= Conll2Chat_init;
-	clan_call[CONLL2CHAT]	= Conll2Chat_call;
-
 	clan_main[COMBTIER]		= combtier_main;
 	clan_usage[COMBTIER]	= combtier_usage;
 	clan_getflag[COMBTIER]	= combtier_getflag;
@@ -960,6 +976,12 @@ void func_init(void) {
 	clan_getflag[COMPOUND]	= compound_getflag;
 	clan_init[COMPOUND]		= compound_init;
 	clan_call[COMPOUND]		= compound_call;
+
+	clan_main[CONVORT]		= convort_main;
+	clan_usage[CONVORT] 	= convort_usage;
+	clan_getflag[CONVORT]	= convort_getflag;
+	clan_init[CONVORT]		= convort_init;
+	clan_call[CONVORT]		= convort_call;
 
 	clan_main[CP2UTF]		= cptoutf_main;
 	clan_usage[CP2UTF] 		= cptoutf_usage;
@@ -1071,6 +1093,12 @@ void func_init(void) {
 	clan_init[MEDIALINE]	= medialine_init;
 	clan_call[MEDIALINE]	= medialine_call;
 
+	clan_main[MERGE]		= merge_main;
+	clan_usage[MERGE]		= merge_usage;
+	clan_getflag[MERGE]		= merge_getflag;
+	clan_init[MERGE]		= merge_init;
+	clan_call[MERGE]		= merge_call;
+
 	clan_main[OLAC_P]		= olac_main;
 	clan_usage[OLAC_P]		= olac_usage;
 	clan_getflag[OLAC_P]	= olac_getflag;
@@ -1113,6 +1141,12 @@ void func_init(void) {
 	clan_init[RETRACE]		= retrace_init;
 	clan_call[RETRACE]		= retrace_call;
 
+	clan_main[ROLES]		= roles_main;
+	clan_usage[ROLES] 		= roles_usage;
+	clan_getflag[ROLES]		= roles_getflag;
+	clan_init[ROLES]		= roles_init;
+	clan_call[ROLES]		= roles_call;
+
 	clan_main[RTF2CHAT]		= rtf2chat_main;
 	clan_usage[RTF2CHAT] 	= rtf2chat_usage;
 	clan_getflag[RTF2CHAT]	= rtf2chat_getflag;
@@ -1125,13 +1159,17 @@ void func_init(void) {
 	clan_init[SALT2CHAT]	= salt2chat_init;
 	clan_call[SALT2CHAT]	= salt2chat_call;
 
-#ifndef _COCOA_APP
+	clan_main[SEGMENT]	= segment_main;
+	clan_usage[SEGMENT]	= segment_usage;
+	clan_getflag[SEGMENT]= segment_getflag;
+	clan_init[SEGMENT]	= segment_init;
+	clan_call[SEGMENT]	= segment_call;
+	
 	clan_main[SILENCE_P]	= silence_main;
 	clan_usage[SILENCE_P]	= silence_usage;
 	clan_getflag[SILENCE_P]	= silence_getflag;
 	clan_init[SILENCE_P]	= silence_init;
 	clan_call[SILENCE_P]	= silence_call;
-#endif
 
 	clan_main[SRT2CHAT]		= srt2chat_main;
 	clan_usage[SRT2CHAT]	= srt2chat_usage;
@@ -1169,6 +1207,12 @@ void func_init(void) {
 	clan_init[USEDLEX]		= usedlex_init;
 	clan_call[USEDLEX]		= usedlex_call;
 
+	clan_main[VALIDATEMFA]	= validatemfa_main;
+	clan_usage[VALIDATEMFA]	= validatemfa_usage;
+	clan_getflag[VALIDATEMFA]= validatemfa_getflag;
+	clan_init[VALIDATEMFA]	= validatemfa_init;
+	clan_call[VALIDATEMFA]	= validatemfa_call;
+	
 /*
 	clan_main[TEMP01]		= _main;
 	clan_usage[TEMP01]		= _usage;
@@ -1275,6 +1319,7 @@ void func_init(void) {
 	clan_name[DIST]			= "dist";
 	clan_name[DSS]			= "dss";
 	clan_name[EVAL]			= "eval";
+	clan_name[EVALD]		= "eval-d";
 	clan_name[FLUCALC]		= "flucalc";
 	clan_name[FREQ]			= "freq";
 	clan_name[FREQPOS]		= "freqpos";
@@ -1312,14 +1357,13 @@ void func_init(void) {
 	clan_name[ANVIL2CHAT]	= "anvil2chat";
 	clan_name[CHAT2ANVIL]	= "chat2anvil";
 	clan_name[CHAT2CA]		= "chat2ca";
-	clan_name[CHAT2CONLL]	= "chat2conll";
 	clan_name[CHAT2ELAN]	= "chat2elan";
 	clan_name[CHAT2PRAAT]	= "chat2praat";
 	clan_name[CHAT2SRT]		= "chat2srt";
 	clan_name[CHAT2XMAR]	= "chat2xmar";
 	clan_name[CHECK_P]		= "check";
-	clan_name[CONLL2CHAT]	= "conll2chat";
 	clan_name[COMBTIER]		= "combtier";
+	clan_name[CONVORT]		= "convort";
 	clan_name[CP2UTF]		= "cp2utf";
 	clan_name[DATACLEANUP]	= "dataclean";
 	clan_name[DELIM]		= "delim";
@@ -1339,6 +1383,7 @@ void func_init(void) {
 	clan_name[LOWCASE]		= "lowcase";
 	clan_name[MAKEMOD]		= "makemod";
 	clan_name[MEDIALINE]	= "medialine";
+	clan_name[MERGE]		= "merge";
 	clan_name[OLAC_P]		= "olac";
 	clan_name[ORT]			= "ort";
 	clan_name[PLAY2CHAT]	= "play2chat";
@@ -1346,17 +1391,18 @@ void func_init(void) {
 	clan_name[QUOTES]		= "quotes";
 	clan_name[REPEAT]		= "repeat";
 	clan_name[RETRACE]		= "retrace";
+	clan_name[ROLES]		= "roles";
 	clan_name[RTF2CHAT]		= "rtf2chat";
 	clan_name[SALT2CHAT]	= "salt2chat";
-#ifndef _COCOA_APP
+	clan_name[SEGMENT]		= "segment";
 	clan_name[SILENCE_P]	= "silence";
-#endif
 	clan_name[SRT2CHAT]		= "srt2chat";
 	clan_name[TEXT2CHAT]	= "text2chat";
 	clan_name[TIERORDER]	= "tierorder";
 	clan_name[TRNFIX]		= "trnfix";
 	clan_name[UNIQ]			= "uniq";
 	clan_name[USEDLEX]		= "usedlex";
+	clan_name[VALIDATEMFA]	= "validatemfa";
 
 
 	clan_name[TEMPLATE]		= "";
@@ -1451,6 +1497,10 @@ void myjmp(int jval) {
 	if (jval > 0) {
 #ifndef _COCOA_APP
 		Quit_CED(jval);
+#elif defined(_MAC_CODE)
+		isKillProgram = 2;
+		skip_prog = 1;
+		longjmp(my_jmp_buf, jval);
 #endif
 	} else if (jval < 0) {
 		isKillProgram = 2;

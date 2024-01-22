@@ -1307,6 +1307,14 @@ void CClan2View::OnDraw(CDC* pDC)
 				pDoc->SetModifiedFlag(TRUE);
 		} else
 			isPlayS = 0;
+	} else if (pDoc->WC_dummy != 0L) { /* lxs 2022-10-21 Walker Controller */
+		global_df = pDoc->FileInfo;
+		DrawCursor(0);
+		DrawCursor(1);
+		pDoc->WC_dummy = 0;
+		GlobalDC = tGlobalDC;
+		global_df = tGlobal_df;
+		return;
 	} else if (pDoc->ChangeCursorInfo != 0L) {
 		global_df = pDoc->FileInfo;
 		if (global_df) {
@@ -1342,7 +1350,7 @@ void CClan2View::OnDraw(CDC* pDC)
 				DrawCursor(0);
 				DrawFakeHilight(0);
 				SaveUndoState(FALSE);
-				move_cursor(pDoc->ChangeCursorInfo, global_df->MvTr.MovieFile, TRUE, FALSE);
+				HighlightNextTier(pDoc->ChangeCursorInfo, global_df->MvTr.MovieFile, TRUE, FALSE);
 				PosAndDispl();
 				DrawCursor(1);
 				DrawFakeHilight(1);
@@ -4888,7 +4896,7 @@ void CClan2View::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			else
 				EditorMode = FALSE;
 
-			if (nChar == VK_F7 || nChar == VK_F9)
+			if (nChar == VK_F7 || nChar == VK_F8 || nChar == VK_F9)
 				;
 			else if (/* // NO QT MovDlg == NULL && */MpegDlg == NULL) {
 				if (global_df->SnTr.isMP3 == TRUE)
@@ -4901,7 +4909,7 @@ void CClan2View::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 					text_isFKeyPressed = 1;
 				} else if (nChar == VK_F2 && isUseSPCKeyShortcuts && EditorMode) {
 					text_isFKeyPressed = 2;
-				} else if (nChar != VK_F7 && nChar != VK_F9) {
+				} else if (nChar != VK_F7 && nChar != VK_F8 && nChar != VK_F9) {
 					strcpy(global_df->err_message, "-Aborted.");
 					draw_mid_wm();
 					wmove(global_df->w1, global_df->row_win, global_df->col_win-global_df->LeftCol);
@@ -4925,7 +4933,7 @@ void CClan2View::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 				SetPBCglobal_df(false, 0L);
 			}
 			GlobalDC = tGlobalDC;
-			if (nChar == VK_F7 || nChar == VK_F9) {
+			if (nChar == VK_F7 || nChar == VK_F8 || nChar == VK_F9) {
 				F_key = nChar-VK_F1+1;
 				nChar = 1;
 				if (!skipOnChar)

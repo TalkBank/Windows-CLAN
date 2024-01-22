@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -481,7 +481,7 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 				f = strchr(FileName2, '.');
 				if (f != NULL)
 					*f = EOS;
-				if (!combinput)
+				if (!combinput || onlydata == 4)
 					fprintf(ofp,"%s,", FileName2);
 				else
 					fprintf(ofp,"%s,", POOLED_FNAME);
@@ -489,7 +489,7 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 			if (speaker->IDs != NULL)
 				outputIDForExcel(ofp, speaker->IDs, 1);
 			else {
-				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,", speaker->code);
+				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,.,", speaker->code);
 			}
 			fprintf(ofp,".,.,.,");
 			for (j=0;j<no_trials;j++) {
@@ -521,7 +521,7 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 				f = strchr(FileName2, '.');
 				if (f != NULL)
 					*f = EOS;
-				if (!combinput)
+				if (!combinput || onlydata == 4)
 					fprintf(ofp,"%s,", FileName2);
 				else
 					fprintf(ofp,"%s,", POOLED_FNAME);
@@ -529,7 +529,7 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 			if (speaker->IDs != NULL)
 				outputIDForExcel(ofp, speaker->IDs, 1);
 			else {
-				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,", speaker->code);
+				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,.,", speaker->code);
 			}
 			fprintf(ofp,".,.,.,");
 			for (j=0;j<no_trials;j++) {
@@ -699,7 +699,7 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 				f = strchr(FileName2, '.');
 				if (f != NULL)
 					*f = EOS;
-				if (!combinput)
+				if (!combinput || onlydata == 4)
 					fprintf(ofp,"%s,", FileName2);
 				else
 					fprintf(ofp,"%s,", POOLED_FNAME);
@@ -707,7 +707,7 @@ int d_compute (VOCDSP *speaker, char **token_seq, int tkns_in_seq, int from, int
 			if (speaker->IDs != NULL)
 				outputIDForExcel(ofp, speaker->IDs, 1);
 			else {
-				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,", speaker->code);
+				fprintf(ofp,".,.,%s,.,.,.,.,.,.,.,.,", speaker->code);
 			}
 		}
 		ttr = ttr_fromseq (token_seq, tkns_in_seq, &types);

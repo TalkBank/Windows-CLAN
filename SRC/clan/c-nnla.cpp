@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -1009,7 +1009,7 @@ static void dealWithDiscontinuousWord(char *word, int i) {
 */
 
 static void isCountUtt(char *line, char *morline, struct c_nnla_speakers *ts, int *tsntp) {
-	int i;
+	int i, j;
 	char isCountSntp, isCountScss, isCountSfsyn, isCountSfsem, *POS;
 
 	isCountSntp =  FALSE;
@@ -1018,18 +1018,25 @@ static void isCountUtt(char *line, char *morline, struct c_nnla_speakers *ts, in
 	isCountSfsem = 0;
 	i = 0;
 	while ((i=getword("%mor:", morline, spareTier2, NULL, i))) {
-		POS = strchr(spareTier2, '#');
-		if (POS != NULL)
-			POS++;
-		else
-			POS = spareTier2;
-		if (uS.mStrnicmp(POS, "v|", 2) == 0   || uS.mStrnicmp(POS, "cop|", 4) == 0 ||
-			uS.mStrnicmp(POS, "mod|", 4) == 0 || uS.mStrnicmp(POS, "part|", 5) == 0) {
-			isCountSntp = TRUE;
-			isCountScss = TRUE;
-			isCountSfsyn = 1;
-			isCountSfsem = 1;
-		}
+		j = 0;
+		do {
+			POS = strchr(spareTier2+j, '#');
+			if (POS != NULL)
+				POS++;
+			else
+				POS = spareTier2+j;
+			if (uS.mStrnicmp(POS, "v|", 2) == 0   || uS.mStrnicmp(POS, "cop|", 4) == 0 ||
+				uS.mStrnicmp(POS, "mod|", 4) == 0 || uS.mStrnicmp(POS, "part|", 5) == 0) {
+				isCountSntp = TRUE;
+				isCountScss = TRUE;
+				isCountSfsyn = 1;
+				isCountSfsem = 1;
+			}
+			while (spareTier2[j] != EOS && spareTier2[j] != '~')
+				j++;
+			if (spareTier2[j] == '~')
+				j++;
+		} while (spareTier2[j] != EOS) ;
 	}
 	i = 0;
 	while ((i=getword("*:", line, spareTier2, NULL, i))) {
@@ -3449,7 +3456,7 @@ void call() {
 			if (utterance->speaker[0] == '*')
 				break;
 			if (uS.partcmp(utterance->speaker,"@Comment:",FALSE,FALSE)) {
-				if (strncmp(utterance->line, "EVAL DATABASE EXCLUDE", 21) == 0) {
+				if (strncmp(utterance->line, "C_NNLA DATABASE EXCLUDE", 21) == 0) {
 					fprintf(stderr,"    EXCLUDED FILE: %s\n",oldfname+wdOffset);
 					return;
 				}
@@ -3673,7 +3680,11 @@ static struct Vs *readVFile(const char *fname, char isCheckWDdir, struct Vs *v) 
 	}
 	if (fp == NULL) {
 		fprintf(stderr, "\nERROR: Can't locate verbs file: \"%s\".\n", mFileName);
+#ifdef _MAC_CODE
+		fprintf(stderr, "\n");
+#else
 		fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+#endif
 		c_nnla_error(NULL, FALSE);
 	} else {
 		v = parseV(fp, mFileName, v);

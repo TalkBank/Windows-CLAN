@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -580,7 +580,9 @@ int parse_utter(real_utterance *utter) {
 		index = getword(utterance->speaker, uttline, surf_word, NULL, index);
 	}
 	while (index != 0) {
-		if (!chip_isUttDel(surf_word)) {
+		if (wdptr != NULL && ((isMorTier && DOING_SUBST && exclude(mor_word) == FALSE) ||
+							  ((!isMorTier || !DOING_SUBST) && exclude(surf_word) == FALSE))) {
+		} else if (!chip_isUttDel(surf_word)) {
 			if (isMorTier) {
 				if (DOING_SUBST)
 					utter->words[utter->word_count] = new_word(NULL, mor_word);

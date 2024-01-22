@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -84,6 +84,7 @@ static char isDSSpostcode, isDSSEpostcode;
 static char isFirstCall;
 static int  IsOutputSpreadsheet, spNum;
 static int  TotalsAcrossPoints[POINTS_N], TotalsTotal;
+static int  TotalsUttPoints;
 static int  PointsCnt;
 static int  dss_firstmatch;
 static float GGrandTotal;
@@ -109,7 +110,7 @@ void usage() {
 	printf("+d1: outputs in SPREADSHEET format one TOTAL line per file\n");
 	printf("+dF: specify dss rules file name. (no default)\n");
 //	printf("+i : interactively generates dss table\n");
-	printf("+lS: specify data language (eng - English, jpn - Japanese)\n");
+	printf("+lS: specify data language (eng - English, bss - English, jpn - Japanese)\n");
 #ifdef UNX
 	printf("+LF: specify full path F of the lib folder\n");
 #endif
@@ -1103,7 +1104,11 @@ static void MakeRules() {
 	if ((fp=fopen(mFileName,"r")) == NULL) {
 		if (!isDssFileSpecified) {
 			fprintf(stderr, "Can't open dss rules file: \"%s\"\n", mFileName);
+#ifdef _MAC_CODE
+			fprintf(stderr, "\n");
+#else
 			fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+#endif
 			dss_mferr = 1;
 			return;
 		} else {
@@ -1111,7 +1116,11 @@ static void MakeRules() {
 			addFilename2Path(templineC, rulesfile);
 			if ((fp=fopen(templineC,"r")) == NULL) {
 				fprintf(stderr, "Can't open either one of the dss rules files:\n\t\"%s\"\n\t\"%s\"\n", templineC, mFileName);
+#ifdef _MAC_CODE
+				fprintf(stderr, "\n");
+#else
 				fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+#endif
 				dss_mferr = 1;
 				return;
 			} else {
@@ -1276,10 +1285,10 @@ char init_dss(char first) {
 		if (dss_lang == '\0' || rulesfile == NULL) {
 			if (CLAN_PROG_NUM == DSS) {
 				fprintf(stderr, "Please specify data language with \"+l\" option.\n");
-				fprintf(stderr, "  eng - English, jpn - Japanese\n");
+				fprintf(stderr, "  eng - English, bss - English, jpn - Japanese\n");
 			} else {
 				fprintf(stderr, "Please specify data language inside \"language script file\".\n");
-				fprintf(stderr, "  eng - English, jpn - Japanese, 0 - do not compute DSS\n");
+				fprintf(stderr, "  eng - English, bss - English, jpn - Japanese, 0 - do not compute DSS\n");
 			}
 			return(FALSE);
 		}
@@ -1324,7 +1333,13 @@ void init(char first) {
 		addword('\0','\0',"+unk|xxx");
 		addword('\0','\0',"+unk|yyy");
 		addword('\0','\0',"+*|www");
-		maininitwords();
+
+		addword('\0','\0',"+&*");
+		addword('\0','\0',"++*");
+		addword('\0','\0',"+-*");
+		addword('\0','\0',"+#*");
+		addword('\0','\0',"+(*.*)");
+//		maininitwords();
 		mor_initwords();
 		if (!init_dss(first)) {
 			out_of_mem();
@@ -1368,6 +1383,9 @@ void init(char first) {
 
 static void dss_pr_result(void) {
 	if (IsOutputSpreadsheet == 1 || IsOutputSpreadsheet == 2) {
+		excelRow(fpout, ExcelRowEmpty);
+		excelRowOneStrCell(fpout, ExcelRedCell, "IF YOU DID NOT MARK ERRORS, DSS TOTAL WILL BE INFLATED.");
+		excelRowOneStrCell(fpout, ExcelRedCell, "Please be sure to mark utterances with errors with [*] to ensure accurate DSS computation.");
 		excelFooter(fpout);
 	} else if (GTotalNum && !DSSAutoMode) {
 		GTotalNum = GGrandTotal / GTotalNum;
@@ -1384,6 +1402,14 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	UttlineEqUtterance = FALSE;
 	debug_dss_fp = stdout;
 	bmain(argc,argv,dss_pr_result);
+	printf("\n");
+#ifdef UNX
+	printf("IF YOU DID NOT MARK ERRORS, DSS TOTAL WILL BE INFLATED.\n");
+	printf("Please be sure to mark utterances with errors with [*] to ensure accurate DSS computation.\n\n");
+#else
+	printf("%c%cIF YOU DID NOT MARK ERRORS, DSS TOTAL WILL BE INFLATED.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cPlease be sure to mark utterances with errors with [*] to ensure accurate DSS computation.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
 	if (debug_dss_fp != stdout)
 		fclose(debug_dss_fp);
 	if (combinput) {
@@ -1567,12 +1593,17 @@ static void PrintRow(char points[POINTS_N][POINTS_S], char *line, float total, c
 		}
 		if (total > -1.0) {
 			if (ftime) {
-				fprintf(fp, "%1d|", ((ans == 'p' || ans == 'P') ? 1 : 0));
+				if (ans == 'p' || ans == 'P') {
+					TotalsUttPoints++;
+					fprintf(fp, "%3d|", 1);
+				} else {
+					fprintf(fp, "%3d|", 0);
+				}
 				i = (int)total;
 				fprintf(fp, "%3d|", i);
 				TotalsTotal = TotalsTotal + i;
 			} else
-				fprintf(fp, " |   |");
+				fprintf(fp, "   |   |");
 		}
 		putc('\n', fp);
 		ftime = FALSE;
@@ -1729,11 +1760,14 @@ float PrintOutDSSTable(char *line, int spNum, int spRowNum, char isOutput) {
 		if (dss_lang == 'e') {
 			ans = 'p';
 			for (i=0; line[i] != EOS; i++) {
-				if (line[i] == '0' && (i == 0 || uS.isskip(line,i-1,&dFnt,C_MBF))) {
+				if (line[i] == '[' && line[i+1] == '*' && line[i+2] == ' ' &&  (line[i+3] == 'p' || line[i+3] == 'P')) {
+				} else if (line[i] == '[' && line[i+1] == '*' && (line[i+2] == ']' ||  line[i+2] == ' ')) {
 					ans = 'n';
 					break;
-				} else if (line[i] == '[' && line[i+1] == '*' && line[i+2] == ' ' &&  (line[i+3] == 'p' || line[i+3] == 'P')) {
-				} else if (line[i] == '[' && line[i+1] == '*' && (line[i+2] == ']' ||  line[i+2] == ' ')) {
+				}
+			}
+			for (i=0; spareTier1[i] != EOS; i++) {
+				if (spareTier1[i] == '0' && (i == 0 || uS.isskip(spareTier1,i-1,&dFnt,C_MBF))) {
 					ans = 'n';
 					break;
 				}
@@ -1781,12 +1815,19 @@ float PrintOutDSSTable(char *line, int spNum, int spRowNum, char isOutput) {
 	}
 	if (isOutput) {
 		if (IsOutputSpreadsheet == 1) {
-			totalPerCell = ((ans == 'p' || ans == 'P') ? 1.0000 : 0.0000);
+			if (ans == 'p' || ans == 'P') {
+				totalPerCell = 1.0000;
+			} else {
+				totalPerCell = 0.0000;
+			}
 			excelNumCell(fpout, "%.0f", totalPerCell);
 			totalPerCell = (float)total;
 			excelNumCell(fpout, "%.0f", totalPerCell);
 			excelRow(fpout, ExcelRowEnd);
 		} else if (IsOutputSpreadsheet == 2) {
+			if (ans == 'p' || ans == 'P') {
+				TotalsUttPoints++;
+			}
 		} else {
 			PrintRow(points, line, total, ans, fpout);
 		}
@@ -1933,7 +1974,7 @@ static void PrintTotalRow(FILE *fp) {
 			putc(' ', fp);
 		putc('|', fp);
 	}
-	fprintf(fp, " |%3d|", TotalsTotal);
+	fprintf(fp, "%3d|%3d|", TotalsUttPoints, TotalsTotal);
 	putc('\n', fp);
 }
 
@@ -1963,7 +2004,8 @@ static void PrintTotalSpRow(FILE *fp, float TotalUtts, DSSSP *tsp) {
 		tf = (float)TotalsAcrossPoints[i];
 		excelNumCell(fpout, "%.0f", tf);
 	}
-//	excelNumCell(fpout, "%.0f", 0.0);
+	tf = (float)TotalsUttPoints;
+	excelNumCell(fpout, "%.0f", tf);
 	excelNumCell(fpout, "%.0f", tsp->GrandTotal);
 	excelRow(fpout, ExcelRowEnd);
 }
@@ -2107,6 +2149,7 @@ void call() {
 	}
 	for (k=0; k < PointsCnt; k++)
 		TotalsAcrossPoints[k] = 0;
+	TotalsUttPoints = 0;
 	TotalsTotal = 0;
 
 	if (INITSTACK == NULL) {
@@ -2140,7 +2183,7 @@ void call() {
 				excelCommasStrCell(fpout, "DSS_Utts,DSS");
 				for (k=0; k < PointsCnt; k++)
 					excelStrCell(fpout,PointsNames[k]);
-//				excelCommasStrCell(fpout,"S");
+				excelCommasStrCell(fpout,"S");
 				excelCommasStrCell(fpout,"Total");
 				excelRow(fpout, ExcelRowEnd);
 			}
@@ -2160,7 +2203,7 @@ void call() {
 		fprintf(fpout, "           Sentence                    |");
 		for (k=0; k < PointsCnt; k++)
 			fprintf(fpout, "%s|", PointsNames[k]);
-		fprintf(fpout, "S|TOT|\n");
+		fprintf(fpout, "  S|TOT|\n");
 	}
 	tsp = NULL;
 	lastTsp = NULL;
@@ -2412,7 +2455,11 @@ void getflag(char *f, char *f1, int *i) {
 				fprintf(stderr,"Letter expected after %s option.\n", f-2);
 				cutt_exit(0);
 			}
-			if (*f == 'e' || *f == 'E') {
+			if (*f == 'b' || *f == 'B') {
+				dss_lang = 'e';
+				if (rulesfile == NULL)
+					rulesfile = DSSBSSRULES;
+			} else if (*f == 'e' || *f == 'E') {
 				dss_lang = 'e';
 				if (rulesfile == NULL)
 					rulesfile = DSSRULES;
@@ -2422,7 +2469,7 @@ void getflag(char *f, char *f1, int *i) {
 					rulesfile = DSSJPRULES;
 			} else {
 				fprintf(stderr, "This language is not supported: %s.\n", f);
-				fprintf(stderr, "Choose: eng - English, jpn - Japanese\n");
+				fprintf(stderr, "Choose: eng - English, bss - English, jpn - Japanese\n");
 				cutt_exit(0);
 			}
 			break;

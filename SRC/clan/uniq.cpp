@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -29,6 +29,7 @@ struct tnode		/* binary uniq_tree for word and count */
 };
 
 static char uniq_sort = 0;
+static char zeroMatch = FALSE;
 static long uniq_total;				/* total number of words */
 static long uniq_diff;
 static struct tnode *uniq_root;
@@ -41,7 +42,8 @@ void usage()	{		/* print proper usage and exit */
 }
 
 void init(char f) {
-	if(f) {
+	if (f) {
+		zeroMatch = FALSE;
 		uniq_total = 0L;
 		uniq_diff = 0L;
 		chatmode = 0;
@@ -156,40 +158,50 @@ static void uniq_treesort(struct tnode *p, FILE *fpout) {
     uniq_treeprint(uniq_root,fpout);
 }
 
-static void pr_result() {
-    if (uniq_sort)
-		uniq_treesort(uniq_root, fpout);
-    else
-		uniq_treeprint(uniq_root, fpout);
-	if (!onlydata)
-		fprintf(fpout, "Unique number: %ld    Total number: %ld\n", uniq_diff, uniq_total);
-}
+static struct tnode *uniq_tree(struct tnode *p, char *w, int baseCnt) {
+	int cond;
+	struct tnode *t = p;
 
-static struct tnode *uniq_tree(struct tnode *p, char *w) {
-    int cond;
-    struct tnode *t = p;
-
-    if (p == NULL) {
+	if (p == NULL) {
 		uniq_diff++;
 		p = uniq_talloc();
 		p->word = uniq_strsave(w);
-		p->count = 1;
+		p->count = baseCnt;
 		p->left = p->right = NULL;
-    } else if ((cond=strcmp(w, p->word)) == 0) {
-		p->count++;
-    } else if (cond < 0) {
-		p->left = uniq_tree(p->left, w);
-    } else {
-		for (; (cond=strcmp(w, p->word)) > 0 && p->right != NULL; p=p->right) ;
-		if (cond == 0)
+	} else if ((cond=strcmp(w, p->word)) == 0) {
+		if (baseCnt > 0)
 			p->count++;
-		else if (cond < 0)
-			p->left = uniq_tree(p->left, w);
-		else
-			p->right = uniq_tree(p->right, w);
+	} else if (cond < 0) {
+		p->left = uniq_tree(p->left, w, baseCnt);
+	} else {
+		for (; (cond=strcmp(w, p->word)) > 0 && p->right != NULL; p=p->right) ;
+		if (cond == 0) {
+			if (baseCnt > 0)
+				p->count++;
+		} else if (cond < 0) {
+			p->left = uniq_tree(p->left, w, baseCnt);
+		} else {
+			p->right = uniq_tree(p->right, w, baseCnt);
+		}
 		return(t);
-    }
-    return(p);
+	}
+	return(p);
+}
+
+static void pr_result() {
+	IEWORDS *twd;
+
+	if (zeroMatch) {
+		for (twd=wdptr; twd != NULL; twd=twd->nextword) {
+			uniq_root = uniq_tree(uniq_root, twd->word, 0);
+		}
+	}
+	if (uniq_sort)
+		uniq_treesort(uniq_root, fpout);
+	else
+		uniq_treeprint(uniq_root, fpout);
+	if (!onlydata)
+		fprintf(fpout, "Unique number: %ld    Total number: %ld\n", uniq_diff, uniq_total);
 }
 
 void call() {
@@ -209,7 +221,7 @@ void call() {
 				uS.remFrontAndBackBlanks(uttline);
 				if (uttline[0] != EOS) {
 					uniq_total++;
-					uniq_root = uniq_tree(uniq_root,uttline);
+					uniq_root = uniq_tree(uniq_root, uttline, 1);
 				}
 		    }
 		}
@@ -222,6 +234,12 @@ void call() {
 void getflag(char *f, char *f1, int *i) {
     f++;
     switch(*f++) {
+	case 'd':
+		if (*f == '5') {
+			zeroMatch = TRUE;
+		} else
+			maingetflag(f-2,f1,i);
+		break;
 	case 'o':
 		uniq_sort = 1;
 		break;

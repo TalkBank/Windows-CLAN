@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -173,7 +173,7 @@ extern char SetKeywordsColor(COLORTEXTLIST *lRootColorText, int cCol, RGBColor *
 #endif
 #endif
 extern WINDOW *newwin(int num_rows, int num_cols, int LT_row, int LT_col, int tOff);
-extern COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, AttTYPE *sAtts,unCH *sData,int lnoff,int ecol,COLORTEXTLIST *cl);
+extern COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, WINDOW *w, int row, AttTYPE *sAtts, unCH *sData, int lnoff, int ecol, COLORTEXTLIST *cl);
 extern COLORTEXTLIST *createColorTextKeywordsList(COLORTEXTLIST *lRootColorText, char *st);
 extern void copyFontInfo(FONTINFO *des, FONTINFO *src, char isUse);
 extern void copyNewToFontInfo(FONTINFO *des, NewFontInfo *src);

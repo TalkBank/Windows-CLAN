@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -67,7 +67,6 @@ public:
 	char isCharInMorf(char c, unCH *morf);
 	char atUFound(const unCH *w, int s, NewFontInfo *finfo, char MBC);
 	char isRightChar(const unCH *org, long pos, register char chr, NewFontInfo *finfo, char MBC);
-	char isUpperChar(unCH *org, int pos, NewFontInfo *finfo, char MBC);
 	char isSqBracketItem(const unCH *s, int pos, NewFontInfo *finfo, char MBC);
 	char isSqCodes(const unCH *word, unCH *tWord, NewFontInfo *finfo, char isForce);
 	void remblanks(unCH *st);
@@ -80,8 +79,6 @@ public:
 	int  IsCharUtteranceDel(unCH *st, int pos);
 	int  IsUtteranceDel(const unCH *st, int pos);
 	int  isPause(const unCH *st, int pos, int *beg, int *end);
-	long lowercasestr(unCH *str, NewFontInfo *finfo, char MBC);
-	long uppercasestr(unCH *str, NewFontInfo *finfo, char MBC);
 	char fpatmat(const unCH *s, const unCH *pat);
 	char fpatmat(const unCH *s, const char *pat);
 	char fIpatmat(const unCH *s, const unCH *pat);
@@ -97,6 +94,15 @@ public:
 	void sp_mod(unCH *s1, unCH *s2);
 	char isUTF8(const unCH *str);
 	char isInvisibleHeader(const unCH *str);
+
+	char isUpperChar(unCH *org, int pos, NewFontInfo *finfo, char MBC);
+	int my_isalpha(unCH *s);
+	int my_isupper(unCH *s);
+	void my_tolower(unCH *s);
+	int my_islower(unCH *s);
+	void my_toupper(unCH *s);
+	long lowercasestr(unCH *str, NewFontInfo *finfo, char MBC);
+	long uppercasestr(unCH *str, NewFontInfo *finfo, char MBC);
 
 	char isConsonant(const unCH *st);
 	char isVowel(const unCH *st);
@@ -144,14 +150,11 @@ public:
 	int  mStricmp(const char *st1, const char *st2);
 	int  mStrnicmp(const char *st1, const char *st2, size_t len);
 	int  HandleCAChars(char *w, int *matchedType);
-	long lowercasestr(char *str, NewFontInfo *finfo, char MBC);
-	long uppercasestr(char *str, NewFontInfo *finfo, char MBC);
 	char isskip(const char *org, int pos, NewFontInfo *finfo, char MBC);
 	char ismorfchar(const char *org, int pos, NewFontInfo *finfo, const char *morfsList, char MBC);
 	char isCharInMorf(char c, char *morf);
 	char atUFound(const char *w, int s, NewFontInfo *finfo, char MBC);
 	char isRightChar(const char *org, long pos, register char chr, NewFontInfo *finfo, char MBC);
-	char isUpperChar(char *org, int pos, NewFontInfo *finfo, char MBC);
 	char isSqBracketItem(const char *s, int pos, NewFontInfo *finfo, char MBC);
 	char isSqCodes(const char *word, char *tWord, NewFontInfo *finfo, char isForce);
 	char *sp_cp(char *s1, char *s2);
@@ -165,6 +168,15 @@ public:
 	void shiftright(char *st, int num);
 	void cleanUpCodes(char *code, NewFontInfo *finfo, char MBC);
 	void extractString(char *out, const char *line, const char *type, char endC);
+
+	char isUpperChar(char *org, int pos, NewFontInfo *finfo, char MBC);
+	int my_isalpha(char *s);
+	int my_isupper(char *s);
+	void my_tolower(char *s);
+	int my_islower(char *s);
+	void my_toupper(char *s);
+	long lowercasestr(char *str, NewFontInfo *finfo, char MBC);
+	long uppercasestr(char *str, NewFontInfo *finfo, char MBC);
 
 	char isConsonant(const char *st);
 	char isVowel(const char *st);

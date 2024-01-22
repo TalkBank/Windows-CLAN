@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -57,7 +57,11 @@ LSP {
 	char *sp;
 	char isSpFound;
 	int  uID;
+	unsigned int firstBulletTime;
 	unsigned int *count;
+	long begTotaTime;
+	long endTotaTime;
+	long totaTime;
 	LSP *next_sp;
 } ;
 
@@ -67,8 +71,8 @@ extern struct tier *defheadtier;
 extern struct IDtype *IDField;
 
 static int fileID;
-static char *script_file;
-static char corelex_ftime, corelex_isCombineSpeakers, corelex_n_option, isNOptionSet;
+static char *corelex_script_file;
+static char corelex_ftime, corelex_isCombineSpeakers, corelex_n_option, isNOptionSet, corelex_isWor;
 static char corelex_BBS[5], corelex_CBS[5];
 static int  colLabelsNum;
 static LABELS *labelsRoot;
@@ -199,7 +203,7 @@ static LABELS *corelex_addNewLabel(LABELS *root, char *label) {
 }
 
 static void corelex_read_script(char *script) {
-	int  ln;
+//	int  ln;
 	char *b;
 	FNType mFileName[FNSize];
 	FILE *fp;
@@ -219,28 +223,41 @@ static void corelex_read_script(char *script) {
 	} else
 		strcat(mFileName, ".cut");
 	if ((fp=fopen(mFileName,"r")) == NULL) {
-		if (b != NULL) {
-			if (uS.mStricmp(b, ".cut") == 0) {
-				strcpy(templineC, wd_dir);
-				addFilename2Path(templineC, script);
-				if ((fp=fopen(templineC,"r")) != NULL) {
-					strcpy(mFileName, templineC);
-				}
-			}
+		strcpy(templineC, wd_dir);
+		addFilename2Path(templineC, script);
+		if (b == NULL)
+			strcat(templineC, ".cut");
+		if ((fp=fopen(templineC,"r")) != NULL) {
+			strcpy(mFileName, templineC);
 		}
+	}
+	if (b != NULL) {
+		if (uS.mStricmp(b, ".cut") == 0)
+			*b = EOS;
 	}
 	if (fp == NULL) {
 		fprintf(stderr, "\nERROR: Can't locate words group file: \"%s\".\n", mFileName);
+#ifdef _MAC_CODE
+		fprintf(stderr, "\n");
+#else
 		fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+#endif
 		cutt_exit(0);
 	}
 	fprintf(stderr,"    Using words group file: %s\n", mFileName);
-	ln = 0;
+	b = strrchr(script, '-');
+	if (b != NULL)
+		*b = EOS;
+	else if (corelex_isWor == TRUE) {
+		fprintf(stderr,"\nThe \"+w\" option requires the '-' character in filename specified with +l option.\n");
+		cutt_exit(0);
+	}
+//	ln = 0;
 	while (fgets_cr(templineC, 255, fp)) {
 		if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC) ||
 			strncmp(templineC, SPECIALTEXTFILESTR, SPECIALTEXTFILESTRLEN) == 0)
 			continue;
-		ln++;
+//		ln++;
 		if (templineC[0] == '%' || templineC[0] == '#')
 			continue;
 		uS.remFrontAndBackBlanks(templineC);
@@ -266,7 +283,7 @@ for (p=labelsRoot; p->next_label != NULL; p=p->next_label) {
 
 void init(char f) {
 	if (f) {
-		script_file = NULL;
+		corelex_script_file = NULL;
 		fileID = 0;
 		colLabelsNum = 0;
 		labelsRoot = NULL;
@@ -281,6 +298,7 @@ void init(char f) {
 		combinput = TRUE;
 		corelex_n_option = FALSE;
 		isNOptionSet = FALSE;
+		corelex_isWor = FALSE;
 		strcpy(corelex_BBS, "@*&#");
 		strcpy(corelex_CBS, "@*&#");
 		if (defheadtier != NULL) {
@@ -292,12 +310,12 @@ void init(char f) {
 	} else {
 		if (corelex_ftime) {
 			corelex_ftime = FALSE;
-			if (script_file == NULL) {
+			if (corelex_script_file == NULL) {
 				fprintf(stderr,"Please specify words group file name with \"+l\" option.\n");
 				fprintf(stderr,"For example, \"corelex +lCinderella\" or \"corelex +lCinderella.cut\".\n");
 				cutt_exit(0);
 			}
-			corelex_read_script(script_file);
+			corelex_read_script(corelex_script_file);
 		}
 	}
 }
@@ -305,18 +323,23 @@ void init(char f) {
 void usage() {
 	printf("Creates table of frequency count of parts of speech and bound morphemes\n");
 	printf("Usage: corelex [lF oN %s] filename(s)\n", mainflgs());
-	puts("+lF: specify words goup name F");
+	puts("+lF: specify words group name F");
+	puts("     if name has a dash (-), then it will be abbreviated at (-) to get the GEM name");
 #ifdef UNX
 	puts("+LF: specify full path F of the lib folder");
 #endif
 	puts("+n : Gem is terminated by the next @G (default: automatic detection)");
 	puts("-n : Gem is defined by @BG and @EG (default: automatic detection)");
 	puts("+o3: combine selected speakers from each file into one results list for that file");
+	puts("+w : find first time values for words group from file specified with +l option");
 	mainusage(FALSE);
 	puts("Example:");
-	puts("   To use words goup from GEM \"Cinderella\"");
+	puts("   To use words group from GEM \"Cinderella\"");
 	puts("       corelex +lCinderella ...");
 	puts("       corelex +lCinderella.cut ...");
+	puts("   To find first time values for words group from GEM \"Cookie\"");
+	puts("       corelex +w +lcookie-short ...");
+	puts("       corelex +w +lcookie-short.cut ...");
 	cutt_exit(0);
 }
 
@@ -324,7 +347,7 @@ void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
 		case 'l':
-			script_file = f;
+			corelex_script_file = f;
 			break;
 #ifdef UNX
 		case 'L':
@@ -355,6 +378,10 @@ void getflag(char *f, char *f1, int *i) {
 				cutt_exit(0);
 			}
 			break;
+		case 'w':
+			corelex_isWor = TRUE;
+			no_arg_option(f);
+			break;
 		case 't':
 			if (*(f-2) == '+' && *f == '*' && *(f+1) == EOS) {
 				corelex_isCombineSpeakers = TRUE;
@@ -376,6 +403,8 @@ static void fillInLabels(ALTLABELS *p, char *lables) {
 }
 
 static void print_labels(LABELS *col) {
+	if (corelex_isWor == TRUE)
+		excelStrCell(fpout, "Duration Time");
 	for (; col != NULL; col=col->next_label) {
 		if (col->labelP != NULL) {
 			fillInLabels(col->labelP, templineC1);
@@ -383,10 +412,12 @@ static void print_labels(LABELS *col) {
 		} else
 			excelStrCell(fpout, ".");
 	}
+	if (corelex_isWor == FALSE)
+		excelStrCell(fpout, "Types");
 }
 
 static void corelex_pr_result(void) {
-	float fcount;
+	float fcount, types;
 	LSP *p;
 	LABELS  *col;
 
@@ -408,16 +439,37 @@ static void corelex_pr_result(void) {
 			excelStrCell(fpout, p->sp);
 			excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.");
 		}
+		types = 0.0;
 		if (p->isSpFound) {
-			for (col=labelsRoot; col != NULL; col=col->next_label) {
-				fcount = (float)p->count[col->num];
+			if (corelex_isWor == TRUE) {
+				fcount = (float)p->totaTime; // pure speech time
+//				excelNumCell(fpout, "%.0f", fcount);
+				fcount = (float)p->endTotaTime - p->begTotaTime; // total time include pause between tiers
 				excelNumCell(fpout, "%.0f", fcount);
 			}
+			for (col=labelsRoot; col != NULL; col=col->next_label) {
+				fcount = (float)p->count[col->num];
+				if (corelex_isWor == TRUE) {
+					if (p->count[col->num] == 0)
+						excelStrCell(fpout, "NA");
+					else if (p->count[col->num] == 1)
+						excelNumCell(fpout, "%.0f", 0.0);
+					else
+						excelNumCell(fpout, "%.0f", fcount);
+				} else
+					excelNumCell(fpout, "%.0f", fcount);
+				if (fcount > 0.0)
+					types++;
+			}
 		} else {
+			if (corelex_isWor == TRUE)
+				excelStrCell(fpout, ".");
 			for (col=labelsRoot; col != NULL; col=col->next_label) {
 				excelStrCell(fpout, ".");
 			}
 		}
+		if (corelex_isWor == FALSE)
+			excelNumCell(fpout, "%.0f", types);
 		excelRow(fpout, ExcelRowEnd);
 		p = p->next_sp;
 	}
@@ -456,12 +508,16 @@ static LSP *findSpeaker(char *sp, char *ID, char isSpFound) {
 	ts->fname = NULL;
 	ts->sp = NULL;
 	ts->isSpFound = isSpFound;
+	ts->firstBulletTime = 0;
 	ts->count = (unsigned int *)malloc(sizeof(unsigned int) * colLabelsNum);
 	if (ts->count == NULL) {
 		corelex_error("Error: out of memory");
 	}
 	for (i=0; i < colLabelsNum; i++)
 		ts->count[i] = 0;
+	ts->totaTime = 0L;
+	ts->begTotaTime = 0L;
+	ts->endTotaTime = 0L;
 	ts->uID = fileID;
 	if (ID == NULL)
 		ts->ID = NULL;
@@ -598,6 +654,97 @@ static void countCols(LSP *p) {
 	}
 }
 
+static long getTierTime(char *line) {
+	int  i;
+	long beg, end, totalTime = 0;
+
+	for (i=0; line[i] != HIDEN_C && line[i] != EOS; i++) ;
+	if (line[i] == HIDEN_C) {
+		if (getMediaTagInfo(line+i, &beg, &end)) {
+			totalTime = end - beg;
+		}
+	}
+	return(totalTime);
+}
+
+static unsigned int bulletTime(char *line, int i, char *word) {
+	unsigned int begTime;
+	long beg, end;
+
+	begTime = 0;
+	for (; line[i] != HIDEN_C && line[i] != EOS; i++) ;
+//	for (; isSpace(line[i]) || line[i] == '\n'; i++) ;
+	if (line[i] == HIDEN_C) {
+		if (getMediaTagInfo(line+i, &beg, &end)) {
+			if (beg == 0L)
+				begTime = 1;
+			else
+				begTime = beg;
+		}
+	} else {
+#ifdef UNX
+		printf("\nTarget word \"%s\" is missing bullet(s) on %%wor tier in this file.\n\n", word);
+#else
+		printf("\n%c%cTarget word \"%s\" is missing bullet(s) on %%wor tier in this file.%c%c\n\n", ATTMARKER, error_start, word, ATTMARKER, error_end);
+#endif
+	}
+	return(begTime);
+}
+
+static unsigned int findFirstBulletTime(char *line) {
+	int i;
+	unsigned int begTime;
+	long beg, end;
+
+	begTime = 0;
+	for (i=0; line[i] != HIDEN_C && line[i] != EOS; i++) ;
+	if (line[i] == HIDEN_C) {
+		if (getMediaTagInfo(line+i, &beg, &end)) {
+			begTime = beg;
+		}
+	}
+	return(begTime);
+}
+
+static long findLastBulletTime(char *line) {
+	int i;
+	long endTime;
+	long beg, end;
+
+	endTime = 0;
+	for (i=0; line[i] != EOS; i++) {
+		if (line[i] == HIDEN_C) {
+			if (getMediaTagInfo(line+i, &beg, &end)) {
+				endTime = end;
+			}
+		}
+	}
+	return(endTime);
+}
+
+static void countColTimes(LSP *p) {
+	int  i;
+	char word[BUFSIZ];
+	LABELS *col;
+
+	i = 0;
+	while ((i=getword(utterance->speaker, uttline, word, NULL, i))) {
+		uS.remblanks(word);
+		for (col=labelsRoot; col != NULL; col=col->next_label) {
+			if (isMatch(word, col->labelP)) {
+				if (p->count[col->num] == 0) {
+					p->count[col->num] = bulletTime(utterance->line, i, word);
+					if (p->count[col->num] == 0 && p->firstBulletTime > 0)
+						p->count[col->num] = 0;
+					else
+						p->count[col->num] = p->count[col->num] - p->firstBulletTime;
+				}
+				break;
+			}
+		}
+	}
+}
+
 static int isRightText(char *gem_word) {
 	int i = 0;
 	char word[BUFSIZ];
@@ -612,14 +759,17 @@ static int isRightText(char *gem_word) {
 void call() {
 	LSP *ts = NULL;
 	char spname[SPEAKERLEN];
-	char lRightspeaker, isOutputGem;
+	char lRightspeaker, isOutputGem, isAnyGemFound, isWorFound, isLastBulletFound;
+	long currentBegTime, tLong;
 
 	if (isNOptionSet == FALSE) {
 		strcpy(corelex_BBS, "@*&#");
 		strcpy(corelex_CBS, "@*&#");
 	}
-//	isOutputGem = TRUE;
-	isOutputGem = FALSE;
+	isLastBulletFound = FALSE;
+	isAnyGemFound = FALSE;
+	isOutputGem = FALSE; // TRUE;
+	isWorFound = FALSE;
 	fileID++;
 	spname[0] = EOS;
 	currentatt = 0;
@@ -659,24 +809,25 @@ void call() {
 			}
 			if (uS.partcmp(utterance->speaker,corelex_BBS,FALSE,FALSE)) {
 				if (corelex_n_option) {
-					if (isRightText(script_file)) {
+					if (isRightText(corelex_script_file)) {
 						isOutputGem = TRUE;
 					} else
 						isOutputGem = FALSE;
 				} else {
-					if (isRightText(script_file)) {
+					if (isRightText(corelex_script_file)) {
 						isOutputGem = TRUE;
 					}
 				}
 			} else if (uS.partcmp(utterance->speaker,corelex_CBS,FALSE,FALSE)) {
 				if (corelex_n_option) {
 				} else {
-					if (isRightText(script_file)) {
+					if (isRightText(corelex_script_file)) {
 						isOutputGem = FALSE;
 					}
 				}
 			}
 		} else if (isOutputGem) {
+			isAnyGemFound = TRUE;
 			if (utterance->speaker[0] == '*') {
 				if (corelex_isCombineSpeakers) {
 					strcpy(spname, "*COMBINED*");
@@ -684,9 +835,51 @@ void call() {
 					strcpy(spname, utterance->speaker);
 				}
 				ts = findSpeaker(spname, NULL, TRUE);
-			} else if (uS.partcmp(utterance->speaker, "%mor:", FALSE, FALSE) && ts != NULL) {
+				if (corelex_isWor == TRUE) {
+					ts->totaTime = ts->totaTime + getTierTime(utterance->line);
+				}
+				isLastBulletFound = FALSE;
+			} else if (corelex_isWor==FALSE && uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE) && ts!=NULL) {
 				countCols(ts);
+			} else if (uS.partcmp(utterance->speaker, "%wor:", FALSE, FALSE) && ts != NULL) {
+				isWorFound = TRUE;
+				currentBegTime = findFirstBulletTime(utterance->line);
+				if (ts->begTotaTime == 0L)
+					ts->begTotaTime = currentBegTime;
+				if (ts->firstBulletTime == 0)
+					ts->firstBulletTime = currentBegTime;
+//				else
+//					ts->firstBulletTime = ts->firstBulletTime + (currentBegTime-ts->endTotaTime); // pure time & offset for pauses
+				tLong = findLastBulletTime(utterance->line);
+				if (tLong != 0L) {
+					isLastBulletFound = TRUE;
+					ts->endTotaTime = tLong;
+				}
+				if (corelex_isWor == TRUE)
+					countColTimes(ts);
 			}
+		}
+	}
+	if (!isAnyGemFound) {
+#ifdef UNX
+		printf("\nNo specified GEM(s) found in this file.\n\n");
+#else
+		printf("\n%c%cNo specified GEM(s) found in this file.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
+	}
+	if (corelex_isWor == TRUE) {
+		if (isWorFound == FALSE) {
+#ifdef UNX
+			printf("\nNo %%wor tier found in this file.\n\n");
+#else
+			printf("\n%c%cNo %%wor tier found in this file.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
+		} else if (isLastBulletFound == FALSE) {
+#ifdef UNX
+			printf("\nNo bullets found on last tier in this file.\n\n");
+#else
+			printf("\n%c%cNo bullets found on last tier in this file.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
 		}
 	}
 	if (!combinput) {

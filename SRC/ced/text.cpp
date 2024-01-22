@@ -2864,12 +2864,14 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 		if (!doReWrap) {
 			if (!(*finLine)(rt, tierType, data)) {
 				doReWrap = tDoReWrap;
+				if (max == 0) {
 #ifdef _MAC_CODE
-				SetPort(savePort);
+					SetPort(savePort);
 #elif defined(_WIN32)
-				GlobalDC->SelectObject(pOldFont);
-				l_font.DeleteObject();
+					GlobalDC->SelectObject(pOldFont);
+					l_font.DeleteObject();
 #endif
+				}
 				return(FALSE);
 			}
 		} else {
@@ -2918,12 +2920,14 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 							if (isResize && data == NULL && doReWrap) {
 								setTextCursor(global_df, &wi);// 2022-05-03
 							}
+							if (max == 0) {
 #ifdef _MAC_CODE
-							SetPort(savePort);
+								SetPort(savePort);
 #elif defined(_WIN32)
-							GlobalDC->SelectObject(pOldFont);
-							l_font.DeleteObject();
+								GlobalDC->SelectObject(pOldFont);
+								l_font.DeleteObject();
 #endif
+							}
 							return(FALSE);
 						}
 						if (lPos == pos)
@@ -2945,12 +2949,14 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 							if (isResize && data == NULL && doReWrap) {
 								setTextCursor(global_df, &wi);// 2022-05-03
 							}
+							if (max == 0) {
 #ifdef _MAC_CODE
-							SetPort(savePort);
+								SetPort(savePort);
 #elif defined(_WIN32)
-							GlobalDC->SelectObject(pOldFont);
-							l_font.DeleteObject();
+								GlobalDC->SelectObject(pOldFont);
+								l_font.DeleteObject();
 #endif
+							}
 							return(FALSE);
 						}
 						pos = 0L;
@@ -3002,12 +3008,14 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 							if (isResize && data == NULL && doReWrap) {
 								setTextCursor(global_df, &wi);// 2022-05-03
 							}
+							if (max == 0) {
 #ifdef _MAC_CODE
-							SetPort(savePort);
+								SetPort(savePort);
 #elif defined(_WIN32)
-							GlobalDC->SelectObject(pOldFont);
-							l_font.DeleteObject();
+								GlobalDC->SelectObject(pOldFont);
+								l_font.DeleteObject();
 #endif
+							}
 							return(FALSE);
 						}
 						if (lPos == pos)
@@ -3030,12 +3038,14 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 						if (isResize && data == NULL && doReWrap) {
 							setTextCursor(global_df, &wi);// 2022-05-03
 						}
+						if (max == 0) {
 #ifdef _MAC_CODE
-						SetPort(savePort);
+							SetPort(savePort);
 #elif defined(_WIN32)
-						GlobalDC->SelectObject(pOldFont);
-						l_font.DeleteObject();
+							GlobalDC->SelectObject(pOldFont);
+							l_font.DeleteObject();
 #endif
+						}
 						return(FALSE);
 					}
 					ced_line[0] = EOS;
@@ -3067,12 +3077,15 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 					if (isResize && data == NULL) {
 						setTextCursor(global_df, &wi);// 2022-05-03
 					}
+					if (max == 0) {
+
 #ifdef _MAC_CODE
-					SetPort(savePort);
+						SetPort(savePort);
 #elif defined(_WIN32)
-					GlobalDC->SelectObject(pOldFont);
-					l_font.DeleteObject();
+						GlobalDC->SelectObject(pOldFont);
+						l_font.DeleteObject();
 #endif
+					}
 					return(FALSE);
 				}
 				if (lPos == pos)
@@ -3093,12 +3106,14 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 				if (isResize && data == NULL) {
 					setTextCursor(global_df, &wi);// 2022-05-03
 				}
+				if (max == 0) {
 #ifdef _MAC_CODE
-				SetPort(savePort);
+					SetPort(savePort);
 #elif defined(_WIN32)
-				GlobalDC->SelectObject(pOldFont);
-				l_font.DeleteObject();
+					GlobalDC->SelectObject(pOldFont);
+					l_font.DeleteObject();
 #endif
+				}
 				return(FALSE);
 			}
 		}
@@ -3132,12 +3147,14 @@ char Re_WrapLines(char (*finLine)(ROWS *rt, unCH tierType, void *), long max, ch
 		}
 	}
 	doReWrap = tDoReWrap;
+	if (max == 0) {
 #ifdef _MAC_CODE
-	SetPort(savePort);
+		SetPort(savePort);
 #elif defined(_WIN32)
-	GlobalDC->SelectObject(pOldFont);
-	l_font.DeleteObject();
+		GlobalDC->SelectObject(pOldFont);
+		l_font.DeleteObject();
 #endif
+	}
 	return(TRUE);
 }
 // re-wrap routines end

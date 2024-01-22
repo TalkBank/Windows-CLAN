@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -35,7 +35,7 @@ extern struct tier *defheadtier;
 extern char GExt[];
 
 static char isFirstTime;
-static char isMorFlo, isRFlo, isMFAFlo, isSpeakerSpecified, isAntConc;
+static char isMorFlo, isRFlo, isMFAFlo, isSpeakerSpecified, isAntConc, isKeepBullets;
 static char leave_AT;
 static char substitute_flag;	/* Flo line will be output in */
 								/* addition to original main line */
@@ -47,6 +47,7 @@ void usage() {
 	puts("+cm: filter main tier as \"mor\" does.");
 	puts("+cr: filter main tier and remove speaker codes and utterance delimiters.");
 	puts("+ca: create output for MFA aligner");
+	puts("+cb: keep bullets in the output");
 	puts("+d:  replaces the main tier with the simplified %flo tier in the output");
 	puts("+d1: create FAVE formatted file");
 	puts("+d2: create AntConc formatted .txt file with BOM");
@@ -60,6 +61,7 @@ void init(char first) {
 		isFirstTime = TRUE;
 		isMorFlo = FALSE;
 		isRFlo = FALSE;
+		isKeepBullets = FALSE;
 		leave_AT = FALSE;
 		isSpeakerSpecified = FALSE;
 		substitute_flag = 0;
@@ -154,6 +156,8 @@ void getflag(char *f, char *f1, int *i) {
 		case 'c':
 			if (*f == 'm' || *f == 'M')
 				isMorFlo = TRUE;
+			else if (*f == 'b' || *f == 'B')
+				isKeepBullets = TRUE;
 			else if (*f == 'r' || *f == 'R')
 				isRFlo = TRUE;
 			else if (*f == 'a' || *f == 'A') {
@@ -200,6 +204,8 @@ static FLO_UTT *freeUtts(FLO_UTT *p) {
 }
 
 static FLO_UTT *add2Utts(FLO_UTT *root_utts) {
+	char bf;
+	int  i;
 	FLO_UTT *utt;
 	
 	if (root_utts == NULL) {
@@ -220,6 +226,18 @@ static FLO_UTT *add2Utts(FLO_UTT *root_utts) {
 		utt = utt->nextutt;
 	}
 	utt->nextutt = NULL;
+	if (isKeepBullets && substitute_flag) {
+		bf = FALSE;
+		for (i=0; utterance->line[i] != EOS; i++) {
+			if (utterance->line[i] == HIDEN_C) {
+				bf = !bf;
+				if (!bf && isSpace(utterance->tuttline[i]))
+					utterance->tuttline[i] = utterance->line[i];
+			}
+			if (bf && isSpace(utterance->tuttline[i]))
+				utterance->tuttline[i] = utterance->line[i];
+		}
+	}
 	att_cp(0L, utt->speaker, utterance->speaker, utt->attSp, utterance->attSp);
 	att_cp(0L, utt->line, utterance->line, utt->attLine, utterance->attLine);
 	strcpy(utt->tuttline, utterance->tuttline);
@@ -372,7 +390,7 @@ static void removeAngleBrackets(char *line) {
 	}
 }
 
-static void cleanupAnPercent(char *line) {
+static void cleanupAnPercentFlo(char *line) {
 	int i, j;
 
 	i = 0;
@@ -426,7 +444,7 @@ static void outputUtts(FLO_UTT *root_utts) {
 					}
 					uS.remFrontAndBackBlanks(spareTier1);
 					if (isMFAFlo)
-						cleanupAnPercent(spareTier1);
+						cleanupAnPercentFlo(spareTier1);
 					if (spareTier1[0] != EOS) {
 						strcat(spareTier1, ".");
 						printout(NULL,spareTier1,NULL,NULL,TRUE);
@@ -477,7 +495,7 @@ static void outputUtts(FLO_UTT *root_utts) {
 					}
 					uS.remFrontAndBackBlanks(utt->tuttline);
 					if (isMFAFlo)
-						cleanupAnPercent(utt->tuttline);
+						cleanupAnPercentFlo(utt->tuttline);
 					if (utt->tuttline[0] != EOS) {
 						strcat(utt->tuttline, ".");
 						printout(NULL,utt->tuttline,NULL,NULL,TRUE);

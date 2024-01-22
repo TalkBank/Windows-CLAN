@@ -751,6 +751,11 @@ int PlayMovie(movInfo *mvRec, myFInfo *t2, char isJustOpen) {
 	unCH wDirPathName[FNSize];
 	extern long gCurF;
 
+	if (mvRec->MBeg > mvRec->MEnd) {
+		do_warning("BEG mark must be smaller than END mark. PLease run CHECK command on this file.", 0);
+		return(0);
+	}
+
 	gCurF = 0L;
 	if (PlayingContMovie != 1 && PlayingContMovie != '\003')
 		CopyAndFreeMovieData(TRUE);
@@ -2435,7 +2440,7 @@ void show_wave(char *file, long int begin, long int end, int add) {
 #define     GlobalFreePtr(lp)                \
                 (GlobalUnlockPtr(lp), (BOOL)GlobalFree(GlobalPtrHandle(lp)))
 
-#define MACBUFSIZE	65536L // 131072L // 65536L // 32768L // 15360L // 10240L 
+#define MACBUFSIZE	524288L // 131072L // 65536L // 32768L // 15360L // 10240L 
 // MUST be multiple of 256-2
 static long		CurF;
 
@@ -2643,9 +2648,9 @@ char checkPCMSound(MSG* pMsg, char skipOnChar, DWORD tickCount) {
 					if (pMsg->wParam == VK_F7 && PBC.enable) {
 						isWinSndPlayAborted = 4; // F7
 					} else if (pMsg->wParam == VK_F9 && PBC.enable) {
-						isWinSndPlayAborted = 5; // F8
+						isWinSndPlayAborted = 5; // F9
 					} else
-						isWinSndPlayAborted = 1;
+						isWinSndPlayAborted = 6;
 					skipOnChar = TRUE;
 				}
 			}
@@ -2676,7 +2681,8 @@ char checkPCMSound(MSG* pMsg, char skipOnChar, DWORD tickCount) {
 						goto fin;
 					t = conv_to_msec_rep(global_df->SnTr.BegF) + PBC.step_length;
 					global_df->SnTr.EndF = AlignMultibyteMediaStream(conv_from_msec_rep(t), '+');
-				} else if (isWinSndPlayAborted == 5) {
+				}
+				else if (isWinSndPlayAborted == 5) {
 					t = conv_to_msec_rep(CurFP) + PBC.step_length;
 					if (t < 0L)
 						t = 0L;
@@ -2685,6 +2691,7 @@ char checkPCMSound(MSG* pMsg, char skipOnChar, DWORD tickCount) {
 						goto fin;
 					t = conv_to_msec_rep(global_df->SnTr.BegF) + PBC.step_length;
 					global_df->SnTr.EndF = AlignMultibyteMediaStream(conv_from_msec_rep(t), '+');
+				} else if (isWinSndPlayAborted == 6) {
 				} else {
 					t = conv_to_msec_rep(CurFP);
 					if (t < 0L)

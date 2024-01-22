@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 2010 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -25,6 +25,7 @@
 
 #define SPKRTIER 1
 #define DEPTTIER 2
+#define GESTTIER 3
 
 #define TAGSLEN  128
 
@@ -76,7 +77,7 @@ void init(char f) {
 void usage() {
 	printf("Converts Datavyu text files to CHAT text files\n");
 	printf("Usage: temp [d %s] filename(s)\n",mainflgs());
-	puts("+d : changes zeroes to spaces in output");
+	puts("+d : check utterances for illegal overlaps");
 	mainusage(TRUE);
 }
 
@@ -152,6 +153,8 @@ static void fillInTier(LINESLIST *nt, char *sp, char *line, char whichTier, char
 	nt->dep = NULL;
 	nt->line = NULL;
 
+	if (bt == et || et == 0L)
+		et = bt + 3L;
 	if (isUTDFound)
 		sprintf(templineC2, " %c%ld_%ld%c\n", HIDEN_C, bt, et, HIDEN_C);
 	else
@@ -212,9 +215,11 @@ static LINESLIST *add_dep_tier(LINESLIST *root, char whichTier, char whichSpkr, 
 	return(root);
 }
 
-static LINESLIST *add_each_line(LINESLIST *root, char whichLevel, char whichTier, char whichSpkr, char *sp, char *line, long bt, long et) {
+static LINESLIST *pc_add_each_line(LINESLIST *root, char whichLevel, char whichTier, char whichSpkr, char *sp, char *line, long bt, long et) {
 	LINESLIST *nt, *tnt, *lnt, *ltnt;
 
+	if (bt == 157318L)
+		bt = 157318L;
 	if (root == NULL) {
 		if ((root=NEW(LINESLIST)) == NULL)
 			out_of_mem();
@@ -281,7 +286,7 @@ static LINESLIST *add_each_line(LINESLIST *root, char whichLevel, char whichTier
 					while (nt != NULL) {
 						if (whichLevel == 0) {
 							if (nt->whichTier == SPKRTIER && bt < nt->bt) {
-								nt->added = add_each_line(nt->added, 1, whichTier, whichSpkr, sp, line, bt, et);
+								nt->added = pc_add_each_line(nt->added, 1, whichTier, whichSpkr, sp, line, bt, et);
 								return(root);
 							}
 						} else {
@@ -296,7 +301,7 @@ static LINESLIST *add_each_line(LINESLIST *root, char whichLevel, char whichTier
 			}
 		}
 
-		if (whichLevel == 0 && whichTier == DEPTTIER) {
+		if (whichLevel == 0 && (whichTier == DEPTTIER || whichTier == GESTTIER)) {
 			tnt->dep = add_dep_tier(tnt->dep, whichTier, whichSpkr, sp, line, bt, et);
 			return(root);
 		}
@@ -336,12 +341,20 @@ static void cleanupLine(char *st) {
 }
 
 static void changeCodeName(char *sp) {
-	if (uS.mStricmp(sp, "%babyloc:") == 0 || uS.mStricmp(sp, "%momloc:") == 0) {
-		strcpy(sp, "%xloc:");
-	} else if (uS.mStricmp(sp, "%babyobject:") == 0 || uS.mStricmp(sp, "%momobject:") == 0) {
-		strcpy(sp, "%xobj:");
-	} else if (uS.mStricmp(sp, "%babyemotion:") == 0) {
-		strcpy(sp, "%xemo:");
+	char buf[BUFSIZ];
+
+	strcpy(buf, sp);
+	if (uS.mStrnicmp(buf, "%mom", 4) == 0) {
+		strcpy(sp, "%xm");
+		strcat(sp, buf+4);
+	} else if (uS.mStrnicmp(buf, "%child", 6) == 0) {
+		strcpy(sp, "%xc");
+		strcat(sp, buf+6);
+	} else if (uS.mStrnicmp(buf, "%baby", 5) == 0) {
+		strcpy(sp, "%xb");
+		strcat(sp, buf+5);
+	} else if (uS.mStricmp(sp, "%gesture:") == 0) {
+		strcpy(sp, "%xges:");
 	}
 }
 
@@ -351,7 +364,9 @@ static void fillInPostcodes(LINESLIST *dep, char isJustOne, char *postcodes) {
 	for (; dep != NULL; dep=dep->nextLine) {
 		if (uS.mStricmp(dep->sp, "%momutterancetype:") == 0 || uS.mStricmp(dep->sp, "%babyutterancetype:") == 0) {
 			for (i=0L; dep->line[i] != EOS; i++) {
-				if (dep->line[i] == HIDEN_C) {
+				if (dep->line[i] == '.') {
+					dep->line[i] = ' ';
+				} else if (dep->line[i] == HIDEN_C) {
 					dep->line[i] = EOS;
 					break;
 				}
@@ -378,9 +393,10 @@ static char isExcludeTier(char *sp) {
 }
 
 static void printAddedSpeaker(LINESLIST *e) {
-	char whichSpkr;
-	long bt, et;
+	char whichSpkr, tsp[TAGSLEN];
+	long i, bt, et;
 	LINESLIST *nt, *tnt, *p;
+	char isDone;
 
 	nt = e;
 	do {
@@ -413,23 +429,47 @@ static void printAddedSpeaker(LINESLIST *e) {
 			printout("*CHI:", templineC2, NULL, NULL, TRUE);
 		else
 			printout("*UNK:", templineC2, NULL, NULL, TRUE);
-		for (p=tnt; p != nt; p=p->nextLine) {
+
+		do {
+			isDone = TRUE;
+			tsp[0] = EOS;
+			templineC3[0] = EOS;
+			for (p=tnt; p != nt; p=p->nextLine) {
 /* 2019-07-22 no bullets on 0.
-			if (bt == p->bt && et == p->et) {
-				for (i=0L; p->line[i] != EOS; i++) {
-					if (p->line[i] == HIDEN_C) {
-						p->line[i] = EOS;
-						break;
+				if (bt == p->bt && et == p->et) {
+					for (i=0L; p->line[i] != EOS; i++) {
+						if (p->line[i] == HIDEN_C) {
+							p->line[i] = EOS;
+							break;
+						}
 					}
 				}
-			}
 */
-			uS.remblanks(p->line);
-			if (p->line[0] != EOS && !isExcludeTier(p->sp)) {
-				changeCodeName(p->sp);
-				printout(p->sp, p->line, NULL, NULL, TRUE);
+				uS.remblanks(p->line);
+				if (tsp[0] == EOS && p->line[0] != EOS) {
+					strcpy(tsp, p->sp);
+					strcat(templineC3, p->line);
+					strcat(templineC3, " ");
+					p->line[0] = EOS;
+					isDone = FALSE;
+				} else if (uS.mStricmp(tsp, p->sp) == 0) {
+					strcat(templineC3, p->line);
+					strcat(templineC3, " ");
+					p->line[0] = EOS;
+					isDone = FALSE;
+				}
 			}
-		}
+			for (i=0; templineC3[i] != EOS; i++) {
+				if (templineC3[i] == '\n')
+					templineC3[i] = ' ';
+			}
+			uS.remFrontAndBackBlanks(templineC3);
+			removeExtraSpace(templineC3);
+			if (tsp[0] != EOS && templineC3[0] != EOS && !isExcludeTier(tsp)) {
+				changeCodeName(tsp);
+				printout(tsp, templineC3, NULL, NULL, TRUE);
+			}
+		} while (isDone == FALSE) ;
 	} while (nt != NULL) ;
 }
 
@@ -454,14 +494,14 @@ static void insertPostcodes(char *inLine, char *postcode, char *outLine) {
 	}
 }
 
-static void printTiers(LINESLIST *p, long spBt, long spEt) {
+static void pc_printTiers(LINESLIST *p, long spBt, long spEt) {
 	int i;
 
 	for (; p != NULL; p=p->nextLine) {
 		if (p->added != NULL) {
 			printAddedSpeaker(p->added);
 		}
-		if (p->whichTier == DEPTTIER) {
+		if (p->whichTier == DEPTTIER || p->whichTier == GESTTIER) {
 			if (spBt == p->bt && spEt == p->et) {
 				for (i=0L; p->line[i] != EOS; i++) {
 					if (p->line[i] == HIDEN_C) {
@@ -481,7 +521,7 @@ static void printTiers(LINESLIST *p, long spBt, long spEt) {
 			printout(p->sp, templineC2, NULL, NULL, TRUE);
 		}
 		if (p->dep != NULL) {
-			printTiers(p->dep, p->bt, p->et);
+			pc_printTiers(p->dep, p->bt, p->et);
 		}
 	}
 }
@@ -513,43 +553,92 @@ static int pm(int n, char *s) {
 	return(0);
 }
 
-static void output_Participants_ID(char *ID, long IDln, char *dataFname) {
+static int play2chat_nd(int n) {
+	if (n == 2)
+		return(28);
+	else if (n == 1 || n == 3 || n == 5 || n == 7 ||
+			 n == 8 || n == 10 || n == 12)
+		return(31);
+	else
+		return(30);
+}
+
+static void play2chat_comage(int b[], int d[], char *str) {
+	int a[3], temp_d_month;
+
+	a[2] = d[2] - b[2];
+	a[1] = d[1] - b[1];
+	a[0] = d[0] - b[0];
+	if (a[1] <= 0) {
+		a[2]--;
+		a[1] += 12;
+	}
+	if (a[0] < 0) {
+		if (d[1] == b[1])
+			temp_d_month = d[1];
+		else
+			temp_d_month = d[1] - 1;
+		if (temp_d_month < 1)
+			temp_d_month = 12;
+		a[0] += play2chat_nd(temp_d_month);
+		if (a[0] < 0)
+			a[0] = a[0] + (play2chat_nd(d[1]) - play2chat_nd(temp_d_month));
+		a[1]--;
+		if (a[1] <= 0) {
+			a[2]--;
+			a[1] += 12;
+		}
+	}
+	if (a[1] >= 12) {
+		a[2]++;
+		a[1] -= 12;
+	}
+	if (str != NULL) {
+		if (a[0] == 0 && a[1] == 0 && a[2] == 0)
+			str[0] = EOS;
+		else if (a[1] < 10 && a[0] < 10)
+			sprintf(str,"%d;0%d.0%d",a[2],a[1],a[0]);
+		else if (a[1] < 10)
+			sprintf(str,"%d;0%d.%d",a[2],a[1],a[0]);
+		else if (a[0] < 10)
+			sprintf(str,"%d;%d.0%d",a[2],a[1],a[0]);
+		else
+			sprintf(str,"%d;%d.%d",a[2],a[1],a[0]);
+	}
+}
+
+static void output_ID(char *ID, long IDln, char *dataFname) {
 	int  i, j;
-	int n[3], age;
+	int a[3], b[3], d[3], age;
 	char *name, *fname, *dateS, *BDayS, *ageS, *genderS;
-	char str[128];
+	char str[128], bdate[256], date[256];
 	const char *gender;
 
 	strcpy(templineC, "CHI Child, MOT Mother");
 	printout("@Participants:", templineC, NULL, NULL, TRUE);
 	name = ID;
 
-	fname = NULL;
+	fname = ID;
 	dateS = NULL;
 	BDayS = NULL;
 	ageS  = NULL;
 	genderS= NULL;
-	for (fname=name; *fname != ',' && *fname != EOS; fname++) ;
-	if (*fname == ',') {
-		*fname = EOS;
-		fname++;
-		for (dateS=fname; *dateS != ',' && *dateS != EOS; dateS++) ;
+	for (BDayS=fname; *BDayS != ',' && *BDayS != EOS; BDayS++) ;
+	if (*BDayS == ',') {
+		*BDayS = EOS;
+		BDayS++;
+		for (dateS=BDayS; *dateS != ',' && *dateS != EOS; dateS++) ;
 		if (*dateS == ',') {
 			*dateS = EOS;
 			dateS++;
-			for (BDayS=dateS; *BDayS != ',' && *BDayS != EOS; BDayS++) ;
-			if (*BDayS == ',') {
-				*BDayS = EOS;
-				BDayS++;
-				for (ageS=BDayS; *ageS != ',' && *ageS != EOS; ageS++) ;
-				if (*ageS == ',') {
-					*ageS = EOS;
-					ageS++;
-					for (genderS=ageS; *genderS != ',' && *genderS != EOS; genderS++) ;
-					if (*genderS == ',') {
-						*genderS = EOS;
-						genderS++;
-					}
+			for (ageS=dateS; *ageS != ',' && *ageS != EOS; ageS++) ;
+			if (*ageS == ',') {
+				*ageS = EOS;
+				ageS++;
+				for (genderS=ageS; *genderS != ',' && *genderS != EOS; genderS++) ;
+				if (*genderS == ',') {
+					*genderS = EOS;
+					genderS++;
 				}
 			}
 		}
@@ -576,26 +665,14 @@ static void output_Participants_ID(char *ID, long IDln, char *dataFname) {
 		else if (*genderS == 'f')
 			gender = "female";
 		else
-			gender = "ERROR";
+			gender = "";
 	} else
 		gender = "";
-	if (ageS != NULL) {
-		age = atoi(ageS);
-		n[0] = age / 12;
-		n[1] = age - (n[0] * 12);
-		if (n[0] != 0 && n[1] == 0)
-			sprintf(str, "%d;", n[0]);
-		else
-			sprintf(str, "%d;%d.", n[0], n[1]);
-	} else
-		str[0] = EOS;
-	fprintf(fpout, "@ID:	eng|%s|CHI|%s|%s|||Child|||\n", name, str, gender);
-	fprintf(fpout, "@ID:	eng|%s|MOT|||||Mother|||\n", name);
 	if (BDayS != NULL) {
 		for (i=0, j=0; isdigit(BDayS[j]); )
 			str[i++] = BDayS[j++];
 		str[i] = EOS;
-		n[2] = atoi(str);
+		b[1] = atoi(str);
 		if (BDayS[j] != '/' && BDayS[j] != '-') {
 			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, IDln);
 			fprintf(stderr, "\tBad birthday format\n\n");
@@ -606,7 +683,7 @@ static void output_Participants_ID(char *ID, long IDln, char *dataFname) {
 		for (i=0; isdigit(BDayS[j]); )
 			str[i++] = BDayS[j++];
 		str[i] = EOS;
-		n[1] = atoi(str);
+		b[0] = atoi(str);
 		if (BDayS[j] != '/' && BDayS[j] != '-') {
 			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, IDln);
 			fprintf(stderr, "\tBad birthday format\n\n");
@@ -617,21 +694,21 @@ static void output_Participants_ID(char *ID, long IDln, char *dataFname) {
 		for (i=0; isdigit(BDayS[j]); )
 			str[i++] = BDayS[j++];
 		str[i] = EOS;
-		n[0] = atoi(str);
-		pm(n[1], str);
-		if (n[0] < 10) // 14-OCT-2010 from 2014/10/25
-			fprintf(fpout,"@Birth of %s:	0%d-%s-%d\n", "CHI", n[0], str, n[2]);
+		b[2] = atoi(str);
+		pm(b[1], str);
+		if (b[0] < 10) // 14-OCT-2010 from 2014/10/25
+			sprintf(bdate, "0%d-%s-%d", b[0], str, b[2]);
 		else
-			fprintf(fpout,"@Birth of %s:	%d-%s-%d\n", "CHI", n[0], str, n[2]);
+			sprintf(bdate, "%d-%s-%d", b[0], str, b[2]);
 	}
 	if (dateS != NULL) {
 		for (i=0, j=0; isdigit(dateS[j]); )
 			str[i++] = dateS[j++];
 		str[i] = EOS;
-		n[2] = atoi(str);
+		d[1] = atoi(str);
 		if (dateS[j] != '/' && dateS[j] != '-') {
 			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, IDln);
-			fprintf(stderr, "\tBad birthday format\n\n");
+			fprintf(stderr, "\tBad date format\n\n");
 			return;
 		}
 
@@ -639,10 +716,10 @@ static void output_Participants_ID(char *ID, long IDln, char *dataFname) {
 		for (i=0; isdigit(dateS[j]); )
 			str[i++] = dateS[j++];
 		str[i] = EOS;
-		n[1] = atoi(str);
+		d[0] = atoi(str);
 		if (dateS[j] != '/' && dateS[j] != '-') {
 			fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, IDln);
-			fprintf(stderr, "\tBad birthday format\n\n");
+			fprintf(stderr, "\tBad date format\n\n");
 			return;
 		}
 
@@ -650,18 +727,32 @@ static void output_Participants_ID(char *ID, long IDln, char *dataFname) {
 		for (i=0; isdigit(dateS[j]); )
 			str[i++] = dateS[j++];
 		str[i] = EOS;
-		n[0] = atoi(str);
-		pm(n[1],str);
-		if (n[0] < 10) // 18-AUG-2014 from 2016/10/24
-			fprintf(fpout,"@Date:	0%d-%s-%d\n", n[0], str, n[2]);
+		d[2] = atoi(str);
+		pm(d[1],str);
+		if (d[0] < 10) // 18-AUG-2014 from 2016/10/24
+			sprintf(date, "0%d-%s-%d", d[0], str, d[2]);
 		else
-			fprintf(fpout,"@Date:	%d-%s-%d\n", n[0], str, n[2]);
+			sprintf(date, "%d-%s-%d", d[0], str, d[2]);
 	}
-	strcpy(templineC3, newfname);
-	dataFname = strrchr(templineC3, '.');
-	if (dataFname != NULL)
-		*dataFname = EOS;
-	fprintf(fpout,"@Media:	%s, audio\n", templineC3);
+	if (ageS != NULL) {
+		age = atoi(ageS);
+		if (age != 0) {
+			a[0] = age / 12;
+			a[1] = age - (a[0] * 12);
+			if (a[0] != 0 && a[1] == 0)
+				sprintf(str, "%d;", a[0]);
+			else
+				sprintf(str, "%d;%d.", a[0], a[1]);
+		} else
+			str[0] = EOS;
+	} else
+		str[0] = EOS;
+	if (str[0] == EOS)
+		play2chat_comage(b, d, str);
+	fprintf(fpout, "@ID:	eng|%s|CHI|%s|%s|||Child|||\n", name, str, gender);
+	fprintf(fpout, "@ID:	eng|%s|MOT|||||Mother|||\n", name);
+	fprintf(fpout, "@Birth of %s:	%s\n", "CHI", bdate);
+	fprintf(fpout, "@Date:	%s\n", date);
 }
 
 static long calculateTime(char *s) {
@@ -696,7 +787,8 @@ void call() {
 	char chatName[TAGSLEN], sp[TAGSLEN], oSp[TAGSLEN], whichTier, whichSpkr, isDotComma;
 	char *btS, *etS, *line, *ts;
 	char *ID;
-	long bt, et, oBt, oEt, len, chatNameLen, cnt, ln, IDln;
+	long bt, et, oEt, len, chatNameLen, cnt, ln, IDln;
+	char isAddTier;
 
 	ID = NULL;
 	chatName[0] = EOS;
@@ -721,8 +813,10 @@ void call() {
 				if (isSpace(*line))
 					*line = EOS;
 				strcpy(chatName, templineC1);
-				if (strcmp(chatName, "transcribe") == 0) {
+				if (uS.mStrnicmp(chatName, "transcribe", 10) == 0) {
 					whichTier = SPKRTIER;
+				} else if (uS.mStrnicmp(chatName, "gesture", 10) == 0) {
+					whichTier = GESTTIER;
 				} else {
 					whichTier = DEPTTIER;
 				}
@@ -764,24 +858,25 @@ void call() {
 #ifdef UNX
 			if (et == 0L) {
 				fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, ln);
-				fprintf(stderr, "ERROR: line's END time = 0.\n");
+				fprintf(stderr, "WARNING: line's END time = 0.\n");
 				fprintf(stderr, "%s\t%s\n", sp+1, templineC2);
 			} else if (bt > et) {
 				fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, ln);
-				fprintf(stderr, "ERROR: line's BEG time is greater than END time.\n");
+				fprintf(stderr, "WARNING: line's BEG time is greater than END time.\n");
 				fprintf(stderr, "%s\t%s\n", sp+1, templineC2);
 			}
 #else
 			if (et == 0L) {
 				fprintf(stderr,"%c%c*** File \"%s\": line %ld.%c%c\n", ATTMARKER, error_start, oldfname, ln, ATTMARKER, error_end);
-				fprintf(stderr, "%c%cERROR: line's END time = 0.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+				fprintf(stderr, "%c%cWARNING: line's END time = 0.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
 				fprintf(stderr, "%c%c%s\t%s%c%c\n", ATTMARKER, error_start, sp+1, templineC2, ATTMARKER, error_end);
 			} else if (bt > et) {
 				fprintf(stderr,"%c%c*** File \"%s\": line %ld.%c%c\n", ATTMARKER, error_start, oldfname, ln, ATTMARKER, error_end);
-				fprintf(stderr, "%c%cERROR: line's BEG time is greater than END time.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+				fprintf(stderr, "%c%cWARNING: line's BEG time is greater than END time.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
 				fprintf(stderr, "%c%c%s\t%s%c%c\n", ATTMARKER, error_start, sp+1, templineC2, ATTMARKER, error_end);
 			}
 #endif
+			isAddTier = TRUE;
 			if (whichTier == SPKRTIER) {
 				if (*line == '(')
 					line++;
@@ -811,20 +906,55 @@ void call() {
 				if (isDebug && strcmp(oSp, sp) == 0 && bt < oEt) {
 #ifdef UNX
 					fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, ln);
-					fprintf(stderr, "ERROR: the same speakers currect and previous utterances overlaps.\n");
+					fprintf(stderr, "ERROR: the same speaker's current and previous utterances overlaps.\n");
 					fprintf(stderr, "%s\t%s\n", oSp+1, templineC3);
 					fprintf(stderr, "%s\t%s\n", sp+1, templineC2);
 #else
 					fprintf(stderr,"%c%c*** File \"%s\": line %ld.%c%c\n", ATTMARKER, error_start, oldfname, ln, ATTMARKER, error_end);
-					fprintf(stderr, "%c%cERROR: the same speakers currect and previous utterances overlaps.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+					fprintf(stderr, "%c%cERROR: the same speaker's current and previous utterances overlaps.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
 					fprintf(stderr, "%c%c%s\t%s%c%c\n", ATTMARKER, error_start, oSp+1, templineC3, ATTMARKER, error_end);
 					fprintf(stderr, "%c%c%s\t%s%c%c\n", ATTMARKER, error_start, sp+1, templineC2, ATTMARKER, error_end);
 #endif
 				}
 				strcpy(oSp, sp);
 				strcpy(templineC3, templineC2);
-				oBt = bt;
 				oEt = et;
+				len = strlen(line) - 1;
+				if (len > 2 && line[len] == '/' && line[len-1] == '/' && !uS.IsUtteranceDel(line, len-2)) {
+					uS.shiftright(line+len-1, 2);
+					line[len-1] = ' ';
+					line[len] = '+';
+					strcat(line, ".");
+				}
+			} else if (whichTier == GESTTIER) {
+				if (*line == '(')
+					line++;
+				if (*line == 'b' || *line == 'c') {
+					whichSpkr = 'c';
+					line++;
+				} else if (*line == 'm') {
+					whichSpkr = 'm';
+					line++;
+				} else {
+					whichSpkr = 'u';
+					if (*(line+1) == ',')
+						line++;
+				}
+				if (*line == ',')
+					line++;
+				ts = line;
+				while (*ts != EOS) {
+					if (*ts == ')')
+						strcpy(ts, ts+1);
+					else
+						ts++;
+				}
+				strcpy(oSp, sp);
+				strcpy(templineC3, templineC2);
+				oEt = et;
+				strcpy(sp, "%");
+				strcat(sp, chatName);
+				strcat(sp, ":");
 			} else {
 				chatNameLen = strlen(chatName) - 4;
 				if (strcmp(chatName, "reliability_blocks") == 0 || strcmp(chatName+chatNameLen, "_rel") == 0) {
@@ -845,6 +975,8 @@ void call() {
 						whichSpkr = 'u';
 					}
 				}
+				if (strcmp(chatName, "momemo")==0 && *line=='(' && *(line+1)=='.' && *(line+2)==')')
+					isAddTier = FALSE;
 				strcat(sp, ":");
 				if (*line == '(' && *(line+1) == '.' && *(line+2) == ')') {
 					*line = 'o';
@@ -883,13 +1015,13 @@ void call() {
 					if (cnt > 1) {
 						freeMem();
 						fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, ln);
-						fprintf(stderr, "ERROR: line does not have just one code.\n");
-						fprintf(stderr, "%s\t%s\n", sp+1, templineC2);
+						fprintf(stderr, "ERROR: line of \"%s\" has more than one code:\n", sp+1);
+						fprintf(stderr, "%s\n", templineC2);
 						cutt_exit(0);
 					}
 				}
 			}
-			if (strcmp(sp, "%id:") == 0) {
+			if (uS.mStricmp(sp, "%id:") == 0 || uS.mStricmp(sp, "%PLAY_id:") == 0) {
 				IDln = ln;
 				ID = (char *)malloc(strlen(line)+1);
 				if (ID  != NULL)
@@ -898,19 +1030,28 @@ void call() {
 				fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, ln);
 				fprintf(stderr, "WARNING: line does not have any code.\n");
 				fprintf(stderr, "%s\t%s\n", sp+1, templineC2);
-			} else
-				linesRoot = add_each_line(linesRoot, 0, whichTier, whichSpkr, sp, line, bt, et);
+			} else if (isAddTier)
+				linesRoot = pc_add_each_line(linesRoot, 0, whichTier, whichSpkr, sp, line, bt, et);
 			templineC1[0] = EOS;
 		} else
 			templineC1[len] = ' ';
-    }
-    fprintf(fpout, "%s\n", UTF8HEADER);
-    fprintf(fpout, "@Begin\n");
-    fprintf(fpout, "@Languages:	eng\n");
-    output_Participants_ID(ID, IDln, oldfname);
-    printTiers(linesRoot, 0L, 0L);
-    fprintf(fpout, "@End\n");
-    linesRoot = freeLines(linesRoot);
-	if (ID  != NULL)
+	}
+	fprintf(fpout, "%s\n", UTF8HEADER);
+	fprintf(fpout, "@Begin\n");
+	fprintf(fpout, "@Languages:	eng\n");
+	if (ID == NULL) {
+		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, ln);
+		fprintf(stderr, "ERROR: Can't find \"id ...\" line.\n");
+	} else {
+		output_ID(ID, IDln, oldfname);
 		free(ID);
+	}
+	strcpy(templineC3, newfname);
+	ts = strrchr(templineC3, '.');
+	if (ts != NULL)
+		*ts = EOS;
+	fprintf(fpout,"@Media:	%s, audio\n", templineC3);
+	pc_printTiers(linesRoot, 0L, 0L);
+	fprintf(fpout, "@End\n");
+	linesRoot = freeLines(linesRoot);
 }

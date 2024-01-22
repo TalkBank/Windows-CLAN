@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
 */
 
@@ -32,12 +32,10 @@
 */
 
 //#define DEBUGEVALRESULTS
-//#define GEMS_COUNT
 
-#define KIDEVAL_DB_VERSION 5
+#define KIDEVAL_DB_VERSION 7
 
-#define NUMGEMITEMS 10
-#define DATABASE_FILE_NAME "_kideval_db.cut"
+#define DATABASE_FILE_NAME "_db.cut"
 #define DATABSEFILESLIST "0kideval_Database_IDs.cex"
 #define DATABASEFILESDEBUG "0kideval_DB_results.txt"
 
@@ -206,14 +204,15 @@ static char **targv;
 #ifdef UNX
 static char *targv[MAX_ARGS];
 #endif
-static int  kideval_SpecWords, DBGemNum, MinUttLimit, DssIpsynUttLimit, wdOffset;
-static int  colLabelsNum, CRDBcnt;
+static int  MinUttLimit, DssIpsynUttLimit, wdOffset;
+static int  colLabelsNum;
 static int  gMisalignmentError;
-static char *DBGems[NUMGEMITEMS], *script_file;
-static char dssRulesFName[256], DB_version[65], DB_type[128];
-static char ftime, isDBFilesList, isCreateDB, isRawVal, isLinkAge, GemMode;
-static char kideval_BBS[5], kideval_CBS[5], kideval_group, kideval_n_option, isNOptionSet, onlyApplyToDB, isGOptionSet;
-static char Design[TYPESLEN+1], Activity[TYPESLEN+1], Group[TYPESLEN+1];
+static float DB_UTT_NUM_LIMIT;
+static long agesFound[13], dummyFiles;
+static char *ke_script_file;
+static char dssRulesFName[256], DB_version[65], DB_type[128], DB_MIN_UTTS[16+1];
+static char ftime, isDBFilesList, isCreateDB, isRawVal, isLinkAge;
+static char ke_Design[TYPESLEN+1], ke_Activity[TYPESLEN+1], ke_Group[TYPESLEN+1];
 static FILE	*dbfpout;
 static FILE *DBFilesListFP;
 static struct DBKeys *DBKeyRoot;
@@ -231,33 +230,30 @@ void usage() {
 	printf("+bS: add all S characters to morpheme delimiters list (default: %s)\n", rootmorf);
 	puts("-bS: remove all S characters from be morphemes list (-b: empty morphemes list)");
 #if defined(_CLAN_DEBUG)
-	puts("+c : create KIDEVAL database file (kideval +leng +c_fp)");
-	puts("    Set \"working\" to: ~/SERVERS/data");
-	puts("+c : create KIDEVAL database file (kideval +lzho +c_md)");
-	puts("    Set \"working\" to: ~/SERVERS/data");
-	puts("+c : create KIDEVAL database file (kideval +ljpn +c_td)");
-	puts("    Set \"working\" to: ~/SERVERS/data");
+	puts("    to create database file set \"working\" to: ~/SERVERS/data");
+	puts("+c : kideval +leng +c_toyplay");
+	puts("+c : kideval +leng +c_narrative");
+	puts("+c : kideval +lfra +c_toyplay");
+	puts("+c : kideval +lfra +c_narrative");
+	puts("+c : kideval +lnld +c_toyplay");
+	puts("+c : kideval +lnld +c_narrative");
+	puts("+c : kideval +lspa +c_toyplay");
+	puts("+c : kideval +lspa +c_narrative");
+	puts("+c : kideval +lzho +c_toyplay");
+	puts("+c : kideval +lzho +c_narrative");	
+	puts("+c : kideval +ljpn +c_toyplay");
 #endif // _CLAN_DEBUG
-	puts("+dfp~S: specify database keyword(s) S. For example:");
-	puts("    +dfp~\"2;7-3;\" for children of age 31 to 36 months old.");
-	puts("    +dfp~\"2;-2;6|female\" for females children of age 24 to 30 months old.");
+	puts("+dtd~S: specify database keyword(s) S. For example:");
+	puts("    +dtoyplay~\"2;7-3;\" for children of age 31 to 36 months old.");
+	puts("    +dnarrative~\"2;-2;6|female\" for females children of age 24 to 30 months old.");
 	puts("+dmd~S: specify database keyword(s) S. For example:");
 	puts("    +dmd~\"2;7-3;\" for children of age 31 to 36 months old.");
 	puts("    +dmd~\"2;-2;6|female\" for females children of age 24 to 30 months old.");
 	puts("+e1: create list of database files used for comparisons");
-#if defined(_CLAN_DEBUG) || defined(UNX)
-	puts("+g : Gem tier should contain all words specified by +gS");
-	puts("-g : look for Gems in Database only");
-	puts("+gS: select Gems which are labeled by label S");
-#endif
 	puts("+lF: specify language script file name F (default: eng)");
 	puts("     choices: eng, fra, jpn, nld, spa, yue, zho");
 #ifdef UNX
 	puts("+LF: specify full path F of the lib folder");
-#endif
-#if defined(_CLAN_DEBUG) || defined(UNX)
-	puts("+n : Gem is terminated by the next @G (default: automatic detection)");
-	puts("-n : Gem is defined by @BG and @EG (default: automatic detection)");
 #endif
 	puts("+o4: output percentage values instead of raw values");
 	puts("+qN: change the minimum limit of utterance for DSS and IPSYN (default: DSS=50, IPSYN=50)");
@@ -268,17 +264,15 @@ void usage() {
 #else
 	printf("%c%cPLEASE SEE SLP MANUAL FOR RECOMMENDED INTERPRETATION.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
 #endif
-	puts("IF NO \"+t*...\" option specified, then speaker defaults to \"*CHI:\"");
+	puts("IF NO \"+t*...\" option specified, then speaker defaults to \"Target_Child\"");
 	puts("IF NO \"+l*...\" option specified, then language defaults to \"eng\"");
 	puts("Examples:");
 	puts("   Search database for female children between ages of 24 and 30 months");
-	puts("       kideval +dfp~\"2;-2;6|female\" *.cha");
+	puts("       kideval -leng +dtoyplay~\"2;-2;6|female\" *.cha");
 	puts("       kideval -lzho +dmd~\"2;-2;6|female\" *.cha");
 	puts("   Search database for children between ages of 31 and 36 months");
-	puts("       kideval +dfp~\"2;7-3;\" *.cha ");
+	puts("       kideval -ljpn +dtd~\"2;7-3;\" *.cha ");
 	puts("       kideval -lzho +dmd~\"2;7-3;\" *.cha ");
-	puts("   Compute results for \"Breakfast\" Gems of English speaker *CHI");
-	puts("       kideval +gBreakfast *.cha");
 	puts("   Compute results only for English speaker *CHI");
 	puts("       kideval *.cha");
 	puts("   Compute results only for Spanish speaker *PAR");
@@ -444,27 +438,6 @@ static void kideval_error(struct database *tdb, char IsOutOfMem) {
 	if (VOCD_TYPE_D)
 		denom_speakers = speaker_free_up_speakers(denom_speakers, TRUE);
 	cutt_exit(0);
-}
-
-static void addDBGems(char *gem) {
-	if (DBGemNum >= NUMGEMITEMS) {
-		fprintf(stderr, "\nERROR: Too many keywords specified. The limit is %d\n", NUMGEMITEMS);
-		kideval_error(NULL, FALSE);
-	}
-	DBGems[DBGemNum] = gem;
-	DBGemNum++;
-}
-
-static int excludeGemKeywords(char *word) {
-	int i;
-
-	if (word[0] == '+' || strcmp(word, "!") == 0 || strcmp(word, "?") == 0 || strcmp(word, ".") == 0)
-		return(FALSE);
-	for (i=0; i < DBGemNum; i++) {
-		if (uS.mStricmp(DBGems[i], word) == 0)
-			return(TRUE);
-	}
-	return(FALSE);
 }
 
 static char *kideval_strsave(const char *s) {
@@ -799,11 +772,7 @@ static void filterAndOuputID(char *line, char *IDText) {
 	if ((s=strchr(sb, '|')) != NULL) {
 	} else
 		*sb = EOS;
-#ifdef GEMS_COUNT
-	fprintf(dbfpout, "+%s\n", line);
-#else
 	strcpy(IDText, line);
-#endif
 }
 /*
 static void dealWithDiscontinuousWord(char *word, int i) {
@@ -971,7 +940,40 @@ static float roundFloat(double num) {
 	return(t);
 }
 
-static void kideval_process_tier(struct kideval_speakers *ts, struct database *db, char *rightIDFound, char *IDText) {
+static void getTypes(char *line) {
+	int i, j;
+
+	for (i=0; line[i] != EOS && isSpace(line[i]); i++) ;
+	if (line[i] != EOS) {
+		j = 0;
+		for (; j < TYPESLEN && line[i] != EOS && line[i] != ',' && !isSpace(line[i]); i++) {
+			ke_Design[j++] = line[i];
+		}
+		ke_Design[j] = EOS;
+		for (; line[i] != EOS && (line[i] == ',' || isSpace(line[i])); i++) ;
+		if (line[i] != EOS) {
+			j = 0;
+			for (; j < TYPESLEN && line[i] != EOS && line[i] != ',' && !isSpace(line[i]); i++) {
+				ke_Activity[j++] = line[i];
+			}
+			ke_Activity[j] = EOS;
+			for (; line[i] != EOS && (line[i] == ',' || isSpace(line[i])); i++) ;
+			if (line[i] != EOS) {
+				j = 0;
+				for (; j < TYPESLEN && line[i] != EOS && line[i] != ',' && !isSpace(line[i]); i++) {
+					ke_Group[j++] = line[i];
+				}
+				ke_Group[j] = EOS;
+				for (; line[i] != EOS && line[i] != ',' && !isSpace(line[i]); i++) ;
+			}
+		}
+	}
+	uS.remblanks(ke_Design);
+	uS.remblanks(ke_Activity);
+	uS.remblanks(ke_Group);
+}
+
+static void kideval_process_tier(struct kideval_speakers *ts, struct database *db) {
 	int i, j, comps, num;
 	char word[BUFSIZ+1], tword[1024], *w[NUMCOMPS], isMatchFound;
 	char tmp, isWordsFound, isWordsFound50, sq, aq, isSkip;
@@ -979,7 +981,6 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 	long stime, etime;
 	double tNum;
 	float mWords, morf, mUtt, mWords50, morf50, mUtt50;
-	struct IDparts IDTier;
 	COLS *col;
 	MORFEATS word_feats, *clitic, *feat;
 
@@ -992,13 +993,18 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 			return;
 		if (PostCodeMode == 'e' && num == 5)
 			return;
-		
-		if ((ts->Design=(char *)malloc(strlen(Design)+1)) != NULL)
-			strcpy(ts->Design, Design);
-		if ((ts->Activity=(char *)malloc(strlen(Activity)+1)) != NULL)
-			strcpy(ts->Activity, Activity);
-		if ((ts->Group=(char *)malloc(strlen(Group)+1)) != NULL)
-			strcpy(ts->Group, Group);
+		if (ts->Design == NULL) {
+			if ((ts->Design=(char *)malloc(strlen(ke_Design)+1)) != NULL)
+				strcpy(ts->Design, ke_Design);
+		}
+		if (ts->Activity == NULL) {
+			if ((ts->Activity=(char *)malloc(strlen(ke_Activity)+1)) != NULL)
+				strcpy(ts->Activity, ke_Activity);
+		}
+		if (ts->Group == NULL) {
+			if ((ts->Group=(char *)malloc(strlen(ke_Group)+1)) != NULL)
+				strcpy(ts->Group, ke_Group);
+		}
 		strcpy(spareTier1, utterance->line);
 		for (i=0; spareTier1[i] != EOS; i++) {
 			if (spareTier1[i] == HIDEN_C && isdigit(spareTier1[i+1])) {
@@ -1341,51 +1347,15 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 				freeUpFeats(&word_feats);
 			}
 		}
-	} else if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
+	} else if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE) && isCreateDB == 0) {
 		if (db == NULL) {
 			if (isIDSpeakerSpecified(utterance->line, templineC, TRUE)) {
-				if (isCreateDB) {
-					uS.remblanks(utterance->line);
-					filterAndOuputID(utterance->line, IDText);
-				} else {
-					uS.remblanks(utterance->line);
-					kideval_FindSpeaker(oldfname, templineC, utterance->line, FALSE, db);
-				}
-			}
-		} else if (rightIDFound != NULL) {
-			uS.remblanks(utterance->line);
-			breakIDsIntoFields(&IDTier, utterance->line);
-			if (isKeyMatch(&IDTier))  {
-				*rightIDFound = TRUE;
-				maketierchoice(IDTier.code, '+', '\002');
+				uS.remblanks(utterance->line);
+				kideval_FindSpeaker(oldfname, templineC, utterance->line, FALSE, db);
 			}
 		}
-	} else if (uS.partcmp(utterance->speaker,"@Types:",FALSE,FALSE)) {
-		for (i=0; utterance->line[i] != EOS && isSpace(utterance->line[i]); i++) ;
-		if (utterance->line[i] != EOS) {
-			j = 0;
-			for (; j < TYPESLEN && utterance->line[i] != EOS && utterance->line[i] != ',' && !isSpace(utterance->line[i]); i++) {
-				Design[j++] = utterance->line[i];
-			}
-			Design[j] = EOS;
-			for (; utterance->line[i] != EOS && (utterance->line[i] == ',' || isSpace(utterance->line[i])); i++) ;
-			if (utterance->line[i] != EOS) {
-				j = 0;
-				for (; j < TYPESLEN && utterance->line[i] != EOS && utterance->line[i] != ',' && !isSpace(utterance->line[i]); i++) {
-					Activity[j++] = utterance->line[i];
-				}
-				Activity[j] = EOS;
-				for (; utterance->line[i] != EOS && (utterance->line[i] == ',' || isSpace(utterance->line[i])); i++) ;
-				if (utterance->line[i] != EOS) {
-					j = 0;
-					for (; j < TYPESLEN && utterance->line[i] != EOS && utterance->line[i] != ',' && !isSpace(utterance->line[i]); i++) {
-						Group[j++] = utterance->line[i];
-					}
-					Group[j] = EOS;
-					for (; utterance->line[i] != EOS && utterance->line[i] != ',' && !isSpace(utterance->line[i]); i++) ;
-				}
-			}
-		}
+	} else if (uS.partcmp(utterance->speaker,"@Types:",FALSE,FALSE) && isCreateDB == 0) {
+		getTypes(utterance->line);
 	}
 }
 
@@ -1633,18 +1603,6 @@ static char kideval_process_ipsyn_tier(struct kideval_speakers *ts, struct datab
 	return(lRightspeaker);
 }
 
-#ifdef GEMS_COUNT
-static void kideval_outputtree(struct kideval_words *p) {
-	if (p != NULL) {
-		kideval_outputtree(p->left);
-		if (p->wused)
-			fprintf(dbfpout, "%d ", p->wnum);
-//			fprintf(dbfpout, "%s ", p->word);
-		kideval_outputtree(p->right);
-	}
-}
-#endif
-
 static char *extractFloatFromLine(char *line, float *val, struct database *db) {
 	float num;
 
@@ -1678,11 +1636,11 @@ static void retrieveTS(struct kideval_speakers *ts, char *line, struct database 
 	line = extractFloatFromLine(line, &ts->mUtt50, db);
 
 	line = extractFloatFromLine(line, &ts->frTokens, db);
-#ifndef GEMS_COUNT
 	line = extractFloatFromLine(line, &ts->frTypes, db);
+
 	line = extractFloatFromLine(line, &ts->NDW, db);
 	line = extractFloatFromLine(line, &ts->NDWTotal, db);
-#endif
+
 	line = extractFloatFromLine(line, &ts->vocdOptimum, db);
 	line = extractFloatFromLine(line, &ts->CUR, db);
 
@@ -1714,41 +1672,6 @@ static void retrieveTS(struct kideval_speakers *ts, char *line, struct database 
 			ts->mor_count[col->num] = tf;
 		}
 	}
-
-#ifdef GEMS_COUNT
-	while (*line != EOS) {
-		e = strchr(line, ' ');
-		if (e != NULL)
-			*e = EOS;
-		if (!strcmp(line, ".NDW.")) {
-			if (e == NULL) {
-				for (; *line != ' ' && *line != EOS; line++) ;
-			} else {
-				line = e + 1;
-			}
-			while (isSpace(*line))
-				line++;
-			break;
-		}
-		ts->words_root = kideval_FREQ_tree(ts->words_root, line, ts, db);
-		if (e == NULL)
-			break;
-		line = e + 1;
-		while (isSpace(*line))
-			line++;
-	}
-	while (*line != EOS) {
-		e = strchr(line, ' ');
-		if (e != NULL)
-			*e = EOS;
-		ts->NDW_root = kideval_NDW_tree(ts->NDW_root, line, ts, db);
-		if (e == NULL)
-			break;
-		line = e + 1;
-		while (isSpace(*line))
-			line++;
-	}
-#endif
 }
 
 #ifdef DEBUGEVALRESULTS
@@ -1765,6 +1688,7 @@ static void prDebug(struct kideval_speakers *ts, char *IDText, char *fileName) {
 		}
 	}
 	fprintf(dbResults, "*** File=%s\n", fileName);
+	fprintf(dbResults, "@Types=%s,%s,%s\n", ts->Design, ts->Activity, ts->Group);
 	fprintf(dbResults, "@ID=%s\n", IDText);
 
 	fprintf(dbResults, "mWords=%.0f\n", ts->mWords);
@@ -1777,15 +1701,11 @@ static void prDebug(struct kideval_speakers *ts, char *IDText, char *fileName) {
 	fprintf(dbResults, "mUtt50=%.0f\n", ts->mUtt50);
 
 	fprintf(dbResults, "frTokens=%.0f\n", ts->frTokens);
-#ifndef GEMS_COUNT
 	fprintf(dbResults, "frTypes=%.0f\n", ts->frTypes);
+
 	fprintf(dbResults, "NDW=%.0f\n", ts->NDW);
 	fprintf(dbResults, "NDW=%.0f\n", ts->NDWTotal);
-#else
-	fprintf(dbResults, "    frTypes=%.0f\n", ts->frTypes);
-	fprintf(dbResults, "    NDW=%.0f\n", ts->NDW);
-	fprintf(dbResults, "    NDW=%.0f\n", ts->NDWTotal);
-#endif
+
 	fprintf(dbResults, "vocdOptimum=%f\n", ts->vocdOptimum);
 	fprintf(dbResults, "CUR=%.0f\n", ts->CUR);
 
@@ -1824,7 +1744,6 @@ static void prTSResults(struct kideval_speakers *ts, char *IDText) {
 	format = "%.0f ";
 //	format = "%f ";
 
-#ifndef GEMS_COUNT
 	fn = strchr(oldfname+wdOffset, PATHDELIMCHR);
 	if (fn != NULL)
 		fn++;
@@ -1832,7 +1751,6 @@ static void prTSResults(struct kideval_speakers *ts, char *IDText) {
 		fn = oldfname+wdOffset;
 	fprintf(dbfpout, "=%s\n", fn);
 	fprintf(dbfpout, "+%s\n", IDText);
-#endif
 	fprintf(dbfpout, format, ts->mWords);
 	fprintf(dbfpout, format, ts->morf);
 	fprintf(dbfpout, format, ts->tUtt);
@@ -1843,11 +1761,11 @@ static void prTSResults(struct kideval_speakers *ts, char *IDText) {
 	fprintf(dbfpout, format, ts->mUtt50);
 
 	fprintf(dbfpout, format, ts->frTokens);
-#ifndef GEMS_COUNT
 	fprintf(dbfpout, format, ts->frTypes);
+
 	fprintf(dbfpout, format, ts->NDW);
 	fprintf(dbfpout, format, ts->NDWTotal);
-#endif
+
 	fprintf(dbfpout, "%f ", ts->vocdOptimum);
 	fprintf(dbfpout, format, ts->CUR);
 
@@ -1876,33 +1794,11 @@ static void prTSResults(struct kideval_speakers *ts, char *IDText) {
 			fprintf(dbfpout, format, ts->mor_count[col->num]);
 		}
 	}
-
-#ifdef GEMS_COUNT
-	kideval_outputtree(ts->words_root);
-	fprintf(dbfpout, ".NDW. ");
-	kideval_outputtree(ts->NDW_root);
-#endif
 	putc('\n', dbfpout);
 }
 
-static int isRightText(char *gem_word) {
-	int i = 0;
-	int found = 0;
-
-	if (GemMode == '\0')
-		return(TRUE);
-	filterwords("@", uttline, excludeGemKeywords);
-	while ((i=getword(utterance->speaker, uttline, gem_word, NULL, i)))
-		found++;
-	if (GemMode == 'i') 
-		return((kideval_group == FALSE && found) || (kideval_SpecWords == found));
-	else 
-		return((kideval_group == TRUE && kideval_SpecWords > found) || (found == 0));
-}
-
 static void OpenDBFile(FILE *fp, struct database *db, char *isDbSpFound) {
-	int  found, t;
-	char isOutputGem, rightIDFound;
+	int  t, i;
 	char word[BUFSIZ+1], DBFname[BUFSIZ+1], IDText[BUFSIZ+1];
 	float tt;
 	FILE *tfpin;
@@ -1913,15 +1809,6 @@ static void OpenDBFile(FILE *fp, struct database *db, char *isDbSpFound) {
 	tfpin = fpin;
 	fpin = fp;
 	ts = NULL;
-	if (isNOptionSet == FALSE) {
-		strcpy(kideval_BBS, "@*&#");
-		strcpy(kideval_CBS, "@*&#");
-	}
-	if (kideval_SpecWords) {
-		isOutputGem = FALSE;
-	} else {
-		isOutputGem = TRUE;
-	}
 	if (!fgets_cr(templineC, UTTLINELEN, fpin))
 		return;
 	if (uS.isUTF8(templineC)) {
@@ -1952,12 +1839,17 @@ static void OpenDBFile(FILE *fp, struct database *db, char *isDbSpFound) {
 	}
 	for (t=1; isdigit(templineC[t]); t++) ;
 	for (; isSpace(templineC[t]); t++) ;
+	for (i=0; isdigit(templineC[t]) && i < 15; t++) {
+		DB_MIN_UTTS[i++] = templineC[t];
+	}
+	DB_MIN_UTTS[i] = EOS;
+	uS.remblanks(DB_MIN_UTTS);
+	for (; isdigit(templineC[t]) || templineC[t] == '.'; t++) ;
+	for (; isSpace(templineC[t]); t++) ;
 	strncpy(DB_version, templineC+t, 64);
 	DB_version[64] = EOS;
 	uS.remblanks(DB_version);
 	spareTier1[0] = EOS;
-	rightIDFound = FALSE;
-	found = 0;
 	IDText[0] = EOS;
 	word[0] = EOS;
 	DBFname[0] = EOS;
@@ -1980,24 +1872,19 @@ static void OpenDBFile(FILE *fp, struct database *db, char *isDbSpFound) {
 						break;
 					}
 				}
-				rightIDFound = FALSE;
-			} else
-				rightIDFound = TRUE;
+			}
 		} else if (templineC[0] == '-') {
 			ts = db->db_sp;
 			if (ts != NULL) {
 				if (!ts->isSpeakerFound) {
-					if (kideval_SpecWords)
-						fprintf(stderr,"\nERROR: No specified Gems found in database \"%s\"\n\n", FileName1);
-					else
-						fprintf(stderr,"\nERROR: No speaker matching +d option found in database \"%s\"\n\n", FileName1);
+					fprintf(stderr,"\nERROR: No speaker matching +d option found in database \"%s\"\n\n", FileName1);
 					kideval_error(db, FALSE);
 				}
 				*isDbSpFound = TRUE;
 #ifdef DEBUGEVALRESULTS
 				prDebug(ts, IDText, DBFname);
 #endif
-				if (ts->tUtt >= 50.0) {
+				if (ts->tUtt >= DB_UTT_NUM_LIMIT) {
 					if (DBFilesListFP != NULL) {
 						fprintf(DBFilesListFP, "-----\t%s\n", DBFname);
 						fprintf(DBFilesListFP, "@ID:\t%s\n", IDText);
@@ -2253,17 +2140,6 @@ static void OpenDBFile(FILE *fp, struct database *db, char *isDbSpFound) {
 
 			}
 			ts = NULL;
-			if (isNOptionSet == FALSE) {
-				strcpy(kideval_BBS, "@*&#");
-				strcpy(kideval_CBS, "@*&#");
-			}
-			if (kideval_SpecWords) {
-				isOutputGem = FALSE;
-			} else {
-				isOutputGem = TRUE;
-			}
-			rightIDFound = FALSE;
-			found = 0;
 			IDText[0] = EOS;
 			word[0] = EOS;
 			DBFname[0] = EOS;
@@ -2283,55 +2159,14 @@ static void OpenDBFile(FILE *fp, struct database *db, char *isDbSpFound) {
 			}
 			if (uttline != utterance->line)
 				strcpy(uttline,utterance->line);
-			if (kideval_SpecWords && !strcmp(kideval_BBS, "@*&#") && rightIDFound) {
-				if (uS.partcmp(utterance->speaker,"@BG:",FALSE,FALSE)) {
-					kideval_n_option = FALSE;
-					strcpy(kideval_BBS, "@BG:");
-					strcpy(kideval_CBS, "@EG:");
-				} else if (uS.partcmp(utterance->speaker,"@G:",FALSE,FALSE)) {
-					kideval_n_option = TRUE;
-					strcpy(kideval_BBS, "@G:");
-					strcpy(kideval_CBS, "@*&#");
-				}
-			}
-			if (uS.partcmp(utterance->speaker,kideval_BBS,FALSE,FALSE)) {
-				if (kideval_n_option) {
-					if (isRightText(word)) {
-						isOutputGem = TRUE;
-					} else
-						isOutputGem = FALSE;
-				} else {
-					if (isRightText(word)) {
-						found++;
-						if (found == 1 || GemMode != '\0') {
-							isOutputGem = TRUE;
-						}
-					}
-				}
-			} else if (found > 0 && uS.partcmp(utterance->speaker,kideval_CBS,FALSE,FALSE)) {
-				if (kideval_n_option) {
-				} else {
-					if (isRightText(word)) {
-						found--;
-						if (found == 0) {
-							if (kideval_SpecWords)
-								isOutputGem = FALSE;
-							else {
-								isOutputGem = TRUE;
-							}
-						}
-					}
-				}
-			} else if (isOutputGem) {
-				if (utterance->speaker[0] == '*') {
-					uS.remFrontAndBackBlanks(utterance->line);
-					strcpy(templineC, utterance->speaker);
-					ts = kideval_FindSpeaker(FileName1, templineC, NULL, TRUE, db);
-					if (ts != NULL)
-						retrieveTS(ts, utterance->line, db);
-				} else
-					kideval_process_tier(ts, db, NULL, IDText);
-			}
+			if (utterance->speaker[0] == '*') {
+				uS.remFrontAndBackBlanks(utterance->line);
+				strcpy(templineC, utterance->speaker);
+				ts = kideval_FindSpeaker(FileName1, templineC, NULL, TRUE, db);
+				if (ts != NULL)
+					retrieveTS(ts, utterance->line, db);
+			} else
+				kideval_process_tier(ts, db);
 		}
 	}
 	fpin = tfpin;
@@ -2378,11 +2213,7 @@ static void ParseDatabase(struct database *db, char *lang) {
 //		fprintf(stderr, "    %.0f      \n", db->tUtt_num);
 	}
 	if (!isDbSpFound || db->tUtt_num == 0.0) {
-		if (kideval_SpecWords) {
-			fprintf(stderr,"\nERROR: No speaker matching +d option found in the database\n");
-			fprintf(stderr,"OR No specified Gems found for selected speakers in the database\n\n");
-		} else
-			fprintf(stderr,"\nERROR: No speaker matching +d option found in the database\n\n");
+		fprintf(stderr,"\nERROR: No speaker matching +d option found in the database\n\n");
 		kideval_error(db, FALSE);
 	}	
 	SetNewVol(wd_dir);
@@ -2469,11 +2300,7 @@ static void kideval_pr_result(void) {
 		return;
 	}
 	if (sp_head == NULL) {
-		if (kideval_SpecWords && !onlyApplyToDB) {
-			fprintf(stderr,"\nERROR: No speaker matching +t option found\n");
-			fprintf(stderr,"OR No specified Gems found for this speaker\n");
-		} else
-			fprintf(stderr,"\nERROR: No speaker matching +t option found\n");
+		fprintf(stderr,"\nERROR: No speaker matching +t option found\n");
 		if (isLinkAge)
 			fprintf(stderr,"OR No input file had speaker in the right age range\n");
 		fprintf(stderr,"\n");
@@ -2521,10 +2348,7 @@ static void kideval_pr_result(void) {
 	excelRow(fpout, ExcelRowEnd);
 	for (ts=sp_head; ts != NULL; ts=ts->next_sp) {
 		if (!ts->isSpeakerFound) {
-			if (kideval_SpecWords) {
-				fprintf(stderr,"\nWARNING: No specified Gems found for speaker \"%s\" in file \"%s\"\n\n", ts->sp, ts->fname);
-			} else
-				fprintf(stderr,"\nWARNING: No data found for speaker \"%s\" in file \"%s\"\n\n", ts->sp, ts->fname);
+			fprintf(stderr,"\nWARNING: No data found for speaker \"%s\" in file \"%s\"\n\n", ts->sp, ts->fname);
 			continue;
 		}
 		if (ts->tUtt < MinUttLimit)
@@ -2725,7 +2549,8 @@ static void kideval_pr_result(void) {
 			excelCommasStrCell(fpout,"+/-SD,.,.,.,.,.,.,.,.,.,.,.,.,.,.");
 
 			SDn = 0; // this number should be less than SDRESSIZE = 256
-			compute_SD(&SD[SDn++], ts->tUtt,  NULL, gdb->tUtt_sqr, gdb->tUtt, gdb->tUtt_num);
+			excelStrCell(fpout, ""); SDn++;
+//			compute_SD(&SD[SDn++], ts->tUtt,  NULL, gdb->tUtt_sqr, gdb->tUtt, gdb->tUtt_num);
 			compute_SD(&SD[SDn++], ts->mUtt,  NULL, gdb->mUtt_sqr, gdb->mUtt, gdb->mUtt_num);
 
 			compute_SD(&SD[SDn++], ts->mWords,  &ts->mUtt, gdb->mWords_sqr, gdb->mWords, gdb->mWords_num);
@@ -2792,7 +2617,7 @@ static void kideval_pr_result(void) {
 			compute_SD(&SD[SDn++], ts->morTotal,  NULL, gdb->morTotal_sqr, gdb->morTotal, gdb->morTotal_num);
 
 			// exclude %mor items columns
-			if (uS.mStricmp(script_file, "eng") != 0) {
+			if (uS.mStricmp(ke_script_file, "eng") != 0) {
 				for (col=labelsRoot; col != NULL; col=col->next_label) {
 					if (ts->mor_count != NULL) {
 						compute_SD(&SD[SDn++], ts->mor_count[col->num],  NULL, gdb->morItems_sqr[col->num], gdb->morItems[col->num], gdb->morItems_num);
@@ -2804,12 +2629,16 @@ static void kideval_pr_result(void) {
 			excelRow(fpout, ExcelRowStart);
 			excelCommasStrCell(fpout, " , , , , , , , , , , , , , , ");
 			for (i=0; i < SDn; i++) {
-				if (SD[i].stars >= 2)
-					excelStrCell(fpout, "**");
-				else if (SD[i].stars >= 1)
-					excelStrCell(fpout, "*");
-				else
-					excelStrCell(fpout, " ");
+				if (i == 0) {
+					excelStrCell(fpout, "");
+				} else {
+					if (SD[i].stars >= 2)
+						excelStrCell(fpout, "**");
+					else if (SD[i].stars >= 1)
+						excelStrCell(fpout, "*");
+					else
+						excelStrCell(fpout, " ");
+				}
 			}
 			excelRow(fpout, ExcelRowEnd);
 		}
@@ -2817,10 +2646,11 @@ static void kideval_pr_result(void) {
 	if (DBKeyRoot != NULL) {
 		excelRow(fpout, ExcelRowStart);
 		excelCommasStrCell(fpout,"Mean Database,.,.,.,.,.,.,.,.,.,.,.,.,.,.");
-		if (gdb->tUtt_num <= 0.0)
-			excelStrCell(fpout, "NA");
-		else
-			excelNumCell(fpout, "%.3f",gdb->tUtt/gdb->tUtt_num);
+		excelStrCell(fpout, "");
+//		if (gdb->tUtt_num <= 0.0)
+//			excelStrCell(fpout, "NA");
+//		else
+//			excelNumCell(fpout, "%.3f",gdb->tUtt/gdb->tUtt_num);
 		if (gdb->mUtt_num <= 0.0)
 			excelStrCell(fpout, "NA");
 		else
@@ -2940,7 +2770,7 @@ static void kideval_pr_result(void) {
 			excelNumCell(fpout, "%.3f",gdb->morTotal/gdb->morTotal_num);
 
 		// exclude %mor items columns
-		if (uS.mStricmp(script_file, "eng") != 0) {
+		if (uS.mStricmp(ke_script_file, "eng") != 0) {
 			for (col=labelsRoot; col != NULL; col=col->next_label) {
 				if (gdb->morItems_num <= 0.0)
 					excelStrCell(fpout, "NA");
@@ -2953,17 +2783,22 @@ static void kideval_pr_result(void) {
 		excelRow(fpout, ExcelRowStart);
 		excelCommasStrCell(fpout,"SD Database,.,.,.,.,.,.,.,.,.,.,.,.,.,.");
 		for (i=0; i < SDn; i++) {
-			if (SD[i].isSDComputed == 1) {
-				excelNumCell(fpout, "%.3f", SD[i].dbSD);
+			if (i == 0) {
+				excelStrCell(fpout, "");
 			} else {
-				excelStrCell(fpout, "NA");
+				if (SD[i].isSDComputed == 1) {
+					excelNumCell(fpout, "%.3f", SD[i].dbSD);
+				} else {
+					excelStrCell(fpout, "NA");
+				}
 			}
 		}
 		excelRow(fpout, ExcelRowEnd);
 
 		excelRow(fpout, ExcelRowStart);
 		excelCommasStrCell(fpout,"Number files,.,.,.,.,.,.,.,.,.,.,.,.,.,.");
-		excelNumCell(fpout, "%.0f",gdb->tUtt_num);
+		excelStrCell(fpout, "");
+//		excelNumCell(fpout, "%.0f",gdb->tUtt_num);
 		excelNumCell(fpout, "%.0f",gdb->mUtt_num);
 
 		excelNumCell(fpout, "%.0f",gdb->mWords_num);
@@ -3004,7 +2839,7 @@ static void kideval_pr_result(void) {
 		excelNumCell(fpout, "%.0f",gdb->morTotal_num);
 
 		// exclude %mor items columns
-		if (uS.mStricmp(script_file, "eng") != 0) {
+		if (uS.mStricmp(ke_script_file, "eng") != 0) {
 			for (col=labelsRoot; col != NULL; col=col->next_label) {
 				if (gdb->morItems != NULL) {
 					excelNumCell(fpout, "%.0f",gdb->morItems_num);
@@ -3015,22 +2850,13 @@ static void kideval_pr_result(void) {
 	}
 	excelRow(fpout, ExcelRowEmpty);
 	if (sp_head != NULL) {
+		excelRowOneStrCell(fpout, ExcelRedCell, "IF YOU DID NOT MARK ERRORS, DSS TOTAL WILL BE INFLATED.");
+		excelRowOneStrCell(fpout, ExcelRedCell, "Please be sure to mark utterances with errors with [*] to ensure accurate DSS computation.");
+		excelRow(fpout, ExcelRowEmpty);
 		if (DBKeyRoot != NULL) {
 			excelRowOneStrCell(fpout, ExcelRedCell, "PLEASE SEE SLP MANUAL FOR RECOMMENDED INTERPRETATION.");
 			excelRow(fpout, ExcelRowEmpty);
 			excelRowOneStrCell(fpout, ExcelBlkCell, "+/- SD  * = 1 SD, ** = 2 SD");
-		}
-		if (DBGemNum) {
-			strcpy(templineC4, "Database Gems:");
-			for (i=0; i < DBGemNum; i++) {
-				strcat(templineC4, DBGems[i]);
-				strcat(templineC4, ", ");
-			}
-			uS.remblanks(templineC4);
-			i = strlen(templineC4) - 1;
-			if (templineC4[i] == ',')
-				templineC4[i] = EOS;
-			excelRowOneStrCell(fpout, ExcelBlkCell, templineC4);
 		}
 		if (DBKeyRoot != NULL) {
 			strcpy(templineC4, "Database keywords: ");
@@ -3074,26 +2900,28 @@ static void kideval_pr_result(void) {
 				templineC4[i] = EOS;
 			excelRowOneStrCell(fpout, ExcelBlkCell, templineC4);
 
+			strcpy(templineC4, "Database type: ");
+			strcat(templineC4, ke_script_file);
+			strcat(templineC4, " ");
+			if (DB_type[0] == '_')
+				strcat(templineC4, DB_type+1);
+			else
+				strcat(templineC4, DB_type);
+			strcat(templineC4, " TD");
+			excelRowOneStrCell(fpout, ExcelBlkCell, templineC4);
+
 			strcpy(templineC4, "Database date: ");
 			strcat(templineC4, DB_version);
+			excelRowOneStrCell(fpout, ExcelBlkCell, templineC4);
+			
+			strcpy(templineC4, "Database minimum utterances: ");
+			strcat(templineC4, DB_MIN_UTTS);
 			excelRowOneStrCell(fpout, ExcelBlkCell, templineC4);
 		}
 //		printArg(targv, targc, fpout, FALSE, "");
 	}
 	excelFooter(fpout);
 	sp_head = freespeakers(sp_head);
-}
-
-static char isFoundGems(void) {
-	while (fgets_cr(templineC, UTTLINELEN, fpin)) {
-		if (uS.partcmp(templineC,"@BG:",FALSE,FALSE) ||
-			uS.partcmp(templineC,"@G:",FALSE,FALSE)) {
-			rewind(fpin);
-			return(TRUE);
-		}
-	}
-	rewind(fpin);
-	return(FALSE);
 }
 
 static void init_words(int command) {
@@ -3251,13 +3079,64 @@ static void computeDSS_VOCD_IPSYN(int misalignmentError) {
 	ipsyn_freeSpeakers();
 }
 
+static int getAgeIndex(char *s) {
+	int agef, aget, m_AgeAuto;
+	char *age;
+
+	m_AgeAuto = 0;
+	s = strchr(s, '|');
+	if (s != NULL) {
+		s++;
+		s = strchr(s, '|');
+		if (s != NULL) {
+			s++;
+			s = strchr(s, '|');
+			if (s != NULL) {
+				age = s + 1;
+				s = strchr(age, '|');
+				if (s != NULL) {
+					*s = EOS;
+					uS.remblanks(age);
+					if (isAge(age, &agef, &aget)) {
+						m_AgeAuto = agef;
+					}
+					*s = '|';
+				}
+			}
+		}
+	}
+	if (m_AgeAuto >= 18 && m_AgeAuto <= 23) {
+		aget = 0; // 1;6-1;11
+	} else if (m_AgeAuto >= 24 && m_AgeAuto <= 29) {
+		aget = 1; // 2;-2;5
+	} else if (m_AgeAuto >= 30 && m_AgeAuto <= 35) {
+		aget = 2; // 2;6-2;11
+	} else if (m_AgeAuto >= 36 && m_AgeAuto <= 41) {
+		aget = 3; // 3;-3;5
+	} else if (m_AgeAuto >= 42 && m_AgeAuto <= 47) {
+		aget = 4; // 3;6-3;11
+	} else if (m_AgeAuto >= 48 && m_AgeAuto <= 53) {
+		aget = 5; // 4;-4;5
+	} else if (m_AgeAuto >= 54 && m_AgeAuto <= 59) {
+		aget = 6; // 4;6-4;11
+	} else if (m_AgeAuto >= 60 && m_AgeAuto <= 65) {
+		aget = 7; // 5;-5;5"
+	} else if (m_AgeAuto >= 66 && m_AgeAuto <= 72) {
+		aget = 8; // 5;6-6;
+	} else if (m_AgeAuto == 0) {
+		aget = 9; // age not found
+	} else {
+		aget = 10; //age out of range
+	}
+	return(aget);
+}
+
 void call() {
-	int  i, found, command, misalignmentError = 0;
-//	long tlineno = 0;
-	char isPRCreateDBRes;
+	int  i, command, misalignmentError = 0;
+	char isPRCreateDBRes, isSpeakerFound, isDummy;
 	char lRightspeaker, rightIDFound;
-	char isOutputGem, isGRA;
-	char word[BUFSIZ+1], IDText[BUFSIZ+1], *s;
+	char isGRA, isMOR;
+	char word[BUFSIZ+1], IDText[BUFSIZ+1];
 	time_t timer;
 	struct tm *TmS;
 	struct kideval_speakers *ts;
@@ -3267,25 +3146,28 @@ void call() {
 	extern int getc_cr_lc;
 	extern char fgets_cr_lc, Tspchanged, contSpeaker[];
 
+	isSpeakerFound = FALSE;
+	isDummy = FALSE;
 	IDText[0] = EOS;
+	isMOR = FALSE;
 	ts = NULL;
-	if (isGOptionSet == FALSE)
-		onlyApplyToDB = !isFoundGems();
 	clean_speakers(speakers, TRUE);
-	Design[0] = EOS;
-	Activity[0] = EOS;
-	Group[0] = EOS;
+	ke_Design[0] = EOS;
+	ke_Activity[0] = EOS;
+	ke_Group[0] = EOS;
 	if (isCreateDB) {
 		if (dbfpout == NULL) {
 			strcpy(FileName1, wd_dir);
 			i = strlen(FileName1) - 1;
 			if (FileName1[i] == PATHDELIMCHR)
 				FileName1[i] = EOS;
+/* 2023-03-08
 			s = strrchr(FileName1, PATHDELIMCHR);
 			if (s != NULL) {
 				*s = EOS;
 			}
-			addFilename2Path(FileName1, script_file);
+*/
+			addFilename2Path(FileName1, ke_script_file);
 			strcat(FileName1, DB_type);
 			strcat(FileName1, DATABASE_FILE_NAME);
 			dbfpout = fopen(FileName1, "wb");
@@ -3296,35 +3178,64 @@ void call() {
 			if (dbfpout != NULL) {
 				time(&timer);
 				TmS = localtime(&timer);
-				fprintf(dbfpout,"V%d %d-%s%d-%s%d, %s%d:%s%d\n", KIDEVAL_DB_VERSION, TmS->tm_year+1900,
+				fprintf(dbfpout,"V%d %.0f %d-%s%d-%s%d, %s%d:%s%d\n", KIDEVAL_DB_VERSION, DB_UTT_NUM_LIMIT, TmS->tm_year+1900,
 						((TmS->tm_mon+1) < 10 ? "0":""), TmS->tm_mon+1, ((TmS->tm_mday) < 10 ? "0":""), TmS->tm_mday,
 						((TmS->tm_hour) < 10 ? "0":""), TmS->tm_hour, ((TmS->tm_min) < 10 ? "0":""), TmS->tm_min);
 			}
 		}
-//		if (CRDBcnt % 10 == 0) {
-#ifdef GEMS_COUNT
-			fprintf(dbfpout, "=%s\n", oldfname+wdOffset);
-#else
-			fprintf(stdout, "%s\n", oldfname+wdOffset);
-#endif
-			CRDBcnt = 0;
-//		}
-		CRDBcnt++;
-//		return;
-		isOutputGem = TRUE;
 		currentatt = 0;
 		currentchar = (char)getc_cr(fpin, &currentatt);
 		while (getwholeutter()) {
 			if (utterance->speaker[0] == '*')
 				break;
 			if (uS.partcmp(utterance->speaker,"@Comment:",FALSE,FALSE)) {
-				if (strncmp(utterance->line, "EVAL DATABASE EXCLUDE", 21) == 0) {
+				if (strncmp(utterance->line, "KIDEVAL DATABASE EXCLUDE", 21) == 0) {
 					fprintf(stderr,"    EXCLUDED FILE: %s\n",oldfname+wdOffset);
 					return;
 				}
+				for (i=0; utterance->line[i] != EOS; i++) {
+					if (uS.mStrnicmp(utterance->line+i, "dummy file", 10) == 0) {
+						isDummy = TRUE;
+						break;
+					}
+				}
+			} else if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
+				if (isIDSpeakerSpecified(utterance->line, templineC, TRUE)) {
+					uS.remblanks(utterance->line);
+					filterAndOuputID(utterance->line, IDText);
+				}
+			} else if (uS.partcmp(utterance->speaker,"@Types:",FALSE,FALSE)) {
+				getTypes(utterance->line);
 			}
 		}
+		if (uS.mStricmp(ke_Activity, "pictures") == 0 && uS.mStricmp(DB_type+1, "narrative") == 0 && uS.mStricmp(ke_Group, "TD") == 0) {
+		} else if (uS.mStricmp(ke_Activity, DB_type+1) != 0 || uS.mStricmp(ke_Group, "TD") != 0) {
+//			fprintf(stderr, "--- Wrong Type: %s, %s, %s\n	*** File \"%s\"\n", ke_Design, ke_Activity, ke_Group, oldfname+wdOffset);
+			return;
+		}
+		if (isDummy == TRUE) {
+			dummyFiles++;
+			return;
+		}
+		if (IDText[0] == EOS) {
+			agesFound[12]++;
+			fprintf(stderr, "--- No CHI @ID:\n	*** File \"%s\"\n", oldfname+wdOffset);
+			return;
+		}
+		i = getAgeIndex(IDText);
+		 if (i == 9) {
+			agesFound[9]++;
+			fprintf(stderr, "--- Missing age in ID=%s in file:\n	*** File \"%s\"\n", IDText, oldfname+wdOffset);
+			return;
+		} else if (i == 10) {
+			agesFound[10]++;
+//			fprintf(stderr, "--- Wrong age in ID=%s in file:\n	*** File \"%s\"\n", IDText, oldfname+wdOffset);
+			return;
+		}
+
 		rewind(fpin);
+		fprintf(stdout, "~%s\n", oldfname+wdOffset);
+//		return;
 	} else {
 		fprintf(stderr,"From file <%s>\n",oldfname);
 		if (isLinkAge) {
@@ -3370,23 +3281,12 @@ void call() {
 				lineno = deflineno;
 			}
 		}
-		if (!onlyApplyToDB && isNOptionSet == FALSE) {
-			strcpy(kideval_BBS, "@*&#");
-			strcpy(kideval_CBS, "@*&#");
-		}
-		if (isCreateDB == 0) {
-			if (kideval_SpecWords && !onlyApplyToDB) {
-				isOutputGem = FALSE;
-			} else {
-				isOutputGem = TRUE;
-			}
-		}
+
 		lastdsp = NULL;
 		lastipsp = NULL;
 		isPRCreateDBRes = FALSE;
 		spareTier1[0] = EOS;
 		lRightspeaker = FALSE;
-		found = 0;
 		misalignmentError = 0;
 		isGRA = TRUE;
 		currentatt = 0;
@@ -3416,68 +3316,30 @@ void call() {
 				if (!lRightspeaker && *utterance->speaker != '@')
 					continue;
 			}
-			if (!onlyApplyToDB && kideval_SpecWords && !strcmp(kideval_BBS, "@*&#")) {
-				if (uS.partcmp(utterance->speaker,"@BG:",FALSE,FALSE)) {
-					kideval_n_option = FALSE;
-					strcpy(kideval_BBS, "@BG:");
-					strcpy(kideval_CBS, "@EG:");
-				} else if (uS.partcmp(utterance->speaker,"@G:",FALSE,FALSE)) {
-					kideval_n_option = TRUE;
-					strcpy(kideval_BBS, "@G:");
-					strcpy(kideval_CBS, "@*&#");
-				}
-			}
 			if (isCreateDB && command == LAST_COMMAND-1) {
 				if (utterance->speaker[0] == '@') {
 					uS.remFrontAndBackBlanks(utterance->line);
 					removeExtraSpace(utterance->line);
 				}
-#ifdef GEMS_COUNT
-				if (uS.partcmp(utterance->speaker,"@G:",FALSE,FALSE)) {
-					computeDSS_VOCD_IPSYN(misalignmentError);
-					if (ts != NULL) {
-						if (isPRCreateDBRes) {
-							prTSResults(ts, IDText);
-							isPRCreateDBRes = FALSE;
-							misalignmentError = 0;
-						}
-//						if (ts->words_root != NULL)
-//							ts->words_root = kideval_freetree(ts->words_root);
-//						if (ts->NDW_root != NULL)
-//							ts->NDW_root = kideval_freetree(ts->NDW_root);
-						kideval_initTSVars(ts, FALSE);
-					}
-					fprintf(dbfpout, "G%s\n", utterance->line);
-				} else if (uS.partcmp(utterance->speaker,"@BG:",FALSE,FALSE)) {
-					fprintf(dbfpout, "B%s\n", utterance->line);
-				} else if (uS.partcmp(utterance->speaker,"@EG:",FALSE,FALSE)) {
-					computeDSS_VOCD_IPSYN(misalignmentError);
-					if (ts != NULL) {
-						if (isPRCreateDBRes) {
-							prTSResults(ts, IDText);
-							isPRCreateDBRes = FALSE;
-							misalignmentError = 0;
-						}
-//						if (ts->words_root != NULL)
-//							ts->words_root = kideval_freetree(ts->words_root);
-//						if (ts->NDW_root != NULL)
-//							ts->NDW_root = kideval_freetree(ts->NDW_root);
-						kideval_initTSVars(ts, FALSE);
-					}
-					fprintf(dbfpout, "E%s\n", utterance->line);
-				} else
-#endif
 				if (uS.partcmp(utterance->speaker,"@End",FALSE,FALSE)) {
 					computeDSS_VOCD_IPSYN(misalignmentError);
 					if (isPRCreateDBRes) {
-#ifdef GEMS_COUNT
-						prTSResults(ts, IDText);
-#else
-						if (ts->tUtt >= 50) {
+						if (ts->tUtt >= DB_UTT_NUM_LIMIT) {
 							prTSResults(ts, IDText);
 							fprintf(dbfpout, "-\n");
+							i = getAgeIndex(IDText);
+							if (i >= 0 && i < 9)
+								agesFound[i]++;
+							if (!isMOR)
+								fprintf(stderr, "--- Missing %%MOR tier(s)\n	*** File \"%s\"\n", oldfname+wdOffset);
+						} else {
+//							fprintf(stderr, "--- <%.0f:\n	*** File \"%s\"\n", DB_UTT_NUM_LIMIT, oldfname+wdOffset);
+							agesFound[11]++;
 						}
-#endif
+						ke_Design[0] = EOS;
+						ke_Activity[0] = EOS;
+						ke_Group[0] = EOS;
+
 						isPRCreateDBRes = FALSE;
 						misalignmentError = 0;
 					}
@@ -3487,75 +3349,46 @@ void call() {
 						if (ts->NDW_root != NULL)
 							ts->NDW_root = kideval_freetree(ts->NDW_root);
 					}
-#ifdef GEMS_COUNT
-					fprintf(dbfpout, "-\n");
-#endif
 				}
 			}
-			if (!onlyApplyToDB && uS.partcmp(utterance->speaker,kideval_BBS,FALSE,FALSE)) {
-				if (kideval_n_option) {
-					if (isRightText(word)) {
-						isOutputGem = TRUE;
-					} else
-						isOutputGem = FALSE;
-				} else {
-					if (isRightText(word)) {
-						found++;
-						if (found == 1 || GemMode != '\0') {
-							isOutputGem = TRUE;
-						}
-					}
-				}
-			} else if (found > 0 && uS.partcmp(utterance->speaker,kideval_CBS,FALSE,FALSE)) {
-				if (kideval_n_option) {
-				} else {
-					if (isRightText(word)) {
-						found--;
-						if (found == 0) {
-							if (kideval_SpecWords)
-								isOutputGem = FALSE;
-							else {
-								isOutputGem = TRUE;
-							}
-						}
-					}
-				}
+			if (utterance->speaker[0] == '*') {
+				isPRCreateDBRes = TRUE;
+				isSpeakerFound = TRUE;
+				strcpy(templineC, utterance->speaker);
+				ts = kideval_FindSpeaker(oldfname, templineC, NULL, TRUE, NULL);
 			}
-			if (*utterance->speaker == '@' || isOutputGem) {
-				if (utterance->speaker[0] == '*') {
-					isPRCreateDBRes = TRUE;
-					strcpy(templineC, utterance->speaker);
-					ts = kideval_FindSpeaker(oldfname, templineC, NULL, TRUE, NULL);
+			if (fDepTierName[0]!=EOS && uS.partcmp(utterance->speaker,fDepTierName,FALSE,FALSE))
+				isMOR = TRUE;
+			if (command == BASE_COM) {
+				kideval_process_tier(ts, NULL);
+			} else if (command == DSS_COM) {
+				if (dss_lang != '0') {
+					lRightspeaker = kideval_process_dss_tier(ts, NULL, lRightspeaker, &lastdsp);
 				}
-				if (command == BASE_COM) {
-					kideval_process_tier(ts, NULL, NULL, IDText);
-				} else if (command == DSS_COM) {
-					if (dss_lang != '0') {
-						lRightspeaker = kideval_process_dss_tier(ts, NULL, lRightspeaker, &lastdsp);
-					}
-				} else if (command == VOCD_COM) {
-					kideval_process_vocd_tier(ts, NULL);
-				} else if (command == IPSYN_COM) {
-					if (strcmp(ipsyn_lang, IPSYNNOCOMPUTE) != 0) {
-						if (utterance->speaker[0] == '*') {
-							if (!isGRA) {
-								fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno+tlineno);
-								fprintf(stderr,"Speaker tier does not have corresponding %%GRA tier.\n");
-								break;
-							}
-						} else if (fDepTierName[0] != EOS && uS.partcmp(utterance->speaker,fDepTierName,FALSE,FALSE)) {
-							isGRA = FALSE;
-						} else if (uS.partcmp(utterance->speaker,"%gra:",FALSE,FALSE)) {
-							isGRA = TRUE;
+			} else if (command == VOCD_COM) {
+				kideval_process_vocd_tier(ts, NULL);
+			} else if (command == IPSYN_COM) {
+				if (strcmp(ipsyn_lang, IPSYNNOCOMPUTE) != 0) {
+					if (utterance->speaker[0] == '*') {
+						if (!isGRA) {
+							fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno+tlineno);
+							fprintf(stderr,"--- Speaker tier does not have corresponding %%GRA tier.\n");
+							break;
 						}
-						lRightspeaker = kideval_process_ipsyn_tier(ts, NULL, lRightspeaker, &misalignmentError, &lastipsp);
+					} else if (fDepTierName[0] != EOS && uS.partcmp(utterance->speaker,fDepTierName,FALSE,FALSE)) {
+						isGRA = FALSE;
+					} else if (uS.partcmp(utterance->speaker,"%gra:",FALSE,FALSE)) {
+						isGRA = TRUE;
 					}
+					lRightspeaker = kideval_process_ipsyn_tier(ts, NULL, lRightspeaker, &misalignmentError, &lastipsp);
 				}
 			}
 		}
 	}
 	if (isCreateDB == 0) {
 		computeDSS_VOCD_IPSYN(misalignmentError);
+	} else if (isSpeakerFound == FALSE && isDummy == FALSE) {
+		fprintf(stderr, "--- No speakers found:\n	*** File \"%s\"\n", oldfname+wdOffset);
 	}
 }
 
@@ -3812,6 +3645,22 @@ static void processEng(void) {
 static void processFra(void) {
 	processScriptLine("Fra", 0, "dss +l0");
 	processScriptLine("Fra", 0, "ipsyn +l0");
+	processScriptLine("Fra", 0, "+&Part,&Pres	\"&Part,&Pres\"");
+	processScriptLine("Fra", 0, "+;en	\"en\"");
+	processScriptLine("Fra", 0, "+;à	\"à\"");
+	processScriptLine("Fra", 0, "+|noun,&Plur	\"noun|&Plur\"");
+	processScriptLine("Fra", 0, "+|pron,&Rel	\"pron|&Rel\"");
+	processScriptLine("Fra", 0, "+;de	\"de\"");
+	processScriptLine("Fra", 0, "+|verb,;être	\"verb,;être\"");
+	processScriptLine("Fra", 0, "+&Det,&Art	\"&Det,&Art\"");
+	processScriptLine("Fra", 0, "+|verb,&Past	\"verb|&Past\"");
+	processScriptLine("Fra", 0, "+|verb,&3S	\"verb|&3S\"");
+	processScriptLine("Fra", 0, "+|aux,&3S	\"aux|&3S\"");
+	processScriptLine("Fra", 0, "+|aux,;être	\"aux,;être\"");
+	processScriptLine("Fra", 0, "+|verb,&Sub	\"verb|&Sub\"");
+	processScriptLine("Fra", 0, "+|pron,;y	\"pron,;y\"");
+
+/* 2023-01-03
 	processScriptLine("Fra", 0, "+-PP +&PP	\"PP\"");
 	processScriptLine("Fra", 0, "+-PRES +&PRES	\"PRES\"");
 	processScriptLine("Fra", 0, "+-IMP +&IMP	\"IMP\"");
@@ -3865,11 +3714,45 @@ static void processFra(void) {
 	processScriptLine("Fra", 0, "+|v:poss	\"v:poss\"");
 	processScriptLine("Fra", 0, "+|conj	\"conj\"");
 	processScriptLine("Fra", 0, "+|adv:neg	\"adv:neg\"");
+*/
 }
 
+static void processNld(void) {
+	processScriptLine("Nld", 0, "dss +l0");
+	processScriptLine("Nld", 0, "ipsyn +l0");
+	processScriptLine("Nld", 0, "+&Part,&Pres	\"&Part,&Pres\"");
+	processScriptLine("Nld", 0, "+&Part,&Past	\"&Part,&Past\"");
+	processScriptLine("Nld", 0, "+&Def	\"&Def\"");
+	processScriptLine("Nld", 0, "+|noun,&Plur	\"noun|&Plur\"");
+	processScriptLine("Nld", 0, "+|pron,&Rel	\"pron|&Rel\"");
+	processScriptLine("Nld", 0, "+|pron,&Gen	\"pron|&Gen\"");
+	processScriptLine("Nld", 0, "+|pron,&Dat	\"pron|&Dat\"");
+	processScriptLine("Nld", 0, "+|pron,&Int	\"pron|&Int\"");
+	processScriptLine("Nld", 0, "+|aux,&Past	\"aux|&Past\"");
+	processScriptLine("Nld", 0, "+|aux,&Part	\"aux|&Part\"");
+	processScriptLine("Nld", 0, "+|verb,&Inf	\"verb|&Inf\"");
+	processScriptLine("Nld", 0, "+|verb,&Past	\"verb|&Past\"");
+	processScriptLine("Nld", 0, "+&Cmp	\"&Cmp\"");
+	processScriptLine("Nld", 0, "+&Sup	\"&Sup\"");
+}
 static void processSpa(void) {
 	processScriptLine("Spa", 0, "dss +l0");
 	processScriptLine("Spa", 0, "ipsyn +l0");
+	processScriptLine("Spa", 0, "+&Part,&Pres	\"&Part,&Pres\"");
+	processScriptLine("Spa", 0, "+;en	\"en\"");
+	processScriptLine("Spa", 0, "+;a	\"a\"");
+	processScriptLine("Spa", 0, "+|noun,&Plur	\"noun|&Plur\"");
+	processScriptLine("Spa", 0, "+|pron,&Rel	\"pron|&Rel\"");
+	processScriptLine("Spa", 0, "+;de	\"de\"");
+	processScriptLine("Spa", 0, "+|pron,&IntRel	\"pron|&IntRel\"");
+	processScriptLine("Spa", 0, "+&Det,&Art	\"&Det,&Art\"");
+	processScriptLine("Spa", 0, "+|verb,&Past	\"verb|&Past\"");
+	processScriptLine("Spa", 0, "+|verb,&3S	\"verb|&3S\"");
+	processScriptLine("Spa", 0, "+|aux,&3S	\"aux|&3S\"");
+	processScriptLine("Spa", 0, "+|adj,&Sup	\"adj|&Sup\"");
+	processScriptLine("Spa", 0, "+|verb,&Fut	\"verb|&Fut\"");
+	processScriptLine("Spa", 0, "+|verb,&Ger	\"verb|&Ger\"");
+/* 2023-01-03
 	processScriptLine("Spa", 0, "+-1S	\"*-1S\"");
 	processScriptLine("Spa", 0, "+-2S	\"*-2S\"");
 	processScriptLine("Spa", 0, "+-3S	\"*-3S\"");
@@ -3888,17 +3771,34 @@ static void processSpa(void) {
 	processScriptLine("Spa", 0, "+|pro:obj	\"|pro:obj\"");
 	processScriptLine("Spa", 0, "+|pro:refl	\"|pro:refl\"");
 	processScriptLine("Spa", 0, "+|pro:clit	\"|pro:clit\"");
+*/
 }
 
 static void processZho(void) {
 	processScriptLine("Zho", 0, "dss +l0");
 	processScriptLine("Zho", 0, "ipsyn +l0");
+	processScriptLine("Zho", 0, "+;过	\"过\"");
+	processScriptLine("Zho", 0, "+;了	\"了\"");
+	processScriptLine("Zho", 0, "+;着	\"着\"");
+	processScriptLine("Zho", 0, "+|part,;的	\"part,;的\"");
+	processScriptLine("Zho", 0, "+|part,;得	\"part,;得\"");
+	processScriptLine("Zho", 0, "+|adv,;在	\"adv,;在\"");
+	processScriptLine("Zho", 0, "+|adp,;在	\"adp,;在\"");
+	processScriptLine("Zho", 0, "+|verb,;给	\"verb,;给\"");
+	processScriptLine("Zho", 0, "+|num,;多	\"num,;多\"");
+	processScriptLine("Zho", 0, "+|adj,;多	\"adj,;多\"");
+	processScriptLine("Zho", 0, "+|pron,;啥	\"pron,;啥\"");
+	processScriptLine("Zho", 0, "+|pron,;谁	\"pron,;谁\"");
+	processScriptLine("Zho", 0, "+|noun,;后	\"noun,;后\"");
+	processScriptLine("Zho", 0, "+|noun,;里	\"noun,;里\"");
+/* 2024-01-11
 	processScriptLine("Zho", 0, "+|n	\"n\"");
 	processScriptLine("Zho", 0, "+|v,|v:*	\"v\"");
 	processScriptLine("Zho", 0, "+|adv	\"adv\"");
 	processScriptLine("Zho", 0, "+|cl	\"cl\"");
 	processScriptLine("Zho", 0, "+|conj	\"conj\"");
 	processScriptLine("Zho", 0, "+|prep	\"prep\"");
+*/
 }
 
 static void processJpn(void) {
@@ -3986,6 +3886,10 @@ static void read_script(char *lang) {
 		fprintf(stderr,"    Using default, build into KIDEVAL source code, language file: %s\n", "fra");
 		processFra();
 		return;
+	} else if (uS.mStricmp(lang, "nld") == 0) {
+		fprintf(stderr,"    Using default, build into KIDEVAL source code, language file: %s\n", "nld");
+		processNld();
+		return;
 	} else if (uS.mStricmp(lang, "spa") == 0) {
 		fprintf(stderr,"    Using default, build into KIDEVAL source code, language file: %s\n", "spa");
 		processSpa();
@@ -4020,7 +3924,11 @@ static void read_script(char *lang) {
 	}
 	if (fp == NULL) {
 		fprintf(stderr, "\nERROR: Can't locate language file: \"%s\".\n", mFileName);
+#ifdef _MAC_CODE
+		fprintf(stderr, "\n");
+#else
 		fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+#endif
 		cutt_exit(0);
 	}
 	fprintf(stderr,"    Using language file: %s\n", mFileName);
@@ -4061,7 +3969,7 @@ void init(char first) {
 		isLinkAge = FALSE;
 		DB_version[0] = EOS;
 		isRawVal = TRUE;
-		script_file = NULL;
+		ke_script_file = NULL;
 		stout = FALSE;
 		outputOnlyData = TRUE;
 		OverWriteFile = TRUE;
@@ -4078,23 +3986,13 @@ void init(char first) {
 		dbfpout = NULL;
 		isDBFilesList = FALSE;
 		DBFilesListFP = NULL;
-		GemMode = '\0';
-		kideval_SpecWords = 0;
-		kideval_group = FALSE;
-		onlyApplyToDB = FALSE;
-		isGOptionSet = FALSE;
-		kideval_n_option = FALSE;
-		isNOptionSet = FALSE;
 		strcpy(fDepTierName, "%mor:");
-		strcpy(kideval_BBS, "@*&#");
-		strcpy(kideval_CBS, "@*&#");
 		sp_head = NULL;
 		colLabelsNum = 0;
 		colsRoot = NULL;
 		labelsRoot = NULL;
 		gdb = NULL;
 		DBKeyRoot = NULL;
-		DBGemNum = 0;
 		if (isCreateDB) {
 			stout = TRUE;
 			isRecursive = TRUE;
@@ -4111,16 +4009,18 @@ void init(char first) {
 	} else {
 		if (ftime) {
 			ftime = FALSE;
-			if (script_file == NULL) {
+			if (ke_script_file == NULL) {
 				fprintf(stderr,"\nPlease specify language script file name with \"+l\" option.\n");
 				fprintf(stderr,"For example, \"kideval +leng\" or \"kideval +leng.cut\".\n");
 				cutt_exit(0);
 			}
-			if (DBKeyRoot != NULL && strcmp(script_file, "eng") && strcmp(script_file, "zho") && strcmp(script_file, "jpn")) {
-				fprintf(stderr,"\nThe database can only be used with \"eng\", \"zho\" or \"jpn\" languages.\n");
+			if (DBKeyRoot != NULL && strcmp(ke_script_file, "eng") && strcmp(ke_script_file, "fra") &&
+				strcmp(ke_script_file, "nld") && strcmp(ke_script_file, "spa") && strcmp(ke_script_file, "zho") &&
+				strcmp(ke_script_file, "jpn")) {
+				fprintf(stderr,"\nThe database can only be used with \"eng\", \"fra\", \"nld\", \"spa\", \"zho\" or \"jpn\" languages.\n");
 				cutt_exit(0);
 			}
-			read_script(script_file);
+			read_script(ke_script_file);
 			for (i=0; GlobalPunctuation[i]; ) {
 				if (GlobalPunctuation[i] == '!' ||
 					GlobalPunctuation[i] == '?' ||
@@ -4142,8 +4042,9 @@ void init(char first) {
 				cutt_exit(0);
 			}
 			if (isCreateDB) {
-				if (strcmp(script_file, "eng") && strcmp(script_file, "zho") && strcmp(script_file, "jpn")) {
-					fprintf(stderr,"\nThe database can only be used with \"eng\", \"zho\" or \"jpn\" languages.\n");
+				if (strcmp(ke_script_file, "eng") && strcmp(ke_script_file, "fra") && strcmp(ke_script_file, "nld") && 
+					strcmp(ke_script_file, "spa") && strcmp(ke_script_file, "zho") && strcmp(ke_script_file, "jpn")) {
+					fprintf(stderr,"\nThe database can only be used with \"eng\", \"fra\", \"nld\", \"spa\", \"zho\" or \"jpn\" languages.\n");
 					cutt_exit(0);
 				}
 			} else if (DBKeyRoot != NULL) {
@@ -4170,7 +4071,7 @@ void init(char first) {
 					kideval_error(gdb, TRUE);
 				}
 				init_db(gdb);
-				ParseDatabase(gdb, script_file);
+				ParseDatabase(gdb, ke_script_file);
 				CleanUpTempIDSpeakers();
 				isRawVal = TRUE;
 			}
@@ -4220,64 +4121,82 @@ static int addFilePath(const char *filePath, int argc, char *argv[]) {
 	return(argc);
 }
 //UNIX start 16:17 end
-static int fillUpEngFpFilePaths(int argc, char *argv[]) {
-	argc = addFilePath("childes-data/Eng-NA/Bates/Free20/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Bates/Free28/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Bernstein/Children/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Bliss/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Bloom/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Braunwald/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Brown/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Clark/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Demetras1/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Demetras2/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Feldman/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Gathercole/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Gleason/Father/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Gleason/Mother/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Hall/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Higginson/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/HSLLD/HV1/TP/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/HSLLD/HV2/TP/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/HSLLD/HV3/TP/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/MacWhinney/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/McCune/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/NewEngland/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Post/*.cha", argc, argv);
-//	argc = addFilePath("phon-data/Eng-NA/Providence/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Sachs/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Snow/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Suppes/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Tardif/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Valian/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/VanHouten/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/VanKleeck/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Warren/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Eng-NA/Weist/*.cha", argc, argv);
+static int fillUpEngTdFilePaths(int argc, char *argv[]) {
+	argc = addFilePath("childes-data/Eng-NA/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/English-ECSC/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/English-MiamiBiling/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/English-MiamiMono/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/English-Slobin/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Clinical-Eng/*.cha", argc, argv);
+	return(argc);
+}
+
+static int fillUpFraTdFilePaths(int argc, char *argv[]) {
+	argc = addFilePath("childes-data/French/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/French-Duguine/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/French-Lyon/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/French-MTLN/*.cha", argc, argv);
+	return(argc);
+}
+
+static int fillUpNldTdFilePaths(int argc, char *argv[]) {
+	argc = addFilePath("childes-data/DutchAfrikaans/Asymmetries/*.cha", argc, argv);
+	argc = addFilePath("childes-data/DutchAfrikaans/DeHouwer/*.cha", argc, argv);
+	argc = addFilePath("childes-data/DutchAfrikaans/DeHouwerBornstein-protect/*.cha", argc, argv);
+	argc = addFilePath("childes-data/DutchAfrikaans/Gillis/*.cha", argc, argv);
+	argc = addFilePath("childes-data/DutchAfrikaans/Groningen/*.cha", argc, argv);
+	argc = addFilePath("childes-data/DutchAfrikaans/Schaerlaekens/*.cha", argc, argv);
+	argc = addFilePath("childes-data/DutchAfrikaans/SchlichtingVanKampen/*.cha", argc, argv);
+	argc = addFilePath("childes-data/DutchAfrikaans/VanKampen/*.cha", argc, argv);
+	argc = addFilePath("childes-data/DutchAfrikaans/Wijnen/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Dutch-AarssenBos/*.cha", argc, argv);
+	return(argc);
+}
+
+static int fillUpSpaTdFilePaths(int argc, char *argv[]) {
+	argc = addFilePath("childes-data/Spanish/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Spanish-Aguilar/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Spanish-MiamiBiling/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Spanish-Ornat/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Spanish-Sebastian/*.cha", argc, argv);
 	return(argc);
 }
 
 static int fillUpZhoMdFilePaths(int argc, char *argv[]) {
-	argc = addFilePath("childes-data/Chinese/Mandarin/Tong/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Chinese/Mandarin/AcadLang/*.cha", argc, argv);
+//	argc = addFilePath("childes-data/Chinese/Mandarin/Beijing/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Chinese/Mandarin/Chang1/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Chinese/Mandarin/Chang2/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Chinese/Mandarin/ChangPlay/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Chinese/Mandarin/ChangPN/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Chinese/Mandarin/Erbaugh/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Chinese/Mandarin/LiZhou/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Chinese/Mandarin/NSCtoys/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Chinese/Mandarin/TCCM/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Chinese/Mandarin/Tong/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Chinese/Mandarin/Zhou1/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Chinese/Mandarin/Zhou2/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Chinese/Mandarin/Zhou3/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Chinese/Mandarin/ZhouAssessment/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Chinese/Mandarin/ZhouNarratives/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Chinese-Chang1/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Chinese-Chang2/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Chinese-Guo/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Chinese-Tardif/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Frogs/Chinese-Zhou/*.cha", argc, argv);
 	return(argc);
 }
 
 static int fillUpJpnTdFilePaths(int argc, char *argv[]) {
-	argc = addFilePath("childes-data/Japanese/Miyata/Aki/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Japanese/Miyata/Ryo/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Japanese/Miyata/Tai/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Japanese/Noji/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Japanese/Ogawa/*.cha", argc, argv);
-	argc = addFilePath("childes-data/Japanese/Yokoyama/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Japanese/*.cha", argc, argv);
+
+//	argc = addFilePath("childes-data/Japanese/Miyata/Aki/*.cha", argc, argv);
+//	argc = addFilePath("childes-data/Japanese/Miyata/Ryo/*.cha", argc, argv);
+//	argc = addFilePath("childes-data/Japanese/Miyata/Tai/*.cha", argc, argv);
+//	argc = addFilePath("childes-data/Japanese/Noji/*.cha", argc, argv);
+//	argc = addFilePath("childes-data/Japanese/Ogawa/*.cha", argc, argv);
+//	argc = addFilePath("childes-data/Japanese/Yokoyama/*.cha", argc, argv);
+
 	return(argc);
 }
 
@@ -4285,9 +4204,9 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 #ifdef UNX
 	int len;
 #endif
-	int i, fileArgcStart, fileArgcEnd, langArgc, spArgc;
+	int i, j, fileArgcStart, fileArgcEnd, langArgc, spArgc;
 	time_t t;
-	char *cOption, langPref[32], spPref[128];
+	char *cOption, *lOption, langPref[32], spPref[128];
 	char isFileGiven, isLangGiven, isSpGiven;
 
 #if defined(_MAC_CODE) || defined(_WIN32)
@@ -4299,6 +4218,10 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	}
 	argv = targv;
 #endif
+	for (i=0; i < 13; i++) {
+		agesFound[i] = 0L;
+	}
+	dummyFiles = 0L;
 	isWinMode = IS_WIN_MODE;
 	chatmode = CHAT_MODE;
 	CLAN_PROG_NUM = KIDEVAL;
@@ -4308,17 +4231,24 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	dbResults = NULL;
 #endif
 	cOption = NULL;
+	lOption = NULL;
 	DBKeyRoot = NULL;
 	DBFilesListFP = NULL;
 	isCreateDB = 0;
 	isFileGiven = FALSE;
 	isLangGiven = FALSE;
 	isSpGiven = FALSE;
+	DB_UTT_NUM_LIMIT = 50.0;
 	for (i=1; i < argc; i++) {
 		if (*argv[i] == '+' || *argv[i] == '-') {
 			if (argv[i][1] == 'c') {
 				isCreateDB = 1;
-				cOption = argv[i]+2;
+				j = 2;
+				if (isdigit(argv[i][j])) {
+					DB_UTT_NUM_LIMIT = (float)atoi(argv[i]+j);
+					for (; isdigit(argv[i][j]) || argv[i][j] == '.'; j++) ;
+				}
+				cOption = argv[i]+j;
 			} else if (argv[i][1] == 't') {
 				if (argv[i][2] == '*')
 					isSpGiven = TRUE;
@@ -4328,6 +4258,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 					isSpGiven = TRUE;
 			} else if (argv[i][1] == 'l') {
 				isLangGiven = TRUE;
+				lOption = argv[i]+2;
 #ifdef UNX
 			} else if (argv[i][1] == 'L') {
 				strcpy(lib_dir, argv[i]+2);
@@ -4343,7 +4274,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	fileArgcEnd = 0;
 	spArgc = 0;
 	langArgc = 0;
-	CRDBcnt = 0;
+//	CRDBcnt = 0;
 	DB_type[0] = EOS;
 	wdOffset = strlen(wd_dir);
 	if (wd_dir[wdOffset-1] != PATHDELIMCHR)
@@ -4363,30 +4294,50 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 			argc++;
 		}
 		if (isCreateDB) {
-			if (!isLangGiven)
-				strcpy(DB_type, "_fp");
-			else {
+			if (!isLangGiven) {
+				fprintf(stderr, "\nSpecify language with \"-l\" option.\n");
+				cutt_exit(0);
+			} else {
 				if (cOption == NULL) {
-					fprintf(stderr, "\nUnknown database type specified with \"+c\" option.\n");
+					fprintf(stderr, "\nSpecify database type with \"+c\" option.\n");
 					cutt_exit(0);
-				} else if (strcmp(cOption, "_fp") == 0 || strcmp(cOption, "_md") == 0 || strcmp(cOption, "_td") == 0) {
+				} else if (strcmp(cOption, "_toyplay") == 0 || strcmp(cOption, "_narrative") == 0 ||
+						   strcmp(cOption, "_md") == 0 || strcmp(cOption, "_td") == 0) {
 					strcpy(DB_type, cOption);
 				} else {
-					if (cOption != NULL) {
-						fprintf(stderr, "\nUnknown database type specified with \"-c%s\" option.\n", cOption);
-					} else
-						fprintf(stderr, "\nUnknown database type specified with \"+c\" option.\n");
+					fprintf(stderr, "\nUnknown database type specified with \"-c%s\" option.\n", cOption);
 					cutt_exit(0);
 				}
 			}
 			if (!isFileGiven) {
 				fileArgcStart = argc;
-				if (strcmp(DB_type, "_fp") == 0)
-					argc = fillUpEngFpFilePaths(argc, argv);
-				else if (strcmp(DB_type, "_md") == 0)
+				if (strcmp(lOption, "eng") == 0 && strcmp(DB_type, "_toyplay") == 0)
+					argc = fillUpEngTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "eng") == 0 && strcmp(DB_type, "_narrative") == 0)
+					argc = fillUpEngTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "fra") == 0 && strcmp(DB_type, "_toyplay") == 0)
+					argc = fillUpFraTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "fra") == 0 && strcmp(DB_type, "_narrative") == 0)
+					argc = fillUpFraTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "nld") == 0 && strcmp(DB_type, "_toyplay") == 0)
+					argc = fillUpNldTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "nld") == 0 && strcmp(DB_type, "_narrative") == 0)
+					argc = fillUpNldTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "spa") == 0 && strcmp(DB_type, "_toyplay") == 0)
+					argc = fillUpSpaTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "spa") == 0 && strcmp(DB_type, "_narrative") == 0)
+					argc = fillUpSpaTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "zho") == 0 && strcmp(DB_type, "_toyplay") == 0)
 					argc = fillUpZhoMdFilePaths(argc, argv);
-				else if (strcmp(DB_type, "_td") == 0)
+				else if (strcmp(lOption, "zho") == 0 && strcmp(DB_type, "_narrative") == 0)
+					argc = fillUpZhoMdFilePaths(argc, argv);
+				else if (strcmp(lOption, "jpn") == 0 && strcmp(DB_type, "_toyplay") == 0)
 					argc = fillUpJpnTdFilePaths(argc, argv);
+				else {
+					fprintf(stderr, "\nUnknown database type specified with \"-l%s\" and \"-c%s\" and options.\n",
+							lOption, cOption);
+					cutt_exit(0);
+				}
 				fileArgcEnd = argc;
 			}
 		}
@@ -4402,8 +4353,15 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	VOCD_TYPE_D = FALSE;
 	bmain(argc,argv,kideval_pr_result);
 
+	printf("\n");
+#ifdef UNX
+	printf("IF YOU DID NOT MARK ERRORS, DSS TOTAL WILL BE INFLATED.\n");
+	printf("Please be sure to mark utterances with errors with [*] to ensure accurate DSS computation.\n\n");
+#else
+	printf("%c%cIF YOU DID NOT MARK ERRORS, DSS TOTAL WILL BE INFLATED.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
+	printf("%c%cPlease be sure to mark utterances with errors with [*] to ensure accurate DSS computation.%c%c\n\n", ATTMARKER, error_start, ATTMARKER, error_end);
+#endif
 	if (DBKeyRoot != NULL) {
-		printf("\n");
 #ifdef UNX
 		printf("PLEASE SEE SLP MANUAL FOR RECOMMENDED INTERPRETATION.\n");
 #else
@@ -4445,6 +4403,21 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 			}
 			argc--;
 		}
+		fprintf(stderr, "files dummy @Comments:   %ld\n", dummyFiles);
+		fprintf(stderr, "\n%s files:\n", DB_type);
+		fprintf(stderr, "files for ages 1;6-1;11: %ld\n", agesFound[0]);
+		fprintf(stderr, "files for ages 2;-2;5:    %ld\n", agesFound[1]);
+		fprintf(stderr, "files for ages 2;6-2;11: %ld\n", agesFound[2]);
+		fprintf(stderr, "files for ages 3;-3;5:    %ld\n", agesFound[3]);
+		fprintf(stderr, "files for ages 3;6-3;11: %ld\n", agesFound[4]);
+		fprintf(stderr, "files for ages 4;-4;5:    %ld\n", agesFound[5]);
+		fprintf(stderr, "files for ages 4;6-4;11: %ld\n", agesFound[6]);
+		fprintf(stderr, "files for ages 5;-5;5:     %ld\n", agesFound[7]);
+		fprintf(stderr, "files for ages 5;6-6:      %ld\n", agesFound[8]);
+		fprintf(stderr, "files right age but <%.0f Utts: %ld\n", DB_UTT_NUM_LIMIT, agesFound[11]);
+		fprintf(stderr, "files missing age:        %ld\n", agesFound[9]);
+		fprintf(stderr, "files out of range age:   %ld\n", agesFound[10]);
+		fprintf(stderr, "files NO CHI @ID:        %ld\n", agesFound[12]);
 	}
 #ifdef DEBUGEVALRESULTS
 	if (dbResults != NULL)
@@ -4520,22 +4493,8 @@ void getflag(char *f, char *f1, int *i) {
 				cutt_exit(0);
 			}
 			break;
-		case 'g':
-			if (*f == EOS) {
-				if (*(f-2) == '+')
-					kideval_group = TRUE;
-				else {
-					isGOptionSet = TRUE;
-					onlyApplyToDB = TRUE;
-				}
-			} else {
-				GemMode = 'i';
-				kideval_SpecWords++;
-				addDBGems(getfarg(f,f1,i));
-			}
-			break;
 		case 'l':
-			script_file = f;
+			ke_script_file = f;
 			break;
 		case 'L':
 			if (strcmp(f-1, "LinkAge") == 0) {
@@ -4549,18 +4508,6 @@ void getflag(char *f, char *f1, int *i) {
 					strcat(lib_dir, "/");
 			}
 #endif
-			break;
-		case 'n':
-			if (*(f-2) == '+') {
-				kideval_n_option = TRUE;
-				strcpy(kideval_BBS, "@G:");
-				strcpy(kideval_CBS, "@*&#");
-			} else {
-				strcpy(kideval_BBS, "@BG:");
-				strcpy(kideval_CBS, "@EG:");
-			}
-			isNOptionSet = TRUE;
-			no_arg_option(f);
 			break;
 		case 'o':
 			if (*f == '4') {

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2022 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -1173,8 +1173,8 @@ void init(char first) {
 				fprintf(stderr,"\nThe +d7 can't be used with +g1 or +g2 option\n");
 				cutt_exit(0);
 			}
-			if (onlydata >= 4 && onlydata <= 6) {
-				fprintf(stderr,"\nThe +d7 can not be used with +d3, +d4 or +d5 option\n");
+			if (onlydata >= 5 && onlydata <= 6) {
+				fprintf(stderr,"\nThe +d7 can not be used with +d4 or +d5 option\n");
 				cutt_exit(0);
 			}
 			for (i=0; GlobalPunctuation[i]; ) {
@@ -1498,6 +1498,9 @@ static void outputExcelUtts(struct combo_utts_list *u, char *keyword) {
 	combinput = tCombinput;
 	if (StatFpOut != NULL) {
 		excelHeader(StatFpOut, newfname, 95);
+		excelRow(StatFpOut, ExcelRowStart);
+		excelCommasStrCell(StatFpOut, "File,Language,Corpus,Speaker,Age,Sex,Group,Race,SES,Role,Education,Custom field,Line_number, Utterance");
+		excelRow(StatFpOut, ExcelRowEnd);
 		while (u != NULL) {
 			if (u->line[0] == '*') {
 				for (i=0L; u->line[i] != EOS && u->line[i] != ':'; i++)
@@ -2129,6 +2132,45 @@ static void resetFlatElemMat(PAT_ELEM *cur) {
 	}
 }
 
+static void morifyLine(char *line) {
+	int i, j;
+	char isMorFound;
+
+	isMorFound = FALSE;
+	for (i=0; line[i] != EOS; i++) {
+		if (line[i] == '\n') {
+			if (line[i+1] == '%' && line[i+2] == 'm' && line[i+3] == 'o' && line[i+4] == 'r') {
+				isMorFound = TRUE;
+				i += 5;
+				line[i++] = ':';
+				for (; !isSpace(line[i]) && line[i] != '\n'; i++)
+					line[i] = ' ';
+				break;
+			}
+		} 
+		// E2 87 94
+	}
+	if (isMorFound == FALSE)
+		return;
+	
+	while (line[i] != EOS) {
+//		if (line[i] == '\n' || line[i] == '\t')
+//			line[i] = ' ';
+		if (line[i] == (char)0xE2 && line[i+1] == (char)0x87 && line[i+2] == (char)0x94) {
+			for (j=i+3; isdigit(line[j]) || line[j] == '|'; j++) ;
+			line[i++] = '@';
+			while (!isSpace(line[j]) && line[j] != '\n' && line[j] != EOS) {
+				line[i] = line[j];
+				i++;
+				j++;
+			}
+			for (; !isSpace(line[i]) && line[i] != '\n' && line[i] != EOS; i++)
+				line[i] = ' ';
+		}
+		i++;
+	}
+}
+
 static int findmatch(char *txt) {
 	int  matchnum;
 	long i, k;
@@ -2485,11 +2527,27 @@ static int findmatch(char *txt) {
 				}
 			}
 		} else if (onlydata == 4) {
+			int  oi;
 			char sq;
-			
-			if (SpCluster == 0)
-				printout(utterance->speaker,NULL,utterance->attSp,NULL,FALSE);
-			for (k=0L; utterance->line[k]; k++) {
+
+			oi = 0;
+			templineC4[oi] = EOS;
+			if (SpCluster == 0) {
+				strcpy(templineC4, utterance->speaker);
+				oi = strlen(templineC4);
+			}
+			if (linkDep2Other == TRUE)
+				morifyLine(outLine);
+			for (k=0L; outLine[k]; k++) {
+				if (linkDep2Other == TRUE) {
+					if (outLine[k] == '\n' && outLine[k+1] == '%' && outLine[k+2] == 'm' &&
+						outLine[k+3] == 'o' && outLine[k+4] == 'r' && outLine[k+5] == ':') {
+						templineC4[oi] = EOS;
+						strcat(templineC4, "\n%mor:\t");
+						oi = strlen(templineC4);
+						k += 6;
+					}
+				}
 				if (mat[k] > 0L) {
 					if (!uS.isskip(utterance->line,k,&dFnt,MBF) || 
 						uS.isRightChar(utterance->line,k,'[',&dFnt,MBF) || uS.isRightChar(utterance->line,k,']',&dFnt,MBF)) {
@@ -2499,22 +2557,25 @@ static int findmatch(char *txt) {
 								sq = TRUE;
 							else if (uS.isRightChar(utterance->line,k,']',&dFnt,MBF))
 								sq = FALSE;
-							putc(outLine[k],fpout);
+							templineC4[oi++] = outLine[k];
 //							mat[k] = 0L;
 						}
 						k--;
 					} else {
-						putc(outLine[k],fpout);
+						templineC4[oi++] = outLine[k];
 //						mat[k] = 0L;
 					}
 				} else {
 					if (utterance->line[k]=='\n' || utterance->line[k]=='\t')
-						putc(outLine[k], fpout);
+						templineC4[oi++] = outLine[k];
 					else
-						putc(' ',fpout);
+						templineC4[oi++] = ' ';
 //					mat[k] = 0L;
 				}
 			}
+			uS.remFrontAndBackBlanks(templineC4);
+			removeExtraSpace(templineC4);
+			fprintf(fpout, "%s\n", templineC4);
 		} else if (onlydata == 5) {
 			if (SpCluster) {
 				i = strlen(utterance->speaker);
@@ -2646,11 +2707,13 @@ void call() {
 				tl = ttl;
 */
 			}
-			if (linkDep2Other) {
+			if (linkDep2Other == TRUE) {
 				if (strchr(uttline, dMarkChr) != NULL) {
 					combineMainDepWords(utterance->line, FALSE);
 					combineMainDepWords(uttline, FALSE);
 				}
+				if (onlydata == 4)
+					strcpy(utterance->line, uttline);
 				for (k=0; uttline[k] != EOS; k++) {
 					if (!includeTierCodeName) {
 						if (uttline[k] == '\n' && uttline[k+1] == '%') {
@@ -2846,7 +2909,7 @@ void getflag(char *f, char *f1, int *i) {
 				break;
 	}
 	if ((onlydata == 4 || onlydata == 6) && combo_string > 0) {
-		fprintf(stderr,"The use of +d3 or +d5 option is illegal with +g option.\n");
+		fprintf(stderr,"The use of +d3 or +d5 option is illegal with +g1 or +g2 options.\n");
 		freeMem();
 		cutt_exit(0);
 	}

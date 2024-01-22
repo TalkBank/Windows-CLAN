@@ -830,6 +830,11 @@ if (m_msgCur.message == 0x105)
 	return TRUE;
 }
 */
+
+/* lxs 2022-10-21 Walker Controller */
+#include "MpegDlg.h"
+#include <mmsystem.h>
+
 int CClan2App::Run() 
 {   // Overridden to check for Graph events as well as messages
 	if (m_pMainWnd == NULL && AfxOleGetUserCtrl())
@@ -840,15 +845,21 @@ int CClan2App::Run()
 	}
 	ASSERT_VALID(this);
 
+/* lxs 2022-10-21 Walker Controller */
+	extern HWAVEOUT hWaveOut;
+
 	// for tracking the idle time state
-	BOOL bIdle = TRUE;
-	LONG lIdleCount = 0;
+	BOOL  bIdle = TRUE;
+	LONG  lIdleCount = 0;
 	DWORD tDelay;
+	DWORD tickCount, lastTickCount;
 
 	tDelay = GetTickCount();
 	_AFX_THREAD_STATE *pstate = AfxGetThreadState();
 	// acquire and dispatch messages until a WM_QUIT message is received.
 //	checkForUpdate();
+	tickCount = GetTickCount();
+	lastTickCount = tickCount;
 	for (;;)
 	{
 		if (isMouseButtonDn != NULL) {
@@ -875,11 +886,33 @@ int CClan2App::Run()
 			// call OnIdle while in bIdle state
 			if (!OnIdle(lIdleCount++))
 				bIdle = FALSE; // assume "no idle" state
+/* lxs 2022-10-21 Walker Controller */
+			if (!PlayingContSound && PBC.enable && hWaveOut != NULL && MpegDlg == NULL) {
+				if (GlobalDoc != NULL && tickCount - lastTickCount > 1) {
+					GlobalDoc->WC_dummy = 1;;
+					GlobalDoc->myUpdateAllViews(FALSE);
+					lastTickCount = tickCount;
+				}
+				tickCount = GetTickCount();
+			}
+
 		}
 
 		// phase2: pump messages while available
 		do
 		{
+/* lxs 2022-10-21 Walker Controller */
+			if (!PlayingContSound && PBC.enable && hWaveOut != NULL && MpegDlg == NULL) {
+				if (GlobalDoc != NULL && tickCount - lastTickCount > 1) {
+					GlobalDoc->WC_dummy = 1;;
+					GlobalDoc->myUpdateAllViews(FALSE);
+					lastTickCount = tickCount;
+				}
+				tickCount = GetTickCount();
+			}
+
+
+
 			// pump message, but quit on WM_QUIT
 			if (!PumpMessage())
 				return ExitInstance();

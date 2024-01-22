@@ -208,13 +208,14 @@ void free_aliases(void) {
 }
 
 static void createAliasesList(FILE *fp, char loc, char *Dfname, char *Ufname, char isInit) {
-	char isPullDownCommand, isNeedsArgs;
+	char isPullDownCommand, isNeedsArgs, isAddCommandUsage;
 	int argv0, rest, ln;
 	ALIASES_LIST *newP, *p;
 
 	ln = 0;
 	isNeedsArgs = 0;
 	isPullDownCommand = 0;
+	isAddCommandUsage = 0;
 	while (fgets_ced(ced_lineC, UTTLINELEN, fp, NULL)) {
 		if (uS.isUTF8(ced_lineC) || uS.isInvisibleHeader(ced_lineC))
 			continue;
@@ -224,6 +225,8 @@ static void createAliasesList(FILE *fp, char loc, char *Dfname, char *Ufname, ch
 			isPullDownCommand = 1;
 		if (strcmp(ced_lineC, "%argument-needed") == 0)
 			isNeedsArgs = 1;
+		if (strcmp(ced_lineC, "%add_command_usage") == 0)
+			isAddCommandUsage = 1;
 		if (ced_lineC[0] == EOS || ced_lineC[0] == '%' || ced_lineC[0] == '#')
 			continue;
 		for (argv0=0; ced_lineC[argv0] != EOS && ced_lineC[argv0] != ' ' && ced_lineC[argv0] != '\t'; argv0++)
@@ -248,6 +251,7 @@ static void createAliasesList(FILE *fp, char loc, char *Dfname, char *Ufname, ch
 		}
 		newP->next_alias = NULL;
 		newP->isPullDownC = isPullDownCommand;
+		newP->isAddComUsage = isAddCommandUsage;
 		newP->isNeedsArgs = isNeedsArgs;
 		newP->loc = loc;
 		newP->ln  = ln;
@@ -529,6 +533,10 @@ static char *matchAlias(char *inputBuf) {
 				strcpy(alias_com, ALIAS_USAGE);
 				strcat(alias_com, " ");
 				displayAliasUsage(p, alias_com+strlen(alias_com));
+				if (p->isAddComUsage) {
+					fprintf(stdout,"\n");
+					strcpy(alias_com, p->argv0);
+				}
 				return(alias_com);
 			} else {
 				strcpy(alias_com, p->argv0);
@@ -1410,7 +1418,7 @@ static void cleanUpFName(FNType *name) {
 static void show_current_dir(fopts *args) {
 	FNType fname[FILENAME_MAX+1];
 	int  i, index,longest_name,len, ncols, fcount, dcount;
-	long size;
+//	long size;
 	exec_FileList *tFile;
 
 	if (args->isRecursive)
@@ -1437,7 +1445,7 @@ static void show_current_dir(fopts *args) {
 	ncols = 80 / (longest_name + 3);
 	if (!ncols)
 		ncols = 1;
-	size = 0L;
+//	size = 0L;
 	fcount = 0;
 	dcount = 0;
 	len = 0;
