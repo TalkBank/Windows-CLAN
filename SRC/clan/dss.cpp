@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -96,21 +96,19 @@ static RULES *root_rules;
 static DSSSP dss_sp_head;
 
 int  DSS_UTTLIM;
-char dss_lang;
-char isDssFileSpecified;
-const char *rulesfile;
+char dss_script_file[256];
 FILE *debug_dss_fp;
 
 #ifndef KIDEVAL_LIB
 void usage() {
-	printf("Usage: dss [a cN dS lS %s] filename(s)\n",mainflgs());
+	printf("Usage: dss [a cN dN lS %s] filename(s)\n",mainflgs());
 	printf("+aN: debug dss rules level N (1-3).\n");
 	printf("+cN: analyse N complete unique utterances. (default: 50 utterances)\n");
 	printf("+d : outputs in SPREADSHEET format\n");
 	printf("+d1: outputs in SPREADSHEET format one TOTAL line per file\n");
-	printf("+dF: specify dss rules file name. (no default)\n");
 //	printf("+i : interactively generates dss table\n");
-	printf("+lS: specify data language (eng - English, bss - English, jpn - Japanese)\n");
+	printf("+lF: specify language script file name F\n");
+	puts("     choices:  eng - English MOR, engu - English UD, bss - English MOR, jpn - Japanese");
 #ifdef UNX
 	printf("+LF: specify full path F of the lib folder\n");
 #endif
@@ -323,7 +321,8 @@ static int dss_storepat(DSS_MACH *tt, char *ln, int pos) {
 						!uS.isRightChar(ln, pos, '^', &dFnt, C_MBF) && !uS.isRightChar(ln, pos, '\n', &dFnt, C_MBF); pos++) ;
 		if (pos-1 < s1 || !uS.isRightChar(ln, pos-1, '\\', &dFnt, C_MBF)) break;
 		else if (ln[pos] == '\n' || ln[pos] == EOS) {
-			if (uS.isRightChar(ln, pos-1, '\\', &dFnt, C_MBF)) dss_err("Unexpected ending.",ln+pos);
+			if (uS.isRightChar(ln, pos-1, '\\', &dFnt, C_MBF))
+				dss_err("Unexpected ending.",ln+pos);
 			break;
 		} else pos++;
 	} while (1) ;
@@ -354,8 +353,10 @@ static int dss_storepat(DSS_MACH *tt, char *ln, int pos) {
 		ln[s2] = t;
 	} else {
 		if (s1 == s2) {
-			if (ln[s2]=='\n' && ln[s2+1]==EOS) dss_err("Unexpected ending.",ln+s1);
-			else dss_err("empty item is not allowed.",ln+s1);
+			if (ln[s2]=='\n' && ln[s2+1]==EOS)
+				dss_err("Unexpected ending.",ln+s1);
+			else
+				dss_err("empty item is not allowed.",ln+s1);
 		}
 		t = ln[s2];
 		ln[s2] = EOS;
@@ -365,7 +366,8 @@ static int dss_storepat(DSS_MACH *tt, char *ln, int pos) {
 	}
 	for (; s1 < s2; s1++) {
 		if (uS.isRightChar(ln, s1, '[', &dFnt, C_MBF) || uS.isRightChar(ln, s1, ']', &dFnt, C_MBF)) ;
-		else if (uS.isskip(ln,s1,&dFnt,C_MBF)) dss_err("Illegal character in a word.",ln+s1);
+		else if (uS.isskip(ln,s1,&dFnt,C_MBF))
+			dss_err("Illegal character in a word.",ln+s1);
 	}
 	return(pos);
 }
@@ -549,7 +551,7 @@ static int dss_subindex(char *s, char *pat, int i, char end) {
 }
 
 /* return index of pat in s, -1 if no match */
-static int dss_CMatch(char *s, char *pat, char wild) {
+static int dss_CMatch(char *b, char *s, char *pat, char wild) {
 	register int i;
 	register int j;
 	register int e;
@@ -559,6 +561,13 @@ static int dss_CMatch(char *s, char *pat, char wild) {
 		dss_firstmatch = 0;
 		return(0);
 	}
+	if (pat[0] == '&') {
+		if (b == s)
+			pat++;
+		else
+			return(-1);
+	}
+		
 	if (wild) {
 		i = 0;
 		while (s[i]) {
@@ -598,7 +607,7 @@ static int dss_CMatch(char *s, char *pat, char wild) {
 	return(-1);
 }
 
-static char *dss_match(char *txt, DSS_MACH *tm, char wild, char *neg) {
+static char *dss_match(char *beg_txt, char *txt, DSS_MACH *tm, char wild, char *neg) {
 	DSS_NMN *ts;
 	int last = -1;
 	char *fst, *tmp;
@@ -614,7 +623,7 @@ static char *dss_match(char *txt, DSS_MACH *tm, char wild, char *neg) {
 			txt = tm->fmatch;
 			last = tm->lmatch;
 		} else {
-			if ((last=dss_CMatch(txt,tm->pat,wild)) != -1) {
+			if ((last=dss_CMatch(beg_txt, txt,tm->pat,wild)) != -1) {
 				tm->fmatch = txt + dss_firstmatch;
 				tm->lmatch = last - dss_firstmatch;
 			}
@@ -662,7 +671,7 @@ static char *dss_match(char *txt, DSS_MACH *tm, char wild, char *neg) {
 				fprintf(debug_dss_fp, "4; pat=%s;tm->wild=%d; wild=%d;tm->neg=%d;neg=%s;l=%d; txt=%s\n", tm->pat, tm->wild, wild, tm->neg, neg, last, txt);
 
 			while (*txt == ' ') txt++;
-			if ((tmp=dss_match(txt,ts->tmac,tm->wild,neg)) != NULL) {
+			if ((tmp=dss_match(beg_txt, txt,ts->tmac,tm->wild,neg)) != NULL) {
 				if (!neg_or) return(tmp);
 				goto cont;
 			} else if (tm->neg && !ts->tmac->wild) {
@@ -670,7 +679,7 @@ static char *dss_match(char *txt, DSS_MACH *tm, char wild, char *neg) {
 				while (*txt != ' ' && *txt != 0) txt++;
 				while (*txt == ' ') txt++;
 				if (*txt == EOS) return(NULL);
-				if ((tmp=dss_match(txt,ts->tmac,tm->wild,NULL)) != NULL) {
+				if ((tmp=dss_match(beg_txt, txt,ts->tmac,tm->wild,NULL)) != NULL) {
 					if (!neg_or) return(tmp);
 					goto cont;
 				}
@@ -688,7 +697,7 @@ static char *dss_match(char *txt, DSS_MACH *tm, char wild, char *neg) {
 			if (debug_level > 2)
 				fprintf(debug_dss_fp, "5; pat=%s;tm->wild=%d; wild=%d;tm->neg=%d;neg=%s;l=%d; txt=%s\n", tm->pat, tm->wild, wild, tm->neg, neg, last, txt);
 
-			if ((last=dss_CMatch(txt,tm->pat,wild)) != -1) {
+			if ((last=dss_CMatch(beg_txt, txt,tm->pat,wild)) != -1) {
 				tm->fmatch = txt + dss_firstmatch;
 				tm->lmatch = last - dss_firstmatch;
 				if ((neg && txt+dss_firstmatch >= neg) || tm->neg) {
@@ -725,7 +734,7 @@ static void dss_clearmac(DSS_MACH *rootmac) {
 	rootmac->lmatch = 0;
 }
 
-static int LastMatch(DSS_MACH *tm, char *txt) {
+static int LastMatch(DSS_MACH *tm, char *beg_txt, char *txt) {
 	if (tm == NULL) {
 		return(TRUE);
 	}
@@ -740,7 +749,7 @@ static int LastMatch(DSS_MACH *tm, char *txt) {
 		return(FALSE);
 	for (; txt != uttline && *txt != ' '; txt--) ;
 	if (txt != uttline && *txt == ' ') txt++;
-	return(dss_match(txt,tm,0,NULL) != NULL);
+	return(dss_match(beg_txt, txt,tm,0,NULL) != NULL);
 }
 
 static void DebugLastMatch(DSS_MACH *tm, char *txt) {
@@ -765,13 +774,13 @@ static void DebugLastMatch(DSS_MACH *tm, char *txt) {
 	fprintf(debug_dss_fp, "txt=%s\n", txt);
 }
 
-static int NextMatch(DSS_MACH *tm, char *txt) {
+static int NextMatch(DSS_MACH *tm, char *beg_txt, char *txt) {
 	if (tm == NULL) {
 		return(TRUE);
 	}
 	if (*txt == EOS)
 		return(FALSE);
-	return(dss_match(txt,tm,0,NULL) != NULL);
+	return(dss_match(beg_txt, txt,tm,0,NULL) != NULL);
 }
 
 static void DebugNextMatch(DSS_MACH *tm, char *txt) {
@@ -860,12 +869,14 @@ static char TakeAction(char *st, char isDebug) {
 	return(TRUE);
 }
 
-static char dss_findmatch(char *txt) {
+static char dss_findmatch(char *beg_txt) {
 	RULE  *tr;
 	RULES *ts;
+	char *txt;
 	char *ltxt;
 	register int i;
 
+	txt = beg_txt;
 	templineC4[0] = EOS;
 	templineC3[0] = EOS;
 	while (*txt == ' ')
@@ -891,19 +902,19 @@ static char dss_findmatch(char *txt) {
 					dss_mat[i] = 0;
 				ltxt = txt;
 
-				if ((txt=dss_match(txt,tr->focus,0,NULL)) != NULL) {
+				if ((txt=dss_match(beg_txt,txt,tr->focus,0,NULL)) != NULL) {
 					for (i=0; i < BUFSIZ; i++) MatCop[i] = dss_mat[i];
 					dss_clearmac(tr->focus);
 					if (debug_level > 1) {
 						fprintf(debug_dss_fp, "focus match SUCCEEDED\n");
 					}
-					if (LastMatch(tr->lcont, ltxt)) {
+					if (LastMatch(tr->lcont, beg_txt, ltxt)) {
 						dss_clearmac(tr->lcont);
 						if (debug_level > 1) {
 							DebugLastMatch(tr->lcont, ltxt);
 							fprintf(debug_dss_fp, "last match SUCCEEDED\n");
 						}
-						if (NextMatch(tr->rcont, txt)) {
+						if (NextMatch(tr->rcont, beg_txt, txt)) {
 							dss_clearmac(tr->rcont);
 							if (debug_level > 1) {
 								DebugNextMatch(tr->rcont, txt);
@@ -948,10 +959,10 @@ static char dss_findmatch(char *txt) {
 								if (!TakeAction(tr->action, TRUE))
 									return(FALSE);
 							}
-							if (dss_lang == 'e') {
+							if (dss_script_file[0] == 'e') {
 								txt = ltxt;
 								goto en_cont;
-							} else if (dss_lang == 'j') {
+							} else if (dss_script_file[0] == 'j') {
 								goto jp_cont;
 							}
 						} else {
@@ -1097,25 +1108,27 @@ static void MakeRules() {
 	FNType mFileName[FNSize];
 
 	strcpy(mFileName, lib_dir);
-#if !defined(CLAN_SRV)
 	addFilename2Path(mFileName, "dss");
-#endif
-	addFilename2Path(mFileName, rulesfile);
+	addFilename2Path(mFileName, dss_script_file);
 	if ((fp=fopen(mFileName,"r")) == NULL) {
-		if (!isDssFileSpecified) {
-			fprintf(stderr, "Can't open dss rules file: \"%s\"\n", mFileName);
+		strcat(mFileName, ".cut");
+		if ((fp=fopen(mFileName,"r")) == NULL) {
+			if (strrchr(dss_script_file, '.') != NULL) {
+				strcpy(FileName2, wd_dir);
+				addFilename2Path(FileName2, dss_script_file);
+				if ((fp=fopen(FileName2,"r")) == NULL) {
+					fprintf(stderr, "Can't open either one dss rules file: \"%s\", \"%s\"\n", mFileName, FileName2);
 #ifdef _MAC_CODE
-			fprintf(stderr, "\n");
+					fprintf(stderr, "\n");
 #else
-			fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
+					fprintf(stderr, "Check to see if \"lib\" directory in Commands window is set correctly.\n\n");
 #endif
-			dss_mferr = 1;
-			return;
-		} else {
-			strcpy(templineC, wd_dir);
-			addFilename2Path(templineC, rulesfile);
-			if ((fp=fopen(templineC,"r")) == NULL) {
-				fprintf(stderr, "Can't open either one of the dss rules files:\n\t\"%s\"\n\t\"%s\"\n", templineC, mFileName);
+					dss_mferr = 1;
+					return;
+				} else
+					strcpy(mFileName, FileName2);
+			} else {
+				fprintf(stderr, "Can't open dss rules file: \"%s\"\n", mFileName);
 #ifdef _MAC_CODE
 				fprintf(stderr, "\n");
 #else
@@ -1123,8 +1136,6 @@ static void MakeRules() {
 #endif
 				dss_mferr = 1;
 				return;
-			} else {
-				strcpy(mFileName, templineC);
 			}
 		}
 	}
@@ -1243,22 +1254,20 @@ char init_dss(char first) {
 		dss_mferr = 0;
 		GTotalNum = (float)0.0;
 		GGrandTotal = (float)0.0;
-		rulesfile = NULL;
 		IsOutputSpreadsheet = 0;
 		spNum = 0;
 		isFirstCall = TRUE;
 		isDSSpostcode = TRUE;
 		isDSSEpostcode = TRUE;
 		DSSAutoMode = TRUE;
-		isDssFileSpecified = FALSE;
 		root_rules = NULL;
-		dss_lang = '\0';
 		debug_level = 0;
 		PointsCnt = 0;
 		DSS_UTTLIM = 50;
 		tfp = NULL;
 		stack = NULL;
 		INITSTACK = NULL;
+		strcpy(dss_script_file, DSSNOCOMPUTE);
 		dss_sp_head.sp[0] = EOS;
 		dss_mat = (char *)malloc((size_t) (BUFSIZ + 1));
 		if (dss_mat == NULL) {
@@ -1282,17 +1291,17 @@ char init_dss(char first) {
 			return(FALSE);
 		}
 	} else {
-		if (dss_lang == '\0' || rulesfile == NULL) {
+		if (strcmp(dss_script_file, DSSNOCOMPUTE) == 0) {
 			if (CLAN_PROG_NUM == DSS) {
 				fprintf(stderr, "Please specify data language with \"+l\" option.\n");
-				fprintf(stderr, "  eng - English, bss - English, jpn - Japanese\n");
+				fprintf(stderr, "  eng - English MOR, engu - English UD, bss - English MOR, jpn - Japanese\n");
 			} else {
 				fprintf(stderr, "Please specify data language inside \"language script file\".\n");
-				fprintf(stderr, "  eng - English, bss - English, jpn - Japanese, 0 - do not compute DSS\n");
+				fprintf(stderr, "  eng - English MOR, engu - English UD, bss - English MOR, jpn - Japanese, 0 - do not compute DSS\n");
 			}
 			return(FALSE);
 		}
-		if (strcmp(rulesfile, DSSNOCOMPUTE) != 0)
+		if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0)
 			MakeRules();
 		if (dss_mferr) {
 			dss_cleanSearchMem();
@@ -1565,6 +1574,11 @@ static void PrintRow(char points[POINTS_N][POINTS_S], char *line, float total, c
 		}
 		for (; l_index < rpos && line[l_index] != EOS; l_index++)
 			putc(line[l_index], fp);
+		if (l_index == rpos && line[l_index] != EOS) {
+			while (line[l_index] != EOS && !UTF8_IS_SINGLE((unsigned char)line[l_index]) && !UTF8_IS_LEAD((unsigned char)line[l_index]))
+				putc(line[l_index++], fp);
+
+		}
 		for (; col < 39; col++)
 			putc(' ', fp);
 		putc('|', fp);
@@ -1657,7 +1671,7 @@ static char HandleNoAnswer(char points[POINTS_N][POINTS_S], char *line) {
 #endif
 			return('q');
 		}
-		if (dss_lang == 'e') {
+		if (dss_script_file[0] == 'e') {
 			for (i=0; buf[i] != EOS; i++) {
 				if (uS.mStrnicmp(buf+i, "ip", 2) == 0) {
 					s = points[0]; i = FinishPointsFixing(s,buf,i,0+'A');
@@ -1680,7 +1694,7 @@ static char HandleNoAnswer(char points[POINTS_N][POINTS_S], char *line) {
 					break;
 				}
 			}
-		} else if (dss_lang == 'j') {
+		} else if (dss_script_file[0] == 'j') {
 			for (i=0; buf[i] != EOS; i++) {
 				if (uS.mStrnicmp(buf+i, "vm", 2) == 0) {
 					s = points[0]; i = FinishPointsFixing(s,buf,i,0+'A');
@@ -1757,7 +1771,7 @@ float PrintOutDSSTable(char *line, int spNum, int spRowNum, char isOutput) {
 
 	total = 0.0;
 	if (DSSAutoMode) {
-		if (dss_lang == 'e') {
+		if (dss_script_file[0] == 'e') {
 			ans = 'p';
 			for (i=0; line[i] != EOS; i++) {
 				if (line[i] == '[' && line[i+1] == '*' && line[i+2] == ' ' &&  (line[i+3] == 'p' || line[i+3] == 'P')) {
@@ -1772,7 +1786,7 @@ float PrintOutDSSTable(char *line, int spNum, int spRowNum, char isOutput) {
 					break;
 				}
 			}
-		} else if (dss_lang == 'j') {
+		} else if (dss_script_file[0] == 'j') {
 			ans = 'n';
 		} else
 			ans = 'n';
@@ -1862,7 +1876,7 @@ int PassedDSSMorTests(char *osp, char *mor, char *dss) {
 			return(FALSE);
 		}
 	}
-	if (dss_lang == 'e') {
+	if (dss_script_file[0] == 'e') {
 		j = 0;
 		for (pos=0; osp[pos]; pos++) {
 			i = 0;
@@ -1952,7 +1966,7 @@ int PassedDSSMorTests(char *osp, char *mor, char *dss) {
 				fprintf(debug_dss_fp, "test FAILED\n");
 			}
 		}
-	} else if (dss_lang == 'j') {
+	} else if (dss_script_file[0] == 'j') {
 		return(TRUE);
 	}
 	return(FALSE);
@@ -2197,7 +2211,7 @@ void call() {
 			tsp->TotalNum = 0.0;
 			tsp->GrandTotal = 0.0;
 		}
-		if (dss_lang != 'j')
+		if (dss_script_file[0] != 'j')
 			fprintf(fpout, "%s	CAfont:13:7\n", FONTHEADER);
 		fprintf(fpout, "\nDevelopmental Sentence Analysis\n\n");
 		fprintf(fpout, "           Sentence                    |");
@@ -2374,10 +2388,13 @@ void call() {
 					else
 						fprintf(stderr, "WARNING: You asked for %d complete sentences and this transcript only has %.0f.\n", DSS_UTTLIM, tsp->TotalNum);
 				} else {
-					if (DSS_UTTLIM == 50)
+					if (DSS_UTTLIM == 50) {
+						fprintf(stderr, "\nWARNING: DSS requires 50 complete sentences and this transcript only has %.0f.\n\n", tsp->TotalNum);
 						fprintf(fpout, "WARNING: DSS requires 50 complete sentences and this transcript only has %.0f.\n", tsp->TotalNum);
-					else
+					} else {
+						fprintf(stderr, "\nWARNING: You asked for %d complete sentences and this transcript only has %.0f.\n\n", DSS_UTTLIM, tsp->TotalNum);
 						fprintf(fpout, "WARNING: You asked for %d complete sentences and this transcript only has %.0f.\n", DSS_UTTLIM, tsp->TotalNum);
+					}
 				}
 			}
 			GTotalNum += tsp->TotalNum;
@@ -2437,9 +2454,6 @@ void getflag(char *f, char *f1, int *i) {
 				IsOutputSpreadsheet = 1;
 			} else if (*f == '1') {
 				IsOutputSpreadsheet = 2;
-			} else {
-				rulesfile = getfarg(f,f1,i);
-				isDssFileSpecified = TRUE;
 			}
 			break;
 		case 'e':
@@ -2455,21 +2469,15 @@ void getflag(char *f, char *f1, int *i) {
 				fprintf(stderr,"Letter expected after %s option.\n", f-2);
 				cutt_exit(0);
 			}
-			if (*f == 'b' || *f == 'B') {
-				dss_lang = 'e';
-				if (rulesfile == NULL)
-					rulesfile = DSSBSSRULES;
-			} else if (*f == 'e' || *f == 'E') {
-				dss_lang = 'e';
-				if (rulesfile == NULL)
-					rulesfile = DSSRULES;
-			} else if (*f == 'j' || *f == 'J') {
-				dss_lang = 'j';
-				if (rulesfile == NULL)
-					rulesfile = DSSJPRULES;
+			if (strlen(f) > 250) {
+				fprintf(stderr, "This language is too long (250): %d.\n", strlen(f));
+				cutt_exit(0);
+			} else if (*f == 'b' || *f == 'B' || *f == 'e' || *f == 'E' || *f == 'j' || *f == 'J') {
+				extractFileName(dss_script_file, f);
+				uS.lowercasestr(dss_script_file, &dFnt, C_MBF);
 			} else {
 				fprintf(stderr, "This language is not supported: %s.\n", f);
-				fprintf(stderr, "Choose: eng - English, bss - English, jpn - Japanese\n");
+				fprintf(stderr, "choices: eng - English MOR, engu - English UD, bss - English MOR, jpn - Japanese\n");
 				cutt_exit(0);
 			}
 			break;

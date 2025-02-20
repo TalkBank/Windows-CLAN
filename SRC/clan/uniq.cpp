@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -47,6 +47,7 @@ void init(char f) {
 		uniq_total = 0L;
 		uniq_diff = 0L;
 		chatmode = 0;
+		uniq_sort = 0;
 	}
 	if (f || !combinput) {
 		uniq_total = 0L;

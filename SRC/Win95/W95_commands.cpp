@@ -512,8 +512,7 @@ void CClanWindow::OnClanProgs()
 	int len;
 	int item;
 
-	item = m_ProgsCtrl.
-		GetCurSel();
+	item = m_ProgsCtrl.GetCurSel();
 	m_ProgsCtrl.SetCurSel(0);
 	UpdateData(TRUE);
 	if (item > 0) {

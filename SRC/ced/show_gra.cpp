@@ -32,10 +32,10 @@ static void convertToURLText(char *to, char *from) {
 	to[ito] = EOS;
 }
 
-char ShowGRA(void) {
+char ShowGRA(char *graSt, char *morSt) {
 	int  i;
 	int  j;
-	char hf, jpgTag[20];
+	char hf, jpgTag[20], errMess[512];
 	FILE *fp;
 	ROWS *tr, *grt, *gra, *trn, *mor, *msp;
 	extern FNType prefsDir[];
@@ -54,10 +54,10 @@ char ShowGRA(void) {
 	}
 	if (uS.partcmp(tr->line, "%grt:", FALSE, FALSE))
 		grt = tr;
-	else if (uS.partcmp(tr->line, "%gra:", FALSE, FALSE))
+	else if (uS.partcmp(tr->line, graSt, FALSE, FALSE))
 		gra = tr;
 	while (!isMainSpeaker(tr->line[0]) && tr->line[0] != (unCH)'@'  && !AtTopEnd(tr, global_df->head_text, FALSE)) {
-		if (uS.partcmp(tr->line, "%mor:", FALSE, FALSE))
+		if (uS.partcmp(tr->line, morSt, FALSE, FALSE))
 			mor = tr;
 		else if (uS.partcmp(tr->line, "%trn:", FALSE, FALSE))
 			trn = tr;
@@ -69,7 +69,7 @@ char ShowGRA(void) {
 		msp = tr;
 	tr = global_df->row_txt;
 	while (!isMainSpeaker(tr->line[0]) && tr->line[0] != (unCH)'@' && !AtBotEnd(tr, global_df->tail_text, FALSE)) {
-		if (uS.partcmp(tr->line, "%mor:", FALSE, FALSE))
+		if (uS.partcmp(tr->line, morSt, FALSE, FALSE))
 			mor = tr;
 		else if (uS.partcmp(tr->line, "%trn:", FALSE, FALSE))
 			trn = tr;
@@ -80,11 +80,13 @@ char ShowGRA(void) {
 	else if (gra != NULL)
 		tr = gra;
 	else {
-		do_warning("Can't find %grt or %gra tier.", -1);
+		sprintf(errMess, "Can't find %%grt: or %s tier.", graSt);
+		do_warning(errMess, -1);
 		return(FALSE);
 	}
 	if (trn == NULL && mor == NULL) {
-		do_warning("Can't find %trn or %mor tier.", -1);
+		sprintf(errMess, "Can't find %%trn: or %s tier.", morSt);
+		do_warning(errMess, -1);
 		return(FALSE);
 	}
 	j = 0;
@@ -119,7 +121,8 @@ char ShowGRA(void) {
 	else if (trn != NULL && gra != NULL)
 		tr = trn;
 	else {
-		do_warning("Can't find %trn or %mor tier.", -1);
+		sprintf(errMess, "Can't find %%trn: or %s tier.", morSt);
+		do_warning(errMess, -1);
 		return(FALSE);
 	}
 	j = 0;

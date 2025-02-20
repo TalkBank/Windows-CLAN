@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -298,6 +298,182 @@ static void filterMorfs(char *org) {
 			org[i] = t;
 		}
 	} while (org[i]) ;
+}
+
+char mlu_excludeUtter(char *line, int pos, char *isWordsFound) { // xxx, yyy, www
+	int  i, j;
+	char isSkipFirst = FALSE;
+
+	if (MBF) {
+		if (my_CharacterByteType(line, (short)pos, &dFnt) != 0 ||
+			my_CharacterByteType(line, (short)pos+1, &dFnt) != 0 ||
+			my_CharacterByteType(line, (short)pos+2, &dFnt) != 0)
+			isSkipFirst = TRUE;
+	}
+	if (!isSkipFirst) {
+		i = 0;
+		j = 0;
+		if (pos == 0 || uS.isskip(line,pos-1,&dFnt,MBF)) {
+			for (j=pos; line[j] == 'x' || line[j] == 'X' ||
+						line[j] == 'y' || line[j] == 'Y' ||
+						line[j] == 'w' || line[j] == 'W' || 
+						line[j] == '(' || line[j] == ')'; j++) {
+				if (line[j] != '(' && line[j] != ')')
+					templineC2[i++] = line[j];
+			}
+		}
+		if (i == 3) {
+			if (uS.isskip(line, j, &dFnt,MBF) || line[j] == '@')
+				templineC2[i] = EOS;
+			else
+				templineC2[0] = EOS;
+		} else
+			templineC2[i] = EOS;
+		uS.lowercasestr(templineC2, &dFnt, FALSE);
+		if ((ml_isXXXFound && strcmp(templineC2, "xxx") == 0) ||
+			(ml_isYYYFound && strcmp(templineC2, "yyy") == 0)) {
+			if (isWordsFound == NULL && (CntWUT == 2 || CntWUT == 3)) {
+			} else {
+				line[pos] = ' ';
+				line[pos+1] = ' ';
+				line[pos+2] = ' ';
+			}
+			if (isWordsFound != NULL)
+				*isWordsFound = TRUE;
+		} else if (strcmp(templineC2, "xxx") == 0 ||
+				   strcmp(templineC2, "yyy") == 0 ||
+				   strcmp(templineC2, "www") == 0) {
+//			if (uS.isskip(line,pos+3,&dFnt,MBF) || line[pos+3] == EOS)
+				return(TRUE);
+		}
+	}
+	if (chatmode) {
+		if (uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE)) {
+			if (MBF) {
+				if (my_CharacterByteType(line, (short)pos, &dFnt)   != 0 ||
+					my_CharacterByteType(line, (short)pos+1, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+2, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+3, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+4, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+5, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+6, &dFnt) != 0)
+					return(FALSE);
+			}
+			if (!uS.isskip(line,pos+7,&dFnt,MBF) && line[pos+7] != EOS)
+				return(FALSE);
+			strncpy(templineC2, line+pos, 7);
+			templineC2[7] = EOS;
+			uS.lowercasestr(templineC2, &dFnt, FALSE);
+			if ((ml_isXXXFound && strcmp(templineC2, "unk|xxx") == 0) ||
+				(ml_isYYYFound && strcmp(templineC2, "unk|yyy") == 0)) {
+				if (isWordsFound == NULL && (CntWUT == 2 || CntWUT == 3)) {
+				} else {
+					line[pos] = ' ';
+					line[pos+1] = ' ';
+					line[pos+2] = ' ';
+					line[pos+3] = ' ';
+					line[pos+4] = ' ';
+					line[pos+5] = ' ';
+					line[pos+6] = ' ';
+				}
+				if (isWordsFound != NULL)
+					*isWordsFound = TRUE;
+			} else if (strcmp(templineC2, "unk|xxx") == 0 ||
+					   strcmp(templineC2, "unk|yyy") == 0 ||
+					   strcmp(templineC2, "unk|www") == 0)
+				return(TRUE);
+		}
+	}
+	return(FALSE);	
+}
+
+char mlt_excludeUtter(char *line, int pos, char *isWordsFound) { // xxx, yyy, www
+	int  i, j;
+	char isSkipFirst = FALSE;
+	
+	if (MBF) {
+		if (my_CharacterByteType(line, (short)pos, &dFnt) != 0 ||
+			my_CharacterByteType(line, (short)pos+1, &dFnt) != 0 ||
+			my_CharacterByteType(line, (short)pos+2, &dFnt) != 0)
+			isSkipFirst = TRUE;
+	}
+	if (!isSkipFirst) {
+		i = 0;
+		j = 0;
+		if (pos == 0 || uS.isskip(line,pos-1,&dFnt,MBF)) {
+			for (j=pos; line[j] == 'x' || line[j] == 'X' ||
+						line[j] == 'y' || line[j] == 'Y' ||
+						line[j] == 'w' || line[j] == 'W' || 
+						line[j] == '(' || line[j] == ')'; j++) {
+				if (line[j] != '(' && line[j] != ')')
+					templineC2[i++] = line[j];
+			}
+		}
+		if (i == 3) {
+			if (isSpace(line[j]) || line[j] == '@')
+				templineC2[i] = EOS;
+			else
+				templineC2[0] = EOS;
+		} else
+			templineC2[i] = EOS;
+		uS.lowercasestr(templineC2, &dFnt, FALSE);
+		if ((ml_isXXXFound && strcmp(templineC2, "xxx") == 0) ||
+			(ml_isYYYFound && strcmp(templineC2, "yyy") == 0) ||
+			(ml_isWWWFound && strcmp(templineC2, "www") == 0)) {
+			if (isWordsFound == NULL && (CntWUT == 2 || CntWUT == 3)) {
+			} else {
+				line[pos] = ' ';
+				line[pos+1] = ' ';
+				line[pos+2] = ' ';
+			}
+			if (isWordsFound != NULL)
+				*isWordsFound = TRUE;
+		} else if (strcmp(templineC2, "xxx") == 0 ||
+				   strcmp(templineC2, "yyy") == 0 ||
+				   strcmp(templineC2, "www") == 0) {
+//			if (uS.isskip(line,pos+3,&dFnt,MBF) || line[pos+3] == EOS)
+				return(TRUE);
+		}
+	}
+	if (chatmode) {
+		if (uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE)) {
+			if (MBF) {
+				if (my_CharacterByteType(line, (short)pos, &dFnt)   != 0 ||
+					my_CharacterByteType(line, (short)pos+1, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+2, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+3, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+4, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+5, &dFnt) != 0 ||
+					my_CharacterByteType(line, (short)pos+6, &dFnt) != 0)
+					return(FALSE);
+			}
+			if (!uS.isskip(line,pos+7,&dFnt,MBF) && line[pos+7] != EOS)
+				return(FALSE);
+			strncpy(templineC2, line+pos, 7);
+			templineC2[7] = EOS;
+			uS.lowercasestr(templineC2, &dFnt, FALSE);
+			if ((ml_isXXXFound && strcmp(templineC2, "unk|xxx") == 0) ||
+				(ml_isYYYFound && strcmp(templineC2, "unk|yyy") == 0) ||
+				(ml_isWWWFound && strcmp(templineC2, "unk|www") == 0)) {
+				if (isWordsFound == NULL && (CntWUT == 2 || CntWUT == 3)) {
+				} else {
+					line[pos] = ' ';
+					line[pos+1] = ' ';
+					line[pos+2] = ' ';
+					line[pos+3] = ' ';
+					line[pos+4] = ' ';
+					line[pos+5] = ' ';
+					line[pos+6] = ' ';
+				}
+				if (isWordsFound != NULL)
+					*isWordsFound = TRUE;
+			} else if (strcmp(templineC2, "unk|xxx") == 0 ||
+					   strcmp(templineC2, "unk|yyy") == 0 ||
+					   strcmp(templineC2, "unk|www") == 0)
+				return(TRUE);
+		}
+	}
+	return(FALSE);	
 }
 
 static char ml_excludeUtter(char *line) {

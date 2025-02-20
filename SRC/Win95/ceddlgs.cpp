@@ -71,7 +71,6 @@ void CUpdateCLAN::OnDontCheck()
 /////////////////////////////////////////////////////////////////////////////
 // CCedDlgs dialog
 
-
 CCedDlgs::CCedDlgs(CWnd* pParent /*=NULL*/)
 	: CDialog(CCedDlgs::IDD, pParent)
 {
@@ -100,6 +99,12 @@ void CCedDlgs::DoDataExchange(CDataExchange* pDX)
 	DDV_MinMaxInt(pDX, m_nCheckPointCnt, 0, 16000);
 	DDX_Text(pDX, IDC_CEDO_CLAN_LIMIT, m_ClanWindowLinesLimit);
 	DDV_MinMaxLong(pDX, m_ClanWindowLinesLimit, 0, 16000);
+	DDX_Control(pDX, IDC_CEDO_COLORLEMMA, m_ColorLemmaCtrl);
+// Default color;Blue Color;Orange Color;Magenta Color;Purple Color;Brown Color
+	if (m_LemmaColorNum >= 0 && m_LemmaColorNum <= 5)
+		m_ColorLemmaCtrl.SetCurSel(m_LemmaColorNum);
+	else
+		m_ColorLemmaCtrl.SetCurSel(0);
 	DDX_Check(pDX, IDC_CEDO_CREATE_BACKUP, m_CreateBackup);
 	DDX_Check(pDX, IDC_CEDO_OPEN_CLAN, m_OpenClan);
 	DDX_Check(pDX, IDC_CEDO_START_EDITOR, m_StartEditorMode);
@@ -116,8 +121,25 @@ void CCedDlgs::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CCedDlgs, CDialog)
 	//{{AFX_MSG_MAP(CCedDlgs)
+	ON_CBN_SELCHANGE(IDC_CEDO_COLORLEMMA, OnColorLemma)
+	ON_CBN_SELENDCANCEL(IDC_CEDO_COLORLEMMA, OnColorLemmaCancel)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
+
+void CCedDlgs::OnColorLemma()
+{
+	int len;
+
+	m_LemmaColorNum = m_ColorLemmaCtrl.GetCurSel();
+	UpdateData(TRUE);
+
+//	m_ColorLemmaCtrl.SetCurSel(LemmasColorNumPtr);
+}
+
+void CCedDlgs::OnColorLemmaCancel()
+{
+	DWORD cPos = m_ColorLemmaCtrl.GetCurSel();
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // CCedFindString dialog

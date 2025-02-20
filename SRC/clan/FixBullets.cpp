@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -49,8 +49,10 @@ CHATTIERS {
 
 extern struct tier *defheadtier;
 extern char OverWriteFile;
+extern char GExt[];
 
 static long offset;
+static char isGemFile;
 static char isMergeBullets;
 static char isMergeFiles;
 static long last_End = 0L;
@@ -87,6 +89,7 @@ void init(char f) {
 		offset = 0L;
 		tiersRoot = NULL;
 		headsp = NULL;
+		isGemFile = FALSE;
 		isMergeBullets = FALSE;
 		isMergeFiles = FALSE;
 		OverWriteFile = TRUE;
@@ -119,6 +122,7 @@ void usage() {
 	printf("and inserts an @Media header.\n");
 	printf("Usage: fixbullets [b o %s] filename(s)\n", mainflgs());
 	puts("+b : merge multiple bullets per line into one bullets per tier");
+	puts("+g : zero out first bullet and offset the rest in a file GEM file");
 	puts("+m : merge all files into one file with bullets progressively offset");
 	puts("+oN: time offset value N (+o800 means add 800)");
 	puts("-oN: time offset value N (-o800 means subtract 800)");
@@ -145,6 +149,11 @@ void getflag(char *f, char *f1, int *i) {
 	switch(*f++) {
 		case 'b':
 			isMergeBullets = TRUE;
+			no_arg_option(f);
+			break;
+		case 'g':
+			isGemFile = TRUE;
+			strcpy(GExt, ".slice");
 			no_arg_option(f);
 			break;
 		case 'm':
@@ -304,12 +313,16 @@ static char getRawMediaTagInfo(char *line, long *Beg, long *End) {
 	return(TRUE);
 }
 
-static void offsetBullets(char *word, AttTYPE *atts) {
+static void offsetBullets(char *word, AttTYPE *atts, char *isFirstBulletInFile) {
 	long i, len, lenNew;
 	AttTYPE att;
 
 	if (word[0] == HIDEN_C && isdigit(word[1])) {
 		if (getRawMediaTagInfo(word, &cur_SNDBeg, &cur_SNDEnd)) {
+			if (*isFirstBulletInFile == TRUE) {
+				offset = 0 - cur_SNDBeg;
+				*isFirstBulletInFile = FALSE;
+			}
 			len = strlen(word);
 			cur_SNDBeg = cur_SNDBeg + offset;
 			if (cur_SNDBeg < 0L)
@@ -697,16 +710,20 @@ static char foundMediaName(char *line, char *tMediaFName) {
 #endif
 
 void call() {
-	char isIDsfound, isBulletsFound, isCheckMedia;
+	char isIDsfound, isBulletsFound, isCheckMedia, isFirstBulletInFile, *s;
 	FNType tMediaFName[FILENAME_MAX];
 	long i, ni, j;
 	CHATTIERS *tier = NULL;
 
 	isIDsfound = 0;
+	isFirstBulletInFile = FALSE;
 	if (isMergeFiles)
 		isCheckMedia = FALSE;
-	else
+	else {
+		if (isGemFile)
+			isFirstBulletInFile = TRUE;
 		isCheckMedia = TRUE;
+	}
 	isBulletsFound = FALSE;
 	tMediaFName[0] = EOS;
 	currentatt = 0;
@@ -714,6 +731,23 @@ void call() {
 	while (getwholeutter()) {
 		if (isCheckMedia) {
 			if (uS.partcmp(utterance->speaker, MEDIAHEADER, FALSE, FALSE)) {
+				if (isGemFile) {
+					strcpy(tMediaFName, oldfname);
+					s = strrchr(tMediaFName, '.');
+					if (s != NULL) {
+						*s = EOS;
+						s = strrchr(tMediaFName, '.');
+						if (s != NULL) {
+							if (uS.mStricmp(s, ".gem") == 0)
+								*s = EOS;
+						}
+					}
+					strcat(tMediaFName, ".slice");
+					strcpy(templineC, utterance->line);
+					for (i=0; templineC[i] != EOS && templineC[i] != ',' && !isSpace(templineC[i]); i++) ;
+					strcpy(utterance->line, tMediaFName);
+					strcat(utterance->line, templineC+i);
+				}
 				tMediaFName[0] = EOS;
 				isCheckMedia = FALSE;
 			}
@@ -828,8 +862,8 @@ void call() {
 				atts[j] = tier->attLine[i];
 				spareTier2[j+1] = EOS;
 				if (tier->line[i] == HIDEN_C) {
-					if (isMergeFiles)
-						offsetBullets(spareTier2, atts);
+					if (isMergeFiles || isGemFile)
+						offsetBullets(spareTier2, atts, &isFirstBulletInFile);
 					else
 						checkBulletsConsist(tier, spareTier2, atts, tier->ln);
 					if (!isMergeBullets) {

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -908,9 +908,9 @@ static long MatchedAndReplaced(void) {
 		isBeg = TRUE;
 		i = 0;
 		if (t->isClitic)
-			punctuation = GlobalPunctuation;
+			cutt_punctuation = GlobalPunctuation;
 		else
-			punctuation = postmortem_CliticPunctuation;
+			cutt_punctuation = postmortem_CliticPunctuation;
 		while (uttline[i] != EOS) {
 			for (; isSpace(uttline[i]) || uttline[i] == '\n' || (uttline[i] == '~' && !t->isClitic); i++) ;
 			cI = i;

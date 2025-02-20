@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -253,7 +253,8 @@ void init(char f) {
 		}
 		if (filterUttLen != 0L && CntFUttLen == 0) {
 			fprintf(stderr,"Please specify count type with +x option\n");
-			fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+//			fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+			fprintf(stderr,"\tw - words or c - characters.\n");
 			if (maxwd_head != NULL)
 				cleanupring();
 			cutt_exit(0);
@@ -550,8 +551,9 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 }
 
 static void findutt() {
-	int csize;
-	char delf = TRUE, sq, tmp, isAmbigFound;
+	int csize, oPos;
+	char delf = TRUE, sq, tchr;
+	float morphCnt;
 	OBJS *cmain;
 
 	spareTier1[0] = EOS;
@@ -603,19 +605,24 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					for (; !uS.isskip(uttline,mxd_pos,&dFnt,MBF) && uttline[mxd_pos]; csize++)
 						mxd_pos++;
 				} else if (maxwd_which == 1) { /* count number of morphs */
-					isAmbigFound = FALSE;
-					tmp = TRUE;
-					while (!uS.isskip(uttline,mxd_pos,&dFnt,MBF) && uttline[mxd_pos]) {
-						if (uttline[mxd_pos] == '^')
-							isAmbigFound = TRUE;
-						if (!uS.ismorfchar(uttline, mxd_pos, &dFnt, rootmorf, MBF) && !isAmbigFound) {
-							if (tmp) {
-								if (uttline[mxd_pos] != '0') csize++;
-								tmp = FALSE;
+
+					if (!uS.isskip(uttline,mxd_pos,&dFnt,MBF) && !sq) {
+						oPos = mxd_pos;
+						while (uttline[mxd_pos]) {
+							if (uS.isskip(uttline,mxd_pos,&dFnt,MBF)) {
+								if (uS.IsUtteranceDel(utterance->line, mxd_pos)) {
+									if (!uS.atUFound(utterance->line, mxd_pos, &dFnt, MBF))
+										break;
+								} else
+									break;
 							}
-						} else
-							tmp = TRUE;
-						mxd_pos++;
+							mxd_pos++;
+						}
+						tchr = uttline[mxd_pos];
+						uttline[mxd_pos] = EOS;
+						morphCnt = countMorphs(uttline, oPos); // uS.ismorfchar
+						csize = csize + morphCnt;
+						uttline[mxd_pos] = tchr;
 					}
 				} else { /* count number of words  */
 					while (!uS.isskip(uttline,mxd_pos,&dFnt,MBF) && uttline[mxd_pos])

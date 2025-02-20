@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -93,10 +93,10 @@ struct redirects {
 #define FONTHEADER		"@Font:"
 #define FONTMARKER		"[%fnt: "
 #define MEDIAHEADER		"@Media:"
+#define LANGHEADER		"@Languages:"
 #define SOUNDTIER		"%snd:"
 #define PICTTIER		"%pic:"
 #define TEXTTIER		"%txt:"
-#define CMDIPIDHEADER	"CMDI_PID"
 #ifdef _COCOA_APP
 #define UTF8HEADERLEN	5
 #define PIDHEADERLEN	5
@@ -104,10 +104,10 @@ struct redirects {
 #define WINDOWSINFOLEN	8
 #define FONTHEADERLEN	6
 #define MEDIAHEADERLEN	7
+#define LANGHEADERLEN	11
 #define SOUNDTIERLEN	5
 #define PICTTIERLEN		5
 #define TEXTTIERLEN		5
-#define CMDIPIDHEADERLEN 8
 #endif
 
 

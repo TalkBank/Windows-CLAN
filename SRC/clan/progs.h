@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -12,6 +12,7 @@ enum {
 	CHAINS,
 	CHECK_P,
 	CHIP,
+	CHIPUTIL,
 	CODES_P,
 	COMBO,
 	COOCCUR,
@@ -26,6 +27,7 @@ enum {
 	MAXWD,
 	MLT,
 	MLU,
+	MLUMOR,
 	MODREP,
 	RELY,
 	SCRIPT_P,
@@ -40,6 +42,7 @@ enum {
 	EVAL,
 	EVALD,
 	FLUCALC,
+	FLUPOS,
 	IPSYN,
 	KIDEVAL,
 	MORTABLE,
@@ -70,6 +73,7 @@ enum {
 	RTF2CHAT,
 	SALT2CHAT,
 	SRT2CHAT,
+	TANG2CHAT,
 	TEXT2CHAT,
 
 	CHSTRING,
@@ -79,16 +83,16 @@ enum {
 	DATACLEANUP,
 	FIXMP3,
 	FLO,
-	CMDI_P,
 	INDENT,
 	LINES_P,
 	LONGTIER,
 	MAKEMOD,
 	MEDIALINE,
 	MERGE,
-	OLAC_P,
+	NUM2WORD,
 	ORT,
 	PHONFREQ,
+	PID_P,
 	REPEAT,
 	RETRACE,
 	ROLES,
@@ -106,6 +110,9 @@ enum {
 	LOWCASE,
 	QUOTES,
 	SILENCE_P,
+#ifdef _MAC_CODE
+	SLICE_P,
+#endif
 
 	TEMPLATE,
 	TEMP,

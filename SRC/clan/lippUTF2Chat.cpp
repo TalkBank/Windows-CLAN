@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -19,6 +19,7 @@
 #define IS_WIN_MODE FALSE
 
 static char lang[64];
+static char isForce;
 
 extern char OverWriteFile;
 
@@ -29,12 +30,14 @@ void init(char f) {
 		stout = FALSE;
 		onlydata = 1;
 		*lang = EOS;
+		isForce = FALSE;
 	}
 }
 
 void usage() {
 	printf("Usage: lipp2chat [lS %s] filename(s)\n", mainflgs());
-    puts("+lS: Specify language S");
+	puts("+f : force to create ouput even when there are errors in input file");
+	puts("+lS: Specify language S");
 	mainusage(TRUE);
 }
 
@@ -139,9 +142,22 @@ void call() {
 		}
 		if (templineC4[0] == '"') {
 			if (i == 0 || utterance->line[0] != EOS) {
-				fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno-1);
-				fprintf(stderr,"Missing or corrupted either # # or \" \" lines above; i=%d.\n", i);
-				cutt_exit(0);
+				if (isForce == TRUE) {
+					if (utterance->line[0] != EOS) {
+						strcpy(utterance->tuttline, "$MISSING_LINE");
+						strcpy(spareTier1, "$MISSING_LINE");
+						printout("*CHI:", utterance->line, NULL, NULL, TRUE);
+						printout("%pho:", utterance->tuttline, NULL, NULL, TRUE);
+						printout("%mod:", spareTier1, NULL, NULL, TRUE);
+					}
+					utterance->line[0]    = EOS;
+					utterance->tuttline[0] = EOS;
+					spareTier1[0] = EOS;
+				} else {
+					fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno-1);
+					fprintf(stderr,"Missing or corrupted either # # or \" \" lines above; i=%d.\n", i);
+					cutt_exit(0);
+				}
 			}
 			i = 0;
 		} else {
@@ -215,7 +231,9 @@ void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
 		case 'f':
-				break;
+			isForce = TRUE;
+			no_arg_option(f);
+			break;
 		case 'l':
 		    if (!*f) {
 		        fprintf(stderr,"Please specify language after +l option.\n");

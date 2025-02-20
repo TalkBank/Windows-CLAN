@@ -1,30 +1,15 @@
-#if defined(_MAC_CODE)
-	#include "0global.h"
-#endif
-
-#ifdef _MAC_CODE
-	#include <Script.h>
-	#include <Quickdraw.h>
-
-	long CaretTime;
-#endif
 #include "ced.h"
 #include "cu.h"
 #include "my_ctype.h"
-#ifdef _WIN32
 // NO QT	#include <TextUtils.h>
 	#include "imm.h"
-#endif
 
 #ifndef NEW
 #define NEW(type) ((type *)malloc((size_t) sizeof(type)))
 #endif
 
-#ifdef _WIN32
 static char isDrawCursor = 1;
 static long CaretHeight = 0L;
-#endif
-
 static unCH full_utt[UTTLINELEN+2];
 
 char showColorKeywords = TRUE;
@@ -40,30 +25,10 @@ WINDOW *newwin(int num_rows, int num_cols, int LT_row, int LT_col, int tOff) {
 	register int i;
 	register int j;
 	short FHeight;
-#ifdef _MAC_CODE
-	FontInfo fi;
-	GrafPtr oldPort;
-#endif // _MAC_CODE
 
 	if ((w=NEW(WINDOW)) == NULL)
 		return(NULL);
 	w->NextWindow = global_df->RootWindow;
-#ifdef _MAC_CODE
-	short FName;
-	short FSize;
-
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-	FName = DEFAULT_ID;
-	FSize = DEFAULT_SIZE;
-	TextFont(FName);
-	TextSize(FSize);
-	GetFontInfo(&fi);
-	FHeight = fi.ascent+fi.descent+fi.leading+FLINESPACE;
-	SetPort(oldPort);
-	CaretTime = GetCaretTime();
-#endif // _MAC_CODE
-#ifdef _WIN32
 	CSize CW;
 	char FName[LF_FACESIZE];
 	long FSize;
@@ -74,16 +39,13 @@ WINDOW *newwin(int num_rows, int num_cols, int LT_row, int LT_col, int tOff) {
 	CW = GlobalDC->GetTextExtent(cl_T("IjWF115[E|CHAT]"), 15);
 	GlobalDC->SelectObject(pOldFont);
 	FHeight = CW.cy + FLINESPACE;
-#endif /* _WIN32 */
 	w->isUTF = 1;
 	w->winPixelSize = num_rows * FHeight;
 	w->reverse = '\0';
 	w->textOffset = tOff;
 	if (LT_row == 0) w->LT_row = SpecialWindowOffset(global_df->winID);
 	else w->LT_row = (NumOfRowsOfDefaultWindow() - (global_df->total_num_rows-LT_row)) * FHeight;
-#ifdef _WIN32
 	w->LT_row += 2;
-#endif /* _WIN32 */
 	num_cols = num_cols * 4;
 	w->LT_col = LT_col;
 	w->cur_row = 0;
@@ -122,14 +84,8 @@ WINDOW *newwin(int num_rows, int num_cols, int LT_row, int LT_col, int tOff) {
 			free(w->lineno); free(w->RowFInfo); free(w->win_data); free(w->win_atts);
 			free(w); return(NULL);
 		}
-#ifdef _MAC_CODE
-		w->RowFInfo[i]->FName = FName;
-		w->RowFInfo[i]->CharSet = 0;
-#endif
-#ifdef _WIN32
 		strcpy(w->RowFInfo[i]->FName, FName);
 		w->RowFInfo[i]->CharSet = DEFAULT_CHARSET;
-#endif
 		w->RowFInfo[i]->FSize = FSize;
 		w->RowFInfo[i]->FHeight = FHeight;
 		w->lineno[i] = 0;
@@ -158,84 +114,14 @@ short ComputeHeight(WINDOW *w, int st, int en) {
 }
 
 short TextWidthInPix(unCH *st, long beg, long len, FONTINFO *fnt, int textOffset) {
-	if (len == 0)
-		return(textOffset);
-
-#ifdef _MAC_CODE
-	OSStatus		err;
-	unsigned long	iRunLengths[1]; //numberOfRuns = 1
-	ATSUTextLayout	iTextLayout;
-	ATSUStyle		iStyles[1];
-	Rect			oTextImageRect;
-
-	st = st + beg;
-	len = len - beg;
-	// only 1 style thus only 1 run
-	iRunLengths[0] = len;
-//	iRunLengths[0] = kATSUToTextEnd;
-
-	// and it's the default style
-	ATSUStyle tempS;
-	if ((err=ATSUCreateStyle(&tempS)) != noErr) {
-		return(0);
-	}
-
-	ATSUFontID theFontID;
-
-	err = ATSUFONDtoFontID(fnt->FName, 0, &theFontID);
-	if (err == noErr) {
-		unsigned long			theSize = sizeof(theFontID);
-		ATSUAttributeValuePtr	thePtr = &theFontID;
-		ATSUAttributeTag 		iTag = kATSUFontTag;
-		err = ATSUSetAttributes(tempS, 1, &iTag, &theSize, &thePtr );
-
-		Fixed atsuSize = Long2Fix(fnt->FSize);
-		theSize = sizeof(atsuSize);
-		thePtr = &atsuSize;
-		iTag = kATSUSizeTag;
-		err = ATSUSetAttributes(tempS, 1, &iTag, &theSize, &thePtr );
-	}
-
-	iStyles[0] = tempS;
-
-	if ((err=ATSUCreateTextLayoutWithTextPtr(
-					(ConstUniCharArrayPtr)st,
-					0,// kATSUFromTextBeginning,
-					len,// kATSUToTextEnd,
-					len,
-					1, //numberOfRuns,
-					iRunLengths,
-					iStyles,
-					&iTextLayout)) != noErr) {
-		return(0);
-	}
-
-	ATSUTextMeasurement oTextBefore, oTextAfter, oAscent, oDescent;
-
-	err = ATSUMeasureText (
-				iTextLayout, 
-				0,// kATSUFromTextBeginning,
-				len,// kATSUToTextEnd,
-				&oTextBefore, 
-				&oTextAfter, 
-				&oAscent, 
-				&oDescent
-				);
-	oTextImageRect.right = (short)Fix2Long(oTextAfter);
-	oTextImageRect.left  = (short)Fix2Long(oTextBefore);
-	err = ATSUDisposeTextLayout(iTextLayout);
-
-	err = ATSUDisposeStyle(tempS);
-	return((oTextImageRect.right-oTextImageRect.left) + textOffset);
-#endif // _MAC_CODE
-
-#ifdef _WIN32
 	LOGFONT lfFont;
 	CFont l_font;
 	CSize cCharsWidth;
 	SIZE  CharsWidth;
 	short res;
 
+	if (len == 0)
+		return(textOffset);
 	SetLogfont(&lfFont, fnt, NULL);
 	l_font.CreateFontIndirect(&lfFont);
 	CFont* pOldFont = GlobalDC->SelectObject(&l_font);
@@ -246,7 +132,6 @@ short TextWidthInPix(unCH *st, long beg, long len, FONTINFO *fnt, int textOffset
 	GlobalDC->SelectObject(pOldFont);
 	l_font.DeleteObject();
 	return(res);
-#endif // _WIN32
 }
 
 short FontTxtWidth(WINDOW *w, int row, unCH *s, int st, int en) {
@@ -260,10 +145,6 @@ short FontTxtWidth(WINDOW *w, int row, unCH *s, int st, int en) {
 		if (en  >= w->num_cols) en  = w->num_cols - 1;
 		s = w->win_data[row];
 	}
-#ifdef _MAC_CODE
-	TextFont(w->RowFInfo[row]->FName);
-	TextSize(w->RowFInfo[row]->FSize);
-#endif
 	return(TextWidthInPix(s, st, en, w->RowFInfo[row], w->textOffset));	
 }
 
@@ -279,7 +160,6 @@ void blinkCursorLine(void) {
 		return;
 	if (global_df->w1 == NULL)	
 		return;
-#ifdef _WIN32
 	if (global_df->row_win2 == 0L && global_df->col_win2 == -2) {
 		if (global_df->row_win < 0L || global_df->row_win >= (long)global_df->EdWinSize) {
 			do_warning("Cursor is outside the window.", 0);
@@ -323,52 +203,6 @@ void blinkCursorLine(void) {
 		} else
 			do_warning("Text is already selected. It maybe outside the window.", 0);
 	}
-#endif /* _WIN32 */
-#ifdef _MAC_CODE
-	if (global_df->row_win2 == 0L && global_df->col_win2 == -2) {
-		if (global_df->row_win < 0L || global_df->row_win >= (long)global_df->EdWinSize) {
-			do_warning("Cursor is outside the window.", 0);
-		} else {
-			SaveUndoState(FALSE);
-			DrawCursor(0);
-			if (global_df->row_txt == global_df->cur_line)
-				global_df->col_txt=global_df->head_row->next_char;
-			global_df->col_win = 0L;
-			global_df->col_chr = 0L;
-			global_df->col_win2 = -2L;
-			global_df->col_chr2 = -2L;
-			global_df->row_win2 = 1L;
-			global_df->LeaveHighliteOn = TRUE;
-		}
-	} else {
-		if (global_df->row_win2 == 0L && global_df->col_win2 != -2) {
-			if (global_df->col_win > global_df->col_win2) {
-				sc = global_df->col_chr2;
-				ec = global_df->col_chr;
-			} else {
-				sc = global_df->col_chr;
-				ec = global_df->col_chr2;
-			}
-			if (ec - sc > 25)
-				do_warning("Text is already selected. It maybe outside the window. Or select < 25 characters", 0);
-			else {
-				ChangeCurLineAlways(0);
-				templine[0] = EOS;
-				for (; sc < ec; sc++) {
-					len = strlen(templine);
-					strcat(templine+len, "| ");
-					len +=2;
-					templine[len++] = global_df->row_txt->line[sc];
-					uS.sprintf(templine+len,cl_T("=0x%x"), global_df->row_txt->line[sc]);
-				}
-				strcat(templine, "|");
-				u_strcpy(templineC, templine, UTTLINELEN);
-				do_warning(templineC, 0);
-			}
-		} else
-			do_warning("Text is already selected. It maybe outside the window.", 0);
-	}
-#endif // _MAC_CODE
 }
 
 void DrawFakeHilight(char TurnOn) {
@@ -385,7 +219,6 @@ void DrawFakeHilight(char TurnOn) {
 		kill = true;
 	} else
 		kill = false;
-#ifdef _WIN32
 	RECT winRect;
 	CWnd* win;
 
@@ -487,105 +320,6 @@ fake_DoneCur:
 		else
 			global_df->fake_TSelectFlag = 0;
 	}
-#endif /* _WIN32 */
-#ifdef _MAC_CODE
-	GrafPtr  oldPort;
-
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-	if ((global_df->fake_row_win2 || global_df->fake_col_win2 != -2) && global_df->w1 == RW) {
-		long sc, ec, sr, er;
-		Rect theRect;
-
-		if (global_df->fake_row_win2 < 0) {
-			sr = global_df->fake_row_win + global_df->fake_row_win2;
-			er = global_df->fake_row_win;
-		} else if (global_df->fake_row_win2 >= 0) {
-			sr = global_df->fake_row_win;
-			er = global_df->fake_row_win + global_df->fake_row_win2;
-		} else {
-			sr = global_df->fake_row_win;
-			er = global_df->fake_row_win + global_df->fake_row_win2;
-		}
-		PenMode(((IsColorMonitor) ? 50 : notPatCopy));
-		if (sr == er) {
-			if (global_df->fake_col_win2 < global_df->fake_col_win) {
-				sc = global_df->fake_col_win2-global_df->LeftCol;
-				ec = global_df->fake_col_win-global_df->LeftCol;
-			} else {
-				sc = global_df->fake_col_win-global_df->LeftCol;
-				ec = global_df->fake_col_win2-global_df->LeftCol;
-			}
-			if (sr >= (long)ActualWinSize(RW) || sr < 0L) goto fake_DoneCur;
-			if (sc < 0) theRect.left = LEFTMARGIN + RW->textOffset;
-			else theRect.left = LEFTMARGIN + FontTxtWidth(RW, sr, NULL, 0, sc);
-			theRect.right = LEFTMARGIN + FontTxtWidth(RW, sr, NULL, 0, ec);
-			theRect.top = (RW->LT_row + ComputeHeight(RW, 0, sr));
-			theRect.bottom = theRect.top + ComputeHeight(RW, sr, sr+1);
-			if ((TurnOn && global_df->fake_TSelectFlag == 0) || (!TurnOn && global_df->fake_TSelectFlag == 1) || 
-					 TurnOn == 2) 
-				PaintRect(&theRect);
-		} else {
-			Rect trect;
-#if (TARGET_API_MAC_CARBON == 1)
-			GetWindowPortBounds(global_df->wind, &trect);
-#else
-			trect = global_df->wind->portRect;
-#endif
-			if (global_df->fake_row_win2 < 0) {
-				sc = global_df->fake_col_win2-global_df->LeftCol;
-				ec = global_df->fake_col_win-global_df->LeftCol;
-			} else {
-				sc = global_df->fake_col_win-global_df->LeftCol;
-				ec = global_df->fake_col_win2-global_df->LeftCol;
-			}
-			if (sr >= (long)ActualWinSize(RW)) goto fake_DoneCur;
-			if (sr < 0L) {
-				if (er >= 0L) {sr = 0L; sc = 0L; }
-				else goto fake_DoneCur;
-			}
-			if (er >= ActualWinSize(RW)) { er = ActualWinSize(RW) - 1; ec = -1; }
-			if (sr != er || ec == -1) {
-				if (sc < 0) theRect.left = LEFTMARGIN + RW->textOffset;
-				else theRect.left = LEFTMARGIN + FontTxtWidth(RW, sr, NULL, 0, sc);
-				theRect.right = trect.right - SCROLL_BAR_SIZE;
-				theRect.top = (RW->LT_row + ComputeHeight(RW, 0, sr));
-				theRect.bottom = theRect.top + ComputeHeight(RW, sr, sr+1);
-				if ((TurnOn && global_df->fake_TSelectFlag == 0) || (!TurnOn && global_df->fake_TSelectFlag == 1) || 
-					 TurnOn == 2)
-					PaintRect(&theRect);
-			}
-
-			if (er-sr > 1) {
-				theRect.left  = LEFTMARGIN + RW->textOffset;
-				theRect.right = trect.right - SCROLL_BAR_SIZE;
-				theRect.top = (RW->LT_row + ComputeHeight(RW, 0, sr+1));
-				theRect.bottom = theRect.top + ComputeHeight(RW, sr+1, er);
-				if ((TurnOn && global_df->fake_TSelectFlag == 0) || (!TurnOn && global_df->fake_TSelectFlag == 1) || 
-					 TurnOn == 2)
-					PaintRect(&theRect);
-			}
-			if (sr != er || ec != -1) {
-				theRect.left  = LEFTMARGIN + RW->textOffset;
-				if (ec == -1)
-					theRect.right = trect.right - SCROLL_BAR_SIZE;
-				else
-					theRect.right = LEFTMARGIN + FontTxtWidth(RW, er, NULL, 0, ec);
-				theRect.top = (RW->LT_row + ComputeHeight(RW, 0, er));
-				theRect.bottom = theRect.top + ComputeHeight(RW, er, er+1);
-				if ((TurnOn && global_df->fake_TSelectFlag == 0) || (!TurnOn && global_df->fake_TSelectFlag == 1) || 
-					 TurnOn == 2)
-					PaintRect(&theRect);
-			}
-		}
-fake_DoneCur:
-		if (TurnOn)
-			global_df->fake_TSelectFlag = 1;
-		else
-			global_df->fake_TSelectFlag = 0;
-	}
-	SetPort(oldPort);
-#endif // _MAC_CODE
 	if (kill) {
 		global_df->fake_row_win2 = 0;
 		global_df->fake_col_win2 = -2;
@@ -600,148 +334,6 @@ void DrawCursor(char TurnOn) {
 	if (global_df->RdW == NULL)	
 		return;
 	RW = global_df->RdW;
-#ifdef _MAC_CODE
-	register int print_row;
-	register int ccol;
-	register int RS;
-	long 		 tik; // lll
-	GrafPtr		 oldPort;
-	Rect		 trect;
-#if (TARGET_API_MAC_CARBON == 1)
-	GetWindowPortBounds(global_df->wind, &trect);
-#else
-	trect = global_df->wind->portRect;
-#endif
-	tik = TickCount(); // lll
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-
-	if (global_df->fake_TSelectFlag && TurnOn)
-		DrawFakeHilight(0);
-
-	if ((global_df->row_win2 || global_df->col_win2 != -2) && global_df->w1 == RW) {
-		long sc, ec, sr, er;
-		Rect theRect;
-
-		if (global_df->row_win2 < 0) {
-			sr = global_df->row_win + global_df->row_win2;
-			er = global_df->row_win;
-		} else if (global_df->row_win2 >= 0) {
-			sr = global_df->row_win;
-			er = global_df->row_win + global_df->row_win2;
-		} else {
-			sr = global_df->row_win;
-			er = global_df->row_win + global_df->row_win2;
-		}
-		PenMode(((IsColorMonitor) ? 50 : notPatCopy));
-		if (sr == er) {
-			if (global_df->col_win2 < global_df->col_win) {
-				sc = global_df->col_win2-global_df->LeftCol;
-				ec = global_df->col_win-global_df->LeftCol;
-			} else {
-				sc = global_df->col_win-global_df->LeftCol;
-				ec = global_df->col_win2-global_df->LeftCol;
-			}
-			if (sr >= (long)ActualWinSize(RW) || sr < 0L)
-				goto DoneCur;
-			if (sc < 0)
-				theRect.left = LEFTMARGIN + RW->textOffset;
-			else
-				theRect.left = LEFTMARGIN + FontTxtWidth(RW, sr, NULL, 0, sc);
-			theRect.right = LEFTMARGIN + FontTxtWidth(RW, sr, NULL, 0, ec);
-			theRect.top = (RW->LT_row + ComputeHeight(RW, 0, sr));
-			theRect.bottom = theRect.top + ComputeHeight(RW, sr, sr+1);
-			if ((TurnOn && global_df->TSelectFlag == 0) || (!TurnOn && global_df->TSelectFlag == 1) ||
-				TurnOn == 2)
-				PaintRect(&theRect);
-		} else {
-			if (global_df->row_win2 < 0) {
-				sc = global_df->col_win2-global_df->LeftCol;
-				ec = global_df->col_win-global_df->LeftCol;
-			} else {
-				sc = global_df->col_win-global_df->LeftCol;
-				ec = global_df->col_win2-global_df->LeftCol;
-			}
-			if (sr >= (long)ActualWinSize(RW))
-				goto DoneCur;
-			if (sr < 0L) {
-				if (er >= 0L) {
-					sr = 0L;
-					sc = 0L;
-				} else
-					goto DoneCur;
-			}
-			if (er >= ActualWinSize(RW)) { er = ActualWinSize(RW) - 1; ec = -1; }
-			if (sr != er || ec == -1) {
-				if (sc < 0) theRect.left = LEFTMARGIN + RW->textOffset;
-				else theRect.left = LEFTMARGIN + FontTxtWidth(RW, sr, NULL, 0, sc);
-				theRect.right = trect.right - SCROLL_BAR_SIZE;
-				theRect.top = (RW->LT_row + ComputeHeight(RW, 0, sr));
-				theRect.bottom = theRect.top + ComputeHeight(RW, sr, sr+1);
-				if ((TurnOn && global_df->TSelectFlag == 0) || (!TurnOn && global_df->TSelectFlag == 1) ||
-					TurnOn == 2)
-					PaintRect(&theRect);
-			}
-
-			if (er-sr > 1) {
-				theRect.left  = LEFTMARGIN + RW->textOffset;
-				theRect.right = trect.right - SCROLL_BAR_SIZE;
-				theRect.top = (RW->LT_row + ComputeHeight(RW, 0, sr+1));
-				theRect.bottom = theRect.top + ComputeHeight(RW, sr+1, er);
-				if ((TurnOn && global_df->TSelectFlag == 0) || (!TurnOn && global_df->TSelectFlag == 1) ||
-					TurnOn == 2)
-					PaintRect(&theRect);
-			}
-			if (sr != er || ec != -1) {
-				theRect.left  = LEFTMARGIN + RW->textOffset;
-				if (ec == -1)
-					theRect.right = trect.right - SCROLL_BAR_SIZE;
-				else
-					theRect.right = LEFTMARGIN + FontTxtWidth(RW, er, NULL, 0, ec);
-				theRect.top = (RW->LT_row + ComputeHeight(RW, 0, er));
-				theRect.bottom = theRect.top + ComputeHeight(RW, er, er+1);
-				if ((TurnOn && global_df->TSelectFlag == 0) || (!TurnOn && global_df->TSelectFlag == 1) ||
-					TurnOn == 2)
-					PaintRect(&theRect);
-			}
-		}
-DoneCur:
-		if (TurnOn)
-			global_df->TSelectFlag = 1;
-		else
-			global_df->TSelectFlag = 0;
-	} else if (TurnOn && tik-global_df->Ltik < CaretTime) { // lll
-	} else if (RW->cur_row == -1 || RW->cur_col < 0 || RW->cur_col >= RW->num_cols) {
-	} else if (FontTxtWidth(RW,RW->cur_row,NULL,0,RW->cur_col) <= trect.right-SCROLL_BAR_SIZE) {
-		RS = ((ComputeHeight(RW, RW->cur_row, RW->cur_row+1) * 5) / 100);
-		print_row = (RW->LT_row + ComputeHeight(RW, 0, RW->cur_row+1)) + RS - 1;
-		TextFont(RW->RowFInfo[RW->cur_row]->FName);
-		TextSize(RW->RowFInfo[RW->cur_row]->FSize);
-		ccol = LEFTMARGIN+FontTxtWidth(RW,RW->cur_row,NULL,0,RW->cur_col) - 1;
-
-		if (TurnOn) {
-//lll			if (global_df->DrawCur) {
-				PenMode(patXor);
-				MoveTo(ccol, print_row);
-				LineTo(ccol, print_row-(ComputeHeight(RW,RW->cur_row,RW->cur_row+1)-RS)+1);
-				global_df->DrawCur = !global_df->DrawCur; // lll
-				global_df->Ltik = tik; // lll
-//lll				global_df->DrawCur = 0;
-//lll			}
-		} else {
-			if (!global_df->DrawCur) {
-				PenMode(patXor);
-				MoveTo(ccol, print_row);
-				LineTo(ccol, print_row-(ComputeHeight(RW,RW->cur_row,RW->cur_row+1)-RS)+1);
-				global_df->DrawCur = 1;
-			}
-			global_df->Ltik = 0L; // lll
-			global_df->TSelectFlag = 0;
-		}
-	}
-	SetPort(oldPort);
-#endif // _MAC_CODE
-#ifdef _WIN32
 	RECT winRect;
 	CWnd* win;
 
@@ -895,7 +487,6 @@ DoneCur:
 			global_df->TSelectFlag = 0;
 		}
 	}
-#endif /* _WIN32 */
 }
 
 void DrawSoundCursor(char TurnOn) {
@@ -908,7 +499,6 @@ void DrawSoundCursor(char TurnOn) {
 		return;
 	if (TurnOn == 3)
 		TurnOn = 1;
-#ifdef _WIN32
 	RECT	winRect;
 	CPen	pen, *pOldPen;
 	CWnd*	win;
@@ -1050,105 +640,9 @@ void DrawSoundCursor(char TurnOn) {
 			GlobalDC->SelectObject(pOldPen);
 		}
 	}
-#endif /* _WIN32 */
-#ifdef _MAC_CODE
-	GrafPtr  oldPort;
-	Rect trect;
-	GetWindowPortBounds(global_df->wind, &trect);
-	tik = TickCount();
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-	if (global_df->SnTr.EndF > global_df->SnTr.SoundFileSize) {
-		if (global_df->SnTr.BegF == global_df->SnTr.EndF) {
-			global_df->SnTr.EndF = 0L;
-			global_df->SnTr.BegF = global_df->SnTr.SoundFileSize;
-		} else
-			global_df->SnTr.EndF = global_df->SnTr.SoundFileSize;
-	}
-	SoundOffset = global_df->SnTr.SNDWccol; // FontTxtWidth(global_df->SoundWin,0,cl_T("\245S"),0,2);
-	if (global_df->SnTr.WEndF >= global_df->SnTr.SoundFileSize) 
-		global_df->SnTr.WEndF  = global_df->SnTr.SoundFileSize;
-	if (global_df->SnTr.BegF != global_df->SnTr.EndF && global_df->SnTr.EndF != 0L) {
-		long sc, ec;
-		long Beg, End;
-		Rect theRect;
-		if (global_df->SoundWin && PlayingContSound == TRUE && global_df->SnTr.contPlayBeg != 0L && global_df->SnTr.contPlayEnd != 0L) {
-			Beg = global_df->SnTr.contPlayBeg;
-			End = global_df->SnTr.contPlayEnd;
-		} else {
-			Beg = global_df->SnTr.BegF;
-			End = global_df->SnTr.EndF;
-		}
-		sc = Beg;
-		ec = End;
-		PenMode(((IsColorMonitor) ? 50 : notPatCopy));
-		if (sc < global_df->SnTr.WBegF)
-			theRect.left = SoundOffset;
-		else
-			theRect.left = SoundOffset + ((Beg - global_df->SnTr.WBegF) / global_df->scale_row / global_df->SnTr.SNDsample);
-		if (ec > global_df->SnTr.WEndF)
-			theRect.right = trect.right - SCROLL_BAR_SIZE - global_df->SnTr.SNDWccol + 1;
-		else
-			theRect.right = SoundOffset + ((End - global_df->SnTr.WBegF) / global_df->scale_row / global_df->SnTr.SNDsample);
-		theRect.top = global_df->SoundWin->LT_row + ComputeHeight(global_df->SoundWin, 0, 1);
-		theRect.bottom = theRect.top + ComputeHeight(global_df->SoundWin, 1, global_df->SoundWin->num_rows);
-		if ((TurnOn && global_df->SSelectFlag==0) || (!TurnOn && global_df->SSelectFlag==1) || TurnOn==2) 
-			PaintRect(&theRect);
-		if (TurnOn)
-			global_df->SSelectFlag = 1;
-		else
-			global_df->SSelectFlag = 0;
-	} else {
-		Rect theRect;
-		if (TurnOn && tik-global_df->SLtik < CaretTime) ; 
-		else if (global_df->SnTr.BegF >= global_df->SnTr.WBegF && global_df->SnTr.BegF <= global_df->SnTr.WEndF) {
-			PenMode(hilitetransfermode); // hilitetransfermode
-			theRect.left = SoundOffset + ((global_df->SnTr.BegF - global_df->SnTr.WBegF) / global_df->scale_row / global_df->SnTr.SNDsample);
-			theRect.right = theRect.left + 2;
-			theRect.top = global_df->SoundWin->LT_row; //  + ComputeHeight(global_df->SoundWin, 0, 1);
-			theRect.bottom = theRect.top + (ComputeHeight(global_df->SoundWin, 0, 1) * (global_df->SoundWin->num_rows + 1)); // ComputeHeight(global_df->SoundWin, 0, global_df->SoundWin->num_rows) + ;
-			if (TurnOn) {
-				PaintRect(&theRect);
-				global_df->SnTr.SDrawCur = !global_df->SnTr.SDrawCur;
-				global_df->SLtik = tik;
-			} else {
-				if (global_df->SnTr.SDrawCur == 0) {
-					PaintRect(&theRect);
-					global_df->SnTr.SDrawCur = 1;
-				}
-				global_df->SLtik = 0L;
-				global_df->SSelectFlag = 0;
-			}
-		}
-	}
-	SetPort(oldPort);
-#endif // _MAC_CODE
 }
 
 void GetSoundWinDim(int *row, int *col) {
-#ifdef _MAC_CODE
-	GrafPtr oldPort;
-	Rect trect;
-#if (TARGET_API_MAC_CARBON == 1)
-	GetWindowPortBounds(global_df->wind, &trect);
-#else
-	trect = global_df->wind->portRect;
-#endif
-	if (global_df == NULL)
-		return;
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-	if (doMixedSTWave)
-		*row = ComputeHeight(global_df->SoundWin,1,global_df->SoundWin->num_rows);
-	else
-		*row = ComputeHeight(global_df->SoundWin,1,global_df->SoundWin->num_rows) / global_df->SnTr.SNDchan;
-	*col = trect.right - SCROLL_BAR_SIZE - FontTxtWidth(global_df->SoundWin,0,cl_T("WW"),0,2) - global_df->SnTr.SNDWccol - 1;
-	SetPort(oldPort);
-
-// mary-wave *col = 1937;
-
-#endif // _MAC_CODE
-#ifdef _WIN32
 	RECT cRect;
 
 	if (global_df == NULL)
@@ -1160,15 +654,12 @@ void GetSoundWinDim(int *row, int *col) {
 		*row = ComputeHeight(global_df->SoundWin,1,global_df->SoundWin->num_rows) / global_df->SnTr.SNDchan;
 //	*col = cRect.right - SCROLL_BAR_SIZE - FontTxtWidth(global_df->SoundWin,0,cl_T("WW"),0,2) - global_df->SnTr.SNDWccol - 1;
 	*col = cRect.right - FontTxtWidth(global_df->SoundWin,0,cl_T("+W+W"),0,4);
-#endif /* _WIN32 */
 }
 
 void wdrawcontr(WINDOW *w, char on) {
 	register int print_row;
 	extern char leftChan;
 	extern char rightChan;
-
-#ifdef _WIN32
 	unCH *s;
 	RECT winRect;
 	LOGFONT lfFont;
@@ -1245,82 +736,9 @@ void wdrawcontr(WINDOW *w, char on) {
 
 	GlobalDC->SelectObject(pOldFont);
 	l_font.DeleteObject();
-#endif /* _WIN32 */
-#ifdef _MAC_CODE 
-	GrafPtr oldPort;
-	Rect trect;
-	if (w == NULL)
-		return;
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-	TextFont(w->RowFInfo[0]->FName);
-	TextSize(w->RowFInfo[0]->FSize);
-#if (TARGET_API_MAC_CARBON == 1)
-	GetWindowPortBounds(global_df->wind, &trect);
-#else
-	trect = global_df->wind->portRect;
-#endif
-	print_row = w->LT_row + ComputeHeight(w,0,w->num_rows);
-	if (on)
-		TextMode(notSrcCopy);
-	else
-		TextMode(srcCopy);
-
-	MoveTo(0, print_row);
-	if (on)
-		DrawText("-H", 0, 2);
-	else
-		DrawText("  ", 0, 2);
-
-	MoveTo(0, print_row - ComputeHeight(w,0,4) - 1);
-	if (on)
-		DrawText("+H", 0, 2);
-	else
-		DrawText("  ", 0, 2);
-
-	MoveTo(0, print_row - ComputeHeight(w,0,2) - 1);
-	if (on)
-		DrawText("\245S", 0, 2);
-	else
-		DrawText("  ", 0, 2);
-
-	MoveTo(trect.right-SCROLL_BAR_SIZE-FontTxtWidth(w,0,cl_T("-V"),0,2), print_row);
-	if (on)
-		DrawText("-V", 0, 2);
-	else
-		DrawText("  ", 0, 2);
-
-	MoveTo(trect.right-SCROLL_BAR_SIZE-FontTxtWidth(w,0,cl_T("+V"),0,2),print_row - ComputeHeight(w,0,4) - 1);
-	if (on)
-		DrawText("+V", 0, 2);
-	else
-		DrawText("  ", 0, 2);
-/*
-	MoveTo(trect.right-SCROLL_BAR_SIZE-FontTxtWidth(w,0,cl_T("*L"),0,2),print_row - ComputeHeight(w,0,3) - 1);
-	if (on) {
-		if (leftChan)
-			DrawText("*L", 0, 2);
-		else
-			DrawText(" L", 0, 2);
-	} else
-		DrawText("  ", 0, 2);
-	MoveTo(trect.right-SCROLL_BAR_SIZE-FontTxtWidth(w,0,cl_T("*R"),0,2),print_row - ComputeHeight(w,0,1) - 1);
-	if (on) {
-		if (rightChan)
-			DrawText("*R", 0, 2);
-		else
-			DrawText(" R", 0, 2);
-	} else
-		DrawText("  ", 0, 2);
-*/
-	TextMode(srcCopy);
-	DrawControls(global_df->wind);
-	SetPort(oldPort);
-#endif // _MAC_CODE
 }
 
 void MoveSoundWave(WINDOW *w, int dir, int left_lim, int right_lim) {
-#ifdef _WIN32
 	RECT	theRect;
 	CWnd*	win;
 
@@ -1336,30 +754,10 @@ void MoveSoundWave(WINDOW *w, int dir, int left_lim, int right_lim) {
 	theRect.bottom = theRect.top + ComputeHeight(w,0,w->num_rows);
 
  	win->ScrollWindow(dir, 0, &theRect, NULL);
-#endif /* _WIN32 */
-#ifdef _MAC_CODE
-	GrafPtr oldPort;
-	Rect	theRect;
-	RgnHandle tempRgn;
-
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-
-	theRect.right = right_lim;
-	theRect.left = left_lim;
-	theRect.top = w->LT_row + 2;
-	theRect.bottom = theRect.top + ComputeHeight(w,0,w->num_rows);
-
-	tempRgn = NewRgn();
-	ScrollRect(&theRect, dir, 0, tempRgn);
-	DisposeRgn(tempRgn);
-	SetPort(oldPort);
-#endif // _MAC_CODE
 }
 
 void wdrawdot(WINDOW *w, int hp1, int lp1, int hp2, int lp2, int col) {
 	register int t;
-#ifdef _WIN32
 	CPen pen, *pOldPen;
 
 	if (GlobalDC == NULL)
@@ -1388,44 +786,9 @@ void wdrawdot(WINDOW *w, int hp1, int lp1, int hp2, int lp2, int col) {
 		GlobalDC->LineTo(t, global_df->SnTr.SNDWprint_row2-lp2);
 	}
 	GlobalDC->SelectObject(pOldPen);
-#endif /* _WIN32 */
-#ifdef _MAC_CODE
-	GrafPtr oldPort;
-
-	if (w == NULL)
-		return;
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-	t = global_df->SnTr.SNDWprint_row1 - w->LT_row - 2;
-	hp1 += global_df->SnTr.SNDWHalfRow;
-	if (hp1 > t)
-		hp1 = t;
-	lp1 += global_df->SnTr.SNDWHalfRow;
-	if (lp1 < 0)
-		lp1 = 0;
-	t = col + global_df->SnTr.SNDWccol;
-	PenMode(patCopy);
-	MoveTo(t, global_df->SnTr.SNDWprint_row1-hp1);
-	LineTo(t, global_df->SnTr.SNDWprint_row1-lp1);
-	if (global_df->SnTr.SNDchan == 2 && !doMixedSTWave) {
-		t = global_df->SnTr.SNDWprint_row2 - w->LT_row - 2;
-		hp2 += global_df->SnTr.SNDWHalfRow;
-		if (hp2 > t)
-			hp2 = t;
-		lp2 += global_df->SnTr.SNDWHalfRow;
-		if (lp2 < 0)
-			lp2 = 0;
-		t = col + global_df->SnTr.SNDWccol;
-		PenMode(patCopy);
-		MoveTo(t, global_df->SnTr.SNDWprint_row2-hp2);
-		LineTo(t, global_df->SnTr.SNDWprint_row2-lp2);
-	}
-	SetPort(oldPort);
-#endif // _MAC_CODE
 }
 
 void SetRdWKeyScript(void) {
-#ifdef _WIN32
 	if (global_df->RdW != NULL) {
 		if (global_df->RdW != global_df->w1) {
 			cedDFnt.Encod = my_FontToScript(global_df->RdW->RowFInfo[0]->FName, global_df->RdW->RowFInfo[0]->CharSet);
@@ -1434,51 +797,7 @@ void SetRdWKeyScript(void) {
 		}
 		cedDFnt.isUTF = global_df->isUTF;
 	}
-#endif /* _WIN32 */
-#ifdef _MAC_CODE
-	GrafPtr oldPort;
-
-	if (global_df->RdW != NULL) {
-		GetPort(&oldPort);
-		SetPortWindowPort(global_df->wind);
-		if (global_df->RdW != global_df->w1) {
-			TextFont(global_df->RdW->RowFInfo[0]->FName);
-			TextSize(global_df->RdW->RowFInfo[0]->FSize);
-			cedDFnt.Encod = my_FontToScript(global_df->RdW->RowFInfo[0]->FName, global_df->RdW->RowFInfo[0]->CharSet);
-		} else {
-			TextFont(global_df->row_txt->Font.FName);
-			TextSize(global_df->row_txt->Font.FSize);
-			cedDFnt.Encod = my_FontToScript(global_df->row_txt->Font.FName, global_df->row_txt->Font.CharSet);
-		}
-		cedDFnt.isUTF = global_df->isUTF;
-		if (AutoScriptSelect && !global_df->isUTF)
-			KeyScript(cedDFnt.Encod);
-		SetPort(oldPort);
-	}
-#endif // _MAC_CODE
 }
-
-#ifdef _MAC_CODE
-void SetDefFontKeyScript(void) {
-	WindowPtr		win;
-	WindowProcRec	*rec;
-
-	if ((win=FrontWindow()) != NULL) {
-		if ((rec=WindowProcs(win))) {
-			cedDFnt.Encod = my_FontToScript(dFnt.fontId, dFnt.CharSet);
-			if (AutoScriptSelect && (rec->FileInfo == NULL || !rec->FileInfo->isUTF))
-				KeyScript(cedDFnt.Encod);
-		}
-	}
-}
-
-int wgetch(WINDOW *w) {
-	register int c;
-
-	c = ced_getc();
-	return(c);
-}
-#endif // _MAC_CODE
 
 void PutCursorInWindow(WINDOW *w) {
 	if (w != global_df->w1)
@@ -1574,27 +893,6 @@ void endwin(void) {
 }
 
 void clear(void) {
-#ifdef _MAC_CODE
-	Rect theRect;
-	GrafPtr oldPort;
-	Rect trect;
-#if (TARGET_API_MAC_CARBON == 1)
-	GetWindowPortBounds(global_df->wind, &trect);
-#else
-	trect = global_df->wind->portRect;
-#endif
-	if (global_df == NULL) return;
-	if (global_df->wind == NULL) return;
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-	theRect.bottom = trect.bottom - SCROLL_BAR_SIZE;
-	theRect.top = trect.top;
-	theRect.left = trect.left;
-	theRect.right = trect.right - SCROLL_BAR_SIZE;
-	EraseRect(&theRect);
-	SetPort(oldPort);
-#endif // _MAC_CODE
-#ifdef _WIN32
 	RECT cRect;
 	CWnd* win;
 
@@ -1608,7 +906,6 @@ void clear(void) {
 		win->GetClientRect(&cRect);
 		GlobalDC->FillSolidRect(&cRect, RGB(255,255,255));
 	}
-#endif /* _WIN32 */
 }
 
 void touchwin(WINDOW *w) {
@@ -1857,26 +1154,6 @@ void wclrtobot(WINDOW *w) {
 		col = 0;
 	}
 	if (top < global_df->TextWinSize) {
-#ifdef _MAC_CODE
-		GrafPtr oldPort;
-		Rect theRect;
-		Rect trect;
-
-		GetPort(&oldPort);
-		SetPortWindowPort(global_df->wind);
-#if (TARGET_API_MAC_CARBON == 1)
-		GetWindowPortBounds(global_df->wind, &trect);
-#else
-		trect = global_df->wind->portRect;
-#endif
-		theRect.top = top;
-		theRect.bottom = global_df->TextWinSize + 1;
-		theRect.left = trect.left;
-		theRect.right = trect.right - SCROLL_BAR_SIZE;
-		EraseRect(&theRect);
-		SetPort(oldPort);
-#endif // _MAC_CODE
-#ifdef _WIN32
 		CWnd* win;
 		RECT cRect;
 
@@ -1889,7 +1166,6 @@ void wclrtobot(WINDOW *w) {
 			cRect.bottom = global_df->TextWinSize + 1;
 			GlobalDC->FillSolidRect(&cRect, RGB(255,255,255));
 		}
-#endif /* _WIN32 */
 	}
 	for (; row < w->num_rows && top < global_df->TextWinSize; row++) {
 		top += w->RowFInfo[row]->FHeight;
@@ -2256,6 +1532,32 @@ COLORTEXTLIST *createColorTextKeywordsList(COLORTEXTLIST *lRootColorText, char *
 	return(lRootColorText);
 }
 
+static void FindColorLemmasBounds(WINDOW *w, int row, AttTYPE *sAtts, unCH *sData, int lnoff, char isMorTier) {
+	char cFlag;
+	int i, j, col;
+
+	init_punct(0);
+	strcpy(full_utt, sData);
+	i = 0;
+	while (full_utt[i] != EOS) {
+		if (full_utt[i] == '\t' || full_utt[i] == '\n' || full_utt[i] == NL_C || full_utt[i] == SNL_C)
+			full_utt[i] = ' ';
+		if (isSpace(full_utt[i])) {
+			for (i++; is_unCH_alnum(full_utt[i]) || full_utt[i] == ':'; i++);
+			if (full_utt[i] == '|' && is_unCH_alpha(full_utt[i + 1])) {
+				for (i++; is_unCH_alnum(full_utt[i]); i++) {
+					sAtts[i] = set_lemma_color_to_1(sAtts[i]);
+					if (full_utt[i] == ' ' || full_utt[i] == '\t' || full_utt[i] == '\n' ||
+						full_utt[i] == '-' || full_utt[i] == '&' || full_utt[i] == '=' ||
+						full_utt[i] == '~')
+						break;
+				}
+			}
+		} else
+			i++;
+	}
+}
+
 COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, WINDOW *w, int row, AttTYPE *sAtts, unCH *sData, int lnoff, int ecol, COLORTEXTLIST *cl) {
 	char cFlag;
 	int i, j, col;
@@ -2419,14 +1721,11 @@ COLORTEXTLIST *FindColorKeywordsBounds(COLORTEXTLIST *lRootColorText, WINDOW *w,
 char SetKeywordsColor(COLORTEXTLIST *lRootColorText, int cCol, RGBColor *theColor) {
 	int i;
 	COLORTEXTLIST *t;
-#ifdef _WIN32
 	long tc;
-#endif
 
 	for (t=lRootColorText; t != NULL; t=t->nextCT) {
 		for (i=0; i < t->index; i++) {
 			if (cCol >= t->sCol[i] && cCol < t->eCol[i]) {
-#ifdef _WIN32
 				tc				= t->red;
 				tc				= tc * 100 / 0xffff;
 				theColor->red   = 0xff * tc / 100;
@@ -2436,11 +1735,6 @@ char SetKeywordsColor(COLORTEXTLIST *lRootColorText, int cCol, RGBColor *theColo
 				tc				= t->blue;
 				tc				= tc * 100 / 0xffff;
 				theColor->blue  = 0xff * tc / 100;
-#else
-				theColor->red   = t->red;
-				theColor->green = t->green;
-				theColor->blue  = t->blue;
-#endif
 				return(TRUE);
 			}
 		}
@@ -2557,234 +1851,12 @@ void wrefresh(WINDOW *w) {
 	AttTYPE	oldState;
 	COLORTEXTLIST *tierColor = NULL;
 	RGBColor theColor;
-#ifdef _MAC_CODE
-	int		print_row;
-	int		print_cRow;
-	Rect	theRect;
-	Rect	trect;
-	GrafPtr oldPort;
-	short   face = 0;
-	short   fsize = -1;
-	short	fname = -1;
-	RGBColor oldForgColor;
-
-	if (w == NULL)
-		return;
-	if (global_df->WinChange)
-		global_df->RdW = w;
-	GetPort(&oldPort);
-	SetPortWindowPort(global_df->wind);
-#if (TARGET_API_MAC_CARBON == 1)
-	GetWindowPortBounds(global_df->wind, &trect);
-#else
-	trect = global_df->wind->portRect;
-#endif
-	GetForeColor(&oldForgColor);
-
-	theRect.left = trect.left;
-	theRect.right = trect.right - SCROLL_BAR_SIZE;
-	ecol = w->num_cols;
-	pr = 0;
-	tVar = -1;
-	erow = ActualWinSize(w);
-	if (w == global_df->w1 && erow >= w->num_rows)
-		erow = w->num_rows - 1;
-	for (row=0; row < erow; row++) {
-		sAtts = w->win_atts[row];
-		if (is_changed(sAtts[0])) {
-			pr++;
-			if (tVar == -1)
-				tVar = row;
-		}
-		if (pr > 1)
-			break;
-	}
-	isShowLineNumbers = (isShowLineNums && w == global_df->w1);
-	if (pr) {
-		if (w == global_df->w1 && global_df->fake_TSelectFlag)
-			DrawFakeHilight(0);
-		row = tVar;
-		if (pr == 1)
-			erow = row + 1;
-		if (w == global_df->w1 && erow >= w->num_rows)
-			erow = w->num_rows - 1;
-		theRect.top = (w->LT_row + ComputeHeight(w,0,row));
-		theRect.bottom = theRect.top + ComputeHeight(w,row,erow);
-		print_row = w->LT_row + ComputeHeight(w,0,row) - FLINESPACE;
-
-		for (; row < erow; row++) {
-			print_row += w->RowFInfo[row]->FHeight;
-			if (fname != w->RowFInfo[row]->FName || fsize != w->RowFInfo[row]->FSize) {
-				TextFont(w->RowFInfo[row]->FName);
-				TextSize(w->RowFInfo[row]->FSize);
-				fname = w->RowFInfo[row]->FName;
-				fsize = w->RowFInfo[row]->FSize;
-			}
-			sAtts = w->win_atts[row];
-
-//			if (!is_changed(sAtts[0]))
-//				continue;
-
-			if (global_df->w1 == w && row == w->cur_row)
-				global_df->DrawCur = 1;
-			theRect.top = (w->LT_row + ComputeHeight(w,0,row));
-			theRect.bottom = theRect.top + ComputeHeight(w,row,row+1);
-			EraseRect(&theRect);
-			sAtts[0] = set_changed_to_0(sAtts[0]);
-
-			sData = w->win_data[row];
-			lastViewCol = ecol; //0;
-			for (col=0; col < ecol; col++) {
-				if (sData[col] == 0 && lastViewCol == ecol && (!isShowLineNumbers || col > 0)) {
-					lastViewCol = col;
-//					break;
-				}
-				if (is_colored(sAtts[col]))
-					sAtts[col] = set_color_to_0(sAtts[col]);
-			}
-			if (lastViewCol == 0)
-				continue;
-			if (lastViewCol > ecol)
-				lastViewCol = ecol;
-			if (global_df->RootColorText != NULL && w == global_df->w1)
-				tierColor = FindColorKeywordsBounds(global_df->RootColorText, w, row, sAtts, sData, 0, lastViewCol, tierColor);
-			cCol = 0;
-			oldState = sAtts[0];
-			if (w->RowFInfo[row]->FHeight > 12)
-				print_cRow = print_row - 3;
-			else
-				print_cRow = print_row - 1;
-			if (isShowLineNumbers) {
-				MoveTo(LEFTMARGIN, print_cRow);
-				TextFace(0);
-				TextMode(srcCopy);
-				if (/*LineNumberingType == 0 || */w->lineno[row] != 0L) {
-					sprintf(templineC4, "%ld", w->lineno[row]);
-					len = 6 - strlen(templineC4);
-					if (len > 0) {
-						uS.shiftright(templineC4, len);
-						for (len--; len >= 0; len--) {
-							templineC4[len] = ' ';
-						}
-					}
-				} else
-					strcpy(templineC4, "      ");
-				if (LineNumberDigitSize != 0) {
-					if (strlen(templineC4) < LineNumberDigitSize) {
-						strncat(templineC4, "                     ", LineNumberDigitSize);
-					}
-					templineC4[LineNumberDigitSize] = EOS;
-				}
-				TextFont(4); // 2022-05-26 w->RowFInfo[row]->FName);
-				DrawText(templineC4, 0, strlen(templineC4));
-				TextFont(w->RowFInfo[row]->FName);
-			}
-			MoveTo(LEFTMARGIN+w->textOffset, print_cRow);
-			for (col=0; col <= lastViewCol; col++) {
-				if (oldState != sAtts[col] || col == lastViewCol) {
-#if (TARGET_API_MAC_CARBON == 1)
-					if (!w->isUTF) {
-#endif
-						face = 0;
-						if (is_underline(sAtts[cCol]) || is_error(sAtts[cCol]))
-							face = face | underline;
-						if (is_italic(sAtts[cCol]))
-							face = face | italic;
-						if (is_bold(sAtts[cCol]))
-							face = face | bold;
-						TextFace(face);
-						RevChar = is_reversed(sAtts[cCol]);
-						if (RevChar)
-							TextMode(notSrcCopy);
-#if (TARGET_API_MAC_CARBON == 1)
-					}
-#endif
-					if (is_colored(sAtts[cCol])) {
-						if (SetKeywordsColor(global_df->RootColorText, cCol, &theColor))
-							RGBForeColor(&theColor);
-					}
-					if (is_word_color(sAtts[cCol])) {
-						char color;
-
-						color = get_color_num(sAtts[cCol]);
-						if (color == blue_color) {
-							theColor.red = 0;
-							theColor.green = 5;
-							theColor.blue = 58715;
-						} else if (color == red_color) {
-							theColor.red = 58122;
-							theColor.green = 0;
-							theColor.blue = 0;
-						} else if (color == green_color) {
-							theColor.red = 0;
-							theColor.green = 41219;
-							theColor.blue = 3;
-						} else /* if (color == magenta_color) */ {
-							theColor.red = 56935;
-							theColor.green = 0;
-							theColor.blue = 56931;
-						}
-						RGBForeColor(&theColor);
-					}
-					if (is_error(sAtts[cCol])) {
-						theColor.red = 57670;
-						theColor.green = 1;
-						theColor.blue = 1;
-						RGBForeColor(&theColor);
-					}
-#if (TARGET_API_MAC_CARBON == 1)
-					if (w->isUTF) {
-						if (!DrawUTFontMac(sData+cCol, col-cCol, w->RowFInfo[row], sAtts[cCol])) {
-//							SetPort(oldPort);
-//							return;
-						}
-						if (is_reversed(sAtts[cCol])) {
-							trect.left = LEFTMARGIN+w->textOffset+TextWidthInPix(sData, 0, cCol, w->RowFInfo[row], 0);
-							trect.right = trect.left+TextWidthInPix(sData, cCol, col, w->RowFInfo[row], 0);
-							trect.top = print_row - w->RowFInfo[row]->FHeight + 2;
-							trect.bottom = print_row + 1;
-//							trect.left += 3;
-							trect.right += 3;
-							InvertRect(&trect); 
-						}
-					} else
-#endif
-						DrawText(sData, cCol, col-cCol);
-#if (TARGET_API_MAC_CARBON == 1)
-					if (!w->isUTF) {
-#endif
-						if (RevChar)
-							TextMode(srcCopy);
-#if (TARGET_API_MAC_CARBON == 1)
-					}
-#endif
-					if (is_colored(sAtts[cCol]) || is_error(sAtts[cCol]) || is_word_color(sAtts[cCol]))
-						RGBForeColor(&oldForgColor);
-					cCol = col;
-					oldState = sAtts[col];
-				}
-			}
-			RGBForeColor(&oldForgColor);
-			TextFace(0);
-			TextMode(srcCopy);
-		}
-#if (TARGET_API_MAC_CARBON == 1)
-		DrawControls(global_df->wind); 		/* Draw all the controls */
-#endif
-	}
-	if (global_df != NULL) {
-		if (w == global_df->SoundWin) {
-			PrintSoundWin(0,0,0L);
-		}
-	}
-	SetPort(oldPort);
-#endif // _MAC_CODE
-#ifdef _WIN32
 	long	print_row;
 	long	fsize = -1;
 	unsigned char charSet;
 	char	attChanged;
 	char	isRevText;
+	char    isMorTier;
 	unCH	fontName[LF_FACESIZE];
 	int		leftPos;
 	RECT	winRect;
@@ -2809,7 +1881,6 @@ void wrefresh(WINDOW *w) {
 
 	if (global_df->WinChange)
 		global_df->RdW = w;
-
 	oldTxtColor = GlobalDC->GetTextColor();
 	fontName[0] = EOS;
 	ecol = w->num_cols;
@@ -2839,6 +1910,7 @@ void wrefresh(WINDOW *w) {
 
 		rDC = GlobalDC;
 
+		isMorTier = 0;
 		SetLogfont(&lfFont, w->RowFInfo[row], NULL);
 		l_font.CreateFontIndirect(&lfFont);
 		CFont* pOldFont = rDC->SelectObject(&l_font);
@@ -2867,6 +1939,8 @@ void wrefresh(WINDOW *w) {
 				}
 				if (is_colored(sAtts[col]))
 					sAtts[col] = set_color_to_0(sAtts[col]);
+				if (w == global_df->w1 && is_lemma_color(sAtts[col]))
+					sAtts[col] = set_lemma_color_to_0(sAtts[col]);
 			}
 			if (!is_changed(sAtts[0])) {
 				if (lastViewCol == 0)
@@ -2875,6 +1949,18 @@ void wrefresh(WINDOW *w) {
 			sAtts[0] = set_changed_to_0(sAtts[0]);
 			if (lastViewCol > ecol)
 				lastViewCol = ecol;
+			if (w == global_df->w1) {
+				if ((global_df->re_colorLemmas == TRUE && LemmasColorNumPtr == 0) || LemmasColorNumPtr > 0) {
+					if (sData[0] == '*' || sData[0] == '@') {
+						isMorTier = 1;
+					} else if (isSpace(sData[0])) {
+					} else if (sData[0] == '%') {
+						isMorTier = 2;
+					}
+					if (isMorTier != 1)
+						FindColorLemmasBounds(w, row, sAtts, sData, 0, isMorTier);
+				}
+			}
 			if (global_df->RootColorText != NULL && w == global_df->w1)
 				tierColor = FindColorKeywordsBounds(global_df->RootColorText, w, row, sAtts, sData, 0, lastViewCol, tierColor);
 			cCol = 0;
@@ -2970,6 +2056,21 @@ void wrefresh(WINDOW *w) {
 							rDC->SetTextColor(RGB(192,0,192));
 						}
 					}
+					if (is_lemma_color(sAtts[cCol])) {
+// 0 Default color; 1 Blue Color; 2 Orange Color; 3 Magenta Color; 4 Purple Color; 5 Brown Color
+						if (LemmasColorNumPtr == 0) { // 0 Default Black color;
+						} else if (LemmasColorNumPtr == 1) { // 1 Blue Color
+							rDC->SetTextColor(RGB(0,0,255));
+						} else if (LemmasColorNumPtr == 2) { // 2 Orange Color
+							rDC->SetTextColor(RGB(253,126,0));
+						} else if (LemmasColorNumPtr == 3) { // 3 Magenta Color
+							rDC->SetTextColor(RGB(213,0,213));
+						} else if (LemmasColorNumPtr == 4) { // 4 Purple Color
+							rDC->SetTextColor(RGB(140,0,140));
+						} else if (LemmasColorNumPtr == 5) { // 5 Brown Color
+							rDC->SetTextColor(RGB(170,120,80));
+						}
+					}
 					if (is_error(sAtts[cCol])) {
 						rDC->SetTextColor(RGB(240,0,0));
 					}
@@ -3001,7 +2102,8 @@ void wrefresh(WINDOW *w) {
 						isRevText = FALSE;
 					}
 					leftPos += CW.cx;
-					if (is_colored(sAtts[cCol]) || is_error(sAtts[cCol]) || is_word_color(sAtts[cCol]))
+					if (is_colored(sAtts[cCol])    || is_error(sAtts[cCol]) ||
+						is_word_color(sAtts[cCol]) || is_lemma_color(sAtts[cCol]))
 						rDC->SetTextColor(oldTxtColor);
 					cCol = col;
 					oldState = sAtts[col];
@@ -3031,9 +2133,9 @@ contLoop:
 		rDC->SelectObject(pOldFont);
 		l_font.DeleteObject();
 	}
+	global_df->re_colorLemmas = FALSE;
 	if (global_df != NULL) {
 		if (w == global_df->SoundWin)
 			PrintSoundWin(0,0,0L);
 	}
-#endif /* _WIN32 */
 }

@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -1677,7 +1677,7 @@ static void c_qpa_process_tier(struct c_qpa_speakers *ts, struct database *db, c
 //	char isLastINF;
 	char word[1024], graWord[1024], lFeatPOS[256], lFeatSTEM[256], lGraWord[1024];
 	char tmp, isWordsFound, sq, aq, isSkip, *vb, *isOcSNPWord, isAnySNPFound, isAuxBeFound, isThisSNP, isSentenceUttsCorrected;
-	char isPSDFound, curPSDFound, isAmbigFound, isCountNV, isCountInflectionsAuxScore, isMSsCounted;
+	char isPSDFound, curPSDFound, isCountNV, isCountInflectionsAuxScore, isMSsCounted;
 	char isMOD_INFfound;
 	long stime, etime;
 	double tNum;
@@ -1749,6 +1749,16 @@ static void c_qpa_process_tier(struct c_qpa_speakers *ts, struct database *db, c
 		ts->aw_nWSs = 0.0;
 //ANALYSIS WORKSHEET end
 
+		i = 0;
+		while ((i=getword(utterance->speaker, utterance->line, templineC2, NULL, i))) {
+			uS.remblanks(templineC2);
+			if (templineC2[0] == '&' && templineC2[1] == '=') {
+				if (uS.mStricmp(templineC2, "&=a") == 0 || uS.mStricmp(templineC2, "&=the") == 0) {
+					ts->NRDs++;
+					ts->aw_NRDs++;
+				}
+			}
+		}
 	} else if (uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE)) {
 		if (org_depTier[0] == EOS) {
 			strcpy(org_depTier, utterance->line);
@@ -1907,13 +1917,11 @@ static void c_qpa_process_tier(struct c_qpa_speakers *ts, struct database *db, c
 					if (uS.isRightChar(uttline, i, '>', &dFnt, MBF)) aq = FALSE;
 			}
 			if (!uS.isskip(uttline,i,&dFnt,MBF) && !sq && !aq) {
-				isAmbigFound = FALSE;
 				isWordsFound = TRUE;
 				tmp = TRUE;
 //				mluWords = mluWords + 1;
+//				oPos = i;
 				while (uttline[i]) {
-					if (uttline[i] == '^')
-						isAmbigFound = TRUE;
 					if (uS.isskip(uttline,i,&dFnt,MBF)) {
 						if (uS.IsUtteranceDel(utterance->line, i)) {
 							if (!uS.atUFound(utterance->line, i, &dFnt, MBF))
@@ -1921,21 +1929,15 @@ static void c_qpa_process_tier(struct c_qpa_speakers *ts, struct database *db, c
 						} else
 							break;
 					}
-					if (!uS.ismorfchar(uttline, i, &dFnt, rootmorf, MBF) && !isAmbigFound) {
-						if (tmp) {
-							if (uttline[i] != EOS) {
-								if (i >= 2 && uttline[i-1] == '+' && uttline[i-2] == '|')
-									;
-								else {
-//									morf = morf + 1;
-								}
-							}
-							tmp = FALSE;
-						}
-					} else
-						tmp = TRUE;
 					i++;
 				}
+/*
+				tchr = uttline[i];
+				uttline[i] = EOS;
+				morphCnt = countMorphs(uttline, oPos); // uS.ismorfchar
+				morf = morf + morphCnt;
+				uttline[i] = tchr;
+*/
 			}
 			if ((i == 0 || uS.isskip(utterance->line,i-1,&dFnt,MBF)) && utterance->line[i] == '+' && 
 				uS.isRightChar(utterance->line,i+1,',',&dFnt, MBF) && isPSDFound) {

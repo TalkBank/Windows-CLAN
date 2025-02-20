@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -31,7 +31,8 @@
 
 extern char Parans;
 
-const char *punctuation;
+const char *cutt_punctuation = NULL;
+const char *ced_punctuation = NULL;
 cUStr uS;
 
 unCH AccentVowels_UTF16[29][1] = {
@@ -413,7 +414,9 @@ char cUStr::isskip(const unCH *org, int pos, NewFontInfo *finfo, char MBC) {
 	unCH wPunctuation[50];
 	const char *c;
 
-	for (w=wPunctuation,c=punctuation; *c != EOS; c++, w++) {
+	if (ced_punctuation == NULL)
+		ced_punctuation = cutt_punctuation;
+	for (w=wPunctuation,c=ced_punctuation; *c != EOS; c++, w++) {
 		*w = (unCH)*c;
 		*w &= 0x00FF;
 	}
@@ -888,6 +891,18 @@ int cUStr::HandleCAChars(unCH *w, int *matchedType) { // CA CHARS
 	} else if (*w == 0x1F29) { // laugh in a word
 		if (matchedType != NULL)
 			*matchedType = CA_APPLY_LAUGHINWORD;
+		return(1);
+	} else if (*w == 0x2907) { // hurried start
+		if (matchedType != NULL)
+			*matchedType = CA_HURRIED_START;
+		return(1);
+	} else if (*w == 0x2906) { // sudden stop
+		if (matchedType != NULL)
+			*matchedType = CA_SUDDEN_STOP;
+		return(1);
+	} else if (*w == 0x2051) { // hardening overdot
+		if (matchedType != NULL)
+			*matchedType = CA_HARDENING_OVERDOT;
 		return(1);
 	} else if (*w == 0x2039) { // Group start marker - NOT CA
 		if (matchedType != NULL)
@@ -1736,11 +1751,11 @@ char cUStr::isskip(const char *org, int pos, NewFontInfo *finfo, char MBC) {
 		if (uS.isPause(org, pos, NULL, NULL))
 			return(FALSE);
 	}
-	TempPunctPtr = punctuation;
+	TempPunctPtr = cutt_punctuation;
 	while (*TempPunctPtr != chr && *TempPunctPtr != EOS)
 		TempPunctPtr++;
 	if (*TempPunctPtr != EOS && chr == '+') {
-		if (pos > 0 && isskip_char(org[pos-1], punctuation))
+		if (pos > 0 && isskip_char(org[pos-1], cutt_punctuation))
 			return(FALSE);
 	}
 	return(*TempPunctPtr != EOS);
@@ -2199,6 +2214,10 @@ int cUStr::HandleCAChars(char *w, int *matchedType) { // CA CHARS
 				if (matchedType != NULL)
 					*matchedType = CA_APPLY_UNSURE;
 				return(3);
+			} else if (*(w+2) == (char)0x91) { // hardening overdot
+				if (matchedType != NULL)
+					*matchedType = CA_HARDENING_OVERDOT;
+				return(3);
 			}
 		} else if (*(w+1) == (char)0x86) {
 			if (*(w+2) == (char)0x91) { // up-arrow
@@ -2336,6 +2355,16 @@ int cUStr::HandleCAChars(char *w, int *matchedType) { // CA CHARS
 			if (*(w+2) == (char)0x8B) { // breathy-voice -♋- NOT CA
 				if (matchedType != NULL)
 					*matchedType = CA_BREATHY_VOICE;
+				return(3);
+			}
+		} else if (*(w+1) == (char)0xA4) {
+			if (*(w+2) == (char)0x87) { // hurried start
+				if (matchedType != NULL)
+					*matchedType = CA_HURRIED_START;
+				return(3);
+			} else if (*(w+2) == (char)0x86) { // sudden stop
+				if (matchedType != NULL)
+					*matchedType = CA_SUDDEN_STOP;
 				return(3);
 			}
 		}

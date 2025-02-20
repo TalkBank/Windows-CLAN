@@ -480,7 +480,9 @@ void CClan2App::OnEditOptionsCedoptions()
 
 	ReWrapDiff = doReWrap;
 	// Initialize dialog data
+//	dlg.createPopupProgMenu();
 	dlg.m_nCheckPointCnt = FreqCountLimit;
+	dlg.m_LemmaColorNum = LemmasColorNumPtr;
 	dlg.m_CreateBackup = !MakeBackupFile;
 	dlg.m_StartEditorMode = !StartInEditorMode;
 	dlg.m_WrapLine = DefAutoWrap;
@@ -513,6 +515,23 @@ void CClan2App::OnEditOptionsCedoptions()
 		doMixedSTWave = dlg.m_Mixed_Stereo_Wave;
 		isUpdateCLAN = dlg.m_Update_Clan;
 		isShowCHECKMessage = !dlg.m_No_CheckMess;
+
+		if (LemmasColorNumPtr != dlg.m_LemmaColorNum) {
+			LemmasColorNumPtr = dlg.m_LemmaColorNum;
+			CWinApp* wApp = AfxGetApp();
+			POSITION pos = wApp->GetFirstDocTemplatePosition();
+
+			while (pos != NULL) {
+				CDocTemplate* pTemplate = (CDocTemplate*)wApp->GetNextDocTemplate(pos);
+				ASSERT_KINDOF(CDocTemplate, pTemplate);
+				POSITION pos2 = pTemplate->GetFirstDocPosition();
+				while (pos2 != NULL) {
+					CClan2Doc* pDoc = (CClan2Doc *)pTemplate->GetNextDoc(pos2);
+					pDoc->re_colorLemmas = TRUE;
+					pDoc->UpdateAllViews(NULL, 0L, NULL);
+				}
+			}
+		}
 
 	    WriteCedPreference();
 	    if (ClanWinRowLim != tClanWinRowLim) {

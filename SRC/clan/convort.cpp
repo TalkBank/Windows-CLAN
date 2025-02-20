@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -25,9 +25,10 @@ extern struct tier *defheadtier;
 extern char OverWriteFile;
 
 static FNType dicname[256];
-static char convort_FirstTime;
+static char convort_FirstTime, isdup;
 
 static struct words {
+	char isFinalPos;
 	char *word;
 	char *toword;
 	struct words *next;
@@ -51,7 +52,7 @@ static void convort_overflow() {
 	cutt_exit(0);
 }
 
-static void convort_makenewsym(char *b, char *e) {
+static void convort_makenewsym(char *b, char *e, char isFinalPos) {
 	struct words *nextone;
 
 	if (head == NULL) {
@@ -66,6 +67,7 @@ static void convort_makenewsym(char *b, char *e) {
 	if (nextone == NULL)
 		convort_overflow();
 	nextone->next = NULL;
+	nextone->isFinalPos = isFinalPos;
 	nextone->toword = NULL;
 	nextone->word = (char *)malloc(strlen(b)+1);
 	if (nextone->word == NULL)
@@ -75,12 +77,15 @@ static void convort_makenewsym(char *b, char *e) {
 	if (nextone->toword == NULL)
 		convort_overflow();
 	strcpy(nextone->toword, e);
-	fprintf(stderr, "From string \"%s\" to string \"%s\"\n", nextone->word, nextone->toword);
+	if (isFinalPos)
+		fprintf(stderr, "From \"%s\" to \"%s\" final word position\n", nextone->word, nextone->toword);
+	else
+		fprintf(stderr, "From \"%s\" to \"%s\"\n", nextone->word, nextone->toword);
 }
 
 static void convort_readdict(void) {
 	FILE *fdic;
-	char line[1024], *b, *e;
+	char line[1024], *b, *e, isFinalPos;
 	FNType mFileName[FNSize];
 
 	if (dicname[0] == EOS) {
@@ -98,6 +103,11 @@ static void convort_readdict(void) {
 			continue;
 		if (line[0] == '#' && line[1] == ' ')
 			continue;
+		if (strncmp(line, "*FINAL_WORD_POS*", 16) == 0) {
+			isFinalPos = TRUE;
+			strcpy(line, line+16);
+		} else
+			isFinalPos = FALSE;
 		uS.remFrontAndBackBlanks(line);
 		if (line[0] == EOS)
 			continue;
@@ -107,7 +117,7 @@ static void convort_readdict(void) {
 			*e = EOS;
 			for (e++; *e == ' ' || *e == '\t' || *e == '\n'; e++) ;
 		}
-		convort_makenewsym(b, e);
+		convort_makenewsym(b, e, isFinalPos);
 	}
 	fclose(fdic);
 	fprintf(stderr,"\n");
@@ -117,6 +127,7 @@ void init(char f) {
 	if (f) {
 		stout = FALSE;
 		*dicname = EOS;
+		isdup = FALSE;
 		convort_FirstTime = TRUE;
 		OverWriteFile = TRUE;
 		FilterTier = 0;
@@ -124,7 +135,8 @@ void init(char f) {
 		head = NULL;
 		onlydata = 1;
 	} else if (convort_FirstTime) {
-		convort_readdict();
+		if (isdup == FALSE)
+			convort_readdict();
 		convort_FirstTime = FALSE;
 	}
 }
@@ -133,6 +145,7 @@ void usage() {
 	puts("CONVORT changes one orthography to other one.");
 	printf("Usage: convort [cF %s] filename(s)\n", mainflgs());
 	printf("+cF: dictionary file (Default %s) \n", DICNAME);
+	printf("+d : only duplicate speaker tier on %%ort tier\n");
 #ifdef UNX
 	puts("+LF: specify full path F of the lib folder");
 #endif
@@ -190,6 +203,19 @@ static int change(char *line, AttTYPE *att, int pos, int wlen, int tlen, char *t
 	return(pos-1);
 }	
 
+static char isRightPos(char *line, int wlen, struct words *nextone) {
+	if (nextone->isFinalPos == TRUE) {
+		for (; *line != EOS && !isSpace(*line) && *line != '@' && wlen > 0; wlen--)
+			line++;
+		if (wlen > 0)
+			return(FALSE);
+		else if (*line == EOS || isSpace(*line) || *line == '@')
+			return(TRUE);
+		return(FALSE);
+	}
+	return(TRUE);
+}
+
 static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 	register int pos;
 	struct words *nextone;
@@ -201,11 +227,13 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 	while (line[pos] != EOS) {
 		if (line[pos] == (char)0xE2 && line[pos+1] == (char)0x80) {
 			pos += 3;
+		} else if (line[pos] == '#' || line[pos] == '_') {
+			pos++;
 		} else if (line[pos] == '@') {
 			for (pos++; !isSpace(line[pos]) && line[pos] != '\n' && line[pos] != EOS; pos++) ;
-		} else if (line[pos] == '&' && line[pos+1] == '=') {
+		} else if (line[pos] == '&' && (line[pos+1] == '=' || line[pos+1] == '~')) {
 			for (pos++; !isSpace(line[pos]) && line[pos] != '\n' && line[pos] != EOS; pos++) ;
-		} else if (line[pos] == '[' && (line[pos+1] == '^' || line[pos+1] == '%')) {
+		} else if (line[pos] == '[' && (line[pos+1] == '^' || line[pos+1] == '%' || line[pos+1] == '*')) {
 			for (pos++; line[pos] != ']' && line[pos] != EOS; pos++) ;
 		} else if ((tlen=isWordEng(line, pos)) != 0) {
 			pos = tlen;
@@ -214,9 +242,12 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 			nextone = head;
 			while (nextone != NULL) {
 				wlen = strlen(nextone->word);
-				if (strncmp(line+pos, nextone->word, wlen) == 0) {
+				if (strncmp(line+pos, nextone->word, wlen) == 0 && isRightPos(line+pos, wlen, nextone)) {
 					tlen = strlen(nextone->toword);
-					if (wlen == 1 && tlen == 1) {
+					if (tlen == 0) {
+						strcpy(line+pos, line+pos+wlen);
+						pos--;
+					} else if (wlen == 1 && tlen == 1) {
 						line[pos] = nextone->toword[0];
 					} else {
 						pos = change(line, att, pos, wlen, tlen, nextone->toword);
@@ -235,7 +266,7 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 					line[pos] == ':' || line[pos] == '^' || line[pos] == '/' || line[pos] == '0' ||
 					isSpace(line[pos])) {
 				} else {
-					fprintf(stderr,"Failed to match letter starting at \"%s\"\n", line+pos);
+					fprintf(stderr,"\rFailed to match letter starting at \"%s\"\n", line+pos);
 				}
 			}
 			pos++;
@@ -247,7 +278,7 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 void call() {
 	long tlineno = 0L;
 	long isFound;
-	int i;
+	int i, j;
 
 	isFound = 0L;
 	currentatt = 0;
@@ -260,7 +291,20 @@ void call() {
 		if (utterance->speaker[0] == '*') {
 			uS.remblanks(utterance->line);
 			att_cp(0, spareTier1, utterance->line+i, tempAtt, utterance->attLine+i);
-			isFound = FindAndChange(utterance->line+i, utterance->attLine+i, isFound);
+			if (!nomap) {
+				for (j=i; utterance->line[j]; j++) {
+					if (MBF) {
+						if (my_CharacterByteType(utterance->line, (short)j, &dFnt) == 0)
+							utterance->line[j] = (char)tolower((unsigned char)utterance->line[j]);
+					} else {
+						utterance->line[j] = (char)tolower((unsigned char)utterance->line[j]);
+					}
+				}
+			}
+			if (isdup == FALSE)
+				isFound = FindAndChange(utterance->line+i, utterance->attLine+i, isFound);
+			else
+				isFound++;
 			printout(utterance->speaker,utterance->line+i,utterance->attSp,utterance->attLine+i, 0);
 			printout("%ort:", spareTier1, NULL, tempAtt, 0);
 		} else
@@ -290,6 +334,11 @@ void getflag(char *f, char *f1, int *i) {
 		case 'c':
 				if (*f)
 					uS.str2FNType(dicname, 0L, getfarg(f,f1,i));
+				break;
+		case 'd':
+				isdup = TRUE;
+				nomap = TRUE;
+				no_arg_option(f);
 				break;
 #ifdef UNX
 		case 'L':

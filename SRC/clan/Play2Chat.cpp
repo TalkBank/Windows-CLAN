@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -10,7 +10,7 @@
 	#include "stdafx.h"
 #endif
 
-#if !defined(UNX) || defined(CLAN_SRV)
+#if !defined(UNX)
 #define _main play2chat_main
 #define call play2chat_call
 #define getflag play2chat_getflag

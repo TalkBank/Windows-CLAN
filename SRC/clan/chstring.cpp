@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -25,6 +25,7 @@
 //2015-03-30 extern char cutt_isCAFound;
 extern struct tier *defheadtier;
 extern char OverWriteFile;
+extern char isRecursive;
 
 static FNType dicname[256];
 static char tab,
@@ -33,6 +34,7 @@ static char tab,
 	NO_CHANGE,
 	headeronly,
 	DispChanges,
+	isIgnoreCodes,
 	stringOriented,
 	isSearchForBullets;
 static char chstring_FirstTime;
@@ -101,6 +103,7 @@ static struct words *makenewsym(char *st) {
 	if (nextone->word == NULL)
 		chstring_overflow();
 	strcpy(nextone->word,st);
+	pars(nextone->word);
 	return(nextone);
 }
 
@@ -179,6 +182,7 @@ void init(char f) {
 		NO_CHANGE = FALSE;
 		DispChanges = TRUE;
 		stringOriented = 0;
+		isIgnoreCodes = FALSE;
 		chstring_FirstTime = TRUE;
 		chstring_isCoreLex = FALSE;
 		headeronly = FALSE;
@@ -205,6 +209,7 @@ void usage() {
 	printf("Usage: chstring [b cF d l q sS S x %s] filename(s)\n", mainflgs());
 	puts("+b : work ONLY on text to the right of the colon in CHAT format");
 	printf("+cF: dictionary file (\"\\t\"-tab, \"\\n\"-newline)(Default %s) \n", DICNAME);
+	puts("-c : do not change inside codes [...]");
 	puts("+d : do not re-wrap tiers");
 	puts("+l : work ONLY on codes to the left of the colon in CHAT format");
 	puts("+lx: do not show the list of changes specified with +s or +c option");
@@ -376,6 +381,10 @@ printf("2; pat=%s; line=%s", pat, line+pos);
 					if (line[pos] != *++pat)
 						break;
 				} else if (*pat == '_') {				/* any character */
+					if (stringOriented == 0) {
+						if (uS.isskip(line, pos, &dFnt, MBF) || line[pos] == EOS)
+							return(FALSE);
+					}
 					if (line[pos+1] && *(pat+1))
 						continue;
 					else if (line[pos+1] == *(pat+1))
@@ -464,6 +473,9 @@ printf("3; pat=%s; line=%s;\n", pat+n, line+m);
 									break;
 								for (pos++; uS.isskip(line, pos, &dFnt, MBF) && line[pos] != EOS; pos++) ;
 								pos--;
+								pat++;
+								if (line[pos] != *pat)
+									break;
 							}
 						} else if (uS.isskip(line, pos, &dFnt, MBF)) {
 							if (stringOriented == 0)
@@ -619,7 +631,7 @@ static int change(char *line, AttTYPE *att, int pos, int wlen, char *from_word, 
 
 static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 	register int pos, lPos;
-	char percentFound;
+	char percentFound, sq;
 	struct words *nextone;
 	int wlen;
 
@@ -682,8 +694,22 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 	if (stringOriented == 0) {
 		while (!uS.isskip(line, pos, &dFnt, MBF))
 			pos++;
-		while (uS.isskip(line, pos, &dFnt, MBF))
-			pos++;
+		if (isIgnoreCodes) {
+			if (line[pos] == '[')
+				sq = TRUE;
+			else
+				sq = FALSE;
+			while (uS.isskip(line, pos, &dFnt, MBF) || sq) {
+				if (line[pos] == '[')
+					sq = TRUE;
+				else if (line[pos] == ']')
+					sq = FALSE;
+				pos++;
+			}
+		} else {
+			while (uS.isskip(line, pos, &dFnt, MBF))
+				pos++;
+		}
 	} else
 		pos++;
 	if (line[pos] == HIDEN_C && !isSearchForBullets) {
@@ -723,8 +749,22 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 		if (stringOriented == 0) {
 			while (!uS.isskip(line, pos, &dFnt, MBF))
 				pos++;
-			while (uS.isskip(line, pos, &dFnt, MBF))
-				pos++;
+			if (isIgnoreCodes) {
+				if (line[pos] == '[')
+					sq = TRUE;
+				else
+					sq = FALSE;
+				while (uS.isskip(line, pos, &dFnt, MBF) || sq) {
+					if (line[pos] == '[')
+						sq = TRUE;
+					else if (line[pos] == ']')
+						sq = FALSE;
+					pos++;
+				}
+			} else {
+				while (uS.isskip(line, pos, &dFnt, MBF))
+					pos++;
+			}
 		} else
 			pos++;
 		if (line[pos] == HIDEN_C && !isSearchForBullets) {
@@ -894,7 +934,7 @@ void call() {
 		}
 	}
 	while (getwholeutter()) {
-		if (!stout) {
+		if (!stout && isRecursive == FALSE) {
 			tlineno = tlineno + 1L;
 			if (tlineno % PERIOD == 0)
 				fprintf(stderr,"\r%ld ",tlineno);
@@ -936,8 +976,11 @@ void call() {
 				printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 			}
 		} else {
-			if (*utterance->speaker == '*')
+			if (*utterance->speaker == '*') {
+				if (!nomap)
+					uS.lowercasestr(utterance->line, &dFnt, C_MBF);
 				RightSpeaker = TRUE;
+			}
 			if (chstring_isCoreLex) {
 				isFound = FindAndChangeCoreLex(utterance->line, utterance->attLine, isFound);
 			} else if (lineonly) {
@@ -1021,7 +1064,8 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 		fprintf(stderr,"\n");
 #ifndef UNX
 	if (isFound == 0L && fpout != stdout && !stout && !WD_Not_Eq_OD) {
-		fprintf(stderr,"**- NO changes made in this file\n");
+		if (isRecursive == FALSE)
+			fprintf(stderr,"**- NO changes made in this file\n");
 		if (!replaceFile && !chstring_isCoreLex) {
 			fclose(fpout);
 			fpout = NULL;
@@ -1032,7 +1076,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 #endif
 	if (isFound > 0L)
 		fprintf(stderr,"**+ %ld changes made in this file\n", isFound);
-	else
+	else if (isRecursive == FALSE)
 		fprintf(stderr,"**- NO changes made in this file\n");
 }
 
@@ -1042,7 +1086,9 @@ void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
 		case 'c':
-				if (*f)
+				if (*f == EOS)
+					isIgnoreCodes = TRUE;
+				else
 					uS.str2FNType(dicname, 0L, getfarg(f,f1,i));
 				break;
 		case 'd':

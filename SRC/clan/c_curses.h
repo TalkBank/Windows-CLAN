@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -75,11 +75,11 @@ extern  AttTYPE set_color_num(char num, AttTYPE att);// bits 8=128, 9=256, 10=51
 extern  char get_color_num(AttTYPE att);			 // bits 8=128, 9=256, 10=512
 #define zero_color_num(x)		(AttTYPE)(x & 0xfc7f)// bits 8=128, 9=256, 10=512
 
-/*
-#define set_X_to_1(x)		(AttTYPE)(x | 1024)
-#define is_X(x)				(AttTYPE)(x & 1024)
-#define set_X_to_0(x)		(AttTYPE)(x & 0xfbff)
+#define set_lemma_color_to_1(x)		(AttTYPE)(x | 1024)
+#define is_lemma_color(x)			(AttTYPE)(x & 1024)
+#define set_lemma_color_to_0(x)		(AttTYPE)(x & 0xfbff)
 
+/*
 #define set_X_to_1(x)		(AttTYPE)(x | 2048)
 #define is_X(x)				(AttTYPE)(x & 2048)
 #define set_X_to_0(x)		(AttTYPE)(x & 0xf7ff)

@@ -50,10 +50,12 @@ char AutoScriptSelect;
 char sendMessageTargetApp;
 char *TempFileStringTag;
 char F5Option;
-char  rptMark;
-int   rptPTime;
-int   WebCLANVersion;
-int   streamSpeedNumber;
+char rptMark;
+int  rptPTime;
+int  WebCLANVersion;
+int  streamSpeedNumber;
+int  LemmasColorNumPtr;
+
 #ifdef LIBDOWNLOAD
 int   eng_kidevalCurVersion, eng_kidevalWebVersion;
 int   eng_evalCurVersion, eng_evalWebVersion;
@@ -286,6 +288,7 @@ void LocalInit(void) {
 	fra_evalCurVersion = 0; fra_evalWebVersion = 0;
 	LibVersionTime = 0L;
 #endif
+	LemmasColorNumPtr = 0;
 	isUTFData = TRUE;
 	FreqCountLimit = 0;
 	SearchFFlag = TRUE;
@@ -1414,6 +1417,12 @@ static void SetOption(char *text) {
 				ThumbnailsHight = 30.0000;
 			}
 		}
+	} else if (id == 2016) {
+		if (*text != EOS) {
+			LemmasColorNumPtr = atoi(text);
+			if (LemmasColorNumPtr < 0 || LemmasColorNumPtr > 5)
+				LemmasColorNumPtr = 0;
+		}
 	} else if (id == 1990) {
 		if (*text != EOS) {
 			if (!isdigit(*text)) {
@@ -1634,6 +1643,7 @@ static void WriteCedPrefs(FILE *fp) {
 	fprintf(fp, "%d=%d\n", 2006, F5Option);
 // NOT USED 	fprintf(fp, "%d=%d\n", 2008, isUseSPCKeyShortcuts);
 	fprintf(fp, "%d=%lf\n", 2015, ThumbnailsHight);
+	fprintf(fp, "%d=%d\n", 2016, LemmasColorNumPtr);
 	fprintf(fp, "%d=%d\n", 2017, isShowCHECKMessage);
 	fprintf(fp, "+b%d\n", FreqCountLimit);
 	if (*CodesFName != EOS)

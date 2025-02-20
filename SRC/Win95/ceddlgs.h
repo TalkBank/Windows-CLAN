@@ -29,6 +29,7 @@ public:
 	//{{AFX_DATA(CCedDlgs)
 	enum { IDD = IDD_CED_OPTIONS };
 	int		m_nCheckPointCnt;
+	int		m_LemmaColorNum;
 	long	m_ClanWindowLinesLimit;
 	BOOL	m_CreateBackup;
 	BOOL	m_OpenClan;
@@ -40,13 +41,14 @@ public:
 	BOOL	m_Mixed_Stereo_Wave;
 	BOOL	m_Update_Clan;
 	BOOL	m_No_CheckMess;
+	CComboBox m_ColorLemmaCtrl;
 	//}}AFX_DATA
 
 
 // Overrides
 	// ClassWizard generated virtual function overrides
 	//{{AFX_VIRTUAL(CCedDlgs)
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 	//}}AFX_VIRTUAL
 
@@ -55,6 +57,8 @@ protected:
 
 	// Generated message map functions
 	//{{AFX_MSG(CCedDlgs)
+	afx_msg void OnColorLemma();
+	afx_msg void OnColorLemmaCancel();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 public:

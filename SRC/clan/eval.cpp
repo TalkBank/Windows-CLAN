@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -124,6 +124,11 @@ extern char isPrecliticUse;		/* if '$' found on %mor tier break it into two word
 extern struct tier *defheadtier;
 extern struct IDtype *IDField;
 
+enum {
+	UNK = 0,
+	ENG,
+} ;
+
 #define SDRESSIZE 256
 
 struct SDs {
@@ -229,7 +234,7 @@ static int  eval_SpecWords, DBGemNum, wdOffset;
 static char *DBGems[NUMGEMITEMS];
 static const char *lang_prefix;
 static char isSpeakerNameGiven, isExcludeWords, ftime, isPWordsList, isDBFilesList, isCreateDB, isRawVal, specialOptionUsed;
-static char eval_BBS[5], eval_CBS[5], eval_group, eval_n_option, isNOptionSet, onlyApplyToDB, isGOptionSet, GemMode;
+static char eval_BBS[5], eval_CBS[5], eval_group, eval_n_option, isNOptionSet, onlyApplyToDB, isGOptionSet, GemMode, langType;
 static float tmDur;
 static FILE	*dbfpout;
 static FILE *DBFilesListFP;
@@ -957,18 +962,19 @@ static float roundFloat(double num) {
 }
 
 static void eval_process_tier(struct eval_speakers *ts, struct database *db, char *rightIDFound, char isOutputGem, FILE *PWordsListFP) {
-	int i, j, num;
+	int i, j, num, oPos;
 	char word[1024], tword[1024];
-	char tmp, isWordsFound, sq, aq, isSkip, isFiller;
-	char isPSDFound, curPSDFound, isAuxFound, isAmbigFound;
+	char isWordsFound, sq, aq, isSkip, isFiller, tchr;
+	char isPSDFound, curPSDFound, isAuxFound;
 	long stime, etime;
 	double tNum;
-	float mluWords, morf, mluUtt;
+	float mluWords, morf, mluUtt, morphCnt;
 	struct IDparts IDTier;
 	MORFEATS word_feats, *clitic, *feat;
 
 	if (utterance->speaker[0] == '*') {
 		strcpy(spareTier1, utterance->line);
+		strcpy(spareTier2, uttline);
 		if (tmDur >= 0.0) {
 			ts->tm = ts->tm + tmDur;
 			tmDur = -1.0;
@@ -1052,7 +1058,7 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 			isSkip = TRUE;
 		} else {
 			i = 0;
-			while ((i=getword(utterance->speaker, spareTier1, word, NULL, i))) {
+			while ((i=getword(utterance->speaker, spareTier2, word, NULL, i))) {
 				if (strcmp(word, "xxx") == 0 || strcmp(word, "yyy") == 0 || strcmp(word, "www") == 0) {
 					isSkip = TRUE;
 					break;
@@ -1099,13 +1105,10 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 					if (uS.isRightChar(uttline, i, '>', &dFnt, MBF)) aq = FALSE;
 			}
 			if (!uS.isskip(uttline,i,&dFnt,MBF) && !sq && !aq) {
-				isAmbigFound = FALSE;
 				isWordsFound = TRUE;
-				tmp = TRUE;
 				mluWords = mluWords + 1;
+				oPos = i;
 				while (uttline[i]) {
-					if (uttline[i] == '^' || /* uttline[i] == '*' ||*/ uttline[i] == rplChr || uttline[i] == errChr)
-						isAmbigFound = TRUE;
 					if (uS.isskip(uttline,i,&dFnt,MBF)) {
 						if (uS.IsUtteranceDel(utterance->line, i)) {
 							if (!uS.atUFound(utterance->line, i, &dFnt, MBF))
@@ -1113,21 +1116,13 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 						} else
 							break;
 					}
-					if (!uS.ismorfchar(uttline, i, &dFnt, rootmorf, MBF) && !isAmbigFound) {
-						if (tmp) {
-							if (uttline[i] != EOS) {
-								if (i >= 2 && uttline[i-1] == '+' && uttline[i-2] == '|')
-									;
-								else {
-									morf = morf + 1;
-								}
-							}
-							tmp = FALSE;
-						}
-					} else
-						tmp = TRUE;
 					i++;
 				}
+				tchr = uttline[i];
+				uttline[i] = EOS;
+				morphCnt = countMorphs(uttline, oPos); // uS.ismorfchar
+				morf = morf + morphCnt;
+				uttline[i] = tchr;
 			}
 			if ((i == 0 || uS.isskip(utterance->line,i-1,&dFnt,MBF)) && utterance->line[i] == '+' && 
 				uS.isRightChar(utterance->line,i+1,',',&dFnt, MBF) && isPSDFound) {
@@ -1474,7 +1469,7 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 					isFor = wi;
 
 				// counts nouns/verbes BEG
-				if (isEqual("n", feat->pos) || isnEqual("n:", feat->pos, 2)) {
+				if (isEqual("noun", feat->pos) || isEqual("n", feat->pos) || isnEqual("n:", feat->pos, 2)) {
 					ts->nounsNV++;
 				} else if (isAllv(feat) || isnEqual("cop", feat->pos, 3)) {
 					ts->verbsNV++;
@@ -1482,20 +1477,22 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 				// counts nouns/verbes END
 				// counts open/closed BEG
 				if (isEqual("n", feat->pos) || isnEqual("n:", feat->pos, 2) || isEqual("v", feat->pos) || isnEqual("v:", feat->pos, 2) ||
-					isnEqual("part", feat->pos, 3) || isnEqual("cop", feat->pos, 3) || isEqual("adj", feat->pos) || isEqual("adv", feat->pos) || isnEqual("adv:", feat->pos, 4)) {
+					isEqual("noun", feat->pos) || isEqual("verb", feat->pos) ||
+					isnEqual("part", feat->pos, 3) || isnEqual("cop", feat->pos, 3) || isEqual("adj", feat->pos) ||
+					isEqual("adv", feat->pos) || isnEqual("adv:", feat->pos, 4)) {
 					ts->openClass++;
 				} else if (isEqual("co", feat->pos) == FALSE && isEqual("on", feat->pos) == FALSE) {
 					ts->closedClass++;
 				}
 				// counts open/closed END
-				if (isEqual("n", feat->pos) || isnEqual("n:", feat->pos, 2)) {
+				if (isEqual("noun", feat->pos) || isEqual("n", feat->pos) || isnEqual("n:", feat->pos, 2)) {
 					ts->noun++;
 				} else if (isAllv(feat) || isnEqual("cop", feat->pos, 3)) {
 					ts->verb++;
 					if (isEqual("part", feat->pos)) {
 						if (isAuxFound)
 							ts->CUR++;
-					} else if (isEqual("v", feat->pos) || isnEqual("cop", feat->pos, 3))
+					} else if (isEqual("verb", feat->pos) || isEqual("v", feat->pos) || isnEqual("cop", feat->pos, 3))
 						ts->CUR++;
 				} else if (isEqual("aux", feat->pos)) {
 					ts->aux++;
@@ -1507,17 +1504,21 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 				} else if (isEqual("part", feat->pos)) {
 					if (isAuxFound)
 						ts->CUR++;
-				} else if (isEqual("prep", feat->pos) || isnEqual("prep:", feat->pos, 5)) {
+				} else if (isEqual("adp", feat->pos) || isEqual("prep", feat->pos) || isnEqual("prep:", feat->pos, 5)) {
 					ts->prep++;
 				} else if (isEqual("adj", feat->pos) || isnEqual("adj:", feat->pos, 4)) {
 					ts->adj++;
 				} else if (isEqual("adv", feat->pos) || isnEqual("adv:", feat->pos, 4)) {
 					ts->adv++;
-				} else if (isEqual("conj", feat->pos) || isnEqual("conj:", feat->pos, 5)) {
+				} else if (isEqual("cconj", feat->pos) || isEqual("conj", feat->pos) || isnEqual("conj:", feat->pos, 5)) {
 					ts->conj++;
-				} else if (isEqual("pro", feat->pos) || isnEqual("pro:", feat->pos, 4)) {
+				} else if (isEqual("pron", feat->pos) || isEqual("pro", feat->pos) || isnEqual("pro:", feat->pos, 4)) {
 					ts->pron++;
 				} else if (isEqual("det:art", feat->pos) || isEqual("det:dem", feat->pos) || isEqual("det:int", feat->pos)) {
+					ts->det++;
+				} else if (isEqual("det", feat->pos) && 
+						   (isEqualIxes("art", feat->suffix, NUM_SUFF) || isEqualIxes("dem", feat->suffix, NUM_SUFF) ||
+							isEqualIxes("int", feat->suffix, NUM_SUFF))) {
 					ts->det++;
 				}
 				if (isEqualIxes("3s", feat->suffix, NUM_SUFF) || isEqualIxes("3s", feat->fusion, NUM_FUSI)) {
@@ -1534,7 +1535,8 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 					else
 						ts->thrnS++;
 				}
-				if (isEqualIxes("past", feat->suffix, NUM_SUFF) || isEqualIxes("past", feat->fusion, NUM_FUSI)) {
+				if (!isEqual("part", feat->pos) &&
+					(isEqualIxes("past", feat->suffix, NUM_SUFF) || isEqualIxes("past", feat->fusion, NUM_FUSI))) {
 					if (isIxesMatchPat(feat->error, NUM_ERRS, "m:0ed")  ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:base:ed") ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:=ed"))
@@ -1542,7 +1544,8 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 					else
 						ts->past++;
 				}
-				if (isEqualIxes("pastp", feat->suffix, NUM_SUFF) || isEqualIxes("pastp", feat->fusion, NUM_FUSI)) {
+				if (isEqualIxes("pastp", feat->suffix, NUM_SUFF) || isEqualIxes("pastp", feat->fusion, NUM_FUSI) ||
+					(isEqual("part", feat->pos) && isEqualIxes("past", feat->suffix, NUM_SUFF))) {
 					if (isIxesMatchPat(feat->error, NUM_ERRS, "m:sub:en") ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:base:en") ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:=en"))
@@ -1550,19 +1553,21 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 					else
 						ts->pastp++;
 				}
-				if (isEqualIxes("pl", feat->suffix, NUM_SUFF) || isEqualIxes("pl", feat->fusion, NUM_FUSI)) {
+				if (isEqualIxes("presp", feat->suffix, NUM_SUFF) || isEqualIxes("presp", feat->fusion, NUM_FUSI) ||
+					(isEqual("part", feat->pos) && isEqualIxes("pres", feat->suffix, NUM_SUFF))) {
+					if (isIxesMatchPat(feat->error, NUM_ERRS, "m:0ing"))
+						j = 0;
+					else
+						ts->presp++;
+				}
+				if (isEqualIxes("Plur", feat->suffix, NUM_SUFF) ||
+					isEqualIxes("pl", feat->suffix, NUM_SUFF) || isEqualIxes("pl", feat->fusion, NUM_FUSI)) {
 					if (isIxesMatchPat(feat->error, NUM_ERRS, "m:base:s*") ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:0s*")     ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:=s"))
 						j = 0;
 					else
 						ts->pl++;
-				}
-				if (isEqualIxes("presp", feat->suffix, NUM_SUFF) || isEqualIxes("presp", feat->fusion, NUM_FUSI)) {
-					if (isIxesMatchPat(feat->error, NUM_ERRS, "m:0ing"))
-						j = 0;
-					else
-						ts->presp++;
 				}
 			}
 			freeUpFeats(&word_feats);
@@ -2493,14 +2498,21 @@ static void eval_pr_result(void) {
 	} else {
 		excelCommasStrCell(fpout, "Word_Errors,Utt_Errors");
 	}
-	excelCommasStrCell(fpout, "density");
+	if (langType == ENG)
+		excelStrCell(fpout, "density");
 	if (!isRawVal) {
 		excelCommasStrCell(fpout, "%_Nouns,%_Plurals");
-		excelCommasStrCell(fpout, "%_Verbs,%_Aux,%_Mod,%_3S,%_13S,%_PAST,%_PASTP,%_PRESP");
+		excelCommasStrCell(fpout, "%_Verbs,%_Aux");
+		if (langType == ENG)
+			excelStrCell(fpout, "%_Mod");
+		excelCommasStrCell(fpout, "%_3S,%_13S,%_PAST,%_PASTP,%_PRESP");
 		excelCommasStrCell(fpout, "%_prep,%_adj,%_adv,%_conj,%_det,%_pro");
 	} else {
 		excelCommasStrCell(fpout, "Nouns,Plurals");
-		excelCommasStrCell(fpout, "Verbs,Aux,Mod,3S,13S,PAST,PASTP,PRESP");
+		excelCommasStrCell(fpout, "Verbs,Aux");
+		if (langType == ENG)
+			excelStrCell(fpout, "Mod");
+		excelCommasStrCell(fpout, "3S,13S,PAST,PASTP,PRESP");
 		excelCommasStrCell(fpout, "prep,adj,adv,conj,det,pro");
 	}
 	excelCommasStrCell(fpout, "noun_verb,open_closed");
@@ -2532,7 +2544,10 @@ static void eval_pr_result(void) {
 		}
 		if (!ts->isMORFound) {
 			fprintf(stderr,"\nWARNING: No %%mor: tier found for speaker \"%s\" in file \"%s\"\n\n", ts->sp, sFName);
-			excelCommasStrCell(fpout, "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+			if (langType == ENG)
+				excelCommasStrCell(fpout, "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+			else
+				excelCommasStrCell(fpout, "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
 			excelRow(fpout, ExcelRowEnd);
 			continue;
 		}
@@ -2571,12 +2586,14 @@ static void eval_pr_result(void) {
 			excelNumCell(fpout, "%.0f",ts->werr);
 		excelNumCell(fpout, "%.0f", ts->uerr);
 //		excelNumCell(fpout, "%.0f" ,ts->morTotal); // comment to remove X column
-		if (ts->morTotal == 0.0) {
-			ts->density = 0.000;
-			excelStrCell(fpout, "NA");
-		} else {
-			ts->density = ts->density / ts->morTotal;
-			excelNumCell(fpout, "%.3f", ts->density);
+		if (langType == ENG) {
+			if (ts->morTotal == 0.0) {
+				ts->density = 0.000;
+				excelStrCell(fpout, "NA");
+			} else {
+				ts->density = ts->density / ts->morTotal;
+				excelNumCell(fpout, "%.3f", ts->density);
+			}
 		}
 		if (!isRawVal) {
 			if (ts->noun == 0.0)
@@ -2623,7 +2640,8 @@ static void eval_pr_result(void) {
 			excelNumCell(fpout, "%.3f", ts->pl);
 			excelNumCell(fpout, "%.3f", ts->verb);
 			excelNumCell(fpout, "%.3f", ts->aux);
-			excelNumCell(fpout, "%.3f", ts->mod);
+			if (langType == ENG)
+				excelNumCell(fpout, "%.3f", ts->mod);
 			excelNumCell(fpout, "%.3f", ts->thrS);
 			excelNumCell(fpout, "%.3f", ts->thrnS);
 			excelNumCell(fpout, "%.3f", ts->past);
@@ -2640,7 +2658,8 @@ static void eval_pr_result(void) {
 			excelNumCell(fpout, "%.0f", ts->pl);
 			excelNumCell(fpout, "%.0f", ts->verb);
 			excelNumCell(fpout, "%.0f", ts->aux);
-			excelNumCell(fpout, "%.0f", ts->mod);
+			if (langType == ENG)
+				excelNumCell(fpout, "%.0f", ts->mod);
 			excelNumCell(fpout, "%.0f", ts->thrS);
 			excelNumCell(fpout, "%.0f", ts->thrnS);
 			excelNumCell(fpout, "%.0f", ts->past);
@@ -3090,6 +3109,7 @@ void call() {
 	} else {
 		isOutputGem = TRUE;
 	}
+	langType = ENG;
 	isPRCreateDBRes = FALSE;
 	spareTier1[0] = EOS;
 	lRightspeaker = FALSE;
@@ -3102,6 +3122,21 @@ void call() {
 #if !defined(CLAN_SRV)
 //			fprintf(stderr,"\r%ld ",lineno);
 #endif
+		}
+		if (*utterance->speaker == '@') {
+			if (uS.partcmp(utterance->speaker,"@Languages:",FALSE,FALSE)) {
+				uS.remFrontAndBackBlanks(utterance->line);
+				if (strchr(utterance->line, ',') != NULL || strchr(utterance->line, ' ') != NULL) {
+					langType = UNK;
+				} else {
+					for (i=0; isSpace(utterance->line[i]); i++) ;
+					if (uS.mStricmp(utterance->line+i, "eng") == 0) {
+						langType = ENG;
+					} else {
+						langType = UNK;
+					}
+				}
+			}
 		}
 		if (!checktier(utterance->speaker)) {
 			if (*utterance->speaker == '*')

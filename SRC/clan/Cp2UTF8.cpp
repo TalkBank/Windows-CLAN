@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -32,6 +32,7 @@
 extern struct tier *defheadtier;
 extern struct tier *headtier;
 extern char OverWriteFile;
+extern char GExt[];
 
 typedef struct WCHARMASK {
 	char c1, c2;
@@ -310,8 +311,11 @@ void init(char f) {
 			fputs("The +d1 option can only be used with +d2 option\n", stderr);
 			cutt_exit(0);
 		}
-		if (isMakeTXT)
+		if (isMakeTXT) {
+			if (replaceFile)
+				GExt[0] = EOS;
 			AddCEXExtension = ".txt";
+		}
 		fTime = FALSE;
 	}
 }

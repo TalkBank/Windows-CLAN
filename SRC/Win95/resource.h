@@ -527,8 +527,12 @@
 #define IDC_SELECT_NLDTOYPLAY           1382
 #define IDC_SELECT_FRATOYPLAY           1383
 #define IDC_SELECT_FRANARRATIVE         1384
-#define IDC_SELECT_FRANARRATIVE2        1385
 #define IDC_SELECT_SPANARRATIVE         1385
+#define IDC_SELECT_ENGUTOYPLAY          1386
+#define IDC_SELECT_ENGUNARRATIVE        1387
+#define IDC_COMBO2                      1388
+#define IDC_CEDO_COLORLEMMA             1388
+#define IDC_SELECT_ENGU                 1388
 #define ID_CHOOSE_FONT                  32771
 #define ID_VIEW_SETFONT                 32772
 #define ID_CHOOSE_DEFAULT_FONT          32773
@@ -633,6 +637,8 @@
 #define ID_FILE_GETKIDEVALDATABASE      32888
 #define ID_GETKIDEVALDATABASE_ENGLISH   32889
 #define ID_GETKIDEVALDATABASE_CHINESE   32890
+#define ID_GETMORGRAMMAR_FRENCH32891    32891
+#define ID_GETMORGRAMMAR_SPANISH32892   32892
 #define IDS_CANT_INIT_QUARTZ            61450
 #define IDS_CANT_RENDER_FILE            61451
 #define IDS_CANT_PLAY                   61452
@@ -644,9 +650,9 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_3D_CONTROLS                     1
-#define _APS_NEXT_RESOURCE_VALUE        215
-#define _APS_NEXT_COMMAND_VALUE         32891
-#define _APS_NEXT_CONTROL_VALUE         1383
+#define _APS_NEXT_RESOURCE_VALUE        216
+#define _APS_NEXT_COMMAND_VALUE         32893
+#define _APS_NEXT_CONTROL_VALUE         1389
 #define _APS_NEXT_SYMED_VALUE           103
 #endif
 #endif

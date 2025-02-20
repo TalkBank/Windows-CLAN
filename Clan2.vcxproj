@@ -151,14 +151,19 @@
     <ClCompile Include="SRC\clan\c-nnla.cpp" />
     <ClCompile Include="SRC\clan\c-qpa.cpp" />
     <ClCompile Include="SRC\clan\Chat2Srt.cpp" />
+    <ClCompile Include="SRC\clan\chiputil.cpp" />
     <ClCompile Include="SRC\clan\codes-p.cpp" />
     <ClCompile Include="SRC\clan\convort.cpp" />
     <ClCompile Include="SRC\clan\corelex.cpp" />
     <ClCompile Include="SRC\clan\eval-d.cpp" />
     <ClCompile Include="SRC\clan\flucalc.cpp" />
+    <ClCompile Include="SRC\clan\flupos.cpp" />
     <ClCompile Include="SRC\clan\Lena2Chat.cpp" />
     <ClCompile Include="SRC\clan\medialine.cpp" />
     <ClCompile Include="SRC\clan\merge.cpp" />
+    <ClCompile Include="SRC\clan\mlumor.cpp" />
+    <ClCompile Include="SRC\clan\num2word.cpp" />
+    <ClCompile Include="SRC\clan\PID.cpp" />
     <ClCompile Include="SRC\clan\Play2Chat.cpp" />
     <ClCompile Include="src\Clan\post\anaalgo.cpp" />
     <ClCompile Include="SRC\clan\Anvil2Chat.cpp" />
@@ -169,6 +174,7 @@
     <ClCompile Include="SRC\clan\silence-pc.cpp" />
     <ClCompile Include="SRC\clan\Srt2Chat.cpp" />
     <ClCompile Include="SRC\clan\sugar.cpp" />
+    <ClCompile Include="SRC\clan\tang2chat.cpp" />
     <ClCompile Include="SRC\clan\text2chat.cpp" />
     <ClCompile Include="SRC\clan\validateMFA.cpp" />
     <ClCompile Include="src\Clan\vocd\args.cpp" />
@@ -201,7 +207,6 @@
     <ClCompile Include="src\Win95\Clan2.cpp" />
     <ClCompile Include="src\Win95\Clan2Doc.cpp" />
     <ClCompile Include="src\Win95\Clan2View.cpp" />
-    <ClCompile Include="SRC\clan\cmdi.cpp" />
     <ClCompile Include="src\Ced\codes.cpp" />
     <ClCompile Include="src\Clan\combo.cpp" />
     <ClCompile Include="SRC\clan\COMBTIER.CPP" />
@@ -280,7 +285,6 @@
     <ClCompile Include="SRC\clan\mul.cpp" />
     <ClCompile Include="SRC\Win95\MVHelp.cpp" />
     <ClCompile Include="SRC\clan\my_unix.cpp" />
-    <ClCompile Include="SRC\clan\olac.cpp" />
     <ClCompile Include="SRC\clan\ort.cpp" />
     <ClCompile Include="src\Clan\Phonfreq.cpp" />
     <ClCompile Include="src\Clan\post\post.cpp" />

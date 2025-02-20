@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -573,12 +573,42 @@ static void addItem2UttLoc(UTTER *utt, long p, char *line, long b, long e) {
 		att_shiftright(utt->line+p, utt->attLine+p, e-b+2);
 	else
 		att_shiftright(utt->line+p, utt->attLine+p, e-b+1);
-	if (isAddSpaceBef)
+	if (isAddSpaceBef) {
+		utt->attLine[p] = 0;
 		utt->line[p++] = ' ';
-	for (; b <= e; b++)
+	}
+	for (; b <= e; b++) {
+		utt->attLine[p] = 0;
 		utt->line[p++] = line[b];
-	if (isAddSpaceAft)
+	}
+	if (isAddSpaceAft) {
+		utt->attLine[p] = 0;
 		utt->line[p++] = ' ';
+	}
+}
+
+static void checkUtteranceDelimiter(UTTER *utt) {
+	char isUttDelFound;
+	long e, crChar;
+
+	crChar = -1;
+	isUttDelFound = FALSE;
+	for (e=strlen(utt->line)-1L; (isSpace(utt->line[e]) || utt->line[e] == '\n' || IsEndUtteranceDelChar(utt->line, e)) && e >= 0; e--) {
+		if (utt->line[e] == '\n')
+			crChar = e;	
+		if (IsEndUtteranceDelChar(utt->line, e)) {
+			isUttDelFound = TRUE;
+		}
+	}
+	if (isUttDelFound == FALSE) {
+		if (crChar > 0 && !isSpace(utt->line[crChar-1])) {
+			att_shiftright(utt->line+crChar, utt->attLine+crChar, 2);
+			utt->attLine[crChar] = 0;
+			utt->line[crChar++] = ' ';
+		}
+		utt->attLine[crChar] = 0;
+		utt->line[crChar++] = '.';
+	}
 }
 
 static void changeUtteranceDelimiter(UTTER *utt, char *line, long b, long e) {
@@ -641,6 +671,7 @@ static void addAllItems(UTTER *utt, TIERS *TB, char *isDelBullets) {
 	long b, e;
 	char isCRFound, isUttDelFound;
 
+	checkUtteranceDelimiter(utt);
 	CRsFound = 0;
 	isCRFound = FALSE;
 	isUttDelFound = FALSE;
@@ -680,6 +711,21 @@ static void addAllItems(UTTER *utt, TIERS *TB, char *isDelBullets) {
 	}
 }
 
+static void removeAllPostcodes(char *line) {
+	long i;
+
+	for (i=0; line[i] != EOS; i++) {
+		if (line[i] == '[' && line[i+1] == '+' && line[i+2] == ' ') {
+			for (; line[i] != EOS && line[i] != ']'; i++) {
+				line[i] = ' ';
+			}
+			if (line[i] == ']')
+				line[i] = ' ';
+		}
+	}
+	removeExtraSpace(line);
+}
+
 void call() {
 	char isDelBullets, isReplacementTierFound, mainTier[SPEAKERLEN], isEndHeaders;
 
@@ -712,6 +758,7 @@ void call() {
 				if (*utterance->speaker == '*') {
 					isReplacementTierFound = FALSE;
 					TierBody = addAndSortDepTiers(TierBody, utterance);
+					removeAllPostcodes(utterance->line);
 					if (!isLeaveBullets)
 						isDelBullets = TRUE;
 					strcpy(mainTier, utterance->speaker);

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -72,7 +72,7 @@ extern struct IDtype *IDField;
 
 static int fileID;
 static char *corelex_script_file;
-static char corelex_ftime, corelex_isCombineSpeakers, corelex_n_option, isNOptionSet, corelex_isWor;
+static char corelex_ftime, corelex_isCombineSpeakers, corelex_n_option, isNOptionSet, corelex_isWor, isNoGems;
 static char corelex_BBS[5], corelex_CBS[5];
 static int  colLabelsNum;
 static LABELS *labelsRoot;
@@ -299,6 +299,7 @@ void init(char f) {
 		corelex_n_option = FALSE;
 		isNOptionSet = FALSE;
 		corelex_isWor = FALSE;
+		isNoGems = FALSE;
 		strcpy(corelex_BBS, "@*&#");
 		strcpy(corelex_CBS, "@*&#");
 		if (defheadtier != NULL) {
@@ -323,6 +324,7 @@ void init(char f) {
 void usage() {
 	printf("Creates table of frequency count of parts of speech and bound morphemes\n");
 	printf("Usage: corelex [lF oN %s] filename(s)\n", mainflgs());
+	puts("-g : do not look for GEMs");
 	puts("+lF: specify words group name F");
 	puts("     if name has a dash (-), then it will be abbreviated at (-) to get the GEM name");
 #ifdef UNX
@@ -346,6 +348,10 @@ void usage() {
 void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
+		case 'g':
+			isNoGems = TRUE;
+			no_arg_option(f);
+			break;
 		case 'l':
 			corelex_script_file = f;
 			break;
@@ -800,6 +806,8 @@ void call() {
 				strcpy(corelex_CBS, "@*&#");
 			}
 		}
+		if (isNoGems == TRUE)
+			isOutputGem = TRUE;
 		if (*utterance->speaker == '@') {
 			if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
 				if (isIDSpeakerSpecified(utterance->line, templineC1, TRUE)) {

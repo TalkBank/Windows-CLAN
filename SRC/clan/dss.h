@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -11,10 +11,7 @@ extern "C"
 {
 
 #define DSSSPLEN 128
-#define DSSRULES "eng.cut"
-#define DSSBSSRULES "bss.cut"
-#define DSSJPRULES "jpn.cut"
-#define DSSNOCOMPUTE "DO_NOT_COMPUTE"
+#define DSSNOCOMPUTE "0"
 
 #define POINTS_N 20
 
@@ -31,9 +28,7 @@ DSSSP {
 } ;
 
 extern int  DSS_UTTLIM;
-extern char dss_lang;
-extern char isDssFileSpecified;
-extern const char *rulesfile;
+extern char dss_script_file[];
 extern FILE *debug_dss_fp;
 
 extern int PassedDSSMorTests(char *osp, char *mor, char *dss);

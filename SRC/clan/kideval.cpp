@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
 */
 
@@ -97,9 +97,16 @@ struct label_cols {
 	struct label_cols *next_label;
 };
 
+#define PATS struct pats_pair
+PATS {
+	MORWDLST *pats1;
+	MORWDLST *pats2;
+	PATS *next_pats;
+};
+
 #define COLS struct all_cols
 COLS {
-	MORWDLST *pats;
+	PATS *pats_elem;
 	struct label_cols *labelP;
 	char isClitic;
 	COLS *next_col;
@@ -210,7 +217,7 @@ static int  gMisalignmentError;
 static float DB_UTT_NUM_LIMIT;
 static long agesFound[13], dummyFiles;
 static char *ke_script_file;
-static char dssRulesFName[256], DB_version[65], DB_type[128], DB_MIN_UTTS[16+1];
+static char DB_version[65], DB_type[128], DB_MIN_UTTS[16+1];
 static char ftime, isDBFilesList, isCreateDB, isRawVal, isLinkAge;
 static char ke_Design[TYPESLEN+1], ke_Activity[TYPESLEN+1], ke_Group[TYPESLEN+1];
 static FILE	*dbfpout;
@@ -233,14 +240,15 @@ void usage() {
 	puts("    to create database file set \"working\" to: ~/SERVERS/data");
 	puts("+c : kideval +leng +c_toyplay");
 	puts("+c : kideval +leng +c_narrative");
+	puts("+c : kideval +lengu +c_toyplay");
+	puts("+c : kideval +lengu +c_narrative");
 	puts("+c : kideval +lfra +c_toyplay");
-	puts("+c : kideval +lfra +c_narrative");
+	puts("+c : kideval +lfra +c25_narrative");
 	puts("+c : kideval +lnld +c_toyplay");
-	puts("+c : kideval +lnld +c_narrative");
 	puts("+c : kideval +lspa +c_toyplay");
-	puts("+c : kideval +lspa +c_narrative");
+	puts("+c : kideval +lspa +c25_narrative");
 	puts("+c : kideval +lzho +c_toyplay");
-	puts("+c : kideval +lzho +c_narrative");	
+	puts("+c : kideval +lzho +c25_narrative");
 	puts("+c : kideval +ljpn +c_toyplay");
 #endif // _CLAN_DEBUG
 	puts("+dtd~S: specify database keyword(s) S. For example:");
@@ -251,7 +259,7 @@ void usage() {
 	puts("    +dmd~\"2;-2;6|female\" for females children of age 24 to 30 months old.");
 	puts("+e1: create list of database files used for comparisons");
 	puts("+lF: specify language script file name F (default: eng)");
-	puts("     choices: eng, fra, jpn, nld, spa, yue, zho");
+	puts("     choices: eng, engu, fra, jpn, nld, spa, yue, zho");
 #ifdef UNX
 	puts("+LF: specify full path F of the lib folder");
 #endif
@@ -332,13 +340,27 @@ static struct label_cols *freeLabels(struct label_cols *p) {
 	return(NULL);
 }
 
+static PATS *freePatsElems(PATS *p) {
+	PATS *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->next_pats;
+		t->pats1 = freeMorWords(t->pats1);
+		if (t->pats2 != NULL)
+			t->pats2 = freeMorWords(t->pats2);
+		free(t);
+	}
+	return(NULL);
+}
+
 static COLS *freeColsP(COLS *p) {
 	COLS *t;
 
 	while (p != NULL) {
 		t = p;
 		p = p->next_col;
-		t->pats = freeMorWords(t->pats);
+		t->pats_elem = freePatsElems(t->pats_elem);
 		free(t);
 	}
 	return(NULL);
@@ -868,6 +890,17 @@ static struct kideval_words *kideval_NDW_tree(struct kideval_words *p, char *w, 
 	return(p);
 }
 
+static char isNextWord(int i, char *line,  MORWDLST *pats) {
+	char morWord[1024];
+
+	if ((i=getword(utterance->speaker, line, morWord, NULL, i)) == 0)
+		return(FALSE);
+	if (isWordFromMORTier(morWord)) {
+		return(isMorPatMatchedWord(pats, morWord));
+	}
+	return(FALSE);
+}
+
 static int excludePlusAndUttDels(char *word) {
 	if (word[0] == '+' || strcmp(word, "!") == 0 || strcmp(word, "?") == 0 || strcmp(word, ".") == 0)
 		return(FALSE);
@@ -974,14 +1007,15 @@ static void getTypes(char *line) {
 }
 
 static void kideval_process_tier(struct kideval_speakers *ts, struct database *db) {
-	int i, j, comps, num;
-	char word[BUFSIZ+1], tword[1024], *w[NUMCOMPS], isMatchFound;
-	char tmp, isWordsFound, isWordsFound50, sq, aq, isSkip;
-	char isPSDFound, curPSDFound, isAuxFound, isAmbigFound;
+	int i, j, comps, num, oPos;
+	char word[BUFSIZ+1], tword[1024], *w[NUMCOMPS], isMatchFound, isMatch2Found;
+	char tchr, patsType, isWordsFound, isWordsFound50, sq, aq, isSkip;
+	char isPSDFound, curPSDFound, isAuxFound;
 	long stime, etime;
 	double tNum;
-	float mWords, morf, mUtt, mWords50, morf50, mUtt50;
+	float mWords, morf, mUtt, mWords50, morf50, mUtt50, morphCnt;
 	COLS *col;
+	PATS *pats;
 	MORFEATS word_feats, *clitic, *feat;
 
 	if (utterance->speaker[0] == '*') {
@@ -1030,6 +1064,7 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 			}
 		}			
 		strcpy(spareTier1, utterance->line);
+		strcpy(spareTier3, uttline);
 		for (i=0; utterance->line[i] != EOS; i++) {
 			if ((i == 0 || uS.isskip(utterance->line,i-1,&dFnt,MBF)) && utterance->line[i] == '+' && 
 				uS.isRightChar(utterance->line,i+1,',',&dFnt, MBF) && ts->isPSDFound) {
@@ -1132,20 +1167,62 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 //2021-03-24 if (strcmp(col->labelP->label, "irr-3S") == 0)
 //num = 0;
 						if (col->isClitic) {
-							isMatchFound = isMorPatMatchedWord(col->pats, word);
-							if (isMatchFound == 2)
-								kideval_error(db, TRUE);
-							if (j == 0 && isMatchFound) {
-								if (col->labelP != NULL)
-									ts->mor_count[col->labelP->num] = ts->mor_count[col->labelP->num] + 1.0;
+							for (pats=col->pats_elem; pats != NULL; pats = pats->next_pats) {
+								if (pats->pats1 != NULL) {
+									patsType = pats->pats1->type;
+									if (patsType == 'e')
+										pats->pats1->type = 'i';
+								}
+								isMatchFound = isMorPatMatchedWord(pats->pats1, word);
+								if (isMatchFound == 2)
+									kideval_error(db, TRUE);
+								if (pats->pats1 != NULL && patsType == 'e') {
+									pats->pats1->type = patsType;
+									if (isMatchFound)
+										break;
+								}
+								if (pats->pats2 == NULL) {
+									isMatch2Found = 1;
+								} else {
+									isMatch2Found = isNextWord(i, uttline, pats->pats2);
+									if (isMatch2Found == 2)
+										kideval_error(db, TRUE);
+								}
+								if (j == 0 && isMatchFound && isMatch2Found) {
+									if (col->labelP != NULL)
+										ts->mor_count[col->labelP->num] = ts->mor_count[col->labelP->num] + 1.0;
+									break;
+								}
 							}
 						} else {
-							isMatchFound = isMorPatMatchedWord(col->pats, w[j]);
-							if (isMatchFound == 2)
-								kideval_error(db, TRUE);
-							if (isMatchFound) {
-								if (col->labelP != NULL)
-									ts->mor_count[col->labelP->num] = ts->mor_count[col->labelP->num] + 1.0;
+							for (pats=col->pats_elem; pats != NULL; pats = pats->next_pats) {
+								if (pats->pats1 != NULL) {
+									patsType = pats->pats1->type;
+									if (patsType == 'e')
+										pats->pats1->type = 'i';
+								}
+								isMatchFound = isMorPatMatchedWord(pats->pats1, w[j]);
+								if (isMatchFound == 2)
+									kideval_error(db, TRUE);
+								if (pats->pats1 != NULL && patsType == 'e') {
+									pats->pats1->type = patsType;
+									if (isMatchFound)
+										break;
+								}
+								if (pats->pats2 == NULL) {
+									isMatch2Found = 1;
+								} else if (isMatchFound) {
+									isMatch2Found = isNextWord(i, uttline, pats->pats2);
+									if (isMatch2Found == 2)
+										kideval_error(db, TRUE);
+// 2024-03-25 if (isMatchFound && isMatch2Found)
+//num = 0;
+								}
+								if (isMatchFound && isMatch2Found) {
+									if (col->labelP != NULL)
+										ts->mor_count[col->labelP->num] = ts->mor_count[col->labelP->num] + 1.0;
+									break;
+								}
 							}
 						}
 					}
@@ -1157,7 +1234,7 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 			isSkip = TRUE;
 		} else {
 			i = 0;
-			while ((i=getword(utterance->speaker, spareTier1, word, NULL, i))) {
+			while ((i=getword(utterance->speaker, spareTier3, word, NULL, i))) {
 				if (strcmp(word, "xxx") == 0 || strcmp(word, "yyy") == 0 || strcmp(word, "www") == 0) {
 					isSkip = TRUE;
 					break;
@@ -1208,15 +1285,12 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 					if (uS.isRightChar(uttline, i, '>', &dFnt, MBF)) aq = FALSE;
 			}
 			if (!uS.isskip(uttline,i,&dFnt,MBF) && !sq && !aq) {
-				isAmbigFound = FALSE;
 				isWordsFound = TRUE;
 				isWordsFound50 = TRUE;
-				tmp = TRUE;
 				mWords = mWords + 1;
 				mWords50 = mWords50 + 1;
+				oPos = i;
 				while (uttline[i]) {
-					if (uttline[i] == '^')
-						isAmbigFound = TRUE;
 					if (uS.isskip(uttline,i,&dFnt,MBF)) {
 						if (uS.IsUtteranceDel(utterance->line, i)) {
 							if (!uS.atUFound(utterance->line, i, &dFnt, MBF))
@@ -1224,23 +1298,16 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 						} else
 							break;
 					}
-					if (!uS.ismorfchar(uttline, i, &dFnt, rootmorf, MBF) && !isAmbigFound) {
-						if (tmp) {
-							if (uttline[i] != EOS) {
-								if (i >= 2 && uttline[i-1] == '+' && uttline[i-2] == '|')
-									;
-								else {
-									morf = morf + 1;
-									morf50 = morf50 + 1;
-//									localmorf = localmorf + 1;
-								}
-							}
-							tmp = FALSE;
-						}
-					} else
-						tmp = TRUE;
 					i++;
 				}
+				tchr = uttline[i];
+				uttline[i] = EOS;
+				morphCnt = countMorphs(uttline, oPos); // uS.ismorfchar
+				morf = morf + morphCnt;
+				morf50 = morf50 + morphCnt;
+// fprintf(stderr, "morphCnt=%.0f, new=%.0f: word=%s\n", morphCnt, morf, uttline+oPos);
+//				localmorf = localmorf + morphCnt;
+				uttline[i] = tchr;
 			}
 			if ((i == 0 || uS.isskip(utterance->line,i-1,&dFnt,MBF)) && utterance->line[i] == '+' && 
 				uS.isRightChar(utterance->line,i+1,',',&dFnt, MBF) && isPSDFound) {
@@ -1334,7 +1401,7 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 							if (isEqual("part", feat->pos)) {
 								if (isAuxFound)
 									ts->CUR++;
-							} else if (isEqual("v", feat->pos) || isnEqual("cop", feat->pos, 3))
+							} else if (isEqual("verb", feat->pos) || isEqual("v", feat->pos) || isnEqual("cop", feat->pos, 3))
 								ts->CUR++;
 						} else if (isEqual("aux", feat->pos)) {
 							isAuxFound = TRUE;
@@ -1581,6 +1648,26 @@ static char kideval_process_ipsyn_tier(struct kideval_speakers *ts, struct datab
 		}
 		strcpy(ipsyn_sp->cUtt->morLine, utterance->tuttline);
 		spareTier1[0] = EOS;
+	} else if (fDepTierName[0] == '%' && fDepTierName[1] == 'u' && fDepTierName[2] == 'm') {
+		if (uS.partcmp(utterance->speaker,"%ugra:",FALSE,FALSE)) {
+			if (ts == NULL)
+				return(lRightspeaker);
+			ipsyn_sp = ipsyn_FindSpeaker(ts->sp, NULL, TRUE);
+			if (ipsyn_sp == NULL)
+				kideval_error(db, FALSE);
+			ts->ipsyn_sp = ipsyn_sp;
+			if (ipsyn_sp->cUtt == NULL) {
+				fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno);
+				fprintf(stderr,"INTERNAL ERROR utt == null");
+				kideval_error(db, FALSE);
+			}
+			ipsyn_sp->cUtt->graLine = (char *)malloc(strlen(utterance->tuttline)+1);
+			if (ipsyn_sp->cUtt->graLine == NULL) {
+				fprintf(stderr,"Error: out of memory\n");
+				kideval_error(db, FALSE);
+			}
+			strcpy(ipsyn_sp->cUtt->graLine, utterance->tuttline);
+		}
 	} else if (uS.partcmp(utterance->speaker,"%gra:",FALSE,FALSE)) {
 		if (ts == NULL)
 			return(lRightspeaker);
@@ -2078,7 +2165,7 @@ static void OpenDBFile(FILE *fp, struct database *db, char *isDbSpFound) {
 						db->mn_repet = ts->repet;
 					if (db->mx_repet < ts->repet)
 						db->mx_repet = ts->repet;
-					if (strcmp(rulesfile, DSSNOCOMPUTE) != 0 && ts->dssUttCnt >= 50.0) {
+					if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0 && ts->dssUttCnt >= 50.0) {
 						db->dssUttCnt_num++;
 						db->dssUttCnt_sqr = db->dssUttCnt_sqr + (ts->dssUttCnt * ts->dssUttCnt);
 						db->dssUttCnt = db->dssUttCnt + ts->dssUttCnt;
@@ -2319,7 +2406,8 @@ static void kideval_pr_result(void) {
 	excelCommasStrCell(fpout, "Total_Utts");
 	excelCommasStrCell(fpout, "MLU_Utts,MLU_Words,MLU_Morphemes");
 	excelCommasStrCell(fpout, "MLU50_Utts,MLU50_Words,MLU50_Morphemes");
-	excelCommasStrCell(fpout, "FREQ_types,FREQ_tokens,FREQ_TTR");
+	excelCommasStrCell(fpout, "FREQ_types,FREQ_tokens");
+// 2024-04-11	excelCommasStrCell(fpout, "FREQ_types,FREQ_tokens,FREQ_TTR");
 	excelCommasStrCell(fpout, "NDW_100");
 	excelCommasStrCell(fpout, "VOCD_D_optimum_average");
 	excelCommasStrCell(fpout, "Verbs_Utt");
@@ -2333,7 +2421,7 @@ static void kideval_pr_result(void) {
 	}
 	excelCommasStrCell(fpout, "Utt_Errors");
 	excelCommasStrCell(fpout, "retracing,repetition");
-	if (strcmp(rulesfile, DSSNOCOMPUTE) != 0) {
+	if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0) {
 		excelCommasStrCell(fpout, "DSS_Utts,DSS");
 	}
 	if (strcmp(ipsyn_lang, IPSYNNOCOMPUTE) != 0) {
@@ -2362,7 +2450,7 @@ static void kideval_pr_result(void) {
 		} else {
 			excelCommasStrCell(fpout, ".,.");
 			excelStrCell(fpout, ts->sp);
-			excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.,.,.,.");
+			excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.");
 		}
 		if (ts->Design == NULL)
 			excelStrCell(fpout, "");
@@ -2390,7 +2478,7 @@ static void kideval_pr_result(void) {
 			excelStrCell(fpout, "0");
 			excelStrCell(fpout, "0");
 			excelCommasStrCell(fpout, "0,0");
-			if (strcmp(rulesfile, DSSNOCOMPUTE) != 0) {
+			if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0) {
 				excelCommasStrCell(fpout, "0,0");
 			}
 			if (strcmp(ipsyn_lang, IPSYNNOCOMPUTE) != 0) {
@@ -2426,10 +2514,12 @@ static void kideval_pr_result(void) {
 			excelNumCell(fpout, "%.3f", ts->morf50/ts->mUtt50);
 		excelNumCell(fpout, "%.0f", ts->frTypes);
 		excelNumCell(fpout, "%.0f", ts->frTokens);
+/* 2024-04-11
 		if (ts->frTokens == 0.0)
 			excelStrCell(fpout, "NA");
 		else
 			excelNumCell(fpout, "%.3f", ts->frTypes/ts->frTokens);
+*/
 		if (ts->NDWTotal < 100)
 			excelStrCell(fpout, "NA");
 		else
@@ -2467,11 +2557,10 @@ static void kideval_pr_result(void) {
 		excelNumCell(fpout, "%.0f", ts->uerr);
 		excelNumCell(fpout, "%.0f", ts->retr);
 		excelNumCell(fpout, "%.0f", ts->repet);
-		if (strcmp(rulesfile, DSSNOCOMPUTE) != 0) {
+		if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0) {
 			excelNumCell(fpout, "%.0f", ts->dssUttCnt);
 			tNum = ts->dssGTotal;
 /* 2019-04-24 original
-
 			if (DssIpsynUttLimit > 0 && ts->dssUttCnt <= DssIpsynUttLimit)
 				excelNumCell(fpout, "%.2f", tNum / ts->dssUttCnt);
 			else if (ts->dssUttCnt < 50.0)
@@ -2569,7 +2658,7 @@ static void kideval_pr_result(void) {
 			}
 			compute_SD(&SD[SDn++], ts->frTypes,  NULL, gdb->frTypes_sqr, gdb->frTypes, gdb->frTypes_num);
 			compute_SD(&SD[SDn++], ts->frTokens,  NULL, gdb->frTokens_sqr, gdb->frTokens, gdb->frTokens_num);
-			compute_SD(&SD[SDn++], ts->frTypes,  &ts->frTokens, gdb->TTR_sqr, gdb->TTR, gdb->TTR_num);
+// 2024-04-11			compute_SD(&SD[SDn++], ts->frTypes,  &ts->frTokens, gdb->TTR_sqr, gdb->TTR, gdb->TTR_num);
 			if (ts->NDWTotal < 100)
 				set_SD2NA(&SD[SDn++], gdb->NDW_sqr, gdb->NDW, gdb->NDW_num);
 			else
@@ -2593,7 +2682,7 @@ static void kideval_pr_result(void) {
 			compute_SD(&SD[SDn++], ts->retr,  NULL, gdb->retr_sqr, gdb->retr, gdb->retr_num);
 			compute_SD(&SD[SDn++], ts->repet,  NULL, gdb->repet_sqr, gdb->repet, gdb->repet_num);
 
-			if (strcmp(rulesfile, DSSNOCOMPUTE) != 0) {
+			if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0) {
 // for DSS Utts always say NA
 				excelStrCell(fpout, "NA");
 				SD[SDn++].stars = 0;
@@ -2617,7 +2706,7 @@ static void kideval_pr_result(void) {
 			compute_SD(&SD[SDn++], ts->morTotal,  NULL, gdb->morTotal_sqr, gdb->morTotal, gdb->morTotal_num);
 
 			// exclude %mor items columns
-			if (uS.mStricmp(ke_script_file, "eng") != 0) {
+			if (uS.mStricmp(ke_script_file,"eng") != 0 /* engu && uS.mStricmp(ke_script_file,"engu") != 0*/) {
 				for (col=labelsRoot; col != NULL; col=col->next_label) {
 					if (ts->mor_count != NULL) {
 						compute_SD(&SD[SDn++], ts->mor_count[col->num],  NULL, gdb->morItems_sqr[col->num], gdb->morItems[col->num], gdb->morItems_num);
@@ -2685,10 +2774,12 @@ static void kideval_pr_result(void) {
 			excelStrCell(fpout, "NA");
 		else
 			excelNumCell(fpout, "%.3f",gdb->frTokens/gdb->frTokens_num);
+/* 2024-04-11
 		if (gdb->TTR_num <= 0.0)
 			excelStrCell(fpout, "NA");
 		else
 			excelNumCell(fpout, "%.3f",gdb->TTR/gdb->TTR_num);
+*/
 		if (gdb->NDW_num <= 0.0)
 			excelStrCell(fpout, "NA");
 		else
@@ -2742,7 +2833,7 @@ static void kideval_pr_result(void) {
 		else
 			excelNumCell(fpout, "%.3f",gdb->repet/gdb->repet_num);
 
-		if (strcmp(rulesfile, DSSNOCOMPUTE) != 0) {
+		if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0) {
 			if (gdb->dssUttCnt_num <= 0.0)
 				excelStrCell(fpout, "NA");
 			else
@@ -2810,7 +2901,7 @@ static void kideval_pr_result(void) {
 
 		excelNumCell(fpout, "%.0f",gdb->frTypes_num);
 		excelNumCell(fpout, "%.0f",gdb->frTokens_num);
-		excelNumCell(fpout, "%.0f",gdb->TTR_num);
+// 2024-04-11		excelNumCell(fpout, "%.0f",gdb->TTR_num);
 		excelNumCell(fpout, "%.0f",gdb->NDW_num);
 
 		excelNumCell(fpout, "%.0f",gdb->vocdOptimum_num);
@@ -2828,7 +2919,7 @@ static void kideval_pr_result(void) {
 		excelNumCell(fpout, "%.0f",gdb->retr_num);
 		excelNumCell(fpout, "%.0f",gdb->repet_num);
 
-		if (strcmp(rulesfile, DSSNOCOMPUTE) != 0) {
+		if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0) {
 			excelNumCell(fpout, "%.0f",gdb->dssUttCnt_num);
 			excelNumCell(fpout, "%.0f",gdb->dssGTotal_num);
 		}
@@ -2970,9 +3061,7 @@ static void init_words(int command) {
 		addword('\0','\0',"+yy");
 		addword('\0','\0',"+yyy");
 		addword('\0','\0',"+www");
-		addword('\0','\0',"+*|xx");
 		addword('\0','\0',"+unk|xxx");
-		addword('\0','\0',"+*|yy");
 		addword('\0','\0',"+unk|yyy");
 		addword('\0','\0',"+*|www");
 		addword('\0','\0',"+.");
@@ -3362,7 +3451,7 @@ void call() {
 			if (command == BASE_COM) {
 				kideval_process_tier(ts, NULL);
 			} else if (command == DSS_COM) {
-				if (dss_lang != '0') {
+				if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0) {
 					lRightspeaker = kideval_process_dss_tier(ts, NULL, lRightspeaker, &lastdsp);
 				}
 			} else if (command == VOCD_COM) {
@@ -3377,6 +3466,9 @@ void call() {
 						}
 					} else if (fDepTierName[0] != EOS && uS.partcmp(utterance->speaker,fDepTierName,FALSE,FALSE)) {
 						isGRA = FALSE;
+					} else if (fDepTierName[0] == '%' && fDepTierName[1] == 'u' && fDepTierName[2] == 'm') {
+						if (uS.partcmp(utterance->speaker,"%ugra:",FALSE,FALSE))
+							isGRA = TRUE;
 					} else if (uS.partcmp(utterance->speaker,"%gra:",FALSE,FALSE)) {
 						isGRA = TRUE;
 					}
@@ -3432,10 +3524,39 @@ static struct label_cols *kideval_addNewLabel(char *label) {
 	return(p);
 }
 
+static PATS *makePatsElems(COLS *p, char ch) {
+	PATS *pats;
+
+	if (p->pats_elem == NULL) {
+		p->pats_elem = NEW(PATS);
+		pats = p->pats_elem;
+		pats->next_pats = NULL;
+	} else {
+		if (ch == 'e') {
+			pats = NEW(PATS);
+			if (pats == NULL)
+				kideval_error(NULL, TRUE);
+			pats->next_pats = p->pats_elem;
+			p->pats_elem = pats;
+		} else {
+			for (pats=p->pats_elem; pats->next_pats != NULL; pats=pats->next_pats) ;
+			pats->next_pats = NEW(PATS);
+			pats = pats->next_pats;
+			if (pats == NULL)
+				kideval_error(NULL, TRUE);
+			pats->next_pats = NULL;
+		}
+	}
+	pats->pats1 = NULL;
+	pats->pats2 = NULL;
+	return(pats);
+}
+
 static COLS *kideval_add2col(COLS *root, char isFirstElem, char *pat, const FNType *mFileName, int ln) {
 	int  i;
-	char ch, res;
+	char ch, res, *pat2;
 	COLS *p;
+	PATS *pats_elem;
 
 	if (isFirstElem || root == NULL) {
 		if (root == NULL) {
@@ -3450,7 +3571,7 @@ static COLS *kideval_add2col(COLS *root, char isFirstElem, char *pat, const FNTy
 			kideval_error(NULL, TRUE);
 		}
 		p->next_col = NULL;
-		p->pats = NULL;
+		p->pats_elem = NULL;
 		p->labelP = NULL;
 		p->isClitic = FALSE;
 	} else
@@ -3487,8 +3608,17 @@ static COLS *kideval_add2col(COLS *root, char isFirstElem, char *pat, const FNTy
 			i++;
 		if (strchr(pat+i, '~') != NULL || strchr(pat+i, '$') != NULL)
 			p->isClitic = TRUE;
-		p->pats = makeMorSeachList(p->pats, &res, pat+i, ch);
-		if (p->pats == NULL) {
+		pat2 = strchr(pat+i, '^');
+		if (pat2 != NULL)
+			*pat2 = EOS;
+		pats_elem = makePatsElems(p, ch);
+		pats_elem->pats1 = makeMorSeachList(pats_elem->pats1, &res, pat+i, ch);
+		if (pat2 != NULL)
+			pats_elem->pats2 = makeMorSeachList(pats_elem->pats2, &res, pat2+1, ch);
+		if (pat2 != NULL) {
+			*pat2 = '^';
+		}
+		if (pats_elem->pats1 == NULL || (pat2 != NULL && pats_elem->pats2 == NULL)) {
 			if (res == TRUE)
 				kideval_error(gdb, TRUE);
 			else if (res == FALSE) {
@@ -3521,29 +3651,21 @@ static void processScriptLine(const FNType *mFileName, int  ln, const char *line
 				strcpy(templineC1, b);
 				uS.remblanks(templineC1);
 				if ((templineC1[0] == '+' || templineC1[0] == '-') && (templineC1[1] == 'l' || templineC1[1] == 'L')) {
-					if (templineC1[2] == 'e' || templineC1[2] == 'E') {
-						dss_lang = 'e';
-						if (rulesfile == NULL)
-							rulesfile = DSSRULES;
-					} else if (templineC1[2] == 'j' || templineC1[2] == 'J') {
-						dss_lang = 'j';
-						if (rulesfile == NULL)
-							rulesfile = DSSJPRULES;
-					} else if (templineC1[2] == '0') {
-						dss_lang = '0';
-						if (rulesfile == NULL)
-							rulesfile = DSSNOCOMPUTE;
+					if (strlen(templineC1+2) > 250) {
+						fprintf(stderr, "This language is too long (250): %d.\n", strlen(templineC1+2));
+						fprintf(stderr, "Choose: eng - English, bss - English, jpn - Japanese\n");
+						cutt_exit(0);
+					} else
+						strcpy(dss_script_file, templineC1+2);
+					uS.lowercasestr(dss_script_file, &dFnt, C_MBF);
+					if (*dss_script_file == 'b' || *dss_script_file == 'e' || *dss_script_file == 'j' ||
+						*dss_script_file == '0') {
 					} else {
 						fprintf(stderr,"*** File \"%s\": line: \"%d\"\n", mFileName, ln);
 						fprintf(stderr,"    Illegal option argument found: %s\n", templineC1);
 						fprintf(stderr,"    Please specify either \"+le\" for English or \"+lj\" for Japanese.\n");
 						cutt_exit(0);
 					}
-				} else if ((templineC1[0] == '+' || templineC1[0] == '-') && (templineC1[1] == 'd' || templineC1[1] == 'D')) {
-					strncpy(dssRulesFName, templineC1+2, 255);
-					dssRulesFName[255] = EOS;
-					rulesfile = dssRulesFName;
-					isDssFileSpecified = TRUE;
 				} else {
 					fprintf(stderr,"*** File \"%s\": line: \"%d\"\n", mFileName, ln);
 					fprintf(stderr,"    Unsupported option specified: %s\n", templineC1);
@@ -3622,12 +3744,14 @@ static void processScriptLine(const FNType *mFileName, int  ln, const char *line
 	}
 }
 
+// fllowed by word rule: +|sconj^|verb,-Inf,-S
+
 static void processEng(void) {
 	processScriptLine("Eng", 0, "dss +leng");
 	processScriptLine("Eng", 0, "ipsyn +leng");
 	processScriptLine("Eng", 0, "+-PRESP		\"*-PRESP\"");
-	processScriptLine("Eng", 0, "+r-in		\"in\"");
-	processScriptLine("Eng", 0, "+r-on		\"on\"");
+	processScriptLine("Eng", 0, "+;in		\"in\"");
+	processScriptLine("Eng", 0, "+;on		\"on\"");
 	processScriptLine("Eng", 0, "+-PL		\"*-PL\"");
 	processScriptLine("Eng", 0, "+&PAST		\"irr-PAST\"");
 	processScriptLine("Eng", 0, "+-POSS		\"*-POSS\"");
@@ -3636,28 +3760,46 @@ static void processEng(void) {
 	processScriptLine("Eng", 0, "+-PAST		\"*-PAST\"");
 	processScriptLine("Eng", 0, "+-3S		\"*-3S\"");
 	processScriptLine("Eng", 0, "+&3S -|cop,;be,&3S -|aux,;be,&3S	\"irr-3S\"");
-//2021-03-24	processScriptLine("Eng", 0, "+&3S		\"irr-3S\"");
 	processScriptLine("Eng", 0, "+|aux -|*,~|aux	\"u-aux\"");
 	processScriptLine("Eng", 0, "+|*,~|cop	\"c-cop\"");
 	processScriptLine("Eng", 0, "+|*,~|aux	\"c-aux\"");
 }
 
+static void processEngU(void) {
+	processScriptLine("EngU", 0, "dss +lengu");
+//	processScriptLine("EngU", 0, "ipsyn +leng");
+	processScriptLine("EngU", 0, "ipsyn +l0");
+	processScriptLine("EngU", 0, "+-Part,-Pres +-Ger	\"*-PRESP\"");
+	processScriptLine("EngU", 0, "+;in		\"in\"");
+	processScriptLine("EngU", 0, "+;on		\"on\"");
+	processScriptLine("EngU", 0, "+-Plur		\"*-PL\"");
+	processScriptLine("EngU", 0, "+|*,~|part,;s		\"*-POSS\"");
+	processScriptLine("EngU", 0, "+|aux,;be -|*,~|aux,;be	\"u-cop\"");
+	processScriptLine("EngU", 0, "+|det,-Art		\"det:art\"");
+	processScriptLine("EngU", 0, "+-Past		\"*-PAST\"");
+	processScriptLine("EngU", 0, "+-S3 -;be -;do -|pron -|aux --Past	\"*-S3\"");
+	processScriptLine("EngU", 0, "+-S3,;be +-S3,;do -|pron -|aux	\"irr-S3\"");
+	processScriptLine("EngU", 0, "+|aux -|*,~|aux -|aux,;be	\"u-aux\"");
+	processScriptLine("EngU", 0, "+|*,~|aux,;be	\"c-cop\"");
+	processScriptLine("EngU", 0, "+|*,~|aux -|*,~|aux,;be	\"c-aux\"");
+}
+
 static void processFra(void) {
 	processScriptLine("Fra", 0, "dss +l0");
 	processScriptLine("Fra", 0, "ipsyn +l0");
-	processScriptLine("Fra", 0, "+&Part,&Pres	\"&Part,&Pres\"");
+	processScriptLine("Fra", 0, "+-Part,-Pres	\"-Part,-Pres\"");
 	processScriptLine("Fra", 0, "+;en	\"en\"");
 	processScriptLine("Fra", 0, "+;à	\"à\"");
-	processScriptLine("Fra", 0, "+|noun,&Plur	\"noun|&Plur\"");
-	processScriptLine("Fra", 0, "+|pron,&Rel	\"pron|&Rel\"");
+	processScriptLine("Fra", 0, "+|noun,-Plur	\"noun|-Plur\"");
+	processScriptLine("Fra", 0, "+|pron,-Rel	\"pron|-Rel\"");
 	processScriptLine("Fra", 0, "+;de	\"de\"");
 	processScriptLine("Fra", 0, "+|verb,;être	\"verb,;être\"");
-	processScriptLine("Fra", 0, "+&Det,&Art	\"&Det,&Art\"");
-	processScriptLine("Fra", 0, "+|verb,&Past	\"verb|&Past\"");
-	processScriptLine("Fra", 0, "+|verb,&3S	\"verb|&3S\"");
-	processScriptLine("Fra", 0, "+|aux,&3S	\"aux|&3S\"");
+	processScriptLine("Fra", 0, "+-Det,-Art	\"-Det,-Art\"");
+	processScriptLine("Fra", 0, "+|verb,-Past	\"verb|-Past\"");
+	processScriptLine("Fra", 0, "+|verb,-3S	\"verb|-3S\"");
+	processScriptLine("Fra", 0, "+|aux,-3S	\"aux|-3S\"");
 	processScriptLine("Fra", 0, "+|aux,;être	\"aux,;être\"");
-	processScriptLine("Fra", 0, "+|verb,&Sub	\"verb|&Sub\"");
+	processScriptLine("Fra", 0, "+|verb,-Sub	\"verb|-Sub\"");
 	processScriptLine("Fra", 0, "+|pron,;y	\"pron,;y\"");
 
 /* 2023-01-03
@@ -3720,38 +3862,38 @@ static void processFra(void) {
 static void processNld(void) {
 	processScriptLine("Nld", 0, "dss +l0");
 	processScriptLine("Nld", 0, "ipsyn +l0");
-	processScriptLine("Nld", 0, "+&Part,&Pres	\"&Part,&Pres\"");
-	processScriptLine("Nld", 0, "+&Part,&Past	\"&Part,&Past\"");
-	processScriptLine("Nld", 0, "+&Def	\"&Def\"");
-	processScriptLine("Nld", 0, "+|noun,&Plur	\"noun|&Plur\"");
-	processScriptLine("Nld", 0, "+|pron,&Rel	\"pron|&Rel\"");
-	processScriptLine("Nld", 0, "+|pron,&Gen	\"pron|&Gen\"");
-	processScriptLine("Nld", 0, "+|pron,&Dat	\"pron|&Dat\"");
-	processScriptLine("Nld", 0, "+|pron,&Int	\"pron|&Int\"");
-	processScriptLine("Nld", 0, "+|aux,&Past	\"aux|&Past\"");
-	processScriptLine("Nld", 0, "+|aux,&Part	\"aux|&Part\"");
-	processScriptLine("Nld", 0, "+|verb,&Inf	\"verb|&Inf\"");
-	processScriptLine("Nld", 0, "+|verb,&Past	\"verb|&Past\"");
-	processScriptLine("Nld", 0, "+&Cmp	\"&Cmp\"");
-	processScriptLine("Nld", 0, "+&Sup	\"&Sup\"");
+	processScriptLine("Nld", 0, "+-Part,-Pres	\"-Part,-Pres\"");
+	processScriptLine("Nld", 0, "+-Part,-Past	\"-Part,&Past\"");
+	processScriptLine("Nld", 0, "+-Def	\"-Def\"");
+	processScriptLine("Nld", 0, "+|noun,-Plur	\"noun|-Plur\"");
+	processScriptLine("Nld", 0, "+|pron,-Rel	\"pron|-Rel\"");
+	processScriptLine("Nld", 0, "+|pron,-Gen	\"pron|-Gen\"");
+	processScriptLine("Nld", 0, "+|pron,-Dat	\"pron|-Dat\"");
+	processScriptLine("Nld", 0, "+|pron,-Int	\"pron|-Int\"");
+	processScriptLine("Nld", 0, "+|aux,-Past	\"aux|-Past\"");
+	processScriptLine("Nld", 0, "+|aux,-Part	\"aux|-Part\"");
+	processScriptLine("Nld", 0, "+|verb,-Inf	\"verb|-Inf\"");
+	processScriptLine("Nld", 0, "+|verb,-Past	\"verb|-Past\"");
+	processScriptLine("Nld", 0, "+-Cmp	\"-Cmp\"");
+	processScriptLine("Nld", 0, "+-Sup	\"-Sup\"");
 }
 static void processSpa(void) {
 	processScriptLine("Spa", 0, "dss +l0");
 	processScriptLine("Spa", 0, "ipsyn +l0");
-	processScriptLine("Spa", 0, "+&Part,&Pres	\"&Part,&Pres\"");
+	processScriptLine("Spa", 0, "+-Part,-Pres	\"-Part,-Pres\"");
 	processScriptLine("Spa", 0, "+;en	\"en\"");
 	processScriptLine("Spa", 0, "+;a	\"a\"");
-	processScriptLine("Spa", 0, "+|noun,&Plur	\"noun|&Plur\"");
-	processScriptLine("Spa", 0, "+|pron,&Rel	\"pron|&Rel\"");
+	processScriptLine("Spa", 0, "+|noun,-Plur	\"noun|-Plur\"");
+	processScriptLine("Spa", 0, "+|pron,-Rel	\"pron|-Rel\"");
 	processScriptLine("Spa", 0, "+;de	\"de\"");
-	processScriptLine("Spa", 0, "+|pron,&IntRel	\"pron|&IntRel\"");
-	processScriptLine("Spa", 0, "+&Det,&Art	\"&Det,&Art\"");
-	processScriptLine("Spa", 0, "+|verb,&Past	\"verb|&Past\"");
-	processScriptLine("Spa", 0, "+|verb,&3S	\"verb|&3S\"");
-	processScriptLine("Spa", 0, "+|aux,&3S	\"aux|&3S\"");
-	processScriptLine("Spa", 0, "+|adj,&Sup	\"adj|&Sup\"");
-	processScriptLine("Spa", 0, "+|verb,&Fut	\"verb|&Fut\"");
-	processScriptLine("Spa", 0, "+|verb,&Ger	\"verb|&Ger\"");
+	processScriptLine("Spa", 0, "+|pron,-IntRel	\"pron|-IntRel\"");
+	processScriptLine("Spa", 0, "+-Det,-Art	\"-Det,-Art\"");
+	processScriptLine("Spa", 0, "+|verb,-Past	\"verb|-Past\"");
+	processScriptLine("Spa", 0, "+|verb,-3S	\"verb|-3S\"");
+	processScriptLine("Spa", 0, "+|aux,-3S	\"aux|-3S\"");
+	processScriptLine("Spa", 0, "+|adj,-Sup	\"adj|-Sup\"");
+	processScriptLine("Spa", 0, "+|verb,-Fut	\"verb|-Fut\"");
+	processScriptLine("Spa", 0, "+|verb,-Ger	\"verb|-Ger\"");
 /* 2023-01-03
 	processScriptLine("Spa", 0, "+-1S	\"*-1S\"");
 	processScriptLine("Spa", 0, "+-2S	\"*-2S\"");
@@ -3804,66 +3946,55 @@ static void processZho(void) {
 static void processJpn(void) {
 	processScriptLine("Jpn", 0, "dss +ljpn");
 	processScriptLine("Jpn", 0, "ipsyn +l0");
-	processScriptLine("Jpn", 0, "+|n	\"n\"");
-	processScriptLine("Jpn", 0, "+|n:mot	\"n:mot\"");
-	processScriptLine("Jpn", 0, "+|n:vn	\"vn\"");
-	processScriptLine("Jpn", 0, "+|n:vn:mot	\"vn:mot\"");
-	processScriptLine("Jpn", 0, "+|v:v,|v:c,|v:ir	\"v\"");
-	processScriptLine("Jpn", 0, "+|adj,|adj:mot	\"adj\"");
-	processScriptLine("Jpn", 0, "+|adv	\"adv\"");
-	processScriptLine("Jpn", 0, "+|v:*:sub	\"v:sub\"");
-	processScriptLine("Jpn", 0, "+|v:cop	\"v:cop\"");
-	processScriptLine("Jpn", 0, "+|ptl:snr	\"p-snrの\"");
-	processScriptLine("Jpn", 0, "+|n*fml	\"fml\"");
-	processScriptLine("Jpn", 0, "+|smod	\"smod\"");
-	processScriptLine("Jpn", 0, "+|ptl:conj	\"p-conj\"");
-	processScriptLine("Jpn", 0, "+|conj	\"conj\"");
-	processScriptLine("Jpn", 0, "+|ptl:case	\"p-case\"");
-	processScriptLine("Jpn", 0, "+|ptl:post	\"p-post\"");
-	processScriptLine("Jpn", 0, "+|ptl:top	\"p-top\"");
-	processScriptLine("Jpn", 0, "+|ptl:quot	\"p-quot\"");
-	processScriptLine("Jpn", 0, "+|ptl:attr	\"p-attrの\"");
-	processScriptLine("Jpn", 0, "+|ptl:foc	\"p-foc\"");
-	processScriptLine("Jpn", 0, "+|ptl:fina	\"p-final\"");
-	processScriptLine("Jpn", 0, "+|ptl:top,;wa	\"1後_p-topは\"");
-	processScriptLine("Jpn", 0, "+|ptl:attr	\"1後_p-attrの\"");
-	processScriptLine("Jpn", 0, "+-PRES	\"1後_V-PRESる\"");
-	processScriptLine("Jpn", 0, "+-PAST	\"1後_V-PASTた\"");
-	processScriptLine("Jpn", 0, "+-IMP:te	\"1後_V-IMP:te\"");
-	processScriptLine("Jpn", 0, "+|ptl:case,;ga	\"2前_p-caseが\"");
-	processScriptLine("Jpn", 0, "+|ptl:post,;de	\"2前_p-postで\"");
-	processScriptLine("Jpn", 0, "+|ptl:post,;ni	\"2前_p-postに\"");
-	processScriptLine("Jpn", 0, "+|ptl:post,;to	\"2前_p-postと\"");
-	processScriptLine("Jpn", 0, "+|ptl:foc,;mo	\"2前_p-focも\"");
-	processScriptLine("Jpn", 0, "+|ptl:quot,;tte	\"2前_p-quotって\"");
-	processScriptLine("Jpn", 0, "+-COMPL	\"2前_COMPLちゃう\"");
-	processScriptLine("Jpn", 0, "+-ASP	\"2前_ASPてる\"");
-	processScriptLine("Jpn", 0, "+-NEG	\"2前_NEGない\"");
-	processScriptLine("Jpn", 0, "+-POT	\"2後_POTれる\"");
-	processScriptLine("Jpn", 0, "+-DESID	\"2後_DESIDたい\"");
-	processScriptLine("Jpn", 0, "+-POL	\"2後_POLます\"");
-	processScriptLine("Jpn", 0, "+|v:*:sub,;ku	\"2後_v:subてくる\"");
-	processScriptLine("Jpn", 0, "+|v:*:sub,;ik	\"2後_v:subていく\"");
-	processScriptLine("Jpn", 0, "+|ptl:case,;o	\"3前_p-caseを\"");
-	processScriptLine("Jpn", 0, "+|ptl:post,;kara	\"3前_p-postから\"");
-	processScriptLine("Jpn", 0, "+|ptl:post,;made	\"3前_p-postまで\"");
-	processScriptLine("Jpn", 0, "+|ptl:foc,;dake	\"3前_p-focだけ\"");
-	processScriptLine("Jpn", 0, "+|ptl:quot,;to	\"3前_p-quotと\"");
-	processScriptLine("Jpn", 0, "+-CONN	\"3前_V-CONNて\"");
-	processScriptLine("Jpn", 0, "+-HORT	\"3前_V-HORTよう\"");
-	processScriptLine("Jpn", 0, "+-COND:tara	\"3後_V-CONDたら\"");
-	processScriptLine("Jpn", 0, "+&GER	\"3後_V-GERい\"");
-	processScriptLine("Jpn", 0, "+|v:*:sub,;age	\"3後_v:subてあげる\"");
-	processScriptLine("Jpn", 0, "+|v:*:sub,;ar	\"3後_v:subてある\"");
-	processScriptLine("Jpn", 0, "+|v:*:sub,;ok	\"3後_v:subておく\"");
-	processScriptLine("Jpn", 0, "+|v:*:sub,;mi	\"3後_v:subてみる\"");
-	processScriptLine("Jpn", 0, "+-COND:ba	\"4後_V-CONDば\"");
-	processScriptLine("Jpn", 0, "+&OBL:*	\"4後_V-OBLなくちゃ\"");
-	processScriptLine("Jpn", 0, "+-IMP:nasai	\"4後_V-IMPなさい\"");
-	processScriptLine("Jpn", 0, "+-CAUS	\"4後_CAUSさせる\"");
-	processScriptLine("Jpn", 0, "+-PASS	\"4後_PASSられる\"");
-	processScriptLine("Jpn", 0, "+|v:*:sub,;kudasai	\"4後_v:subてください\"");
-	processScriptLine("Jpn", 0, "+|v:*:sub,;moraw	\"4後_v:subてもらう\"");
+	processScriptLine("Jpn", 0, "+|noun				\"n\"");
+	processScriptLine("Jpn", 0, "+|verb				\"v\"");
+	processScriptLine("Jpn", 0, "+|adj				\"adj\"");
+	processScriptLine("Jpn", 0, "+|adv				\"adv\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て^|verb,;有る,-Inf,-S +|sconj,;て^|verb,;来る,-Inf,-S +|sconj,;て^|verb,;行く,-Inf,-S +|sconj,;て^|verb,;上げる,-Inf,-S +|sconj,;て^|verb,;置く,-Inf,-S +|sconj,;て^|verb,;見る,-Inf,-S +|sconj,;て^|verb,;貰う,-Inf,-S +|sconj,;て^|aux,;下さる,-Inf,-S	\"v:sub\"");
+	processScriptLine("Jpn", 0, "+|aux,;だ,-Inf,-S		\"v:cop\"");
+	processScriptLine("Jpn", 0, "+|sconj,;の			\"p-snrの\"");
+	processScriptLine("Jpn", 0, "+|sconj,;から +|sconj,;ので +|sconj,;と +|sconj,;のに +|sconj,;まで +|sconj,;より	\"p-conj\"");
+	processScriptLine("Jpn", 0, "+|cconj,;だ^|sconj,;から +|cconj,;だ^|sconj,;けど +|cconj,;で +|cconj,;もし +|cconj,;そして +|cconj,;じゃ +|cconj,;でも	\"conj\"");
+	processScriptLine("Jpn", 0, "+|adp,;が +|adp,;を		\"p-case\"");
+	processScriptLine("Jpn", 0, "+|adp,;に +|adp,;で +|adp,;から +|adp,;まで +|adp,;へ +|adp,;と +|adp,;より	\"p-post\"");
+	processScriptLine("Jpn", 0, "+|adp,;は			\"p-top\"");
+	processScriptLine("Jpn", 0, "+|adp,;って +|adp,;と		\"p-quot\"");
+	processScriptLine("Jpn", 0, "+|adp,;の			\"p-attrの\"");
+	processScriptLine("Jpn", 0, "+|adp,;しか +|adp,;だけ +|adp,;ばかり +|adp,;ぐらい +|adp,;ほど +|adp,;こそ +|adp,;も +|adp,;とか +|adp,;とか +|adp,;ずつ		\"p-foc\"");
+	processScriptLine("Jpn", 0, "+|part,;よ +|part,;ね +|part,;ぞ +|part,;か +|part,;な +|part,;の +|part,;っけ +|part,;さあ +|part,;ぜ	\"p-final\"");
+	processScriptLine("Jpn", 0, "+|adp,;は			\"1_p-topは\"");
+	processScriptLine("Jpn", 0, "+|adp,;の			\"1歳後半_p-attrの\"");
+	processScriptLine("Jpn", 0, "+|aux,;た			\"1歳後半_V-PASTた\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て			\"1歳後半_V-IMP:te\""); //	% not separated from connective"
+	processScriptLine("Jpn", 0, "+|part,;が			\"2歳前半_p-caseが\"");
+	processScriptLine("Jpn", 0, "+|adp,;で			\"2歳前半_p-postで\"");
+	processScriptLine("Jpn", 0, "+|adp,;に			\"2歳前半_p-postに\"");
+	processScriptLine("Jpn", 0, "+|adp,;と			\"2歳前半_p-postと\"");
+	processScriptLine("Jpn", 0, "+|adp,;も			\"2歳前半_p-focも\"");
+	processScriptLine("Jpn", 0, "+|adp,;って			\"2歳前半_p-quotって\"");
+	processScriptLine("Jpn", 0, "+|aux,;ちゃう,-Inf,-S		\"2歳前半_COMPLちゃう\"");
+	processScriptLine("Jpn", 0, "+|aux,;てる			\"2歳前半_ASPてる\"");
+	processScriptLine("Jpn", 0, "+|aux,;ない,-Inf,-Neg,-S		\"2歳前半_NEGない\"");
+	processScriptLine("Jpn", 0, "+|aux,;られる,-Inf,-S		\"2歳後半_POTれる\""); // %? Potential not separated from passive
+	processScriptLine("Jpn", 0, "+|aux,;たい,-Inf,-S		\"2歳後半_DESIDたい\"");
+	processScriptLine("Jpn", 0, "+|aux,;ます +|aux,;です		\"2歳後半_POLます\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て^|verb,;来る,-Inf,-S	\"2歳後半_v:subてくる\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て^|verb,;行く,-Inf,-S	\"2歳後半_v:subていく\"");
+	processScriptLine("Jpn", 0, "+|adp,;を			\"3歳前半_p-caseを\"");
+	processScriptLine("Jpn", 0, "+|adp,;から			\"3歳前半_p-postから\"");
+	processScriptLine("Jpn", 0, "+|adp,;まで			\"3歳前半_p-postまで\"");
+	processScriptLine("Jpn", 0, "+|adp,;だけ +|part,;だけ		\"3歳前半_p-focだけ\"");
+	processScriptLine("Jpn", 0, "+|adp,;と			\"3歳前半_p-quotと\""); //  % not separated from to \"with\" and
+	processScriptLine("Jpn", 0, "+|aux,;様,-Inf,-S		\"3歳前半_V-HORTよう\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て^|verb,;上げる,-Inf,-S	\"3歳後半_v:subてあげる\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て^|verb,;有る,-Inf,-S	\"3歳後半_v:subてある\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て^|verb,;置く,-Inf,-S	\"3歳後半_v:subておく\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て^|verb,;見る,-Inf,-S	\"3歳後半_v:subてみる\"");
+	processScriptLine("Jpn", 0, "+|sconj,;ば			\"4歳後半_V-CONDば\"");
+	processScriptLine("Jpn", 0, "+|aux,;為さる,-Inf,-S		\"4歳後半_V-IMPなさい\"");
+	processScriptLine("Jpn", 0, "+|aux,;させる,-Inf,-S		\"4歳後半_CAUSさせる\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て^|aux,;下さる,-Inf,-S	\"4歳後半_v:subてください\"");
+	processScriptLine("Jpn", 0, "+|sconj,;て^|verb,;貰う,-Inf,-S	\"4歳後半_v:subてもらう\"");
 }
 
 static void read_script(char *lang) {
@@ -3881,6 +4012,10 @@ static void read_script(char *lang) {
 	if (uS.mStricmp(lang, "eng") == 0) {
 		fprintf(stderr,"    Using default, build into KIDEVAL source code, language file: %s\n", "eng");
 		processEng();
+		return;
+	} else if (uS.mStricmp(lang, "engu") == 0) {
+		fprintf(stderr,"    Using default, build into KIDEVAL source code, language file: %s\n", "engu");
+		processEngU();
 		return;
 	} else if (uS.mStricmp(lang, "fra") == 0) {
 		fprintf(stderr,"    Using default, build into KIDEVAL source code, language file: %s\n", "fra");
@@ -3913,7 +4048,7 @@ static void read_script(char *lang) {
 		strcat(mFileName, ".cut");
 	if ((fp=fopen(mFileName,"r")) == NULL) {
 		if (b != NULL) {
-			if (uS.mStricmp(b, ".cut") == 0) {
+			if (uS.mStricmp(b, ".cut") == 0 || uS.mStricmp(b, ".txt") == 0) {
 				strcpy(templineC, wd_dir);
 				addFilename2Path(templineC, lang);
 				if ((fp=fopen(templineC,"r")) != NULL) {
@@ -3940,6 +4075,11 @@ static void read_script(char *lang) {
 		ln++;
 		if (templineC[0] == '%' || templineC[0] == '#')
 			continue;
+		if ((b=strchr(templineC, '%')) != NULL) {
+			if (b != templineC && isSpace(*(b-1))) {
+				*b = EOS;
+			}
+		}
 		uS.remFrontAndBackBlanks(templineC);
 		if (templineC[0] != EOS)
 			processScriptLine(mFileName, ln, NULL);
@@ -4014,10 +4154,11 @@ void init(char first) {
 				fprintf(stderr,"For example, \"kideval +leng\" or \"kideval +leng.cut\".\n");
 				cutt_exit(0);
 			}
-			if (DBKeyRoot != NULL && strcmp(ke_script_file, "eng") && strcmp(ke_script_file, "fra") &&
-				strcmp(ke_script_file, "nld") && strcmp(ke_script_file, "spa") && strcmp(ke_script_file, "zho") &&
+			if (DBKeyRoot != NULL && strcmp(ke_script_file, "eng") && strcmp(ke_script_file, "engu") &&
+				strcmp(ke_script_file, "fra") && strcmp(ke_script_file, "nld") &&
+				strcmp(ke_script_file, "spa") && strcmp(ke_script_file, "zho") &&
 				strcmp(ke_script_file, "jpn")) {
-				fprintf(stderr,"\nThe database can only be used with \"eng\", \"fra\", \"nld\", \"spa\", \"zho\" or \"jpn\" languages.\n");
+				fprintf(stderr,"\nThe database can only be used with \"eng\", \"engu\", \"fra\", \"nld\", \"spa\", \"zho\" or \"jpn\" languages.\n");
 				cutt_exit(0);
 			}
 			read_script(ke_script_file);
@@ -4042,9 +4183,11 @@ void init(char first) {
 				cutt_exit(0);
 			}
 			if (isCreateDB) {
-				if (strcmp(ke_script_file, "eng") && strcmp(ke_script_file, "fra") && strcmp(ke_script_file, "nld") && 
-					strcmp(ke_script_file, "spa") && strcmp(ke_script_file, "zho") && strcmp(ke_script_file, "jpn")) {
-					fprintf(stderr,"\nThe database can only be used with \"eng\", \"fra\", \"nld\", \"spa\", \"zho\" or \"jpn\" languages.\n");
+				if (strcmp(ke_script_file, "eng") && strcmp(ke_script_file, "engu") &&
+					strcmp(ke_script_file, "fra") && strcmp(ke_script_file, "nld") && 
+					strcmp(ke_script_file, "spa") && strcmp(ke_script_file, "zho") &&
+					strcmp(ke_script_file, "jpn")) {
+					fprintf(stderr,"\nThe database can only be used with \"eng\", \"engu\", \"fra\", \"nld\", \"spa\", \"zho\" or \"jpn\" languages.\n");
 					cutt_exit(0);
 				}
 			} else if (DBKeyRoot != NULL) {
@@ -4120,7 +4263,7 @@ static int addFilePath(const char *filePath, int argc, char *argv[]) {
 	argc++;
 	return(argc);
 }
-//UNIX start 16:17 end
+
 static int fillUpEngTdFilePaths(int argc, char *argv[]) {
 	argc = addFilePath("childes-data/Eng-NA/*.cha", argc, argv);
 	argc = addFilePath("childes-data/Frogs/English-ECSC/*.cha", argc, argv);
@@ -4188,7 +4331,13 @@ static int fillUpZhoMdFilePaths(int argc, char *argv[]) {
 }
 
 static int fillUpJpnTdFilePaths(int argc, char *argv[]) {
-	argc = addFilePath("childes-data/Japanese/*.cha", argc, argv);
+//	argc = addFilePath("childes-data/Japanese/*.cha", argc, argv);
+
+	argc = addFilePath("childes-data/Japanese/Hamasaki/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Japanese/Miyata/*.cha", argc, argv);
+//	argc = addFilePath("childes-data/Japanese/Ogawa/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Japanese/Okayama/*.cha", argc, argv);
+	argc = addFilePath("childes-data/Japanese/Yokoyama/*.cha", argc, argv);
 
 //	argc = addFilePath("childes-data/Japanese/Miyata/Aki/*.cha", argc, argv);
 //	argc = addFilePath("childes-data/Japanese/Miyata/Ryo/*.cha", argc, argv);
@@ -4314,6 +4463,10 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 				if (strcmp(lOption, "eng") == 0 && strcmp(DB_type, "_toyplay") == 0)
 					argc = fillUpEngTdFilePaths(argc, argv);
 				else if (strcmp(lOption, "eng") == 0 && strcmp(DB_type, "_narrative") == 0)
+					argc = fillUpEngTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "engu") == 0 && strcmp(DB_type, "_toyplay") == 0)
+					argc = fillUpEngTdFilePaths(argc, argv);
+				else if (strcmp(lOption, "engu") == 0 && strcmp(DB_type, "_narrative") == 0)
 					argc = fillUpEngTdFilePaths(argc, argv);
 				else if (strcmp(lOption, "fra") == 0 && strcmp(DB_type, "_toyplay") == 0)
 					argc = fillUpFraTdFilePaths(argc, argv);

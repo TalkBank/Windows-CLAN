@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -7,7 +7,7 @@
 //		"V DD-MMM-YYYY HH:MM"
 
 int  CLANVersion = 3; // CHANGE NUMBER IN FILE "ChiMain/web/childes/clan/CLAN_VERSION.txt"
-char VERSION[] = "V 16-Jan-2024 11:00"; //"ChiMain/web/childes/clan/index.html"
+char VERSION[] = "V 20-Feb-2025 11:00"; //"ChiMain/web/childes/clan/index.html"
 // ON MAC CHANGE "Bundle versions string, short" IN FILE "Info.plist"
 // ON PC CHANGE RESOURCE VERSION AND IN INSTALLER DISTRIBUTION VERSION
 

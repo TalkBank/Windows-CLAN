@@ -47,6 +47,7 @@ CClan2Doc::CClan2Doc()
 	RestorePlayMovieInfo = FALSE;
 	DoWalkerController = FALSE;
 	re_wrap = FALSE;
+	re_colorLemmas = FALSE;
 	redo_soundwave = FALSE;
 	RedisplayWindow = FALSE;
 	InsertSpChar = 0;

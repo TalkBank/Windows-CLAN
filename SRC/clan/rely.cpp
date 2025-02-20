@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -67,6 +67,7 @@ static char isComputeStudentCorrectness; // 2019-11-20
 static char isSOption;
 static char isAddTiersToMasterFile;
 static char isCompTiers;
+//static char isMainCode;
 static char isMerge;
 static char rely_FTime;
 static char isHeaderTierSpecified, isDepSpTierSpecified, isDepTierSpecified, isDepTierIncluded;
@@ -87,6 +88,7 @@ void usage() {
 	puts("+a : add tiers from second file to first (control) file");
 	puts("+b : include BULLETS in string comparison between first and control files");
 	puts("+c : do not compare data on non-selected tier");
+	puts("+c1: only compare main part of code ($COD:EX: compare $COD, ignore :EX)");
 	puts("+d : Compute percentage agreement coefficient.");
 	puts("+dmN: Compute student correctness. (+dm1 - first file is control, +dm2 second file is control)");
 	puts("+dN: Compute Cohen's kappa coefficient and specify number of possible categories.");
@@ -99,6 +101,7 @@ void init(char first) {
 	if (first) {
 		includeBullets = FALSE;
 		isCompTiers = TRUE;
+//		isMainCode = FALSE;
 		isMerge = FALSE;
 		isAddTiersToMasterFile = FALSE;
 		isHeaderTierSpecified = FALSE;
@@ -153,27 +156,27 @@ void init(char first) {
 				}
 			}
 			if (isAddTiersToMasterFile && !isDepTierIncluded) {
-				fprintf(stderr, "Please specify dependent tier you are adding with +t option\n");
+				fprintf(stderr, "\nPlease specify dependent tier you are adding with +t option\n");
 				cutt_exit(0);
 			}
 			if (isAddTiersToMasterFile && isComputeAphasia) {
-				fprintf(stderr, "+d option can not be used with +a option\n");
+				fprintf(stderr, "\n+d option can not be used with +a option\n");
 				cutt_exit(0);
 			}
 			if (isAddTiersToMasterFile && isComputeStudentCorrectness) {
-				fprintf(stderr, "+dm option can not be used with +a option\n");
+				fprintf(stderr, "\n+dm option can not be used with +a option\n");
 				cutt_exit(0);
 			}
 			if (isComputeStudentCorrectness && isSOption) {
-				fprintf(stderr, "+dm option can not be used with +s option\n");
+				fprintf(stderr, "\n+dm option can not be used with +s option\n");
 				cutt_exit(0);
 			}
 			if (KappaCats > 0.0 && isComputeStudentCorrectness) {
-				fprintf(stderr, "+dm option can not be used with +dN option\n");
+				fprintf(stderr, "\n+dm option can not be used with +dN option\n");
 				cutt_exit(0);
 			}
 			if (fpin == stdin) {
-				fprintf(stderr, "Input must come from files\n");
+				fprintf(stderr, "\nInput must come from files\n");
 				cutt_exit(0);
 			}
 			if (isAddTiersToMasterFile)
@@ -192,7 +195,7 @@ void init(char first) {
 		}
 		if (KappaCats > 0.0) {
 			if (!isDepTierSpecified) {
-				fprintf(stderr, "Please specify at least one dependent tier with +t option to compare\n");
+				fprintf(stderr, "\nPlease specify at least one dependent tier with +t option to compare\n");
 				cutt_exit(0);
 			}
 			if (!isCombineForAllFiles) {
@@ -201,16 +204,18 @@ void init(char first) {
 			}
 			isCompTiers = FALSE;
 		} else if (isCombineForAllFiles && !isComputeAphasia && !isDepTierIncluded) {
-			fprintf(stderr, "Please specify at least one dependent tier with +t option to compare\n");
+			fprintf(stderr, "\nPlease specify at least one dependent tier with +t option to compare\n");
 			cutt_exit(0);
 		} else if (isComputeStudentCorrectness && !isDepTierIncluded) {
-			fprintf(stderr, "Please specify the dependent tier with +t option to compare\n");
+			fprintf(stderr, "\nPlease specify the dependent tier with +t option to compare\n");
 			cutt_exit(0);
 		}
 	}
 }
 
 void getflag(char *f, char *f1, int *i) {
+	char wd[1024+2];
+
 	f++;
 	switch(*f++) {
 		case 'a':
@@ -223,8 +228,17 @@ void getflag(char *f, char *f1, int *i) {
 			no_arg_option(f);
 			break;
 		case 'c':
-			isCompTiers = FALSE;
-			no_arg_option(f);
+			if (*f == EOS) {
+				isCompTiers = FALSE;
+			} else if (*f == '1') {
+//				isMainCode = TRUE;
+				FilterTier = 2;
+				strcpy(wd, "+$*:%%");
+				addword('s','i',wd);
+			} else {
+				fprintf(stderr, "\n+c option must be either +c or +c1\n");
+				cutt_exit(0);
+			}
 			break;
 		case 'd':
 			if (*f == EOS) {
@@ -235,13 +249,13 @@ void getflag(char *f, char *f1, int *i) {
 				else if (*(f+1) == EOS || *(f+1) == '1')
 					isComputeStudentCorrectness = 1;
 				else {
-					fprintf(stderr, "+dm optionmust be either +dm, +dm1 or +dm2\n");
+					fprintf(stderr, "\n+dm option must be either +dm, +dm1 or +dm2\n");
 					cutt_exit(0);
 				}
 			} else {
 				KappaCats = atoi(f);
-				if (KappaCats <= 0.0) {
-					fprintf(stderr,"Total categories value for Kappa calculation has to be greater than 0.\n");
+				if (KappaCats <= 1.0) {
+					fprintf(stderr,"\nTotal categories value for Kappa calculation has to be greater than 1.\n");
 					cutt_exit(0);
 				}
 			}
@@ -256,8 +270,9 @@ void getflag(char *f, char *f1, int *i) {
 			no_arg_option(f);
 			break;
 		case 's':
-			if (*f != EOS)
+			if (*f != EOS) {
 				isSOption = TRUE;
+			}
 			maingetflag(f-2,f1,i);
 			break;
 		case 't':

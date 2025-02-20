@@ -2395,12 +2395,18 @@ int proccessKeys(unsigned int c) {
 				DrawSoundCursor(0);
 #endif
 				FindFileLine(FALSE, NULL);
+			} else if (tKey == -9) {
+#ifdef _MAC_CODE
+				DrawCursor(0);
+				DrawSoundCursor(0);
+#endif
+				ShowGRA("%ugra:", "%umor:");
 			} else if (tKey == -8) {
 #ifdef _MAC_CODE
 				DrawCursor(0);
 				DrawSoundCursor(0);
 #endif
-				ShowGRA();
+				ShowGRA("%gra:", "%mor:");
 			} else
 				ExecSoundCom(tKey);
 		}

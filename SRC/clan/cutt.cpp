@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -106,11 +106,18 @@ struct LangWordList {
     LANGWDLST *nextMatch;
 } ;
 
-#define LANGSTABLE struct LangsList
-LANGSTABLE {
+#define UDFEATS struct UDFeatures
+UDFEATS {
+	char *name;
+	char ismorph;
+	UDFEATS *nextUD;
+} ;
+
+#define LANGSLIST struct LangsList
+LANGSLIST {
 	char *iso639[4];
 	char *name;
-	LANGSTABLE *nextlang;
+	LANGSLIST *nextlang;
 } ;
 
 #define LANGPARTS struct LangParts
@@ -157,7 +164,7 @@ int  IsOutTTY(void);
 #define TESTLIM 6
 const char *MonthNames[12] = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
 			   "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" } ;
-char GExt[32];
+char GExt[512];
 int  OnlydataLimit;
 int  UttlineEqUtterance;
 int  chatmode;				/* chatmode =0 - no y switch & errmargin =0;*/
@@ -184,7 +191,8 @@ static char isSearchMorSym; /* 1 if user searches for symbols: cm|*, end|*, beg|
 static char LanguagesTable[NUMLANGUAGESINTABLE][9];
 static char foundUttContinuation = FALSE;
 static int  defLanguage;
-static LANGSTABLE *langs_list;
+static UDFEATS *UD_feats = NULL;
+static LANGSLIST *langs_list;
 char GlobalPunctuation[50];
 static char morPunctuation[50];
 static char cedPunctuation[50];
@@ -196,7 +204,7 @@ char IncludeAllDefaultCodes;
 char cutt_isMultiFound = FALSE;
 char cutt_isCAFound = FALSE;
 char cutt_isSearchForQuotedItems = 0;  // 2019-07-17
-char isRemoveCAChar[NUMSPCHARS+2];
+char isRemoveCAChar[NUMCACHARS+2];
 struct tier *HeadOutTier;	/* points to the list of specified output tier   */
 struct tier *headtier;		/* points to the list of specified tier	   */
 struct tier *defheadtier;	/* default include/exclude tier list header	   */
@@ -249,8 +257,8 @@ char templineC2[UTTLINELEN+2];	/* used to be: templine2 */
 char templineC3[UTTLINELEN+2];	/* used to be: templine3 */
 char templineC4[UTTLINELEN+2];	/* used to be: templine4 */
 AttTYPE tempAtt[UTTLINELEN+2];	/* temporary variable to store code descriptors */
-FNType DirPathName[FNSize+2];		/* used for temp storage of path name */
-FNType noMorFName[FNSize+2];		/* used in cutt_dir to see if 0nomor.cdc file is present */
+FNType DirPathName[FNSize+2];	/* used for temp storage of path name */
+FNType noMorFName[FNSize+2];	/* used in cutt_dir to see if 0nomor.cdc file is present */
 FNType FileName1[FNSize+2];		/* used for temp storage of file name */
 FNType FileName2[FNSize+2];		/* used for temp storage of file name */
 FNType cMediaFileName[FILENAME_MAX+2];/* used by expend bullets */
@@ -374,7 +382,7 @@ char maxwd_which;
 short my_CharacterByteType(const char *org, short pos, NewFontInfo *finfo) {
 	short cType;
 
-	if (finfo->isUTF) {
+//	if (finfo->isUTF) {
 		cType = 2;
 		if (UTF8_IS_SINGLE((unsigned char)org[pos]))
 			cType = 0;
@@ -388,8 +396,9 @@ short my_CharacterByteType(const char *org, short pos, NewFontInfo *finfo) {
 		}
 
 		return(cType);
-	} else
-		return(0);
+//	} else {
+//		return(0);
+//	}
 }
 #endif // UNX
 
@@ -1060,9 +1069,10 @@ char isIxesMatchPat(IXXS *ixes, int max, const char *pat) {
 }
 
 char isAllv(MORFEATS *feat) {
-	if (isEqual("v", feat->pos) ||
+	if (isEqual("verb", feat->pos) || isEqual("v", feat->pos) ||
 		(isEqual("part",feat->pos) &&
-		 (isEqualIxes("PASTP",feat->suffix,NUM_SUFF) || isEqualIxes("PRESP",feat->suffix,NUM_SUFF) ||
+		 (isEqualIxes("Past",feat->suffix,NUM_SUFF)  || isEqualIxes("Pres",feat->suffix,NUM_SUFF) ||
+		  isEqualIxes("PASTP",feat->suffix,NUM_SUFF) || isEqualIxes("PRESP",feat->suffix,NUM_SUFF) ||
 		  isEqualIxes("PASTP",feat->fusion,NUM_FUSI) || isEqualIxes("PRESP",feat->fusion,NUM_FUSI))))
 		return(TRUE);
 	return(FALSE);
@@ -1095,7 +1105,7 @@ char isMORSearch(void) {
 		return(TRUE);
 }
 
-static MORFEATURESLIST *makeMorSearchFeatList(char *wd, char *orgWd, char *isClitic, char *res) {
+static MORFEATURESLIST *makeMorSearchFeatList(char *wd, char *orgWd, char *isClitic, char typeID, char *res) {
 	char *comma, stem[BUFSIZ], *hyphenI;
 	size_t len;
 	MORFEATURESLIST *tItem;
@@ -1159,6 +1169,8 @@ static MORFEATURESLIST *makeMorSearchFeatList(char *wd, char *orgWd, char *isCli
 					*res = FALSE;
 				return(NULL);
 			}
+			if ((typeID == '~' || typeID == '$') && tItem->typeID == ' ')
+				tItem->typeID = typeID;
 			tItem->featType = *wd++;
 			if (tItem->featType == ';')
 				tItem->featType = 'r';
@@ -1218,8 +1230,8 @@ static MORFEATURESLIST *makeMorSearchFeatList(char *wd, char *orgWd, char *isCli
 				tItem->flag = '-';
 				tItem->pat[0] = '%';
 			}
-			if (CLAN_PROG_NUM != CORELEX && CLAN_PROG_NUM != KIDEVAL &&
-				CLAN_PROG_NUM != IPSYN && CLAN_PROG_NUM != MORTABLE && CLAN_PROG_NUM != FLUCALC) {
+			if (CLAN_PROG_NUM != CORELEX && CLAN_PROG_NUM != KIDEVAL && CLAN_PROG_NUM != IPSYN &&
+				CLAN_PROG_NUM != MORTABLE && CLAN_PROG_NUM != FLUCALC && CLAN_PROG_NUM != FLUPOS) {
 				if (!isSearchMorSym) {
 					if (isSpecialMorSym(tItem->pat, tItem->featType))
 						isSearchMorSym = TRUE;
@@ -1228,7 +1240,7 @@ static MORFEATURESLIST *makeMorSearchFeatList(char *wd, char *orgWd, char *isCli
 		}
 		tItem->nextFeat = NULL;
 		if (comma != NULL) {
-			tItem->nextFeat = makeMorSearchFeatList(comma+1, orgWd, isClitic, res);
+			tItem->nextFeat = makeMorSearchFeatList(comma+1, orgWd, isClitic, tItem->typeID, res);
 			if (tItem->nextFeat == NULL) {
 				if (tItem->pat != NULL)
 					free(tItem->pat);
@@ -1261,7 +1273,7 @@ MORWDLST *makeMorSeachList(MORWDLST *root, char *res, char *wd, char ch) {
 	st[BUFSIZ-1] = EOS;
 	tItem->type = ch;
 	tItem->isClitic = FALSE;
-	tItem->rootFeat = makeMorSearchFeatList(wd, st, &tItem->isClitic, res);
+	tItem->rootFeat = makeMorSearchFeatList(wd, st, &tItem->isClitic, ' ', res);
 	tItem->nextMatch = NULL;
 	if (tItem->rootFeat == NULL) {
 		root = freeMorWords(root);
@@ -1339,7 +1351,7 @@ MORWDLST *makeMorSeachList(MORWDLST *root, char *res, char *wd, char ch) {
 				break;
 		}
 		if (l->featType != 'o') {
-			l->nextFeat = makeMorSearchFeatList(colaps, st, &tItem->isClitic, res);
+			l->nextFeat = makeMorSearchFeatList(colaps, st, &tItem->isClitic, ' ', res);
 			if (l->nextFeat == NULL) {
 				root = freeMorWords(root);
 				return(NULL);
@@ -2868,8 +2880,7 @@ static int excludeMorTierMorDef(char *word) {
 		}
 		return(FALSE);
 	}
-	if (uS.mStricmp(word, "unk|xxx") == 0 || uS.mStricmp(word, "unk|yyy") == 0 || uS.patmat(word, "*|www") ||
-		uS.patmat(word, "*|xx") || uS.patmat(word, "*|yy")) {
+	if (uS.mStricmp(word, "unk|xxx") == 0 || uS.mStricmp(word, "unk|yyy") == 0 || uS.patmat(word, "*|www")) {
 		return(FALSE);
 	} else if (word[0] == '+') {
 		if (isMorExcludePlus(word))
@@ -3399,7 +3410,7 @@ static int skipSubCodeWs(char *wline, int pos) {
 			pos--;
 		}
 	} else if (pos >= 0) {
-		while (!uS.isskip(wline,pos,&dFnt,MBF) && pos >= 0) {
+		while (!uS.isskip(wline,pos,&dFnt,MBF) && !uS.isRightChar(wline, pos, '<', &dFnt, MBF) && pos >= 0) {
 			pos--;
 		}
 	}
@@ -3833,7 +3844,7 @@ void createMorUttline(char *new_mor_tier, char *spTier, const char *dcode, char 
 					i++;
 			}
 		}
-		punctuation = morPunctuation;
+		cutt_punctuation = morPunctuation;
 	}
 /*2019-04-29
 	tOQ  = isRemoveCAChar[NOTCA_OPEN_QUOTE];
@@ -4083,7 +4094,7 @@ void createMorUttline(char *new_mor_tier, char *spTier, const char *dcode, char 
 		uS.remFrontAndBackBlanks(new_mor_tier);
 		rewrapComboTier(new_mor_tier);
 	}
-	punctuation = GlobalPunctuation;
+	cutt_punctuation = GlobalPunctuation;
 }
 
 /*	END %mor tier elements parsing END */
@@ -5250,7 +5261,7 @@ void rdexclf(char opt, char ch, const FNType *fname) {
 		if (len < 0)
 			continue;
 		wd[len+1] = EOS;
-		if ((wd[1] == '@' || wd[1] == 'm') && isMorSearchOption(wd+1, wd[1], '+'))
+		if ((wd[1] == '@' || wd[1] == 'm') && isMorSearchOption(wd+1, wd[1], '+') && wd[2] != '@' && wd[2] != '#')
 			wd[1] = '\002';
 		else if (wd[1] == '@' && isLangSearchOption(wd+1, '+'))
 			wd[1] = '\003';
@@ -7273,6 +7284,104 @@ void filterData(const char *sp, char *wline) {
 	filterwords(sp,wline,excludedef);
 }
 
+// 2024-08-22 beg
+FILE *checkOpenWdDepfile(const FNType *depfile_orig) {
+	return(NULL); // 2024-09-04
+/*
+	FILE *fp;
+	int  t, lenDF;
+	char *ext;
+	FNType depfile[FNSize];
+	FNType mFileName[FNSize];
+	FNType mDirPathName[FNSize];
+#if defined(UNX) || defined(_MAC_CODE)
+	struct dirent *dp;
+	struct stat sb;
+	DIR *cDIR;
+#endif // _MAC_CODE
+#ifdef _WIN32
+	BOOL notDone;
+	CString filename;
+	CFileFind fileFind;
+	FNType tFileName[FILENAME_MAX];
+#endif // _WIN32
+
+	strcpy(depfile, depfile_orig);
+	ext = strrchr(depfile, '.');
+	if (ext == NULL)
+		return(NULL);
+	if (uS.mStricmp(ext, ".cut") != 0)
+		return(NULL);
+	*ext = EOS;
+	lenDF = strlen(depfile);
+	getcwd(mDirPathName, FNSize);
+	strcpy(mFileName,wd_dir);
+	t = strlen(mFileName);
+	fp = NULL;
+#if defined(_MAC_CODE) || defined(UNX)
+	SetNewVol(wd_dir);
+	if ((cDIR=opendir(".")) != NULL) {
+		while ((dp=readdir(cDIR)) != NULL) {
+			if (stat(dp->d_name, &sb) == 0) {
+				if (S_ISDIR(sb.st_mode)) {
+					continue;
+				}
+			} else
+				continue;
+			if (dp->d_name[0] == '.')
+				continue;
+			mFileName[t] = EOS;
+			ext = strrchr(dp->d_name, '.');
+			if (ext != NULL && uS.mStricmp(ext, ".cut") == 0) {
+				if (uS.mStrnicmp(depfile, dp->d_name, lenDF) == 0) {
+					addFilename2Path(mFileName, dp->d_name);
+					fp = fopen(mFileName, "r");
+					if (fp != NULL) {
+						break;
+					}
+				}
+			}
+		}
+		closedir(cDIR);
+	}
+	SetNewVol(mDirPathName);
+#endif // _MAC_CODE
+#ifdef _WIN32
+	SetNewVol(wd_dir);
+	if (!fileFind.FindFile(_T("*.*"), 0)) {
+		fileFind.Close();
+	} else {
+		do {
+			notDone = fileFind.FindNextFile();
+			filename = fileFind.GetFileName();
+			if (fileFind.IsDirectory())
+				continue;
+			filename = fileFind.GetFileName();
+			if (filename[0] == '.')
+				continue;
+			mFileName[t] = EOS;
+			
+			u_strcpy(tFileName, filename, FILENAME_MAX);
+			ext = strrchr(tFileName, '.');
+			if (ext != NULL && uS.mStricmp(ext, ".cut") == 0) {
+				if (uS.mStrnicmp(depfile, tFileName, lenDF) == 0) {
+					addFilename2Path(mFileName, tFileName);
+					fp = fopen(mFileName, "r");
+					if (fp != NULL) {
+						break;
+					}
+				}
+			}
+		} while (notDone) ;
+		fileFind.Close();
+	}
+	SetNewVol(mDirPathName);
+#endif // _WIN32
+	return(fp);
+*/
+}
+// 2024-08-22 end
+
 FILE *OpenGenLib(const FNType *fname, const char *mode, char checkWD, char checkSubDir, FNType *mFileName) {
 	FILE *fp;
 	int  t;
@@ -7551,7 +7660,7 @@ void init_punct(char which) {
 		strcpy(cedPunctuation, PUNCTUATION_SET);
 	else
 		strcpy(cedPunctuation, PUNCT_PHO_MOD_SET);
-	punctuation = cedPunctuation;
+	ced_punctuation = cedPunctuation;
 	morPunctuation[0] = EOS;
 }
 
@@ -7611,7 +7720,7 @@ static void getpunct(FNType *pfile) {
 void mmaininit(void) {
 	int i;
 
-	for (i=0; i <= NUMSPCHARS; i++) // up-arrow
+	for (i=0; i <= NUMCACHARS; i++) // up-arrow
 		isRemoveCAChar[i] = TRUE;
 
 	isRemoveCAChar[NOTCA_STRESS] = FALSE;
@@ -7675,13 +7784,14 @@ void mmaininit(void) {
 	else
 		R5 = TRUE;
 	R5_1 = FALSE;
-	if (CLAN_PROG_NUM == MLT || CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MODREP || CLAN_PROG_NUM == REPEAT ||
-		CLAN_PROG_NUM == FLO || CLAN_PROG_NUM == FREQ || CLAN_PROG_NUM == DSS || CLAN_PROG_NUM == RETRACE || CLAN_PROG_NUM == MOR_P ||
-		CLAN_PROG_NUM==CMDI_P || CLAN_PROG_NUM==LAB2CHAT ||
+	if (CLAN_PROG_NUM == MLT || CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLUMOR ||
+		CLAN_PROG_NUM == MODREP || CLAN_PROG_NUM == REPEAT ||
+		CLAN_PROG_NUM == FLO || CLAN_PROG_NUM == FREQ || CLAN_PROG_NUM == DSS || CLAN_PROG_NUM == RETRACE ||
+		CLAN_PROG_NUM == MOR_P || CLAN_PROG_NUM==PID_P || CLAN_PROG_NUM==LAB2CHAT ||
 		CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX || CLAN_PROG_NUM == IPSYN ||
 		CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == KIDEVAL || CLAN_PROG_NUM == MAXWD ||
 		CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == WDLEN ||
-		CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == C_NNLA ||
+		CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == FLUPOS || CLAN_PROG_NUM == C_NNLA ||
 		CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR)
 		R6 = FALSE;
 	else
@@ -7693,15 +7803,16 @@ void mmaininit(void) {
 	R7Caret = TRUE;
 	R7Colon = TRUE;
 	R8 = FALSE;
-	if (CLAN_PROG_NUM == FREQ || CLAN_PROG_NUM == DSS || CLAN_PROG_NUM == PHONFREQ ||
+	if (CLAN_PROG_NUM == FREQ || CLAN_PROG_NUM == DSS || CLAN_PROG_NUM == PHONFREQ || CLAN_PROG_NUM == CHSTRING ||
 		CLAN_PROG_NUM == RELY || CLAN_PROG_NUM == CP2UTF || CLAN_PROG_NUM == LOWCASE || CLAN_PROG_NUM == ORT ||
 		CLAN_PROG_NUM == MOR_P || CLAN_PROG_NUM == TRNFIX || CLAN_PROG_NUM == POSTMORTEM ||
-		CLAN_PROG_NUM == CMDI_P || CLAN_PROG_NUM == LAB2CHAT || CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX ||
+		CLAN_PROG_NUM == PID_P || CLAN_PROG_NUM == LAB2CHAT || CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == WDLEN ||
+		CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX ||
 		CLAN_PROG_NUM == FLO || CLAN_PROG_NUM == IPSYN || CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == CHAT2SRT ||
 		CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == KIDEVAL ||
-		CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == MERGE ||
-		CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == CHIP || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA ||
-		CLAN_PROG_NUM == SUGAR || CLAN_PROG_NUM == CODES_P)
+		CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == FLUPOS || CLAN_PROG_NUM == MERGE || CLAN_PROG_NUM == NUM2WORD ||
+		CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == CHIP || CLAN_PROG_NUM == CHIPUTIL || CLAN_PROG_NUM == C_NNLA || 
+		CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR || CLAN_PROG_NUM == CODES_P)
 		nomap = TRUE;
 	else
 		nomap = FALSE;
@@ -7747,7 +7858,7 @@ void mmaininit(void) {
 //2011-01-26	uS.str2FNType(punctFile, 0L, "punct.cut");
 //2011-01-26	punctMess[0] = EOS;
 	strcpy(GlobalPunctuation, PUNCTUATION_SET);
-	punctuation = GlobalPunctuation;
+	cutt_punctuation = GlobalPunctuation;
 	morPunctuation[0] = EOS;
 	rootmorf = (char *)malloc(strlen(MORPHS)+1);
 	if (rootmorf == NULL) {
@@ -7800,7 +7911,7 @@ void mmaininit(void) {
 void globinit(void) {
 	int i;
 
-	for (i=0; i <= NUMSPCHARS; i++) // up-arrow
+	for (i=0; i <= NUMCACHARS; i++) // up-arrow
 		isRemoveCAChar[i] = TRUE;
 	isRemoveCAChar[NOTCA_STRESS] = FALSE;
 	isRemoveCAChar[NOTCA_GLOTTAL_STOP] = FALSE;
@@ -7842,15 +7953,16 @@ void globinit(void) {
 	cutt_isCAFound = FALSE;
 	cutt_isSearchForQuotedItems = FALSE; // 2019-07-17
 	ml_root_clause = NULL;
-	if (CLAN_PROG_NUM == FREQ || CLAN_PROG_NUM == DSS || CLAN_PROG_NUM == PHONFREQ ||
+	if (CLAN_PROG_NUM == FREQ || CLAN_PROG_NUM == DSS || CLAN_PROG_NUM == PHONFREQ || CLAN_PROG_NUM == CHSTRING ||
 		CLAN_PROG_NUM == RELY || CLAN_PROG_NUM == CP2UTF || CLAN_PROG_NUM == LOWCASE || CLAN_PROG_NUM == ORT ||
 		CLAN_PROG_NUM == MOR_P || CLAN_PROG_NUM == TRNFIX || CLAN_PROG_NUM == POSTMORTEM ||
-		CLAN_PROG_NUM == CMDI_P || CLAN_PROG_NUM == LAB2CHAT || CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX ||
+		CLAN_PROG_NUM == PID_P || CLAN_PROG_NUM == LAB2CHAT ||
+		CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX ||
 		CLAN_PROG_NUM == FLO || CLAN_PROG_NUM == IPSYN || CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == CHAT2SRT ||
 		CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == KIDEVAL ||
-		CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == MERGE ||
-		CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == CHIP || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA ||
-		CLAN_PROG_NUM == SUGAR || CLAN_PROG_NUM == CODES_P)
+		CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == FLUPOS || CLAN_PROG_NUM == MERGE || CLAN_PROG_NUM == NUM2WORD ||
+		CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == CHIP || CLAN_PROG_NUM == CHIPUTIL || CLAN_PROG_NUM == C_NNLA ||
+		CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR || CLAN_PROG_NUM == CODES_P)
 		nomap = TRUE;
 	else
 		nomap = FALSE;
@@ -7947,6 +8059,7 @@ void main_cleanup(void) {
 	struct IDtype *tID;
 	UTTER *ttt;
 
+	cleanupUDs();
 	clean_s_option();
 	wdUttLen = freeUTTLENWORDS(wdUttLen);
 	if (targs) {
@@ -8463,6 +8576,8 @@ void InitOptions(void) {
 	strncpy(options_ext[CHAINS], ".chain", OPTIONS_EXT_LEN); options_ext[CHAINS][OPTIONS_EXT_LEN] = EOS;
 	option_flags[CHIP] = F_OPTION+RE_OPTION+D_OPTION+K_OPTION+P_OPTION+R_OPTION+T_OPTION+UP_OPTION+UM_OPTION+L_OPTION;
 	strncpy(options_ext[CHIP], ".chip", OPTIONS_EXT_LEN); options_ext[CHIP][OPTIONS_EXT_LEN] = EOS;
+	option_flags[CHIPUTIL] = F_OPTION+RE_OPTION;
+	strncpy(options_ext[CHIPUTIL], ".chipu", OPTIONS_EXT_LEN); options_ext[CHIPUTIL][OPTIONS_EXT_LEN] = EOS;
 	option_flags[C_NNLA] = F_OPTION+RE_OPTION+SM_OPTION+T_OPTION+UP_OPTION;
 	strncpy(options_ext[C_NNLA], ".cnl", OPTIONS_EXT_LEN); options_ext[C_NNLA][OPTIONS_EXT_LEN] = EOS;
 	option_flags[CODES_P] = F_OPTION+RE_OPTION+SP_OPTION+SM_OPTION+T_OPTION+FR_OPTION+UP_OPTION;
@@ -8488,6 +8603,8 @@ void InitOptions(void) {
 	strncpy(options_ext[EVALD], ".evald", OPTIONS_EXT_LEN); options_ext[EVALD][OPTIONS_EXT_LEN] = EOS;
 	option_flags[FLUCALC] = F_OPTION+RE_OPTION+SP_OPTION+SM_OPTION+T_OPTION+Z_OPTION;
 	strncpy(options_ext[FLUCALC], ".flucalc", OPTIONS_EXT_LEN); options_ext[FLUCALC][OPTIONS_EXT_LEN] = EOS;
+	option_flags[FLUPOS] = F_OPTION+RE_OPTION+SP_OPTION+SM_OPTION+T_OPTION+Z_OPTION;
+	strncpy(options_ext[FLUPOS], ".flupos", OPTIONS_EXT_LEN); options_ext[FLUPOS][OPTIONS_EXT_LEN] = EOS;
 	option_flags[FREQ] = ALL_OPTIONS+UM_OPTION+D_OPTION+Y_OPTION;
 	strncpy(options_ext[FREQ], ".frq", OPTIONS_EXT_LEN); options_ext[FREQ][OPTIONS_EXT_LEN] = EOS;
 	option_flags[FREQPOS] = F_OPTION+RE_OPTION+K_OPTION+P_OPTION+R_OPTION+SM_OPTION+T_OPTION+UP_OPTION+UM_OPTION+Z_OPTION+D_OPTION+Y_OPTION+L_OPTION;
@@ -8514,6 +8631,8 @@ void InitOptions(void) {
 	strncpy(options_ext[MLT], ".mlt", OPTIONS_EXT_LEN); options_ext[MLT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[MLU] = ALL_OPTIONS+UM_OPTION+D_OPTION+Y_OPTION;
 	strncpy(options_ext[MLU], ".mlu", OPTIONS_EXT_LEN); options_ext[MLU][OPTIONS_EXT_LEN] = EOS;
+	option_flags[MLUMOR] = ALL_OPTIONS+UM_OPTION+D_OPTION+Y_OPTION;
+	strncpy(options_ext[MLUMOR], ".mlumor", OPTIONS_EXT_LEN); options_ext[MLUMOR][OPTIONS_EXT_LEN] = EOS;
 	option_flags[MODREP] = F_OPTION+RE_OPTION+K_OPTION+P_OPTION+R_OPTION+T_OPTION+UP_OPTION+UM_OPTION+Z_OPTION+L_OPTION;
 	strncpy(options_ext[MODREP], ".mdrep", OPTIONS_EXT_LEN); options_ext[MODREP][OPTIONS_EXT_LEN] = EOS;
 	option_flags[MOR_P] = F_OPTION+RE_OPTION+T_OPTION+SP_OPTION+SM_OPTION;
@@ -8548,7 +8667,7 @@ void InitOptions(void) {
 	strncpy(options_ext[WDLEN], ".wdlen", OPTIONS_EXT_LEN); options_ext[WDLEN][OPTIONS_EXT_LEN] = EOS;
 
 
-	option_flags[CHSTRING] = F_OPTION+RE_OPTION+P_OPTION+T_OPTION+Y_OPTION+FR_OPTION;
+	option_flags[CHSTRING] = F_OPTION+RE_OPTION+K_OPTION+P_OPTION+T_OPTION+Y_OPTION+FR_OPTION;
 	strncpy(options_ext[CHSTRING], ".chstr", OPTIONS_EXT_LEN); options_ext[CHSTRING][OPTIONS_EXT_LEN] = EOS;
 	option_flags[ANVIL2CHAT]= F_OPTION+RE_OPTION;
 	strncpy(options_ext[ANVIL2CHAT], ".anvil", OPTIONS_EXT_LEN); options_ext[ANVIL2CHAT][OPTIONS_EXT_LEN] = EOS;
@@ -8568,7 +8687,7 @@ void InitOptions(void) {
 	strncpy(options_ext[CHECK_P], ".chck", OPTIONS_EXT_LEN); options_ext[CHECK_P][OPTIONS_EXT_LEN] = EOS;
 	option_flags[COMBTIER] = F_OPTION+RE_OPTION+K_OPTION+P_OPTION+L_OPTION;
 	strncpy(options_ext[COMBTIER], ".cmbtr", OPTIONS_EXT_LEN); options_ext[COMBTIER][OPTIONS_EXT_LEN] = EOS;
-	option_flags[CONVORT] = RE_OPTION+FR_OPTION;
+	option_flags[CONVORT] = RE_OPTION+K_OPTION+FR_OPTION;
 	strncpy(options_ext[CONVORT], ".convort", OPTIONS_EXT_LEN); options_ext[CONVORT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[CP2UTF] = F_OPTION+RE_OPTION+FR_OPTION+T_OPTION+L_OPTION+Y_OPTION;
 	strncpy(options_ext[CP2UTF], ".cp2utf", OPTIONS_EXT_LEN); options_ext[CP2UTF][OPTIONS_EXT_LEN] = EOS;
@@ -8586,15 +8705,13 @@ void InitOptions(void) {
 	strncpy(options_ext[FIXMP3], ".fixmp3", OPTIONS_EXT_LEN); options_ext[FIXMP3][OPTIONS_EXT_LEN] = EOS;
 	option_flags[FLO] = F_OPTION+RE_OPTION+D_OPTION+SP_OPTION+SM_OPTION+T_OPTION+FR_OPTION+L_OPTION+R_OPTION+Z_OPTION;
 	strncpy(options_ext[FLO], ".flo", OPTIONS_EXT_LEN); options_ext[FLO][OPTIONS_EXT_LEN] = EOS;
-	option_flags[CMDI_P] = RE_OPTION;
-	strncpy(options_ext[CMDI_P], ".cmdi", OPTIONS_EXT_LEN); options_ext[CMDI_P][OPTIONS_EXT_LEN] = EOS;
 	option_flags[INDENT] = F_OPTION+RE_OPTION+FR_OPTION+L_OPTION;
 	strncpy(options_ext[INDENT], ".indnt", OPTIONS_EXT_LEN); options_ext[INDENT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[LAB2CHAT] = RE_OPTION;
 	strncpy(options_ext[LAB2CHAT], ".lab", OPTIONS_EXT_LEN); options_ext[LAB2CHAT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[LENA2CHAT] = RE_OPTION;
 	strncpy(options_ext[LENA2CHAT], "", OPTIONS_EXT_LEN); options_ext[LENA2CHAT][OPTIONS_EXT_LEN] = EOS;
-	option_flags[LIPP2CHAT] = F_OPTION+RE_OPTION;
+	option_flags[LIPP2CHAT] = RE_OPTION;
 	strncpy(options_ext[LIPP2CHAT], ".lipp", OPTIONS_EXT_LEN); options_ext[LIPP2CHAT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[LONGTIER] = F_OPTION+RE_OPTION+FR_OPTION+L_OPTION;
 	strncpy(options_ext[LONGTIER], ".longtr", OPTIONS_EXT_LEN); options_ext[LONGTIER][OPTIONS_EXT_LEN] = EOS;
@@ -8602,14 +8719,16 @@ void InitOptions(void) {
 	strncpy(options_ext[LOWCASE], ".lowcas", OPTIONS_EXT_LEN); options_ext[LOWCASE][OPTIONS_EXT_LEN] = EOS;
 	option_flags[MAKEMOD] = F_OPTION+RE_OPTION+T_OPTION+L_OPTION;
 	strncpy(options_ext[MAKEMOD], ".mkmod", OPTIONS_EXT_LEN); options_ext[MAKEMOD][OPTIONS_EXT_LEN] = EOS;
-	option_flags[MEDIALINE]= F_OPTION+RE_OPTION+FR_OPTION;
+	option_flags[MEDIALINE]= F_OPTION+RE_OPTION+FR_OPTION+Y_OPTION;
 	strncpy(options_ext[MEDIALINE], ".media", OPTIONS_EXT_LEN); options_ext[MEDIALINE][OPTIONS_EXT_LEN] = EOS;
 	option_flags[MERGE] = F_OPTION+FR_OPTION+RE_OPTION+T_OPTION;
 	strncpy(options_ext[MERGE], ".mereg", OPTIONS_EXT_LEN); options_ext[MERGE][OPTIONS_EXT_LEN] = EOS;
-	option_flags[OLAC_P] = RE_OPTION;
-	strncpy(options_ext[OLAC_P], ".xml", OPTIONS_EXT_LEN); options_ext[OLAC_P][OPTIONS_EXT_LEN] = EOS;
+	option_flags[NUM2WORD] = FR_OPTION+RE_OPTION;
+	strncpy(options_ext[NUM2WORD], ".num2word", OPTIONS_EXT_LEN); options_ext[NUM2WORD][OPTIONS_EXT_LEN] = EOS;
 	option_flags[ORT] = 0L;
 	strncpy(options_ext[ORT], ".ort", OPTIONS_EXT_LEN); options_ext[ORT][OPTIONS_EXT_LEN] = EOS;
+	option_flags[PID_P] = RE_OPTION;
+	strncpy(options_ext[PID_P], ".pid", OPTIONS_EXT_LEN); options_ext[PID_P][OPTIONS_EXT_LEN] = EOS;
 	option_flags[PLAY2CHAT] = F_OPTION+RE_OPTION;
 	strncpy(options_ext[PLAY2CHAT], ".play", OPTIONS_EXT_LEN); options_ext[PLAY2CHAT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[PRAAT2CHAT]= F_OPTION+RE_OPTION;
@@ -8629,9 +8748,15 @@ void InitOptions(void) {
 	option_flags[SEGMENT] = F_OPTION+FR_OPTION+RE_OPTION;
 	strncpy(options_ext[SEGMENT], ".seg", OPTIONS_EXT_LEN); options_ext[SEGMENT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[SILENCE_P] = RE_OPTION+K_OPTION+SP_OPTION+T_OPTION;
-	strncpy(options_ext[SILENCE_P], ".aif", OPTIONS_EXT_LEN); options_ext[SILENCE_P][OPTIONS_EXT_LEN] = EOS;
+	strncpy(options_ext[SILENCE_P], ".silence.wav", OPTIONS_EXT_LEN); options_ext[SILENCE_P][OPTIONS_EXT_LEN] = EOS;
+#ifdef _MAC_CODE
+	option_flags[SLICE_P] = RE_OPTION;
+	strncpy(options_ext[SLICE_P], ".wav", OPTIONS_EXT_LEN); options_ext[SLICE_P][OPTIONS_EXT_LEN] = EOS;
+#endif
 	option_flags[SRT2CHAT] = F_OPTION+RE_OPTION+T_OPTION;
 	strncpy(options_ext[SRT2CHAT], ".cha", OPTIONS_EXT_LEN); options_ext[SRT2CHAT][OPTIONS_EXT_LEN] = EOS;
+	option_flags[TANG2CHAT] = F_OPTION+RE_OPTION;
+	strncpy(options_ext[TANG2CHAT], ".tngin", OPTIONS_EXT_LEN); options_ext[TANG2CHAT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[TEXT2CHAT] = F_OPTION+RE_OPTION;
 	strncpy(options_ext[TEXT2CHAT], ".txtin", OPTIONS_EXT_LEN); options_ext[TEXT2CHAT][OPTIONS_EXT_LEN] = EOS;
 	option_flags[TIERORDER] = F_OPTION+RE_OPTION+P_OPTION+Y_OPTION+FR_OPTION+L_OPTION;
@@ -8812,14 +8937,16 @@ static char getxrange(const char *f) {
 	for (t=f; *t; t++) {
 		if (*t != 'm' && *t != 'w' && *t != 'c' && *t != 'M' && *t != 'W' && *t != 'C' && !isdigit(*t)) {
 			fprintf(stderr,"Illegal character '%c' found in +x%c option\n", *t, filterUttLen_cmp);
-			fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+//			fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+			fprintf(stderr,"\tw - words or c - characters.\n");
 			fprintf(stderr,"\tFor example: +x%c2w\n", filterUttLen_cmp);
 			return(FALSE);
 		}
 	}
 	if (*f == EOS) {
 		fprintf(stderr,"Please specify count type after +x%c option along with a number\n", filterUttLen_cmp);
-		fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+//		fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+		fprintf(stderr,"\tw - words or c - characters.\n");
 		fprintf(stderr,"\tFor example: +x%c2w\n", filterUttLen_cmp);
 		return(FALSE);
 	}
@@ -8849,13 +8976,15 @@ static char getxrange(const char *f) {
 		}
 		if (CntFUttLen == 0 && CLAN_PROG_NUM != MAXWD) {
 			fprintf(stderr,"Please specify count type after +x%c option along with a number\n", filterUttLen_cmp);
-			fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+//			fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+			fprintf(stderr,"\tw - words or c - characters.\n");
 			fprintf(stderr,"\tFor example: +x%c2w\n", filterUttLen_cmp);
 			return(FALSE);
 		}
 	} else if (filterUttLen == 0L) {
 		fprintf(stderr,"Please specify count type after +x%c option along with a number\n", filterUttLen_cmp);
-		fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+//		fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+		fprintf(stderr,"\tw - words or c - characters.\n");
 		fprintf(stderr,"\tFor example: +x%c2w\n", filterUttLen_cmp);
 		return(FALSE);
 	}
@@ -8914,6 +9043,10 @@ char *mainflgs() {
 			strcat(templineC,"sS ");
 		} else if (CLAN_PROG_NUM == SILENCE_P) {
 			strcat(templineC,"sS  s@F ");
+#ifdef _MAC_CODE
+		} else if (CLAN_PROG_NUM == SLICE_P) {
+			strcat(templineC,"sS  s@F ");
+#endif
 		} else if (CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD || CLAN_PROG_NUM == C_NNLA ||
 				   CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR) {
 			strcat(templineC,"sS ");
@@ -8965,7 +9098,7 @@ void mainusage(char isQuit) {
 			puts("+d8: outputs words and frequencies of cross tabulation of one dependent tier with another");
 		} else if (CLAN_PROG_NUM == GEM) {
 			puts("+d : outputs legal CHAT format");
-			puts("+d1: outputs legal CHAT format plus file names, line numbers, and @ID codes");
+			puts("+d1: outputs legal CHAT format plus @Media, @ID headers and file names with line numbers");
 			puts("+d2: outputs only selected @Bg and @Eg header tiers without any nested header tiers (if present) ");
 		} else if (CLAN_PROG_NUM == GEMLIST) {
 			puts("+d : only the data between @Bg and @Eg is displayed");
@@ -8989,10 +9122,11 @@ void mainusage(char isQuit) {
 		} else if (CLAN_PROG_NUM == MLT) {
 			puts("+d : output in SPREADSHEET format. Must include speaker specifications");
 			puts("+d1: output data ONLY.");
-		} else if (CLAN_PROG_NUM == MLU) {
+		} else if (CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLUMOR) {
 			puts("+d : output in SPREADSHEET format. Must include speaker specifications");
 			puts("+d1: output data ONLY.");
 			puts("+d2: output in SPREADSHEET format each utterance and number of morphemes in it");
+			puts("+d3: debug - list every word with number of morphemes in it");
 		} else if (CLAN_PROG_NUM == PHONFREQ) {
 			puts("+d : actual words matched will be written to the output");
 		} else if (CLAN_PROG_NUM == VOCD) {
@@ -9063,9 +9197,9 @@ void mainusage(char isQuit) {
 #endif // defined(_MAC_CODE) || defined(_WIN32) || defined(UNX)
 	if (option_flags[CLAN_PROG_NUM] & SP_OPTION) {
 		if (CLAN_PROG_NUM == MOR_P || CLAN_PROG_NUM == POSTMORTEM || CLAN_PROG_NUM == MEGRASP) {
-			puts("+sS: select language to analyze with \"[- ...]\" precode.");
+			puts("+sS: select language to analyze with \"[- ...]\" precode");
 		} else if (CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == KIDEVAL) {
-			puts("+sS: select utterance to analyze with \"[+ ...]\" postcode or \"[- ...]\" precode.");
+			puts("+sS: select utterance to analyze with \"[+ ...]\" postcode or \"[- ...]\" precode");
 		} else if (CLAN_PROG_NUM == DSS) {
 			puts("+sS: to override default function of [+ dss] or [+ dsse] postcode");
 		} else if (CLAN_PROG_NUM == GEM || CLAN_PROG_NUM == GEMFREQ) {
@@ -9077,51 +9211,60 @@ void mainusage(char isQuit) {
 			puts("+sS: search for word S in an input file.");
 #if defined(CLAN_SRV)
 			puts("    \"&lt;...&gt;\" for data associated with code [...], \"[...]\" for code itself");
+			puts("    \"&lt;\\\\*&gt;\" for data associated with any code [...], \"[\\\\*]\" for any code itself");
 			puts("    \"[+ ...]\" for data tier with postcode on it, \"&lt;+ ...&gt;\" for postcode itself");
 			puts("    to find fillers \"&amp;um\", but not Simple Events \"&amp;=eats\": +s&amp;* -s&amp;=*");
 #else
 			puts("    \"<...>\" for data associated with code [...], \"[...]\" for code itself");
+			puts("    \"<\\\\*>\" for data associated with any code [...], \"[\\\\*]\" for any code itself");
 			puts("    \"[+ ...]\" for data tier with postcode on it, \"<+ ...>\" for postcode itself");
 			puts("    to find fillers \"&um\", but not Simple Events \"&=eats\": +s&* -s&=*");
 #endif
 			puts("    to find word sequences use space character to separate words, For example: +s\"in the tree\"");
-			puts("+s@F: search for words or morphological markers or grammatical relations specified in file F.");
+			puts("+s@F: search for words or morphological markers or grammatical relations specified in file F");
 			if (CLAN_PROG_NUM == FREQ) {
-				puts("    for example: to count number of *PAR: speaker utterances and to create SPREADSHEET use options:");
-				puts("        +s\\*PAR: +d2");
-				puts("    if you want result for file that does not have any speakers use options:");
-				puts("        +s\\*PAR: +d2 +d5");
+				puts("    to count number of speaker utterances and to create SPREADSHEET use options:");
+				puts("        +s\\* +d2");
+				puts("    to count number of speaker utterances, even if number is zero:");
+				puts("    create file \"i.cut\" with a list of speakers codes, then use options:");
+				puts("        +s@i.cut +d2 +d5");
 			}
-			if (CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLT) {
-				puts("+sxxx: to include utterances that contain \"xxx\" in the count.");
-				puts("+syyy: to include utterances that contain \"xxx\" in the count.");
+			if (CLAN_PROG_NUM == MLUMOR || CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLT) {
+				puts("+sxxx: to include utterances that contain \"xxx\" in the count");
+				puts("+syyy: to include utterances that contain \"xxx\" in the count");
 			}
-			if (CLAN_PROG_NUM != SILENCE_P) {
+			if (CLAN_PROG_NUM != SILENCE_P
+#ifdef _MAC_CODE
+				&& CLAN_PROG_NUM != SLICE_P) {
+#else
+											) {
+#endif
 				puts("+sgS: search for grammatical relations S on \"%gra:\" tier in an input file");
 				puts("     freq +sg: for more information.");
-				puts("+smS: search for morphological markers S on \"%mor:\" tier in an input file.");
+				puts("+smS: search for morphological markers S on \"%mor:\" tier in an input file");
 				puts("     freq +sm: for more information.");
 			}
 		}
 	}
 	if (option_flags[CLAN_PROG_NUM] & SM_OPTION) {
 		if (CLAN_PROG_NUM == MOR_P || CLAN_PROG_NUM == POSTMORTEM || CLAN_PROG_NUM == MEGRASP) {
-			puts("-sS: select language to exclude from analyze with \"[- ...]\" precode.");
+			puts("-sS: select language to exclude from analyze with \"[- ...]\" precode");
 		} else if (CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == KIDEVAL) {
-			puts("-sS: select utterance to exclude from analyze with \"[+ ...]\" postcode  or \"[- ...]\" precode.");
+			puts("-sS: select utterance to exclude from analyze with \"[+ ...]\" postcode  or \"[- ...]\" precode");
 		} else if (CLAN_PROG_NUM == DSS) {
 			puts("-sS: exclude utterance from analyze with \"[+ ...]\" postcode.");
 		} else if (CLAN_PROG_NUM == GEM || CLAN_PROG_NUM == GEMFREQ) {
 			puts("-sS: select gems which are NOT labeled by either label S or labels in file @S");
 		} else if (CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD ||
 				   CLAN_PROG_NUM == SUGAR) {
-			puts("-sS: do not select utterance to analyze with \"[+ ...]\" postcode.");
+			puts("+sS: select language to analyze with \"[- ...]\" precode");
+//			puts("-sS: do not select utterance to analyze with \"[+ ...]\" postcode.");
 			puts("-sS: -sm@* - exclude target replaced words, -sm** - exclude error words");
 		} else {
 			puts("-sS: exclude word S from an input file.");
-			puts("-s@F: exclude words or morphological markers or grammatical relations in file F from an input file.");
+			puts("-s@F: exclude words or morphological markers or grammatical relations in file F from an input file");
 			puts("-sgS: exclude grammatical relations S on \"%gra:\" tier from an input file, (\"freq -sg\" for more info)");
-			puts("-smS: exclude morphological markers S on \"%mor:\" tier from an input file (\"freq -sm\" for more info).");
+			puts("-smS: exclude morphological markers S on \"%mor:\" tier from an input file (\"freq -sm\" for more info)");
 		}
 	}
 	if (option_flags[CLAN_PROG_NUM] & T_OPTION) {
@@ -9138,7 +9281,7 @@ void mainusage(char isQuit) {
 			if (CLAN_PROG_NUM == QUOTES || CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD ||
 				CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CORELEX ||
 				CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == KIDEVAL || CLAN_PROG_NUM == TIMEDUR ||
-				CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == CODES_P)
+				CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == FLUPOS || CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == CODES_P)
 				puts("+u : send output to just one output file.");
 			else
 				puts("+u : merge all specified files together.");
@@ -9152,7 +9295,8 @@ void mainusage(char isQuit) {
 	}
 	if (option_flags[CLAN_PROG_NUM] & Z_OPTION) {
 		puts("+xCN: include only utterances which are C (>, <, =) than N items (w, c, m), \"+x=0w\" for zero words");
-		puts("\tw - words, c - characters or m - morphemes");
+//		fprintf(stderr,"\tw - words, c - characters or m - morphemes.\n");
+		fprintf(stderr,"\tw - words or c - characters.\n");
 		puts("+xS: specify items to include in +xCN: count (Example: +xxxx +xyyy)");
 		puts("-xS: specify items to exclude from +xCN: count");
 	}
@@ -9289,7 +9433,7 @@ void maingetflag(char *f, char *f1, int *i) { /* sets up options */
 			if (onlydata == 1)
 				puredata = 0;
 		} else if (CLAN_PROG_NUM == MLT) {
-		} else if (CLAN_PROG_NUM == MLU) {
+		} else if (CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLUMOR) {
 		} else if (CLAN_PROG_NUM == PHONFREQ) {
 			puredata = 0;
 		} else if (CLAN_PROG_NUM == VOCD) {
@@ -9599,7 +9743,7 @@ void maingetflag(char *f, char *f1, int *i) { /* sets up options */
 			}
 		}
 		GlobalPunctuation[j] = EOS;
-		punctuation = GlobalPunctuation;
+		cutt_punctuation = GlobalPunctuation;
 //2011-01-26		uS.str2FNType(punctFile, 0L, getfarg(f,f1,i));
 	} else if (*f == 'y' && option_flags[CLAN_PROG_NUM] & Y_OPTION) {
 		f++;
@@ -10390,15 +10534,209 @@ char cutt_SetNewFont(const char *st, char ec) {
 	return(FALSE);
 }
 
+// UD begin 2024-02-16 beg
+#define UDFEATSFILE "UD_features.cut"
+static UDFEATS *free_UDs(UDFEATS *p) {
+	UDFEATS *t;
+
+	while (p != NULL) {
+		t = p;
+		p = p->nextUD;
+		if (t->name != NULL)
+			free(t->name);
+		free(t);
+	}
+	return(NULL);
+}
+
+void cleanupUDs(void) {
+	UD_feats = free_UDs(UD_feats);
+}
+
+char ReadUDsFile(char isCED) {
+	FILE *fp;
+	FNType mFileName[FNSize];
+	char buf[BUFSIZ], *morph;
+	UDFEATS *pt;
+
+	UD_feats = NULL;
+	if (CLAN_PROG_NUM != CHECK_P)
+		return(TRUE);
+#if defined(CLAN_SRV)
+	return(TRUE);
+#endif
+	if ((fp=OpenGenLib(UDFEATSFILE,"r",TRUE,TRUE,mFileName)) == NULL) {
+		if (!isCED) {
+			fprintf(stderr, "Can't open either one of the UD features codes list files:\n  \"%s\", \"%s\"\n", UDFEATSFILE, mFileName);
+			fprintf(stderr, "Check to see if lib directory is set correctly. It is located next to CLAN application.\n");
+#ifdef _MAC_CODE
+//			fprintf(stderr, "\n   Lib directory can be set in \"Commands\" window with \"lib\" button to\n");
+//			fprintf(stderr, "   \"/Applications/CLAN/lib\" directory, for example.\n");
+#endif
+#ifdef _WIN32
+			fprintf(stderr, "\n   Lib directory can be set in \"Commands\" window with \"lib\" button to\n");
+			fprintf(stderr, "   \"C:\\TalkBank\\CLAN\\lib\\\" directory, for example.\n");
+#endif
+			cutt_exit(0);
+		} else
+			return(FALSE);
+	}
+	if (!isCED) {
+#ifndef UNX
+		if (WD_Not_Eq_OD)
+			SetNewVol(od_dir);
+#endif
+		fprintf(stderr, "  UD features file being used: \"%s\"\n", mFileName);
+	}
+
+	while (fgets_cr(buf, BUFSIZ, fp)) {
+		if (uS.isUTF8(buf) || uS.isInvisibleHeader(buf) || buf[0] == '#' || buf[0] == '%')
+			continue;
+		uS.remFrontAndBackBlanks(buf);
+		if (*buf != EOS) {
+			if ((pt=NEW(UDFEATS)) == NULL) {
+				fclose(fp);
+				cleanupUDs();
+				out_of_mem();
+				return(FALSE);
+			}
+			morph = strchr(buf, ' ');
+			if (morph == NULL) {
+				morph = strchr(buf, '\t');
+			}
+			if (morph != NULL) {
+				*morph = EOS;
+				for (morph++; isSpace(*morph); morph++);
+			}
+			pt->nextUD = UD_feats;
+			pt->name = NULL;
+			if (morph != NULL) {
+				if (*morph == '1' || *morph == 'T' || *morph == 't')
+					pt->ismorph = TRUE;
+				else
+					pt->ismorph = FALSE;
+			} else
+				pt->ismorph = FALSE;
+			UD_feats = pt;
+			UD_feats->name = (char *)malloc(strlen(buf)+1);
+			if (UD_feats->name == NULL) {
+				fclose(fp);
+				cleanupUDs();
+				out_of_mem();
+				return(FALSE);
+			} else
+				strcpy(UD_feats->name, buf);
+		}
+	}
+
+	fclose(fp);
+	return(TRUE);
+}
+
+char isUDsCode(char *name, char *isCheckJoint) {
+	int len;
+	int oi;
+	UDFEATS *pt;
+	UDFEATS *tpt;
+
+#if defined(CLAN_SRV)
+	return(TRUE);
+#endif
+	if (name[0] == EOS)
+		return(FALSE);
+	for (pt=UD_feats; pt != NULL; pt=pt->nextUD) {
+		len = strlen(pt->name);
+		if (uS.mStrnicmp(name+1, pt->name, len) == 0) {
+			len++;
+			if (name[len] == '-' || name[len] == '&' || name[len] == '~' || name[len] == '\n' || isSpace(name[len]) || name[len] == EOS)
+				return(TRUE);
+			else if (isCheckJoint) {
+				oi = len;
+				for (tpt=UD_feats; tpt != NULL; tpt=tpt->nextUD) {
+					len = strlen(tpt->name);
+					if (strncmp(name+oi, tpt->name, len) == 0) {
+						if (name[oi+len] == '-' || name[oi+len] == '&' || name[oi+len] == '~' || name[oi+len] == '\n' ||
+							isSpace(name[oi+len]) || name[oi+len] == EOS)
+							return(TRUE);
+					}
+				}
+			}
+
+		}
+	}
+	return(FALSE);
+}
+
+float countMorphs(char *uttline, int pos) {
+	int oPos;
+	char isNP, isPlur, isPast, isIrr, isPart, isPres, isAux, isTildAux, isTildPartS, isTildPartNot;
+	float morphCnt;
+
+	if (uttline[pos] == '0' && uttline[pos+1] == EOS)
+		return(0.0);
+	oPos = pos;
+	isNP= isPlur= isPast= isIrr= isPart= isPres= isAux= isTildAux= isTildPartS= isTildPartNot = FALSE;
+	morphCnt = 1.0;
+	while (uttline[pos] != EOS && uttline[pos] != '^') {
+		if (strncmp(uttline+pos, "-Plur", 5) == 0 || strncmp(uttline+pos, "-PL", 3) == 0)
+			isPlur = TRUE;
+		else if (strncmp(uttline+pos, "-Past", 5) == 0 || strncmp(uttline+pos, "-PAST", 5) == 0)
+			isPast = TRUE;
+		else if (strncmp(uttline+pos, "-Irr", 4) == 0)
+			isIrr = TRUE;
+		else if (strncmp(uttline+pos, "-Part", 5) == 0)
+			isPart = TRUE;
+		else if (strncmp(uttline+pos, "-Pres", 5) == 0)
+			isPres = TRUE;
+		else if (strncmp(uttline+pos, "-PRESP", 6) == 0) {
+			isPart = TRUE;
+			isPres = TRUE;
+		} else if (strncmp(uttline+pos, "~part|s", 7) == 0 || strncmp(uttline+pos, "-POSS", 5) == 0)
+			isTildPartS = TRUE;
+		else if (strncmp(uttline+pos, "-PRESP", 6) == 0)
+			isTildPartS = TRUE;
+		else if (strncmp(uttline+pos, "~part|not", 9) == 0 || strncmp(uttline+pos, "~neg|not", 8) == 0)
+			isTildPartNot = TRUE;
+		else if (strncmp(uttline+pos, "~aux|", 5) == 0)
+			isTildAux = TRUE;
+		else if (oPos == pos) {
+			if (strncmp(uttline+pos, "aux|", 4) == 0 || strncmp(uttline+pos, "mod|", 4) == 0)
+				isAux = TRUE;
+			else if (strncmp(uttline+pos, "noun|", 5) == 0 || strncmp(uttline+pos, "pron|", 5) == 0 ||
+					 strncmp(uttline+pos, "n|", 2) == 0 || strncmp(uttline+pos, "pro:", 4) == 0)
+				isNP = TRUE;
+		}
+		pos++;
+	}
+	
+	if (isTildPartS == TRUE && isPlur == TRUE)
+		morphCnt++;
+	else if (isTildPartS == TRUE && isPlur == FALSE)
+		morphCnt++;
+	else if (isPlur == TRUE)
+		morphCnt++;
+	else if (isPast == TRUE && isIrr == FALSE)
+		morphCnt++;
+	else if (isPart == TRUE && isPres == TRUE)
+		morphCnt++;
+	else if (isAux == TRUE && isTildPartNot == TRUE)
+		morphCnt++;
+	else if (isNP == TRUE && isTildAux == TRUE)
+		morphCnt++;
+	return(morphCnt);
+}
+
+// UD end 2024-02-16
+
 // Languages begin
 #define LANGSFILE "ISO-639.cut"
 void initLanguages(void) {
 	langs_list = NULL;
 }
 
-static LANGSTABLE *free_langs(LANGSTABLE *p) {
+static LANGSLIST *free_langs(LANGSLIST *p) {
 	int i;
-	LANGSTABLE *t;
+	LANGSLIST *t;
 
 	while (p != NULL) {
 		t = p;
@@ -10421,14 +10759,14 @@ void cleanupLanguages(void) {
 static void createLanguageTable(FILE *fp) {
 	int  i, len;
 	char *bg, *eg, buf[BUFSIZ], t, isName;
-	LANGSTABLE *pt;
+	LANGSLIST *pt;
 
 	while (fgets_cr(buf, BUFSIZ, fp)) {
 		if (uS.isUTF8(buf) || uS.isInvisibleHeader(buf) || buf[0] == '#')
 			continue;
 		uS.remFrontAndBackBlanks(buf);
 		if (*buf != EOS) {
-			if ((pt=NEW(LANGSTABLE)) == NULL)
+			if ((pt=NEW(LANGSLIST)) == NULL)
 				return;
 			pt->nextlang = langs_list;
 			for (i=0; i < 4; i++)
@@ -10499,8 +10837,8 @@ char ReadLangsFile(char isCED) {
 			fprintf(stderr, "Can't open either one of the language codes list files:\n  \"%s\", \"%s\"\n", LANGSFILE, mFileName);
 			fprintf(stderr, "Check to see if lib directory is set correctly. It is located next to CLAN application.\n");
 #ifdef _MAC_CODE
-			fprintf(stderr, "\n   Lib directory can be set in \"Commands\" window with \"lib\" button to\n");
-			fprintf(stderr, "   \"/Applications/CLAN/lib\" directory, for example.\n");
+//			fprintf(stderr, "\n   Lib directory can be set in \"Commands\" window with \"lib\" button to\n");
+//			fprintf(stderr, "   \"/Applications/CLAN/lib\" directory, for example.\n");
 #endif
 #ifdef _WIN32
 			fprintf(stderr, "\n   Lib directory can be set in \"Commands\" window with \"lib\" button to\n");
@@ -10525,7 +10863,7 @@ char ReadLangsFile(char isCED) {
 char getLanguageCodeAndName(char *code, char isReplace, char *name) {
 	int i, lastBest;
 	char found;
-	LANGSTABLE *pt;
+	LANGSLIST *pt;
 
 /*
 	if (strncmp(code, "sgn-", 4) == 0) {
@@ -11902,7 +12240,7 @@ static void checkSearchTiers(void) {
 */
 static int work(char *argv[], int argc, FNType *fname) {
 	FNType *showFName;
-	char isUTF8SymFound;
+	char isUTF8SymFound, *ext;
 	UInt32 dateValue = 0L;
 	FNType tempfName[FNSize], *f;
 #ifdef _MAC_CODE
@@ -11950,9 +12288,11 @@ static int work(char *argv[], int argc, FNType *fname) {
 	else if (CLAN_PROG_NUM == QUOTES || CLAN_PROG_NUM == VOCD || CLAN_PROG_NUM == EVAL || CLAN_PROG_NUM == EVALD ||
 			 CLAN_PROG_NUM == MORTABLE || CLAN_PROG_NUM == CODES_P ||
 			 CLAN_PROG_NUM == COMBO || CLAN_PROG_NUM == SCRIPT_P || CLAN_PROG_NUM == KIDEVAL ||
-			 CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == CORELEX || CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == C_NNLA ||
-			 CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR ||
-			 (CLAN_PROG_NUM == MLT && onlydata == 1) || (CLAN_PROG_NUM == MLU && onlydata == 1))
+			 CLAN_PROG_NUM == TIMEDUR || CLAN_PROG_NUM == CORELEX || CLAN_PROG_NUM == FLUCALC || CLAN_PROG_NUM == FLUPOS ||
+			 CLAN_PROG_NUM == C_NNLA || CLAN_PROG_NUM == C_QPA || CLAN_PROG_NUM == SUGAR ||
+			 (CLAN_PROG_NUM == MLT && onlydata == 1) ||
+			 (CLAN_PROG_NUM == MLU && onlydata == 1) || 
+			 (CLAN_PROG_NUM == MLUMOR && onlydata == 1))
 		WUCounter = 0L;
 	if (lineno > -1L) {
 		tlineno = 1L;
@@ -12080,7 +12420,8 @@ static int work(char *argv[], int argc, FNType *fname) {
 					fprintf(fpout, "############### TURN BREAK ###############\n");
 			} while (1) ;
 		} else {
-			if (CLAN_PROG_NUM != POST && CLAN_PROG_NUM != CMDI_P && CLAN_PROG_NUM != RELY && CLAN_PROG_NUM != CHECK_P) { // 2017-04-11
+			if (CLAN_PROG_NUM != POST && CLAN_PROG_NUM != PID_P &&
+				CLAN_PROG_NUM != RELY && CLAN_PROG_NUM != CHECK_P) { // 2017-04-11
 #if defined(CLAN_SRV)
 				if (CLAN_PROG_NUM != FREQ && CLAN_PROG_NUM != KWAL) {
 					int  len;
@@ -12105,7 +12446,7 @@ static int work(char *argv[], int argc, FNType *fname) {
 #else // CLAN_SRV
 				if (!stin_override) {
 					if (CLAN_PROG_NUM != C_NNLA && CLAN_PROG_NUM != C_QPA && CLAN_PROG_NUM != EVAL && CLAN_PROG_NUM != EVALD &&
-						CLAN_PROG_NUM != KIDEVAL && CLAN_PROG_NUM != FLUCALC && CLAN_PROG_NUM != SUGAR) {
+						CLAN_PROG_NUM != KIDEVAL && CLAN_PROG_NUM != FLUCALC && CLAN_PROG_NUM != FLUPOS && CLAN_PROG_NUM != SUGAR) {
 						fprintf(stderr,"From file <%s>\n",fname);
 					}
 				} else
@@ -12152,6 +12493,8 @@ static int work(char *argv[], int argc, FNType *fname) {
 //			if (FirstTime || !combinput)
 //				getpunct(punctFile);
 			if (!combinput && replaceFile) {
+//				ext = strrchr(newfname, '.');
+				ext = NULL;
 				if (WD_Not_Eq_OD) {
 					f = strrchr(fname, PATHDELIMCHR);
 					if (f == NULL) {
@@ -12161,9 +12504,15 @@ static int work(char *argv[], int argc, FNType *fname) {
 						strcpy(tempfName, od_dir);
 						addFilename2Path(tempfName, f);
 					}
-					showFName = tempfName;
-				} else
+					if (ext == NULL || uS.mStricmp(ext, ".cex") == 0)
+						showFName = tempfName;
+					else
+						showFName = newfname;
+				} else if (ext == NULL || uS.mStricmp(ext, ".cex") == 0) {
 					showFName = fname;
+				} else {
+					showFName = newfname;
+				}
 			} else {
 				showFName = newfname;
 			}
@@ -12307,15 +12656,16 @@ static int work(char *argv[], int argc, FNType *fname) {
 						fprintf(stderr,"Output file <%s>\n",showFName);
 				}
 			} else {
-				if (CLAN_PROG_NUM != CHECK_P) { // 2017-04-11
+				if (CLAN_PROG_NUM != CHECK_P && CLAN_PROG_NUM != NUM2WORD) { // 2017-04-11 // 2024-08-29
 					if ((!onlydata || !puredata) && !outputOnlyData) {
 						if (!stin_override)
 							fprintf(fpout,"From file <%s>\n",fname);
 						else
 							fprintf(fpout,"From file \"%s\"\n",fname);
 					}
-					if (CLAN_PROG_NUM != RELY && CLAN_PROG_NUM != C_NNLA && CLAN_PROG_NUM != C_QPA && CLAN_PROG_NUM != EVAL &&
-						CLAN_PROG_NUM != EVALD && CLAN_PROG_NUM != KIDEVAL && CLAN_PROG_NUM != FLUCALC && CLAN_PROG_NUM != SUGAR)
+					if (CLAN_PROG_NUM != RELY && CLAN_PROG_NUM != C_NNLA && CLAN_PROG_NUM != C_QPA &&CLAN_PROG_NUM != EVAL &&
+						CLAN_PROG_NUM != EVALD && CLAN_PROG_NUM != KIDEVAL && CLAN_PROG_NUM != FLUCALC &&  CLAN_PROG_NUM != FLUPOS &&
+						CLAN_PROG_NUM != SUGAR)
 						fprintf(stderr,"From file <%s>\n",fname);
 				}
 				do {
@@ -12329,10 +12679,9 @@ static int work(char *argv[], int argc, FNType *fname) {
 					if (CLAN_PROG_NUM != CHECK_P) // 2017-04-11
 						fprintf(fpout, "############### TURN BREAK ###############\n");
 				} while (1) ;
-				if (!combinput && CLAN_PROG_NUM != RELY && CLAN_PROG_NUM != CHECK_P) { // 2017-04-11
+				if (!combinput && CLAN_PROG_NUM != RELY && CLAN_PROG_NUM != CHECK_P && CLAN_PROG_NUM != NUM2WORD) { // 2017-04-11
 					if (!stin_override) {
-// lxs 2019-03-15						if (!isRecursive || (CLAN_PROG_NUM != MOR_P && CLAN_PROG_NUM != POST && CLAN_PROG_NUM != POSTMORTEM && CLAN_PROG_NUM != MEGRASP))
-							fprintf(stderr,"Output file <%s>\n",showFName);
+						fprintf(stderr,"Output file <%s>\n",showFName);
 					} else
 						fprintf(stderr,"Output file \"%s\"\n",showFName);
 				}
@@ -12370,25 +12719,29 @@ static int work(char *argv[], int argc, FNType *fname) {
 							}
 							return(2);
 						}
+//						ext = strrchr(newfname, '.');
+						ext = NULL;
+						if (ext == NULL || uS.mStricmp(ext, ".cex") == 0) {
 #ifndef UNX
-						if (rename_each_file(newfname, fname, FALSE) == -1) {
-							sprintf(templineC3, "Can't rename original file \"%s\". Perhaps it is opened by some application.", fname);
-							do_warning(templineC3, 0);
-							if (IDField != NULL || CODEField != NULL || SPRole != NULL) {
-								CleanUpTempIDSpeakers();
+							if (rename_each_file(newfname, fname, FALSE) == -1) {
+								sprintf(templineC3, "Can't rename original file \"%s\". Perhaps it is opened by some application.", fname);
+								do_warning(templineC3, 0);
+								if (IDField != NULL || CODEField != NULL || SPRole != NULL) {
+									CleanUpTempIDSpeakers();
+								}
+								return(2);
 							}
-							return(2);
-						}
 #else
-						rename(newfname, fname);
+							rename(newfname, fname);
 #endif
-						if (PreserveFileTypes) {
+							if (PreserveFileTypes) {
 #ifdef _MAC_CODE
-							settyp(fname, the_file_type.out, the_file_creator.out, TRUE);
+								settyp(fname, the_file_type.out, the_file_creator.out, TRUE);
 #endif
 #ifndef UNX
-							setFileDate(fname,dateValue);
+								setFileDate(fname,dateValue);
 #endif
+							}
 						}
 					} else { //	if (!WD_Not_Eq_OD)
 						if (!access(tempfName, 0)) {
@@ -12405,25 +12758,29 @@ static int work(char *argv[], int argc, FNType *fname) {
 								return(2);
 							}
 						}
+//						ext = strrchr(newfname, '.');
+						ext = NULL;
+						if (ext == NULL || uS.mStricmp(ext, ".cex") == 0) {
 #ifndef UNX
-						if (rename_each_file(newfname, tempfName, FALSE) == -1) {
-							sprintf(templineC3, "Can't rename original file \"%s\". Perhaps it is opened by some application.", tempfName);
-							do_warning(templineC3, 0);
-							if (IDField != NULL || CODEField != NULL || SPRole != NULL) {
-								CleanUpTempIDSpeakers();
+							if (rename_each_file(newfname, tempfName, FALSE) == -1) {
+								sprintf(templineC3, "Can't rename original file \"%s\". Perhaps it is opened by some application.", tempfName);
+								do_warning(templineC3, 0);
+								if (IDField != NULL || CODEField != NULL || SPRole != NULL) {
+									CleanUpTempIDSpeakers();
+								}
+								return(2);
 							}
-							return(2);
-						}
 #else
-						rename(tempfName, newfname);
+							rename(tempfName, newfname);
 #endif
-						if (PreserveFileTypes) {
+							if (PreserveFileTypes) {
 #ifdef _MAC_CODE
-							settyp(tempfName, the_file_type.out, the_file_creator.out, TRUE);
+								settyp(tempfName, the_file_type.out, the_file_creator.out, TRUE);
 #endif
 #ifndef UNX
-							setFileDate(tempfName,dateValue);
+								setFileDate(tempfName,dateValue);
 #endif
+							}
 						}
 					}
 				} else if (PreserveFileTypes) {
@@ -13102,14 +13459,55 @@ char bmain(int argc, char *argv[], void (*pr_result)(void)) {
 		getcwd(wd_dir, FNSize);
 	strcpy(od_dir, wd_dir);
   #if defined(CLAN_SRV)
-//	getcwd(FileName1, FNSize);
 	strcpy(lib_dir, "/var/lib/unixclan/lib/"); // strcpy(lib_dir, FileName1);
-//	addFilename2Path(lib_dir, "lib/");
 	strcpy(mor_lib_dir, lib_dir);
   #else
 	strcpy(lib_dir, DEPDIR);
-	strcpy(mor_lib_dir, DEPDIR);
+	strcpy(mor_lib_dir, lib_dir);
   #endif
+
+// 2024-04-15 beg
+	FILE *in;
+	char buff[BUFSIZ], *s, *app_path;
+	pid_t procpid = getpid();
+	sprintf(buff, "lsof -p %d", procpid);
+	if ((in=popen(buff, "r")) != NULL) {
+		while (fgets(buff, BUFSIZ, in)) {
+			for (s=buff; !isSpace(*s) && *s != EOS; s++) ;
+			for (; isSpace(*s); s++) ;
+			for (; !isSpace(*s) && *s != EOS; s++) ;
+			for (; isSpace(*s); s++) ;
+			for (; !isSpace(*s) && *s != EOS; s++) ;
+			for (; isSpace(*s); s++) ;
+			if (!uS.mStrnicmp(s, "txt ", 4) || !uS.mStrnicmp(s, "txt\t", 4)) {
+				app_path = strchr(s, '/');
+				if (app_path != NULL) {
+					s = strrchr(app_path, '/');
+					if (s != NULL) {
+						*s = EOS;
+						s = strrchr(app_path, '/');
+						if (s != NULL) {
+							*s = EOS;
+							s = strrchr(app_path, '/');
+							if (s != NULL) {
+								*s = EOS;
+								strcat(app_path, "/lib");
+								if (access(app_path, 0) == 0) {
+									strcpy(lib_dir, app_path);
+									strcpy(mor_lib_dir, lib_dir);
+//fprintf(stdout, "lib_dir=%s\n", lib_dir);
+								}
+							}
+						}
+					}
+				}
+				break;
+			}
+		}
+		pclose(in);
+	}
+// 2024-04-15 end
+
 #endif
 	targs = (char *) malloc(argc);
 	if (targs == NULL)
@@ -13185,6 +13583,7 @@ char bmain(int argc, char *argv[], void (*pr_result)(void)) {
 		usage();
 	}
 /* this MUST follow the mmaininit function call but preceed user args check */
+	ReadUDsFile(FALSE);
 	init('\001');
 
 	strcpy(GExt,options_ext[CLAN_PROG_NUM]);
@@ -13255,6 +13654,7 @@ char bmain(int argc, char *argv[], void (*pr_result)(void)) {
 		fprintf(stderr,"\t\t+x>0w - select utterances with 1 or more words\n");
 		fprintf(stderr,"\t\t+xword - count only this \"word\"\n");
 		fprintf(stderr,"\t\t-xword - do not count this \"word\"\n");
+		main_cleanup();
 		res = FALSE;
 		return(res);
 	}
@@ -13455,7 +13855,7 @@ isFileFound = TRUE;
 			}
    #endif
 			totalFilesNum = 0; // 2019-04-18 TotalNumFiles
-			if (CLAN_PROG_NUM == CHECK_P && !stin) { // 2019-04-18 TotalNumFiles
+			if ((CLAN_PROG_NUM == CHECK_P || CLAN_PROG_NUM == NUM2WORD) && !stin) { // 2019-04-18 TotalNumFiles
 				args.root_file = NULL;
 				args.path = path;
 				args.argv = argv;
@@ -13528,7 +13928,7 @@ isFileFound = TRUE;
 		if (!stout) {
 			if (pr_result != NULL)
 				(*pr_result)();
-			fprintf(stderr,"Output file <%s>\n",newfname);
+			fprintf(stderr,"Output file <%s>\n", newfname);
 			fclose(fpout);
 			fpout = NULL;
 		} else
@@ -13556,7 +13956,7 @@ isFileFound = TRUE;
 		}
 		isCRPrinted = FALSE;
 		if (IDField != NULL || CODEField != NULL || SPRole != NULL) {
-			if (CLAN_PROG_NUM != POST && CLAN_PROG_NUM != CMDI_P && CLAN_PROG_NUM != RELY) {
+			if (CLAN_PROG_NUM != POST && CLAN_PROG_NUM != PID_P && CLAN_PROG_NUM != RELY) {
 				struct IDtype *tID;
 				for (tID=IDField; tID != NULL; tID=tID->next_ID) {
 					if (tID->used == FALSE) {
@@ -13607,7 +14007,8 @@ isFileFound = TRUE;
 						fprintf(stderr, "    TIER \"%s\", ASSOCIATED WITH A \"+z OPTION\" SELECTION,\n         HASN'T BEEN FOUND IN THE INPUT DATA!\n", tt->tcode);
 					else
 						fprintf(stderr, "    TIER \"%s\", ASSOCIATED WITH A SELECTED SPEAKER,\n         HASN'T BEEN FOUND IN THE INPUT DATA!\n", tt->tcode);
-					if ((CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == CHIP || CLAN_PROG_NUM == WDLEN) && uS.mStricmp(tt->tcode, "%mor") == 0) {
+					if ((CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLUMOR || CLAN_PROG_NUM == CHIP || CLAN_PROG_NUM == WDLEN) &&
+						uS.mStricmp(tt->tcode, "%mor") == 0) {
 						fprintf(stderr, "ADD -t%%mor TO YOUR COMMAND TO ANALYZE JUST THE MAIN LINE\n");
 					}
 				}
@@ -15045,10 +15446,9 @@ void printout(const char *sp, char *line, AttTYPE *attSp, AttTYPE *attLine, char
 
 void printoutline(FILE *fp, char *line) {
 	register long colnum;
-	char *pos, *tpos, *s, first = TRUE, sb = FALSE, isLineSpace;
+	char *pos, *s, first = TRUE, sb = FALSE, isLineSpace;
 
 	colnum = 0;
-	tpos = line;
 	isLineSpace = *line;
 	while (*line != EOS) {
 		pos = line;
@@ -15096,7 +15496,6 @@ void printoutline(FILE *fp, char *line) {
 			line--;
 			*line = isLineSpace;
 		}
-		tpos = line;
 		while (isSpace(*line) || *line == '\n') {
 			line++;
 		}
@@ -15361,7 +15760,7 @@ int rightrange(char sp, char *tLine, char *uttline) {
 			}
 		}
 	}
-	if (CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLT || CLAN_PROG_NUM == FREQ) {
+	if (CLAN_PROG_NUM == MLUMOR || CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLT || CLAN_PROG_NUM == FREQ) {
 		if ((sp != '*' && !nomain) || (sp == '*' && nomain))
 			return(TRUE);
 	} else if (sp != '*')
@@ -15680,7 +16079,7 @@ int rightUttLen(const char *spO, char *line, char *tLineO, long *cUttLen) {
 	long uttLen;
 	int  pos, eCA;
 
-	if (CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLT || CLAN_PROG_NUM == FREQ) {
+	if (CLAN_PROG_NUM == MLUMOR || CLAN_PROG_NUM == MLU || CLAN_PROG_NUM == MLT || CLAN_PROG_NUM == FREQ) {
 		if ((spO[0] != '*' && !nomain) || (spO[0] != '%' && nomain))
 			return(TRUE);
 	} else
@@ -16206,9 +16605,9 @@ int getmaincode() {
 			strcpy(templineC,lutter->speaker);
 			uS.uppercasestr(templineC, &dFnt, MBF);
 			if (uS.partcmp(templineC,"@ID:",FALSE, TRUE)) {
-				punctuation = PUNCT_ID_SET;
+				cutt_punctuation = PUNCT_ID_SET;
 			} else {
-				punctuation = GlobalPunctuation;
+				cutt_punctuation = GlobalPunctuation;
 			}
 			IsModUttDel = FALSE;
 		} else if (*lutter->speaker == '*') {
@@ -16220,10 +16619,10 @@ int getmaincode() {
 			uS.uppercasestr(templineC, &dFnt, MBF);
 			if (uS.partcmp(templineC,"%PHO:",FALSE, TRUE) || uS.partcmp(templineC,"%MOD:",FALSE, TRUE)) {
 				IsModUttDel = FALSE;
-				punctuation = PUNCT_PHO_MOD_SET;
+				cutt_punctuation = PUNCT_PHO_MOD_SET;
 			} else {
 				IsModUttDel = (chatmode < 3);
-				punctuation = GlobalPunctuation;
+				cutt_punctuation = GlobalPunctuation;
 			}
 		}
 		cutt_getline(lutter->speaker, lutter->line, lutter->attLine, 0);
@@ -16313,9 +16712,9 @@ int getmaincode() {
 					strcpy(templineC,lutter->line+posL);
 					uS.uppercasestr(templineC, &dFnt, MBF);
 					if (uS.partcmp(templineC,"@ID:",FALSE, TRUE)) {
-						punctuation = PUNCT_ID_SET;
+						cutt_punctuation = PUNCT_ID_SET;
 					} else {
-						punctuation = GlobalPunctuation;
+						cutt_punctuation = GlobalPunctuation;
 					}
 					IsModUttDel = FALSE;
 				} else if (lutter->line[posL] == '*')
@@ -16325,10 +16724,10 @@ int getmaincode() {
 					uS.uppercasestr(templineC, &dFnt, MBF);
 					if (uS.partcmp(templineC,"%PHO:",FALSE, TRUE) || uS.partcmp(templineC,"%MOD:",FALSE, TRUE)) {
 						IsModUttDel = FALSE;
-						punctuation = PUNCT_PHO_MOD_SET;
+						cutt_punctuation = PUNCT_PHO_MOD_SET;
 					} else {
 						IsModUttDel = (chatmode < 3);
-						punctuation = GlobalPunctuation;
+						cutt_punctuation = GlobalPunctuation;
 					}
 				}
 				posL += strlen(lutter->line+posL);
@@ -16570,7 +16969,7 @@ int getmaincode() {
 			}
 		}
 	} while (linkDep2Other && !isLinkDep2Other) ;
-	punctuation = GlobalPunctuation;
+	cutt_punctuation = GlobalPunctuation;
 	return(TRUE);
 }
 
@@ -16711,9 +17110,9 @@ int getwholeutter() {
 					}
 				} while (1) ;
 				if (uS.partcmp(templineC,"@ID:",FALSE,FALSE)) {
-					punctuation = PUNCT_ID_SET;
+					cutt_punctuation = PUNCT_ID_SET;
 				} else {
-					punctuation = GlobalPunctuation;
+					cutt_punctuation = GlobalPunctuation;
 				}
 				uttline = utterance->tuttline;
 				if (CntWUT || CntFUttLen) {
@@ -17092,13 +17491,13 @@ int getwholeutter() {
 				uS.uppercasestr(templineC, &dFnt, MBF);
 				if (uS.partcmp(templineC,"@ID:",FALSE,FALSE)) {
 					IsModUttDel = FALSE;
-					punctuation = PUNCT_ID_SET;
+					cutt_punctuation = PUNCT_ID_SET;
 					cutt_getline(utterance->speaker, utterance->line, utterance->attLine, 0);
 					if (uttline != utterance->line)
 						strcpy(uttline,utterance->line);
 				} else if (uS.partcmp(templineC,"%PHO:",FALSE,FALSE) || uS.partcmp(templineC,"%MOD:",FALSE,FALSE)) {
 					IsModUttDel = FALSE;
-					punctuation = PUNCT_PHO_MOD_SET;
+					cutt_punctuation = PUNCT_PHO_MOD_SET;
 					cutt_getline(utterance->speaker, utterance->line, utterance->attLine, 0);
 					if (uS.partwcmp(utterance->line, FONTMARKER))
 						cutt_SetNewFont(utterance->line,']');
@@ -17110,7 +17509,7 @@ int getwholeutter() {
 					}
 				} else {
 					IsModUttDel = ((*templineC != '@') && (chatmode < 3));
-					punctuation = GlobalPunctuation;
+					cutt_punctuation = GlobalPunctuation;
 					cutt_getline(utterance->speaker, utterance->line, utterance->attLine, 0);
 					if (*utterance->speaker == '*') {
 						strcpy(org_spName, utterance->speaker);

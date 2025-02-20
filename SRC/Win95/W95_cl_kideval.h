@@ -48,6 +48,7 @@ public:
 	BOOL	m_SP[TOTAL_SP_NUMBER];
 
 	BOOL	m_ENG;
+	BOOL	m_ENGU;
 	BOOL	m_FRA;
 	BOOL	m_SPA;
 	BOOL	m_JPN;
@@ -75,6 +76,8 @@ public:
 	BOOL	m_LinkAge;
 	BOOL	m_DBEngToyplay;
 	BOOL	m_DBEngNarrative;
+	BOOL	m_DBEngUToyplay;
+	BOOL	m_DBEngUNarrative;
 	BOOL	m_DBZhoToyplay;
 	BOOL	m_DBZhoNarrative;
 	BOOL	m_DBNldToyplay;
@@ -122,6 +125,7 @@ protected:
 	CButton	m_SP_CTRL[TOTAL_SP_NUMBER];
 
 	CButton m_ENG_CTRL;
+	CButton m_ENGU_CTRL;
 	CButton m_FRA_CTRL;
 	CButton m_SPA_CTRL;
 	CButton m_JPN_CTRL;
@@ -146,6 +150,8 @@ protected:
 
 	CButton	m_DBEngToyplay_CTRL;
 	CButton	m_DBEngNarrative_CTRL;
+	CButton	m_DBEngUToyplay_CTRL;
+	CButton	m_DBEngUNarrative_CTRL;
 	CButton	m_DBZhoToyplay_CTRL;
 	CButton	m_DBZhoNarrative_CTRL;
 	CButton	m_DBNldToyplay_CTRL;
@@ -173,6 +179,7 @@ protected:
 	afx_msg void OnSelectSP8();
 
 	afx_msg void OnSelectENG();
+	afx_msg void OnSelectENGU();
 	afx_msg void OnSelectFRA();
 	afx_msg void OnSelectSPA();
 	afx_msg void OnSelectJPN();
@@ -197,6 +204,8 @@ protected:
 
 	afx_msg void OnDBEngToyplay();
 	afx_msg void OnDBEngNarrative();
+	afx_msg void OnDBEngUToyplay();
+	afx_msg void OnDBEngUNarrative();
 	afx_msg void OnDBZhoToyplay();
 	afx_msg void OnDBZhoNarrative();
 	afx_msg void OnDBNldToyplay();

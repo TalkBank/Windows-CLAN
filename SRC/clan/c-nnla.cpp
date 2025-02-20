@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -1340,12 +1340,12 @@ static void c_nnla_process_tier(struct c_nnla_speakers *ts, struct database *db,
 	int i, j, wi;
 	int tscrc, tscrs, taecs, tsntp, tgriv, tgiiv, tvall, tvone, tvtwo, tvthree;
 	char word[1024], graWord[1024];
-	char tmp, isWordsFound, sq, aq, isSkip, *vb;
-	char isPSDFound, curPSDFound, isAmbigFound;
+	char isWordsFound, sq, aq, isSkip, *vb, tchr;
+	char isPSDFound, curPSDFound;
 	char isPvg1Counted, isPvg2Counted, isPvg3Counted;
 	long stime, etime;
 	double tNum;
-	float mluWords, mluUtt;
+	float mluWords, mluUtt, morphCnt;
 	struct IDparts IDTier;
 	MORFEATS word_feats, *feat;
 
@@ -1492,13 +1492,10 @@ static void c_nnla_process_tier(struct c_nnla_speakers *ts, struct database *db,
 					if (uS.isRightChar(uttline, i, '>', &dFnt, MBF)) aq = FALSE;
 			}
 			if (!uS.isskip(uttline,i,&dFnt,MBF) && !sq && !aq) {
-				isAmbigFound = FALSE;
 				isWordsFound = TRUE;
-				tmp = TRUE;
 				mluWords = mluWords + 1;
+//				oPos = i;
 				while (uttline[i]) {
-					if (uttline[i] == '^')
-						isAmbigFound = TRUE;
 					if (uS.isskip(uttline,i,&dFnt,MBF)) {
 						if (uS.IsUtteranceDel(utterance->line, i)) {
 							if (!uS.atUFound(utterance->line, i, &dFnt, MBF))
@@ -1506,21 +1503,15 @@ static void c_nnla_process_tier(struct c_nnla_speakers *ts, struct database *db,
 						} else
 							break;
 					}
-					if (!uS.ismorfchar(uttline, i, &dFnt, rootmorf, MBF) && !isAmbigFound) {
-						if (tmp) {
-							if (uttline[i] != EOS) {
-								if (i >= 2 && uttline[i-1] == '+' && uttline[i-2] == '|')
-									;
-								else {
-//									morf = morf + 1;
-								}
-							}
-							tmp = FALSE;
-						}
-					} else
-						tmp = TRUE;
 					i++;
 				}
+/*
+				tchr = uttline[i];
+				uttline[i] = EOS;
+				morphCnt = countMorphs(uttline, oPos); // uS.ismorfchar
+				morf = morf + morphCnt;
+				uttline[i] = tchr;
+*/
 			}
 			if ((i == 0 || uS.isskip(utterance->line,i-1,&dFnt,MBF)) && utterance->line[i] == '+' && 
 				uS.isRightChar(utterance->line,i+1,',',&dFnt, MBF) && isPSDFound) {

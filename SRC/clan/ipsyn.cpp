@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -2132,6 +2132,29 @@ void call() {
 				}
 				strcpy(ts->cUtt->morLine, utterance->tuttline);
 				isGRA = FALSE;
+			} else if (fDepTierName[0] == '%' && fDepTierName[1] == 'u' && fDepTierName[2] == 'm') {
+				if (uS.partcmp(utterance->speaker,"%ugra:",FALSE,FALSE)) {
+					if (tfp != NULL) {
+						tf = fpout;
+						fpout = tfp;
+						printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
+						fpout = tf;
+					}
+					if (ts->cUtt == NULL) {
+						fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno+tlineno);
+						fprintf(stderr,"INTERNAL ERROR utt == null");
+						ipsyn_overflow();
+						cutt_exit(0);
+					}
+					ts->cUtt->graLine = (char *)malloc(strlen(utterance->tuttline)+1);
+					if (ts->cUtt->graLine == NULL) {
+						fprintf(stderr,"Error: out of memory\n");
+						ipsyn_overflow();
+						cutt_exit(0);
+					}
+					strcpy(ts->cUtt->graLine, utterance->tuttline);
+					isGRA = TRUE;
+				}
 			} else if (uS.partcmp(utterance->speaker,"%gra:",FALSE,FALSE)) {
 				if (tfp != NULL) {
 					tf = fpout;
@@ -3819,20 +3842,20 @@ char init_ipsyn(char first, int limit) {
 			return(FALSE);
 		}
 		if (strcmp(ipsyn_lang, IPSYNNOCOMPUTE) != 0) {
-			tPunctuation = punctuation;
-			strcpy(rulesPunctuation, punctuation);
+			tPunctuation = cutt_punctuation;
+			strcpy(rulesPunctuation, cutt_punctuation);
 			for (i=0; rulesPunctuation[i] != EOS;) {
 				if (rulesPunctuation[i] == ';')
 					strcpy(rulesPunctuation+i,rulesPunctuation+i+1);
 				else
 					i++;
 			}
-			punctuation = rulesPunctuation;
+			cutt_punctuation = rulesPunctuation;
 			if (!read_ipsyn(ipsyn_lang)) {
-				punctuation = tPunctuation;
+				cutt_punctuation = tPunctuation;
 				return(FALSE);
 			}
-			punctuation = tPunctuation;
+			cutt_punctuation = tPunctuation;
 		}
 	}
 	return(TRUE);

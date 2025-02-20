@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -96,6 +96,12 @@ void chip_usage(void);
 void chip_getflag(char *f,char *f1, int *i);
 void chip_init(char c);
 void chip_call(void);
+
+void chiputil_main(int argc, char *argv[]);
+void chiputil_usage(void);
+void chiputil_getflag(char *f,char *f1, int *i);
+void chiputil_init(char c);
+void chiputil_call(void);
 
 void chstring_main(int argc, char *argv[]);
 void chstring_usage(void);
@@ -237,6 +243,12 @@ void flucalc_getflag(char *f,char *f1, int *i);
 void flucalc_init(char c);
 void flucalc_call(void);
 
+void flupos_main(int argc, char *argv[]);
+void flupos_usage(void);
+void flupos_getflag(char *f,char *f1, int *i);
+void flupos_init(char c);
+void flupos_call(void);
+
 void freq_main(int argc, char *argv[]);
 void freq_usage(void);
 void freq_getflag(char *f,char *f1, int *i);
@@ -266,12 +278,6 @@ void gemlist_usage(void);
 void gemlist_getflag(char *f,char *f1, int *i);
 void gemlist_init(char c);
 void gemlist_call(void);
-
-void cmdi_main(int argc, char *argv[]);
-void cmdi_usage(void);
-void cmdi_getflag(char *f,char *f1, int *i);
-void cmdi_init(char c);
-void cmdi_call(void);
 
 void indentoverlap_main(int argc, char *argv[]);
 void indentoverlap_usage(void);
@@ -375,6 +381,12 @@ void mlu_getflag(char *f,char *f1, int *i);
 void mlu_init(char c);
 void mlu_call(void);
 
+void mlumor_main(int argc, char *argv[]);
+void mlumor_usage(void);
+void mlumor_getflag(char *f,char *f1, int *i);
+void mlumor_init(char c);
+void mlumor_call(void);
+
 void modrep_main(int argc, char *argv[]);
 void modrep_usage(void);
 void modrep_getflag(char *f,char *f1, int *i);
@@ -393,11 +405,11 @@ void mortable_getflag(char *f,char *f1, int *i);
 void mortable_init(char c);
 void mortable_call(void);
 
-void olac_main(int argc, char *argv[]);
-void olac_usage(void);
-void olac_getflag(char *f,char *f1, int *i);
-void olac_init(char c);
-void olac_call(void);
+void num2word_main(int argc, char *argv[]);
+void num2word_usage(void);
+void num2word_getflag(char *f,char *f1, int *i);
+void num2word_init(char c);
+void num2word_call(void);
 
 void ort_main(int argc, char *argv[]);
 void ort_usage(void);
@@ -410,6 +422,12 @@ void phonfreq_usage(void);
 void phonfreq_getflag(char *f,char *f1, int *i);
 void phonfreq_init(char c);
 void phonfreq_call(void);
+
+void pid_main(int argc, char *argv[]);
+void pid_usage(void);
+void pid_getflag(char *f,char *f1, int *i);
+void pid_init(char c);
+void pid_call(void);
 
 void postmortem_main(int argc, char *argv[]);
 void postmortem_usage(void);
@@ -489,6 +507,14 @@ void segment_getflag(char *f,char *f1, int *i);
 void segment_init(char c);
 void segment_call(void);
 
+#ifdef _MAC_CODE
+void slice_main(int argc, char *argv[]);
+void slice_usage(void);
+void slice_getflag(char *f,char *f1, int *i);
+void slice_init(char c);
+void slice_call(void);
+#endif
+
 void srt2chat_main(int argc, char *argv[]);
 void srt2chat_usage(void);
 void srt2chat_getflag(char *f,char *f1, int *i);
@@ -500,6 +526,12 @@ void sugar_usage(void);
 void sugar_getflag(char *f,char *f1, int *i);
 void sugar_init(char c);
 void sugar_call(void);
+
+void tang2chat_main(int argc, char *argv[]);
+void tang2chat_usage(void);
+void tang2chat_getflag(char *f,char *f1, int *i);
+void tang2chat_init(char c);
+void tang2chat_call(void);
 
 void text2chat_main(int argc, char *argv[]);
 void text2chat_usage(void);
@@ -676,6 +708,12 @@ void func_init(void) {
 	clan_init[CHIP]			= chip_init;
 	clan_call[CHIP]			= chip_call;
 
+	clan_main[CHIPUTIL]		= chiputil_main;
+	clan_usage[CHIPUTIL] 	= chiputil_usage;
+	clan_getflag[CHIPUTIL]	= chiputil_getflag;
+	clan_init[CHIPUTIL]		= chiputil_init;
+	clan_call[CHIPUTIL]		= chiputil_call;
+
 	clan_main[C_NNLA]		= c_nnla_main;
 	clan_usage[C_NNLA]		= c_nnla_usage;
 	clan_getflag[C_NNLA]	= c_nnla_getflag;
@@ -735,6 +773,12 @@ void func_init(void) {
 	clan_getflag[FLUCALC]	= flucalc_getflag;
 	clan_init[FLUCALC]		= flucalc_init;
 	clan_call[FLUCALC]		= flucalc_call;
+
+	clan_main[FLUPOS]		= flupos_main;
+	clan_usage[FLUPOS] 		= flupos_usage;
+	clan_getflag[FLUPOS]	= flupos_getflag;
+	clan_init[FLUPOS]		= flupos_init;
+	clan_call[FLUPOS]		= flupos_call;
 
 	clan_main[FREQ]			= freq_main;
 	clan_usage[FREQ] 		= freq_usage;
@@ -813,6 +857,12 @@ void func_init(void) {
 	clan_getflag[MLU]		= mlu_getflag;
 	clan_init[MLU]			= mlu_init;
 	clan_call[MLU]			= mlu_call;
+
+	clan_main[MLUMOR]		= mlumor_main;
+	clan_usage[MLUMOR] 		= mlumor_usage;
+	clan_getflag[MLUMOR]	= mlumor_getflag;
+	clan_init[MLUMOR]		= mlumor_init;
+	clan_call[MLUMOR]		= mlumor_call;
 
 	clan_main[MODREP]		= modrep_main;
 	clan_usage[MODREP] 		= modrep_usage;
@@ -1039,12 +1089,6 @@ void func_init(void) {
 	clan_init[FLO]			= flo_init;
 	clan_call[FLO]			= flo_call;
 
-	clan_main[CMDI_P]		= cmdi_main;
-	clan_usage[CMDI_P]		= cmdi_usage;
-	clan_getflag[CMDI_P]	= cmdi_getflag;
-	clan_init[CMDI_P]		= cmdi_init;
-	clan_call[CMDI_P]		= cmdi_call;
-
 	clan_main[INDENT]		= indentoverlap_main;
 	clan_usage[INDENT]		= indentoverlap_usage;
 	clan_getflag[INDENT]	= indentoverlap_getflag;
@@ -1099,17 +1143,23 @@ void func_init(void) {
 	clan_init[MERGE]		= merge_init;
 	clan_call[MERGE]		= merge_call;
 
-	clan_main[OLAC_P]		= olac_main;
-	clan_usage[OLAC_P]		= olac_usage;
-	clan_getflag[OLAC_P]	= olac_getflag;
-	clan_init[OLAC_P]		= olac_init;
-	clan_call[OLAC_P]		= olac_call;
+	clan_main[NUM2WORD]		= num2word_main;
+	clan_usage[NUM2WORD]	= num2word_usage;
+	clan_getflag[NUM2WORD]	= num2word_getflag;
+	clan_init[NUM2WORD]		= num2word_init;
+	clan_call[NUM2WORD]		= num2word_call;
 
 	clan_main[ORT]			= ort_main;
 	clan_usage[ORT] 		= ort_usage;
 	clan_getflag[ORT]		= ort_getflag;
 	clan_init[ORT]			= ort_init;
 	clan_call[ORT]			= ort_call;
+
+	clan_main[PID_P]		= pid_main;
+	clan_usage[PID_P]		= pid_usage;
+	clan_getflag[PID_P]		= pid_getflag;
+	clan_init[PID_P]		= pid_init;
+	clan_call[PID_P]		= pid_call;
 
 	clan_main[PLAY2CHAT]	= play2chat_main;
 	clan_usage[PLAY2CHAT]	= play2chat_usage;
@@ -1159,11 +1209,11 @@ void func_init(void) {
 	clan_init[SALT2CHAT]	= salt2chat_init;
 	clan_call[SALT2CHAT]	= salt2chat_call;
 
-	clan_main[SEGMENT]	= segment_main;
-	clan_usage[SEGMENT]	= segment_usage;
-	clan_getflag[SEGMENT]= segment_getflag;
-	clan_init[SEGMENT]	= segment_init;
-	clan_call[SEGMENT]	= segment_call;
+	clan_main[SEGMENT]		= segment_main;
+	clan_usage[SEGMENT]		= segment_usage;
+	clan_getflag[SEGMENT]	= segment_getflag;
+	clan_init[SEGMENT]		= segment_init;
+	clan_call[SEGMENT]		= segment_call;
 	
 	clan_main[SILENCE_P]	= silence_main;
 	clan_usage[SILENCE_P]	= silence_usage;
@@ -1171,11 +1221,25 @@ void func_init(void) {
 	clan_init[SILENCE_P]	= silence_init;
 	clan_call[SILENCE_P]	= silence_call;
 
+#ifdef _MAC_CODE
+	clan_main[SLICE_P]		= slice_main;
+	clan_usage[SLICE_P]		= slice_usage;
+	clan_getflag[SLICE_P]	= slice_getflag;
+	clan_init[SLICE_P]		= slice_init;
+	clan_call[SLICE_P]		= slice_call;
+#endif
+
 	clan_main[SRT2CHAT]		= srt2chat_main;
 	clan_usage[SRT2CHAT]	= srt2chat_usage;
 	clan_getflag[SRT2CHAT]	= srt2chat_getflag;
 	clan_init[SRT2CHAT]		= srt2chat_init;
 	clan_call[SRT2CHAT]		= srt2chat_call;
+
+	clan_main[TANG2CHAT]	= tang2chat_main;
+	clan_usage[TANG2CHAT] 	= tang2chat_usage;
+	clan_getflag[TANG2CHAT]	= tang2chat_getflag;
+	clan_init[TANG2CHAT]	= tang2chat_init;
+	clan_call[TANG2CHAT]	= tang2chat_call;
 
 	clan_main[TEXT2CHAT]	= text2chat_main;
 	clan_usage[TEXT2CHAT] 	= text2chat_usage;
@@ -1308,6 +1372,7 @@ void func_init(void) {
 
 	clan_name[CHAINS]		= "chains";
 	clan_name[CHIP]			= "chip";
+	clan_name[CHIPUTIL]		= "chiputil";
 	clan_name[C_NNLA]		= "c-nnla";
 	clan_name[C_QPA]		= "c-qpa";
 	clan_name[CODES_P]		= "codes";
@@ -1321,6 +1386,7 @@ void func_init(void) {
 	clan_name[EVAL]			= "eval";
 	clan_name[EVALD]		= "eval-d";
 	clan_name[FLUCALC]		= "flucalc";
+	clan_name[FLUPOS]		= "flupos";
 	clan_name[FREQ]			= "freq";
 	clan_name[FREQPOS]		= "freqpos";
 	clan_name[GEM]			= "gem";
@@ -1333,6 +1399,7 @@ void func_init(void) {
 	clan_name[MAXWD]		= "maxwd";
 	clan_name[MLU]			= "mlu";
 	clan_name[MLT]			= "mlt";
+	clan_name[MLUMOR]		= "mlumor";
 	clan_name[MODREP]		= "modrep";
 	clan_name[MORTABLE]		= "mortable";
 	clan_name[PHONFREQ]		= "phonfreq";
@@ -1374,7 +1441,6 @@ void func_init(void) {
 	clan_name[FIXMP3]		= "fixmp3s";
 #endif
 	clan_name[FLO]			= "flo";
-	clan_name[CMDI_P]		= "cmdi";
 	clan_name[INDENT]		= "indent";
 	clan_name[LAB2CHAT]		= "lab2chat";
 	clan_name[LENA2CHAT]	= "lena2chat";
@@ -1384,8 +1450,9 @@ void func_init(void) {
 	clan_name[MAKEMOD]		= "makemod";
 	clan_name[MEDIALINE]	= "medialine";
 	clan_name[MERGE]		= "merge";
-	clan_name[OLAC_P]		= "olac";
+	clan_name[NUM2WORD]		= "num2word";
 	clan_name[ORT]			= "ort";
+	clan_name[PID_P]		= "pid";
 	clan_name[PLAY2CHAT]	= "play2chat";
 	clan_name[PRAAT2CHAT]	= "praat2chat";
 	clan_name[QUOTES]		= "quotes";
@@ -1396,7 +1463,11 @@ void func_init(void) {
 	clan_name[SALT2CHAT]	= "salt2chat";
 	clan_name[SEGMENT]		= "segment";
 	clan_name[SILENCE_P]	= "silence";
+#ifdef _MAC_CODE
+	clan_name[SLICE_P]		= "slice";
+#endif
 	clan_name[SRT2CHAT]		= "srt2chat";
+	clan_name[TANG2CHAT]	= "tang2chat";
 	clan_name[TEXT2CHAT]	= "text2chat";
 	clan_name[TIERORDER]	= "tierorder";
 	clan_name[TRNFIX]		= "trnfix";
@@ -1557,7 +1628,7 @@ static int insertSorted(const char *temp[], int k, const char *newName) {
 static char isDisplayInInfo(int i, char isAll) {
 	if (isAll == 2)
 		return(TRUE);
-	if (i == CMDI_P || i == OLAC_P || i == UNIQ ||
+	if (i == PID_P || i == UNIQ ||
 		i == COMPOUND  || i == DATACLEANUP || i == FIXMP3 || i == ORT || i == PHONFREQ || i == USEDLEX) {
 		return(FALSE);
 	}

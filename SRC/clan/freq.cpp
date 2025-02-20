@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 /*
@@ -403,6 +403,7 @@ void init(char first) {
 			if (zeroMatch) {
 				if (wdptr != NULL && isFoundWildCard(TRUE)) {
 					fprintf(stderr,"Can't use +d5 option if a word or words specified with +s option have wild cards (* %% _) or duplicates\n");
+					fprintf(stderr,"For wild cards (* %% _) try adding \\ in front of the wild card, for example: \\*\n");
 					cutt_exit(0);
 				}
 				if (wdptr == NULL && !isMORSearch() && !isGRASearch() && !isLangSearch()) {

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -486,19 +486,28 @@ static void outputUtts(FLO_UTT *root_utts) {
 					} else {
 						printout(utt->speaker,utt->line,utt->attSp,utt->attLine,FALSE);
 						uS.remFrontAndBackBlanks(utt->tuttline);
-						printout(flo_tier_code,utt->tuttline,NULL,NULL,TRUE);
+						removeExtraSpace(utt->tuttline);
+						printout(flo_tier_code,utt->tuttline,NULL,NULL,FALSE); // TRUE
 					}
 				} else if (isRFlo || isMFAFlo) {
-					for (i=0; utt->tuttline[i] != EOS; i++) {
-						if (uS.IsUtteranceDel(utt->tuttline, i))
-							utt->tuttline[i] = ' ';
+					if (isRFlo == FALSE) {
+						for (i=0; utt->tuttline[i] != EOS; i++) {
+							if (uS.IsUtteranceDel(utt->tuttline, i))
+								utt->tuttline[i] = ' ';
+						}
 					}
 					uS.remFrontAndBackBlanks(utt->tuttline);
 					if (isMFAFlo)
 						cleanupAnPercentFlo(utt->tuttline);
 					if (utt->tuttline[0] != EOS) {
-						strcat(utt->tuttline, ".");
-						printout(NULL,utt->tuttline,NULL,NULL,TRUE);
+						if (isRFlo == FALSE) {
+							strcat(utt->tuttline, ".");
+							removeExtraSpace(utt->tuttline);
+							printout(NULL,utt->tuttline,NULL,NULL,FALSE); // TRUE
+						} else {
+							removeExtraSpace(utt->tuttline);
+							printout(NULL,utt->tuttline,NULL,NULL,FALSE); // TRUE
+						}
 					}
 				} else if (substitute_flag == 2) {
 					for (i=strlen(utt->speaker)-1; (isSpace(utt->speaker[i]) || utt->speaker[i] == ':') && i >= 0; i--) ;

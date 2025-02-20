@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -361,7 +361,7 @@ int post_file(FNType* inputname, int style, int style_unkwords, int brill, FNTyp
 				dynreset();
 			}
 		} else if ( domoralt == -1 && y == TTmor ) {  // process only %mor lines
-			if ( !_strnicmp( T, "%mor", 4 ) && ok_t_option == 1  && internal_mor & InternalNone ) {
+			if ( !_strnicmp( T, "%mor:", 5 ) && ok_t_option == 1  && internal_mor & InternalNone ) {
 				int jmpret = setjmp( mark );
 				if( jmpret == 0 ) {
 					convMorT = NULL;

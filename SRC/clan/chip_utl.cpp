@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -508,7 +508,7 @@ static char chip_isUttDel(char *s) {
 
 int parse_utter(real_utterance *utter) {
 	int i, index = 0;
-	char *p = NULL;
+	char *p = NULL, isMergedTiers;
 	char mor_word[BUFSIZ], surf_word[BUFSIZ];
 	
 	if (chip_done == 0)
@@ -535,14 +535,16 @@ int parse_utter(real_utterance *utter) {
 	*p = EOS;
 	utter->speaker = atomize(&utterance->speaker[1]); 
 	utter->thisClass = classify(utter->speaker);
+	isMergedTiers = FALSE;
 	if (isMorTier) {
 		if (onlydata != 2 && onlydata != 3)
 			printout(templineC3,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 		while ((chip_done=getwholeutter()) && utterance->speaker[0] != '*') {
+			isMergedTiers = FALSE;
 			if (onlydata != 2 && onlydata != 3)
 				printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 			if (uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE)) {
-				if (!DOING_SUBST) {
+				if (!DOING_SUBST || wdptr != NULL) { // 2024-05-06
 					if (uttline != utterance->line)
 						strcpy(uttline,utterance->line);
 					createMorUttline(utterance->line, org_spTier, "%mor:", utterance->tuttline, TRUE, TRUE);
@@ -552,6 +554,7 @@ int parse_utter(real_utterance *utter) {
 						fprintf(stderr,"%%mor: tier does not have one-to-one correspondence to its speaker tier.\n");
 						chip_exit(NULL, TRUE);
 					}
+					isMergedTiers = TRUE;
 				}
 				break;
 			}
@@ -572,16 +575,20 @@ int parse_utter(real_utterance *utter) {
 					uttline[i] = ' ';
 				else if (uttline[i] == '$')
 					uttline[i] = ' ';
-			}				
-			index = getword(utterance->speaker, uttline, mor_word, NULL, index);
+			}
+			if (wdptr != NULL)// 2024-05-06
+				index = getNextDepTierPair(uttline, mor_word, surf_word, NULL, index);
+			else
+				index = getword(utterance->speaker, uttline, mor_word, NULL, index);
 		} else
 			index = getNextDepTierPair(uttline, mor_word, surf_word, NULL, index);
 	} else {
 		index = getword(utterance->speaker, uttline, surf_word, NULL, index);
 	}
 	while (index != 0) {
-		if (wdptr != NULL && ((isMorTier && DOING_SUBST && exclude(mor_word) == FALSE) ||
-							  ((!isMorTier || !DOING_SUBST) && exclude(surf_word) == FALSE))) {
+		if (isMergedTiers == TRUE && 
+			((mor_word[0]  != EOS && (exclude(mor_word)  == FALSE || excludedef(mor_word)  == FALSE)) ||
+			 (surf_word[0] != EOS && (exclude(surf_word) == FALSE || excludedef(surf_word) == FALSE)))) {
 		} else if (!chip_isUttDel(surf_word)) {
 			if (isMorTier) {
 				if (DOING_SUBST)
@@ -599,9 +606,12 @@ int parse_utter(real_utterance *utter) {
 			}
 		}
 		if (isMorTier) {
-			if (DOING_SUBST)
-				index = getword(utterance->speaker, uttline, mor_word, NULL, index);
-			else
+			if (DOING_SUBST) {
+				if (wdptr != NULL)// 2024-05-06
+					index = getNextDepTierPair(uttline, mor_word, surf_word, NULL, index);
+				else
+					index = getword(utterance->speaker, uttline, mor_word, NULL, index);
+			} else
 				index = getNextDepTierPair(uttline, mor_word, surf_word, NULL, index);
 		} else {
 			index = getword(utterance->speaker, uttline, surf_word, NULL, index);

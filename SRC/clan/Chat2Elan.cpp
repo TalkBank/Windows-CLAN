@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -61,7 +61,6 @@ struct HeaderTiers {
 extern struct tier *defheadtier;
 extern char OverWriteFile;
 
-static char isMFA;
 static TORT *timeOrder;
 static ALLTIERS *RootTiers;
 static HEADERS *RootHeaders;
@@ -79,7 +78,6 @@ void init(char f) {
 		onlydata = 1;
 		FilterTier = 0;
 		LocalTierSelect = TRUE;
-		isMFA = FALSE;
 		if (defheadtier->nexttier != NULL)
 			free(defheadtier->nexttier);
 		free(defheadtier);
@@ -98,7 +96,6 @@ void init(char f) {
 void usage() {
 	printf("convert CHAT files to Elan XML files\n");
 	printf("Usage: chat2elan [eS %s] filename(s)\n", mainflgs());
-	puts("+c: The output .eaf file is created for MFA aligner.");
 	puts("+eS: Specify media file name extension.");
 	mainusage(TRUE);
 }
@@ -117,10 +114,6 @@ void getflag(char *f, char *f1, int *i) {
 
 	f++;
 	switch(*f++) {
-		case 'c':
-			isMFA = TRUE;
-			no_arg_option(f);
-			break;
 		case 'e':
 			if (f[0] != '.')
 				uS.str2FNType(mediaExt, 0L, ".");
@@ -408,7 +401,7 @@ static void PrintAnnotations(ALLTIERS *trs, char *s) {
 		fprintf(fpout, "<TIER TIER_ID=\"%s\" PARTICIPANT=\"%s\" LINGUISTIC_TYPE_REF=\"dependency\" DEFAULT_LOCALE=\"us\" PARENT_REF=\"%s\">\n", trs->name+1, s+1, s+1);
 	else if (trs->name[0] == '%' && trs->whatLingType == 1)
 		fprintf(fpout, "<TIER TIER_ID=\"%s\" PARTICIPANT=\"%s\" LINGUISTIC_TYPE_REF=\"included_in\" DEFAULT_LOCALE=\"us\" PARENT_REF=\"%s\">\n", trs->name+1, s+1, s+1);
-	else if (isMFA && trs->name[0] == '@')
+	else if (trs->name[0] == '@')
 		fprintf(fpout, "<TIER TIER_ID=\"%s\" PARTICIPANT=\"%s\" LINGUISTIC_TYPE_REF=\"no_constraint\" DEFAULT_LOCALE=\"us\">\n", trs->name, s+1);
 	else
 		fprintf(fpout, "<TIER TIER_ID=\"%s\" PARTICIPANT=\"%s\" LINGUISTIC_TYPE_REF=\"no_constraint\" DEFAULT_LOCALE=\"us\">\n", trs->name+1, s+1);
@@ -466,8 +459,7 @@ static void PrintTiers(char *fontName) {
 		for (trs=RootTiers; trs != NULL; trs=trs->nextTier) {
 			if (trs->isPrinted == TRUE)
 				continue;
-			else if (isMFA && trs->name[0] == '@') {
-			} else if (trs->name[0] == '*' || trs->name[0] == '@')
+			else if (trs->name[0] == '*')
 				continue;
 			s = strrchr(trs->name, '@');
 			if (trs->name[0] == '%') {
@@ -529,7 +521,7 @@ static char isSpecialCode(char *spName, char *st, long spAntCnt, long *antCnt) {
 }
 
 void call() {
-	long		Beg, End, BegSp = 0L, EndSp = 0L, t;
+	long		Beg, End, BegSp = 0L, EndSp = 0L, lastEnd, t;
 	long		bulletsCnt, numTiers;
 	long		antCnt, cAntCnt, spAntCnt = 0L;
 	FNType		mediaFName[FNSize], errfile[FNSize], *s;
@@ -550,6 +542,7 @@ void call() {
 	numTiers = 0L;
 	antCnt = 0L;
 	Beg = End = 0L;
+	lastEnd = 0L;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
@@ -571,17 +564,6 @@ void call() {
 					uS.remFrontAndBackBlanks(fontName);
 				}
 				continue;
-			} else {
-				if (!isMFA) {
-					if (strcmp(utterance->speaker, "@End")) {
-						fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
-						fprintf(stderr, "It is illegal to have Header Tiers '@' inside the transcript\n");
-						if (errFp != NULL) {
-							fprintf(errFp,"*** File \"%s\": line %ld.\n", oldfname, lineno);
-							fprintf(errFp, "It is illegal to have Header Tiers '@' inside the transcript\n");
-						}
-					}
-				}
 			}
 		} else
 			isSpTierFound = TRUE;
@@ -603,6 +585,7 @@ void call() {
 				else
 					mediaRes = getOLDMediaTagInfo(es, NULL, mediaFName, &Beg, &End);
 				if (mediaRes) {
+					lastEnd = End;
 					if (Beg == 1L)
 						Beg = 0L;
 					textToXML(templineC, bs, es);
@@ -669,9 +652,11 @@ void call() {
 		textToXML(templineC, bs, es);
 		if (templineC[0] != EOS) {
 			antCnt++;
-			if (isMFA && utterance->speaker[0] == '@') {
-				whatLingType = 0;
+			if (utterance->speaker[0] == '@') {
+				whatLingType = 1; // 0;
 				strcpy(name, utterance->speaker);
+				BegSp = lastEnd;
+				EndSp += 1000;
 			} else if (utterance->speaker[0] == '*') {
 				whatLingType = 1;
 				spAntCnt = antCnt;

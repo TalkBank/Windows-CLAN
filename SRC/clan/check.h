@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -11,8 +11,6 @@ extern "C"
 {
 
 #define CHECK_MORPHS "-#~"
-
-#define NUMSPCHARS 54 // up-arrow
 
 #define isPostCodeMark(x,y) ((x == '+' || x == '-') && y == ' ')
 
@@ -79,6 +77,9 @@ enum { // CA CHARS
 	CA_APPLY_CONSTRICTION,			// constriction ∾ 0x223E
 	CA_APPLY_PITCH_RESET,			// pitch reset ↻ 0x21BB
 	CA_APPLY_LAUGHINWORD,			// laugh in a word Ἡ 0x1F29
+	CA_HURRIED_START,				// hurried start ⤇ 0x2907
+	CA_SUDDEN_STOP,					// sudden stop ⤆ 0x2906
+	CA_HARDENING_OVERDOT,			// hardening overdot ⁑ 0x2051
 	NOTCA_VOCATIVE,					// Vocative or summons - ‡ 0x2021
 	NOTCA_ARABIC_DOT_DIACRITIC,		// Arabic dot diacritic - ạ 0x0323
 	NOTCA_ARABIC_RAISED,			// Arabic raised - ʰ 0x02B0
@@ -99,7 +100,8 @@ enum { // CA CHARS
 	NOTCA_OPEN_QUOTE,				// open quote “ 0x201C
 	NOTCA_CLOSE_QUOTE,				// close quote ” 0x201D
 	NOTCA_CROSSED_EQUAL,			// crossed equal - ≠ 0x2260
-	NOTCA_LEFT_ARROW_CIRCLE		// left arrow with circle - ↫ 0x21AB
+	NOTCA_LEFT_ARROW_CIRCLE,		// left arrow with circle - ↫ 0x21AB
+	NUMCACHARS						// ALWAYS MUST BE LAST
 } ;
 
 extern const char *lHeaders[];

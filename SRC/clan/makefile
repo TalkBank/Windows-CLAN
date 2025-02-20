@@ -3,23 +3,26 @@
 DD  = ../unix/bin
 OBJ = ../unix/obj
 
-# for Apple Unix AND FreeBSD >= 3.2:
-#	CC = g++
-# for Apple prior to MacOS 11 Big Sur, uncomment next one
-#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wdeprecated-declarations -Wempty-body -arch i386
+# for most OS:
+	CC = g++
+
 # for Apple MacOS 11 Big Sur and later, uncomment next one
-#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wdeprecated-declarations -Wempty-body
+#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wno-deprecated-declarations -Wempty-body
+
+# for Apple prior to MacOS 11 Big Sur, uncomment next one
+#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wno-deprecated-declarations -Wempty-body -arch i386
+
+# for Ubuntu 20.04.6, uncomment next one
+#	CFLAGS = -O -DUNX -Wno-deprecated -Wno-deprecated-declarations -Wno-narrowing
+
+# for Ubuntu 20.04.6 Browser Server, uncomment next one
+#	CFLAGS = -O -DCLAN_SRV -DUNX -Wno-deprecated -Wno-deprecated-declarations -Wno-narrowing
+
+# for Apple MacOS 11 Big Sur and later Browser Server, uncomment next one
+#	CFLAGS = -O -DCLAN_SRV -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wno-deprecated-declarations -Wempty-body
+
+
 # do not uncomment this line: -m32
-#
-# Debian 'sid' distribution
-#	CC = g++
-# for Linux:
-#	CC = g++
-# for Linux g++ 4.4.1-4ubuntu9 compiler:
-#	CC = g++
-# Other machines:
-#	CC = gcc
-LIB = -lcurses -ltermcap
 
 # for SUN SPARC station:
 #	CFLAGS = -O2 -DUNX -fwritable-strings
@@ -28,12 +31,14 @@ LIB = -lcurses -ltermcap
 # Linux on Intel and most other machines:
 # 	CFLAGS = -O -DUNX -fwritable-strings -Wall
 # for Linux g++ 4.4.1-4ubuntu9 compiler:
-#	CFLAGS = -DUNX -Wno-deprecated -Wno-deprecated-declarations
+#	CFLAGS = -DUNX -Wno-deprecated -Wno-deprecated-declarations -Wno-narrowing
 # if previous doesn't work try:
 #	CFLAGS = -DUNX -fwritable-strings
 # OR
 #	CFLAGS = -O -DUNX -DERRNO -fwritable-strings
 #	CFLAGS = -DUNX -DERRNO -fwritable-strings
+
+LIB = -lcurses -ltermcap
 
 MORFILES = mor/arules.cpp mor/crules.cpp mor/drules.cpp mor/globals.cpp \
 		   mor/lex-trie.cpp mor/morlib.cpp mor/mor.cpp
@@ -55,7 +60,7 @@ MEGRASPH = megrasp/ksutil.h megrasp/maxent.h megrasp/blmvm.h
 
 all:	anvil2chat chains chat2anvil chat2ca chat2elan chat2praat chat2xmar check \
 	chip chstring codes combo combtier compound cooccur  dataclean dates delim dist \
-	dss elan2chat eval fixbullets fixit flo flucalc freq freqpos gem gemfreq \
+	dss elan2chat eval eval-d fixbullets fixit flo flucalc freq freqpos gem gemfreq \
 	gemlist indent ipsyn keymap kideval kwal lines lena2chat lipp2chat longtier \
 	lowcase makemod maxwd megrasp mlt mlu modrep mor mortable ort play2chat phonfreq \
 	post postlist postmodrules postmortem praat2chat posttrain \
@@ -84,6 +89,7 @@ dist:			$(DD)/dist
 dss:			$(DD)/dss
 elan2chat:		$(DD)/elan2chat
 eval:			$(DD)/eval
+eval-d:			$(DD)/eval-d
 fixbullets:		$(DD)/fixbullets
 fixit:			$(DD)/fixit
 flo:			$(DD)/flo
@@ -221,6 +227,9 @@ $(DD)/elan2chat: Elan2Chat.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/
 
 $(DD)/eval: eval.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) eval.cpp -o $(DD)/eval $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+
+$(DD)/eval-d: eval-d.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
+	$(CC) $(CFLAGS) eval-d.cpp -o $(DD)/eval-d $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 
 $(DD)/fixbullets: FixBullets.cpp cu.h common.h $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
 	$(CC) $(CFLAGS) FixBullets.cpp -o $(DD)/fixbullets $(OBJ)/c_ver.o $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o
@@ -410,6 +419,7 @@ clean:
 	dss \
 	elan2chat \
 	eval \
+	eval-d \
 	fixbullets \
 	fixit \
 	flo \

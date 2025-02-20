@@ -1,15 +1,10 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
 #ifndef _MLLIB
 #define _MLLIB
-
-#if defined(UNX)
-#define mlu_excludeUtter mlx_excludeUtter
-#define mlt_excludeUtter mlx_excludeUtter
-#endif
 
 extern struct IDtype *IDField;
 extern struct IDtype *SPRole;

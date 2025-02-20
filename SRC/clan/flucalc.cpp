@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -8,10 +8,6 @@
 
 #include "cu.h"
 #include "c_curses.h"
-
-#ifdef UNX
-	#define RGBColor int
-#endif
 
 #if !defined(UNX)
 #define _main flucalc_main
@@ -77,6 +73,8 @@ struct flucalc_speakers {
 	char *fname;
 	char *sp;
 	char *ID;
+	char *utt;
+	long uttCnt;
 
 	// isPOSMatch beg
 	struct flucalc_freqTnode *words;
@@ -130,8 +128,10 @@ struct flucalc_tnode {
 
 static int  flucalc_SpecWords, DBGemNum;
 static char *DBGems[NUMGEMITEMS];
-static char flucalc_ftime, isSyllWordsList, isWordMode, isPOSMatch, sampleType, isMorTierFirst, isFilterUtts, isWorTier, isPuaseDurFound;
-static char flucalc_BBS[5], flucalc_CBS[5], flucalc_group, flucalc_n_option, isNOptionSet, GemMode, specialOptionUsed, langType, langPrecode;
+static char isUttList, isSyllWordsList, isWordMode, sampleType, isMorTierFirst, isFilterUtts, isWorTier, isPuaseDurFound;
+static char flucalc_ftime, isPOSMatch;
+static char flucalc_BBS[5], flucalc_CBS[5];
+static char flucalc_group, flucalc_n_option, isNOptionSet, GemMode, specialOptionUsed, langType, langPrecode;
 static char isAddPhono_fragToTD;
 static long sampleSize;
 static struct flucalc_speakers *sp_head;
@@ -164,6 +164,7 @@ void usage() {
 	puts("+e3: create file with perfectly fluent utterances, but with TD is non-zero");
 	puts("+e4: create file with perfectly fluent utterances, but with SLD is non-zero");
 	puts("+e5: create file with disfluencies, both TD and SLD are non-zero");
+	puts("+u : compute output for every utterance individually");
 	puts("+pS: search for word S and match it to corresponding POS");
 	puts("+g : Gem tier should contain all words specified by +gS");
 	puts("+gS: select gems which are labeled by label S");
@@ -235,6 +236,8 @@ static struct flucalc_speakers *freespeakers(struct flucalc_speakers *p) {
 			free(ts->sp);
 		if (ts->ID != NULL)
 			free(ts->ID);
+		if (ts->utt != NULL)
+			free(ts->utt);
 		flucalc_freqFreetree(ts->words);
 		free(ts);
 	}
@@ -443,7 +446,8 @@ static void flucalc_initTSVars(struct flucalc_speakers *ts) {
 	ts->NumNoSwitch		= 0.0;
 }
 
-static struct flucalc_speakers *flucalc_FindSpeaker(char *fname, char *sp, char *ID, char isSpeakerFound) {
+static struct flucalc_speakers *flucalc_FindSpeaker(char *fname, char *sp, char *ID, long uttCnt, char isSpeakerFound) {
+	int i;
 	struct flucalc_speakers *ts, *tsp;
 
 	uS.remblanks(sp);
@@ -451,7 +455,13 @@ static struct flucalc_speakers *flucalc_FindSpeaker(char *fname, char *sp, char 
 		if (uS.mStricmp(ts->fname, fname) == 0) {
 			if (uS.partcmp(ts->sp, sp, FALSE, FALSE)) {
 				ts->isSpeakerFound = isSpeakerFound;
-				return(ts);
+				if (isUttList) {
+					if (ts->uttCnt == uttCnt)
+						return(ts);
+					if (ID == NULL)
+						ID = ts->ID;
+				} else
+					return(ts);
 			}
 		}
 	}
@@ -480,6 +490,20 @@ static struct flucalc_speakers *flucalc_FindSpeaker(char *fname, char *sp, char 
 			flucalc_error(TRUE);
 		strcpy(ts->ID, ID);
 	}
+	if (isUttList) {
+		strcpy(templineC1, utterance->line);
+		for (i=0; templineC1[i] != EOS; i++) {
+			if (templineC1[i] == '\n' || templineC1[i] == '\t')
+				templineC1[i] = ' ';
+			removeExtraSpace(templineC1);
+			uS.remFrontAndBackBlanks(templineC1);
+		}
+		if ((ts->utt=(char *)malloc(strlen(templineC1)+1)) == NULL)
+			flucalc_error(TRUE);
+		strcpy(ts->utt, templineC1);
+	} else
+		ts->utt = NULL;
+	ts->uttCnt = uttCnt;
 	ts->isSpeakerFound = isSpeakerFound;
 	flucalc_initTSVars(ts);
 	return(ts);
@@ -488,7 +512,7 @@ static struct flucalc_speakers *flucalc_FindSpeaker(char *fname, char *sp, char 
 void init(char f) {
 	int i;
 	FNType debugfile[FNSize];
-	struct tier *nt;
+//	struct tier *nt;
 	IEWORDS *twd;
 
 	if (f) {
@@ -513,6 +537,7 @@ void init(char f) {
 		sampleType = 0;
 		isFilterUtts = 0;
 		isPuaseDurFound = FALSE;
+		isUttList = FALSE;
 		isWorTier = FALSE;
 		isMorTierFirst = TRUE;
 		specialOptionUsed = FALSE;
@@ -544,6 +569,7 @@ void init(char f) {
 				fprintf(stderr, "FluCalc can only run on CHAT data files\n\n");
 				cutt_exit(0);
 			}
+/*
 			i = 0;
 			for (nt=headtier; nt != NULL; nt=nt->nexttier) {
 				if (nt->tcode[0] == '*') {
@@ -554,6 +580,7 @@ void init(char f) {
 				fprintf(stderr, "\nPlease specify only one speaker tier code with \"+t\" option.\n");
 				cutt_exit(0);
 			}
+*/
 			if (flucalc_group && GemMode == '\0') {
 				fprintf(stderr, "\nThe \"+g\" option has to used with \"+gS\" option.\n");
 				cutt_exit(0);
@@ -701,6 +728,10 @@ void getflag(char *f, char *f1, int *i) {
 				cutt_exit(0);
 			}
 			break;
+		case 'u':
+			isUttList = TRUE;
+			no_arg_option(f);
+			break;
 		case 'g':
 			if (*f == EOS) {
 				flucalc_group = TRUE;
@@ -768,7 +799,7 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			break;
 		case 't':
-			if (*(f-2) == '+' && *f == '*') {
+			if (*(f-2) == '+' && (*f == '*' || *f == '#')) {
 				maingetflag(f-2,f1,i);
 			} else {
 				fprintf(stderr, "\nPlease specify only one speaker tier code with \"+t\" option.\n");
@@ -848,13 +879,18 @@ static void flucalc_pr_result(void) {
 		excelStrCell(fpout, "File");
 		excelCommasStrCell(fpout, "Language,Corpus,Code,Age(Month),Sex,Group,Race,SES,Role,Education,Custom_field");
 
-		excelStrCell(fpout, "mor_Utts");
+		if (isUttList == TRUE)
+			excelStrCell(fpout, "Utt_line");
+		if (isUttList == FALSE)
+			excelStrCell(fpout, "mor_Utts");
 		excelStrCell(fpout, "mor_words");
 		excelStrCell(fpout, "mor_syllables");
 		excelStrCell(fpout, "all_words");
-		excelStrCell(fpout, "words_min");
-		excelStrCell(fpout, "syllables_min");
-		excelStrCell(fpout, "all_words_min");
+		if (isUttList == FALSE) {
+			excelStrCell(fpout, "words_min");
+			excelStrCell(fpout, "syllables_min");
+			excelStrCell(fpout, "all_words_min");
+		}
 
 		excelStrCell(fpout, "#_Prolongation");
 		excelStrCell(fpout, "%_Prolongation");
@@ -900,18 +936,19 @@ static void flucalc_pr_result(void) {
 		excelStrCell(fpout, "#_Total_(SLD+TD)");
 		excelStrCell(fpout, "%_Total_(SLD+TD)");
 
-		excelStrCell(fpout, "SLD_Ratio");
-
-		excelStrCell(fpout, "Content_words_ratio");
-
-		excelStrCell(fpout, "Function_words_ratio");
-
-		excelStrCell(fpout, "Content_all_words_ratio");
-
-		excelStrCell(fpout, "Function_all_words_ratio");
-
-		excelStrCell(fpout, "Weighted_SLD");
-
+		if (isUttList == FALSE) {
+			excelStrCell(fpout, "SLD_Ratio");
+			
+			excelStrCell(fpout, "Content_words_ratio");
+			
+			excelStrCell(fpout, "Function_words_ratio");
+			
+			excelStrCell(fpout, "Content_all_words_ratio");
+			
+			excelStrCell(fpout, "Function_all_words_ratio");
+			
+			excelStrCell(fpout, "Weighted_SLD");
+		}
 		if (isWorTier == TRUE) {
 			excelStrCell(fpout, "IW_Dur");
 			excelStrCell(fpout, "Utt_dur");
@@ -935,6 +972,9 @@ static void flucalc_pr_result(void) {
 				continue;
 			}
 // ".xls"
+			if (!ts->isMORFound && isUttList == TRUE)
+				continue;
+			
 			sFName = strrchr(ts->fname, PATHDELIMCHR);
 			if (sFName != NULL)
 				sFName = sFName + 1;
@@ -972,7 +1012,11 @@ static void flucalc_pr_result(void) {
 				if (isWorTier == TRUE)
 					excelCommasStrCell(fpout, "NA,NA,NA,NA,NA,NA,NA,NA,NA");
 			} else {
-				excelNumCell(fpout, "%.0f", ts->morUtt);
+				if (isUttList) {
+					excelStrCell(fpout, ts->utt);
+				}
+				if (isUttList == FALSE)
+					excelNumCell(fpout, "%.0f", ts->morUtt);
 				excelNumCell(fpout, "%.0f", ts->morWords);
 				if (ts->isSyllableLang == TRUE)
 					excelNumCell(fpout, "%.0f", ts->morSyllables);
@@ -980,21 +1024,22 @@ static void flucalc_pr_result(void) {
 					excelStrCell(fpout, "NA");
 				excelNumCell(fpout, "%.0f", ts->allWords);
 
-				if (ts->tm == 0.0)
-					excelStrCell(fpout, "NA");
-				else
-					excelNumCell(fpout, "%.3f", ts->morWords / (ts->tm / 60.0000));
-
-				if (ts->tm == 0.0 || ts->isSyllableLang == FALSE)
-					excelStrCell(fpout, "NA");
-				else
-					excelNumCell(fpout, "%.3f", ts->morSyllables / (ts->tm / 60.0000));
-
-				if (ts->tm == 0.0)
-					excelStrCell(fpout, "NA");
-				else
-					excelNumCell(fpout, "%.3f", ts->allWords / (ts->tm / 60.0000));
-
+				if (isUttList == FALSE) {
+					if (ts->tm == 0.0)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%.3f", ts->morWords / (ts->tm / 60.0000));
+					
+					if (ts->tm == 0.0 || ts->isSyllableLang == FALSE)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%.3f", ts->morSyllables / (ts->tm / 60.0000));
+					
+					if (ts->tm == 0.0)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%.3f", ts->allWords / (ts->tm / 60.0000));
+				}
 				excelNumCell(fpout, "%.3f", ts->prolongation);
 				excelNumCell(fpout, "%.3f", (ts->prolongation/devNum)*100.0000);
 				excelNumCell(fpout, "%.3f", ts->broken_word);
@@ -1052,42 +1097,44 @@ static void flucalc_pr_result(void) {
 				excelNumCell(fpout, "%.3f", SLD+TD);
 				excelNumCell(fpout, "%.3f", ((SLD/devNum)*100.0000)+((TD/devNum)*100.0000));
 
-				if ((SLD+TD) == 0.0)
-					excelStrCell(fpout, "NA");
-				else
-					excelNumCell(fpout, "%.3f", SLD / (SLD+TD));
-
-				if (ts->allDisfluency == 0.0)
-					excelStrCell(fpout, "NA");
-				else
-					excelNumCell(fpout, "%.3f", ts->openClassD/ts->allDisfluency);
-
-				if (ts->allDisfluency == 0.0)
-					excelStrCell(fpout, "NA");
-				else
-					excelNumCell(fpout, "%.3f", ts->closedClassD/ts->allDisfluency);
-
-				if (ts->openClassA == 0.0)
-					excelStrCell(fpout, "NA");
-				else
-					excelNumCell(fpout, "%.3f", ts->openClassD/ts->openClassA);
-
-				if (ts->openClassA == 0.0)
-					excelStrCell(fpout, "NA");
-				else
-					excelNumCell(fpout, "%.3f", ts->closedClassD/ts->openClassA);
-
-				if (ts->isSyllableLang == FALSE || ts->morSyllables == 0.0) {
-					excelStrCell(fpout, "NA");
-				} else {
-					X = (ts->PWR * 100.0000 / ts->morSyllables) + (ts->mWWR * 100.0000 / ts->morSyllables);
-					if (X > 0) {
-						SLD = (X * ( ( (ts->PWRRU * 100.0000 / ts->morSyllables) + (ts->mWWRRU * 100.0000 / ts->morSyllables) ) / X) ) +
-						(2 * ( (ts->prolongation * 100.0000 / ts->morSyllables) + (ts->block * 100.0000 / ts->morSyllables) ) );
+				if (isUttList == FALSE) {
+					if ((SLD+TD) == 0.0)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%.3f", SLD / (SLD+TD));
+					
+					if (ts->allDisfluency == 0.0)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%.3f", ts->openClassD/ts->allDisfluency);
+					
+					if (ts->allDisfluency == 0.0)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%.3f", ts->closedClassD/ts->allDisfluency);
+					
+					if (ts->openClassA == 0.0)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%.3f", ts->openClassD/ts->openClassA);
+					
+					if (ts->openClassA == 0.0)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%.3f", ts->closedClassD/ts->openClassA);
+					
+					if (ts->isSyllableLang == FALSE || ts->morSyllables == 0.0) {
+						excelStrCell(fpout, "NA");
 					} else {
-						SLD = (2 * ( (ts->prolongation * 100.0000 / ts->morSyllables) + (ts->block * 100.0000 / ts->morSyllables) ) );
+						X = (ts->PWR * 100.0000 / ts->morSyllables) + (ts->mWWR * 100.0000 / ts->morSyllables);
+						if (X > 0) {
+							SLD = (X * ( ( (ts->PWRRU * 100.0000 / ts->morSyllables) + (ts->mWWRRU * 100.0000 / ts->morSyllables) ) / X) ) +
+							(2 * ( (ts->prolongation * 100.0000 / ts->morSyllables) + (ts->block * 100.0000 / ts->morSyllables) ) );
+						} else {
+							SLD = (2 * ( (ts->prolongation * 100.0000 / ts->morSyllables) + (ts->block * 100.0000 / ts->morSyllables) ) );
+						}
+						excelNumCell(fpout, "%.3f", SLD);
 					}
-					excelNumCell(fpout, "%.3f", SLD);
 				}
 				if (isWorTier == TRUE) {
 					excelNumCell(fpout, "%.3f", ts->IWDur);
@@ -1117,7 +1164,7 @@ static void flucalc_pr_result(void) {
 		excelRow(fpout, ExcelRowEmpty);
 		excelRow(fpout, ExcelRowEmpty);
 		excelRowOneStrCell(fpout, ExcelBlkCell, "Interpretation of weighted SLD score: Scores above 4.0 is highly suggestive of clinical diagnosis of stuttering in young children");
-		excelRowOneStrCell(fpout, ExcelBlkCell, "Weighted score formula (from Ambrose & Yairi, 1999): ((PWR + mono-WWR) * ((PWR-RU + mono-WWR-RU)/(PWR + mono- WWR))) + (2 * (prologations + blocks))");
+		excelRowOneStrCell(fpout, ExcelBlkCell, "Weighted score formula (from Ambrose & Yairi, 1999): ((PWR + mono-WWR) * ((PWR-RU + mono-WWR-RU)/(PWR + mono-WWR))) + (2 * (prologations + blocks))");
 		if (isWordMode == 0) {
 			excelRowOneStrCell(fpout, ExcelRedCell, "This spreadsheet was run in syllable mode");
 		} else if (isWordMode == 1) {
@@ -1262,7 +1309,7 @@ static int countSyllables(char *word, char *mor) {
 #ifndef UNX
 	} else if (langType == FRA) {
 		unCH tWord[BUFSIZ+1], uWord[BUFSIZ+1];
-		
+
 		u_strcpy(tWord, word, BUFSIZ);
 		if (tWord[0] == '[' || tWord[0] == '(' || tWord[0] == EOS)
 			return(0);
@@ -1287,7 +1334,9 @@ static int countSyllables(char *word, char *mor) {
 				if (uS.mStrnicmp(uWord+i, "ient", 4) == 0 && uWord[i+3] == EOS) {
 					vCnt++;
 				} else if (uS.mStrnicmp(uWord+i, "ent", 3) == 0 && uWord[i+3] == EOS) {
-					if (isMor(mor, "&3p") == TRUE)
+					if (mor == NULL)
+						vCnt++;
+					else if (isMor(mor, "&3p") == TRUE)
 						i += 2;
 					else
 						vCnt++;
@@ -1453,15 +1502,15 @@ static char isMonoWordPreCode(char *line, int wi) {
 	while ((i=getword("*", templineC, word, NULL, i))) {
 		if (word[0] != '[') {
 			wCnt++;
-			syllCnt += countSyllables(word, NULL);
+			syllCnt += countSyllables(word, NULL); // 2024-05-01 in French language the result might be off by 1
 		}
 	}
 	if (wCnt <= 1) {
 		if (syllCnt == 1)
 			return(TRUE);
 	}
-	return(TRUE); // 2022-08-29 return(FALSE); 
-	// if above changes to FALSE, then isMonoWordPreCode call needs to be moved where getNextDepTierPair is available
+	return(FALSE); 
+	// 2024-05-01 in French language the result might be off by 1
 }
 
 static char isPreviousItemWWR(char *line, int wi) {
@@ -1649,8 +1698,8 @@ void call()	{		/* tabulate array of word lengths */
 	char word[BUFSIZ+1], *ws, *wm, *s;
 	char lastSp[SPEAKERLEN];
 	char isRepSeg, isWWRFound, ismWWRFound, isRepeatFound, isInternalPause, isFilterUttsOutputDepTier;
-	char isOutputGem, isSwitch, isMultiLang;
-	long stime, etime;
+	char isOutputGem, isSwitch, isMultiLang, isUDMor;
+	long stime, etime, uttCnt;
 	double tNum;
 	float lphrase_repets, lword_revis, lphrase_revis, lpauses_cnti, lfilled_pauses, lTD;
 	float lprolongation, lbroken_word, lblock, lPWR, lphono_frag, lmWWR, lSLD;
@@ -1659,6 +1708,7 @@ void call()	{		/* tabulate array of word lengths */
 	MORFEATS word_feats, *compd, *feat;
 	IEWORDS *twd;
 
+	uttCnt = 0L;
 	isMultiLang = FALSE;
 	langType = UNK;
 	if (isPOSMatch) {
@@ -1682,6 +1732,7 @@ void call()	{		/* tabulate array of word lengths */
 	found = 0;
 	lastSp[0] = EOS;
 	isSwitch = TRUE;
+	isUDMor = FALSE;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
@@ -1795,6 +1846,8 @@ void call()	{		/* tabulate array of word lengths */
 #endif
 						} else if (!uS.mStrnicmp(utterance->line+j, "eng", 3)) {
 							langType = ENG;
+//						} else if (!uS.mStrnicmp(utterance->line+j, "deu", 3)) {
+//							langType = ENG; // 2024-10-28 until German rules are added
 						}
 					}
 				}
@@ -1802,7 +1855,7 @@ void call()	{		/* tabulate array of word lengths */
 			if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
 				if (isIDSpeakerSpecified(utterance->line, templineC, TRUE)) {
 					uS.remblanks(utterance->line);
-					flucalc_FindSpeaker(oldfname, templineC, utterance->line, FALSE);
+					flucalc_FindSpeaker(oldfname, templineC, utterance->line, 0L, FALSE);
 				}
 				if (isFilterUtts > 0) {
 					printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
@@ -1838,9 +1891,10 @@ void call()	{		/* tabulate array of word lengths */
 				}
 			}
 		} else if (*utterance->speaker == '*' && isOutputGem) {
+			uttCnt++;
 			isFilterUttsOutputDepTier = FALSE;
 			strcpy(templineC, utterance->speaker);
-			ts = flucalc_FindSpeaker(oldfname, templineC, NULL, TRUE);
+			ts = flucalc_FindSpeaker(oldfname, templineC, NULL, uttCnt, TRUE);
 			if (isMultiLang == TRUE && isWordMode == 0) {
 				if (utterance->line[0] == '[' && utterance->line[1] == '-' && isSpace(utterance->line[2])) {
 					for (j=3; isSpace(utterance->line[j]); j++) ;
@@ -1865,6 +1919,9 @@ void call()	{		/* tabulate array of word lengths */
 					} else if (!uS.mStrnicmp(utterance->line+j, "eng", 3)) {
 						langType = ENG;
 						ts->isSyllableLang = TRUE;
+//					} else if (!uS.mStrnicmp(utterance->line+j, "deu", 3)) {
+//						langType = ENG;  // 2024-10-28 until German rules are added
+//						ts->isSyllableLang = TRUE;
 					} else {
 						langType = UNK;
 						ts->isSyllableLang = FALSE;
@@ -2169,35 +2226,59 @@ fprintf(stdout, "2 (%d) mWWR=%s\n", wwrSqI, spareTier2+wi); // lxs
 							if (ParseWordMorElems(templineC2, &word_feats) == FALSE)
 								flucalc_error(FALSE);
 							for (feat=&word_feats; feat != NULL; feat=feat->clitc) {
+								if (isEqual("noun", feat->pos) || isEqual("verb", feat->pos))
+									isUDMor = TRUE;
 								// counts open/closed BEG
-								if (isEqual("adv:int", feat->pos)) {
-									if (isDisfluency(ws))
-										ts->closedClassD++;
-//									else if (!isRepeatFound)
-										ts->closedClassA++;
-								} else if (isEqual("n", feat->pos) || isnEqual("n:", feat->pos, 2) || isAllv(feat) || isnEqual("cop", feat->pos, 3) ||
-										   isEqual("adj", feat->pos)) {
-									if (isDisfluency(ws))
-										ts->openClassD++;
-//									else if (!isRepeatFound)
-										ts->openClassA++;
-								} else if ((isEqual("adv", feat->pos) || isnEqual("adv:", feat->pos, 4)) &&
-										   isEqualIxes("LY", feat->suffix, NUM_SUFF)) {
-									if (isDisfluency(ws))
-										ts->openClassD++;
-//									else if (!isRepeatFound)
-										ts->openClassA++;
-								} else if (isEqual("co", feat->pos) == FALSE && isEqual("on", feat->pos) == FALSE) {
-									if (isDisfluency(ws))
-										ts->closedClassD++;
-//									else if (!isRepeatFound)
-										ts->closedClassA++;
-								}
-								if (isDisfluency(ws)) {
-									if (!isRepeatFound)
-										ts->allDisfluency++;
-								}
+								if (langType == ENG) {
+									if (isEqual("adv:int", feat->pos)) {
+										if (isDisfluency(ws))
+											ts->closedClassD++;
+//										else if (!isRepeatFound)
+											ts->closedClassA++;
+									} else if (isEqual("n", feat->pos) || isnEqual("n:", feat->pos, 2) || isAllv(feat) ||
+											   isEqual("noun", feat->pos) || isEqual("verb", feat->pos) ||
+											   isnEqual("cop", feat->pos, 3) || isEqual("adj", feat->pos)) {
+										if (isDisfluency(ws))
+											ts->openClassD++;
+//										else if (!isRepeatFound)
+											ts->openClassA++;
+									} else if ((isEqual("adv", feat->pos) || isnEqual("adv:", feat->pos, 4)) &&
+											   (isUDMor == TRUE || isEqualIxes("LY", feat->suffix, NUM_SUFF))) {
+										if (isDisfluency(ws))
+											ts->openClassD++;
+//										else if (!isRepeatFound)
+											ts->openClassA++;
+									} else if (isEqual("co", feat->pos) == FALSE && isEqual("on", feat->pos) == FALSE) {
+										if (isDisfluency(ws))
+											ts->closedClassD++;
+//										else if (!isRepeatFound)
+											ts->closedClassA++;
+									}
+									if (isDisfluency(ws)) {
+										if (!isRepeatFound)
+											ts->allDisfluency++;
+									}
+								} else /* if (langType == FRA) */ {
+									if (isEqual("noun", feat->pos) || isEqual("verb", feat->pos) ||
+										isEqual("n", feat->pos)    || isnEqual("n:", feat->pos, 2) || 
+										isEqual("v", feat->pos)    || isnEqual("v:", feat->pos, 2) || 
+										isEqual("adj", feat->pos)  || isEqual("adv", feat->pos)) {
+										if (isDisfluency(ws))
+											ts->openClassD++;
+//										else if (!isRepeatFound)
+											ts->openClassA++;
+									} else {
+											ts->closedClassD++;
+//										else if (!isRepeatFound)
+											ts->closedClassA++;
+									}
+									if (isDisfluency(ws)) {
+										if (!isRepeatFound)
+											ts->allDisfluency++;
+									}
+								} 
 								// counts open/closed END
+
 								if (*(s+1) == '+' && strcmp(ws, "[/]") != 0) {
 									if (feat->compd != NULL) {
 										for (compd=feat; compd != NULL; compd=compd->compd) {

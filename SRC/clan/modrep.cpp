@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -690,10 +690,10 @@ static void ProcessLines(SPEAKERS *tsp, char WhichLine, char OtherSP, char zeroL
 	while (1) {
 		if (WhichLine == MODLINE) {
 			if (OtherSP == '*') {
-				punc = punctuation;
-				punctuation = GlobalPunctuation;
+				punc = cutt_punctuation;
+				cutt_punctuation = GlobalPunctuation;
 				wi1 = getneww(ModWord,wi1);
-				punctuation = punc;
+				cutt_punctuation = punc;
 			} else
 				wi1 = getneww(ModWord,wi1);
 			wi2 = getword(utterance->speaker, uttline, RepWord, NULL, wi2);
@@ -709,10 +709,10 @@ static void ProcessLines(SPEAKERS *tsp, char WhichLine, char OtherSP, char zeroL
 		} else {
 			wi1 = getword(utterance->speaker, uttline, ModWord, NULL, wi1);
 			if (OtherSP == '*') {
-				punc = punctuation;
-				punctuation = GlobalPunctuation;
+				punc = cutt_punctuation;
+				cutt_punctuation = GlobalPunctuation;
 				wi2 = getneww(RepWord,wi2);
-				punctuation = punc;
+				cutt_punctuation = punc;
 			} else
 				wi2 = getneww(RepWord,wi2);
 			if (zeroLine != NONLINE) {

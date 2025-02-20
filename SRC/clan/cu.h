@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -191,7 +191,7 @@ struct IDparts {
 } ;
 
 #define NUM_PREF 3
-#define NUM_SUFF 3
+#define NUM_SUFF 5
 #define NUM_FUSI 4
 #define NUM_ERRS 3
 
@@ -357,6 +357,7 @@ extern IEWORDS *freeIEWORDS(IEWORDS *ptr);
 extern IEMWORDS *freeIEMWORDS(IEMWORDS *ptr);
 
 extern FILE *openwfile(const FNType *, FNType *, FILE *);
+extern FILE *checkOpenWdDepfile(const FNType *depfile);
 extern FILE *OpenGenLib(const FNType *, const char *, char, char, FNType *);
 extern FILE *OpenMorLib(const FNType *, const char *, char, char, FNType *);
 
@@ -388,10 +389,12 @@ extern int  expandX(char *ch, AttTYPE *att, int x, int index);
 
 extern long DealWithAtts_cutt(char *line, long i, AttTYPE att, AttTYPE oldAtt);
 
+extern float countMorphs(char *uttline, int pos);
 extern float getTimeDuration(char *s);
 extern float getPauseTimeDuration(char *s);
 
 extern char isUttDel(char *s);
+extern char isUDsCode(char *name, char *isCheckJoint);
 extern char isPostCodeOnUtt(char *line, const char *postcode);
 extern char isAge(char *b, int *agef, int *aget);
 extern char isTierContSymbol(char *line, int i, char isForced);
@@ -422,6 +425,7 @@ extern char getMediaTagInfo(char *line, long *Beg, long *End);
 extern char getOLDMediaTagInfo(char *line, const char *tag, FNType *fname, long *Beg, long *End);
 extern char getLanguageCodeAndName(char *code, char isReplace, char *name);
 extern char ReadLangsFile(char isCED);
+extern char ReadUDsFile(char isCED);
 extern char isEqual(const char *pat, const char *st);
 extern char isnEqual(const char *pat, const char *st, int len);
 extern char isEqualIxes(const char *pat, IXXS *ixes, int max);
@@ -438,6 +442,7 @@ extern void cleanUpMorWord(char *word, char *matched);
 extern void freeUpIxes(IXXS *ixes, int max);
 extern void cleanupGRAWord(char *word);
 extern void cleanupLanguages(void) ;
+extern void cleanupUDs(void);
 extern void cleanUttline(char *line);
 extern void processSPTier(char *spTier, char *line);
 extern void filterMorTier(char *morUtt, char *morLine, char isReplace, char linkDepTier2OtherTier);

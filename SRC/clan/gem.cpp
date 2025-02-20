@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -21,6 +21,7 @@
 
 #define HASHMAX 50
 
+extern char GExt[];
 extern char PostCodeMode;
 extern struct tier *defheadtier;
 extern char isExpendX;
@@ -50,7 +51,10 @@ void usage() {
 }
 
 void init(char first) {
+	IEWORDS *gemStr;
+
     if (first) {
+		stout = FALSE;
 		isExpendX = FALSE;
 		allGemsFound = TRUE;
 		gem_isTimestamp = FALSE;
@@ -86,8 +90,19 @@ void init(char first) {
 			maketierchoice(BBS,'+',FALSE);
 			if (!gem_n_option)
 				maketierchoice(CBS,'+',FALSE);
-			if (onlydata == 2)
+			if (onlydata == 2) {
 				maketierchoice("@ID:",'+',FALSE);
+				maketierchoice(MEDIAHEADER,'+',FALSE);
+				if (wdptr != NULL && strlen(wdptr->word) < 505) {
+					strcpy(GExt, ".");
+					strcat(GExt, wdptr->word);
+					for (gemStr=wdptr->nextword; gemStr != NULL && strlen(GExt)+1+strlen(gemStr->word) < 505; gemStr=gemStr->nextword) {
+						strcat(GExt, ",");
+						strcat(GExt, gemStr->word);
+					}
+					strcat(GExt, ".gem");
+				}
+			}
 			if (onlydata)
 				delSkipedFile = "\n ****Warning: No gems found in this file\n";
 		}
@@ -201,7 +216,8 @@ printf("found=%d; sp=%s; uttline=%s", found, utterance->speaker, uttline);
 if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 */
 		if (onlydata == 2) {
-			if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE)) {
+			if (uS.partcmp(utterance->speaker,"@ID:",FALSE,FALSE) ||
+				uS.partcmp(utterance->speaker,MEDIAHEADER,FALSE,FALSE)) {
 				printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine,FALSE);
 				continue;
 			}

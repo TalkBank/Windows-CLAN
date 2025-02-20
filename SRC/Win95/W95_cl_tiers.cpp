@@ -1499,7 +1499,7 @@ void CClanTiersSelect::makeTiersList(int ProgNum, short pixelLen) {
 static char isExcludeHeadFromProg(int ProgNum) {
 	if (ProgNum == TEXT2CHAT   || ProgNum == ANVIL2CHAT||
 		ProgNum == COMBTIER  || ProgNum == ELAN2CHAT || ProgNum == LAB2CHAT || ProgNum == LIPP2CHAT ||
-		ProgNum == OLAC_P    || ProgNum == PRAAT2CHAT|| ProgNum == RTF2CHAT || ProgNum == SALT2CHAT ||
+		ProgNum == PRAAT2CHAT|| ProgNum == RTF2CHAT || ProgNum == SALT2CHAT ||
 		ProgNum == UNIQ      || ProgNum == COMPOUND || ProgNum == DOS2UNIX  ||
 		ProgNum == CHECK_P   || ProgNum == RELY      || ProgNum == CP2UTF   || ProgNum == FIXIT     ||
 		ProgNum == REPEAT    || ProgNum == RETRACE   || ProgNum == MOR_P    || ProgNum == MEGRASP) 
@@ -1509,7 +1509,7 @@ static char isExcludeHeadFromProg(int ProgNum) {
 
 static char isExcludeDepFromProg(int ProgNum) {
 	if (ProgNum == CHAINS || ProgNum == FLO    || ProgNum == KEYMAP || ProgNum == MODREP  ||
-		ProgNum == CHECK_P|| ProgNum == CP2UTF || ProgNum == CMDI_P || ProgNum == LOWCASE || 
+		ProgNum == CHECK_P|| ProgNum == CP2UTF || ProgNum == PID_P || ProgNum == LOWCASE || 
 		ProgNum == RETRACE|| ProgNum == RELY   || ProgNum == FIXIT  || ProgNum == REPEAT  ||
 		ProgNum == RETRACE|| ProgNum == MOR_P  || ProgNum == MEGRASP) 
 		return(FALSE);

@@ -495,6 +495,7 @@ typedef struct {
 	long  Ltik;
 	long  KBSize, KBIndex;
 	unCH  *KillBuff;
+	char  re_colorLemmas;
 	char  checkMessCnt;
 	char  isUTF;
 	char  isOutputScrolledOff;
@@ -819,10 +820,12 @@ struct SelectedFilesList {
 
 #ifdef _COCOA_APP
 extern unCH NextTierName[];
+extern NSInteger LemmasColorNumPtr; // 2024-04-17
 #else
 extern unCH NextTierName[80];
-extern struct DefWin defWinSize;
+extern int LemmasColorNumPtr; // 2024-04-17
 extern char isCursorPosRestore;
+extern struct DefWin defWinSize;
 #endif 
 extern char defUniFontName[];
 extern char isAjustCursor;
@@ -867,6 +870,7 @@ extern char ShowPercentOfFile;
 extern char doMixedSTWave;
 extern char mem_error;
 extern char isChatLineNums;
+extern char isDarkColor;
 extern char sendMessageTargetApp;
 extern char F5Option;
 extern char DefAutoWrap;
@@ -1043,7 +1047,7 @@ extern char AdjustSound(int row, int col, int ext, Size right_lim);
 extern char AllocConstString(char *st, int sp);
 extern char AllocSpeakerNames(unCH *st, int sp);
 extern char GetSpeakerNames(unCH *st, int num, unsigned long size);
-extern char ShowGRA();
+extern char ShowGRA(char *graSt, char *morSt);
 extern char OpenProgressDialog(const char *str);
 extern char UpdateProgressDialog(short percentFilled);
 extern char DoURLFileName(char *tName);

@@ -1631,8 +1631,8 @@ char isCHATFile(FNType *fname) {
 					!strncmp(ext,"COMBO",5) || !strncmp(ext,"FIXIT",5) || !strncmp(ext,"TORDR",5) ||
 					!strncmp(ext,"MEDIA",5) ||!strncmp(ext,"IPCORE",5) ||
 					!strncmp(ext,"LOWCAS",6)|| !strncmp(ext,"FXBLTS",6)|| !strncmp(ext,"CP2UTF",6)||
-					!strncmp(ext,"MGRASP",6)|| !strncmp(ext,"PMORTM",6)||
-					!strncmp(ext,"COMB",4)
+					!strncmp(ext,"MGRASP",6)|| !strncmp(ext,"PMORTM",6)|| !strncmp(ext,"COMB",4)  ||
+					!strncmp(ext, "NUM2WORD", 8)
 				   )
 					return('\002');
 			} else

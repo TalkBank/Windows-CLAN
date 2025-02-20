@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -38,7 +38,6 @@ struct tierT {
 
 static char OldSpeaker[SPEAKERLEN];
 static char *temp_uttline;
-static char check_mode;
 static int  fixit_interturn;
 static TIERS *RootTier;
 static HEADT *HeadTier;
@@ -50,7 +49,6 @@ extern char OverWriteFile;
 void usage() {
    puts("FIXIT converts tiers with multiple utterances to single.");
    printf("Usage: fixit [c %s] filename(s)\n",mainflgs());
-   puts("+c : find all the errors possible in one pass.");
    mainusage(TRUE);
 }
 
@@ -62,7 +60,6 @@ void init(char f) {
 		*OldSpeaker = EOS;
 		FilterTier = 0;
 		OverWriteFile = TRUE;
-		check_mode = FALSE;
 		LocalTierSelect = TRUE;
 		if (defheadtier->nexttier != NULL)
 			free(defheadtier->nexttier);
@@ -88,7 +85,7 @@ static void fixit_overflow() {
 	fprintf(stderr,"Fixit: Out of memory.\n");
 	if (!stout) {
 		fclose(fpout);
-		if (!check_mode) unlink(newfname);
+		unlink(newfname);
 	}
 	cutt_exit(1);
 }
@@ -128,30 +125,22 @@ static void free_tiers() {
 static char fixit_err(const char *s, const char *s1) {
 	HEADT *TH;
 
-	if (!check_mode) {
-		fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
-		if (s1 != NULL)
-			fprintf(stderr,"%s in:\n    %s\n",s1,s);
-		else
-			fprintf(stderr,"Illegal location representation: %s\n",s);
-		free(temp_uttline);
-		free_tiers();
-		while (HeadTier != NULL) {
-			TH = HeadTier;
-			HeadTier = HeadTier->NextCode;
-			free(TH->type);
-			free(TH->code);
-			free(TH);
-		}
-		unlink(newfname);
-		cutt_exit(0);
-	} else {
-		fprintf(fpout,"*** File \"%s\": line %ld.\n", oldfname, lineno);
-		if (s1 != NULL)
-			fprintf(fpout,"%s in:\n    %s\n",s1,s);
-		else
-			fprintf(fpout,"Illegal location representation: %s\n",s);
+	fprintf(stderr,"*** File \"%s\": line %ld.\n", oldfname, lineno);
+	if (s1 != NULL)
+		fprintf(stderr,"%s in:\n    %s\n",s1,s);
+	else
+		fprintf(stderr,"Illegal location representation: %s\n",s);
+	free(temp_uttline);
+	free_tiers();
+	while (HeadTier != NULL) {
+		TH = HeadTier;
+		HeadTier = HeadTier->NextCode;
+		free(TH->type);
+		free(TH->code);
+		free(TH);
 	}
+	unlink(newfname);
+	cutt_exit(0);
 	return(0);
 }
 
@@ -449,22 +438,18 @@ static void fixit_pr_result() {
 	CODES *c;
 
 	if (RootTier == NULL) {
-		if (*OldSpeaker != EOS && !check_mode)
+		if (*OldSpeaker != EOS)
 			fprintf(fpout,"%s\n", OldSpeaker);
 	} else {
-			if (!check_mode) {
-			for (t=RootTier; t != NULL; t=t->NextTier) {
-				printout(OldSpeaker, t->tier, NULL, NULL, TRUE);
-				for (c=t->codes; c != NULL; c=c->NextCode)
-					printout(c->type, c->code, NULL, NULL, TRUE);
-			}
+		for (t=RootTier; t != NULL; t=t->NextTier) {
+			printout(OldSpeaker, t->tier, NULL, NULL, TRUE);
+			for (c=t->codes; c != NULL; c=c->NextCode)
+				printout(c->type, c->code, NULL, NULL, TRUE);
 		}
 		free_tiers();
 	}
 	while (HeadTier != NULL) {
-		if (!check_mode) {
-			printout(HeadTier->type, HeadTier->code, NULL, NULL, TRUE);
-		}
+		printout(HeadTier->type, HeadTier->code, NULL, NULL, TRUE);
 		TH = HeadTier;
 		HeadTier = HeadTier->NextCode;
 		free(TH->type);
@@ -903,10 +888,6 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
-		case 'c':
-			check_mode = TRUE;
-			no_arg_option(f);
-			break;
 
 	default:
 		maingetflag(f-2,f1,i);

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -433,12 +433,12 @@ static void wdlen_pr_result(void) {
 	}
 	if (onlydata == 1) {
 		if (lim == ARLEN)
-			fprintf(fpout,"+ Mean\n");
+			fprintf(fpout,"> Mean\n");
 		else 
 			fprintf(fpout,"Mean\n");
 	} else {
 		if (lim == ARLEN)
-			fprintf(fpout,"+  Mean\n");
+			fprintf(fpout,">  Mean\n");
 		else 
 			fprintf(fpout,"   Mean\n");
 	}
@@ -491,7 +491,7 @@ static void wdlen_pr_result(void) {
 		}
 		if (onlydata == 1) {
 			if (lim == ARLEN)
-				fprintf(fpout,"+ Mean\n");
+				fprintf(fpout,"> Mean\n");
 			else
 				fprintf(fpout,"Mean\n");
 		} else {
@@ -550,7 +550,7 @@ static void wdlen_pr_result(void) {
 		}
 		if (onlydata == 1) {
 			if (lim == ARLEN)
-				fprintf(fpout,"+ Mean\n");
+				fprintf(fpout,"> Mean\n");
 			else 
 				fprintf(fpout,"Mean\n");
 		} else {
@@ -607,7 +607,7 @@ static void wdlen_pr_result(void) {
 		}
 		if (onlydata == 1) {
 			if (lim == ARLEN)
-				fprintf(fpout,"+ Mean\n");
+				fprintf(fpout,"> Mean\n");
 			else 
 				fprintf(fpout,"Mean\n");
 		} else {
@@ -722,7 +722,7 @@ static void wdlen_pr_result(void) {
 	}
 	if (onlydata == 1) {
 		if (lim == ARLEN)
-			fprintf(fpout,"+ Mean\n");
+			fprintf(fpout,"> Mean\n");
 		else 
 			fprintf(fpout,"Mean\n");
 	} else {
@@ -843,10 +843,9 @@ static void words_count(char *line, WDLENSP *ts, int *turn_uttCnt, int *turn_wor
 }
 
 static void morphs_count(char *line, WDLENSP *ts) {
-	register int i;
-	register int c;
-	register int mlen;
-	char isSameDelim, isAmbigFound;
+	int i, c, mlen, oPos;
+	float morphCnt;
+	char isSameDelim, tchr;
 
 	c = 0;
 	while (line[c] != EOS) {
@@ -863,21 +862,30 @@ static void morphs_count(char *line, WDLENSP *ts) {
 				}
 			}
 		} else {
-			isAmbigFound = FALSE;
 			i = 0;
 			mlen = 0;
-			while (line[c] != EOS && !uS.isskip(line,c,&dFnt,MBF)) {
-				if (line[c] == '^')
-					isAmbigFound = TRUE;
-				if (uS.ismorfchar(line, c, &dFnt, rootmorf, MBF) && !isAmbigFound) {
-					ts->morphcnt++;
-					mlen++;
+			if (!uS.isskip(line,c,&dFnt,MBF)) {
+				oPos = c;
+				while (line[c]) {
+					if (uS.isskip(line,c,&dFnt,MBF)) {
+						if (uS.IsUtteranceDel(utterance->line, c)) {
+							if (!uS.atUFound(utterance->line, c, &dFnt, MBF))
+								break;
+						} else
+							break;
+					}
+					templineC3[i++] = line[c];
+					c++;
 				}
-				templineC3[i++] = line[c++];
+				tchr = line[c];
+				line[c] = EOS;
+				morphCnt = countMorphs(line, oPos); // uS.ismorfchar
+				ts->morphcnt = ts->morphcnt + morphCnt;
+				mlen = mlen + morphCnt;
+				line[c] = tchr;
 			}
 			templineC3[i] = EOS;
 			if (i > 0 && exclude(templineC3)) {
-				mlen++;
 				ts->morphcnt++;
 				if (mlen < ARLEN)
 					ts->stats[MLNGS][mlen]++;

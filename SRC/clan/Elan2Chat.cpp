@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -75,7 +75,7 @@ struct ElanChatTiers {
 } ;
 
 static char mediaFName[FILENAME_MAX+2];
-static char isMultiBullets, isMFA;
+static char isMultiBullets, isAsIsTiers;
 static ELANCHATTIERS *e2c_RootTiers, *RootUnmatchedTiers;
 static long *Times_table, Times_index;
 static Element *Elan_stack[30];
@@ -83,8 +83,8 @@ static Element *Elan_stack[30];
 void usage() {
 	printf("convert Elan XML files to CHAT files\n");
 	printf("Usage: elan2chat [b %s] filename(s)\n",mainflgs());
+	puts("+a: Output tiers as found in .eaf file (default use utterance delimiter to sort utterances).");
 	puts("+b: Specify that multiple bullets per line (default only one bullet per line).");
-//	puts("+c: The input .eaf file was created by MFA aligner.");
 	mainusage(TRUE);
 }
 
@@ -100,7 +100,7 @@ void init(char s) {
 		Times_table = NULL;
 		Times_index = 0L;
 		isMultiBullets = FALSE;
-		isMFA = FALSE;
+		isAsIsTiers = FALSE;
 		if (defheadtier) {
 			if (defheadtier->nexttier != NULL)
 				free(defheadtier->nexttier);
@@ -123,15 +123,14 @@ void getflag(char *f, char *f1, int *i) {
 
 	f++;
 	switch(*f++) {
+		case 'a':
+			isAsIsTiers = TRUE;
+			no_arg_option(f);
+			break;
 		case 'b':
 			isMultiBullets = TRUE;
 			no_arg_option(f);
 			break;
-//		case 'c':
-//			isMultiBullets = TRUE;
-//			isMFA = TRUE;
-//			no_arg_option(f);
-//			break;
 		default:
 			maingetflag(f-2,f1,i);
 			break;
@@ -160,7 +159,9 @@ static ELANCHATTIERS *freeTiers(ELANCHATTIERS *p) {
 static void Elan_fillNT(ELANCHATTIERS *nt, const char *ID, long beg, long end, const char *refSp, const char *sp, const char *line, char isAddBullet) {
 	if (beg == end)
 		isAddBullet = FALSE;
-	if (isAddBullet && (beg != 0L || end != 0L))
+	if (sp[0] == '*' && sp[1] == '@') {
+		templineC3[0] = EOS;
+	} else if (isAddBullet && (beg != 0L || end != 0L))
 		sprintf(templineC3, " %c%ld_%ld%c", HIDEN_C, beg, end, HIDEN_C);
 	else
 		templineC3[0] = EOS;
@@ -262,10 +263,6 @@ static ELANCHATTIERS *Elan_addDepTiers(ELANCHATTIERS *depTiers, char *ID, long b
 			tnt = nt;
 			nt = nt->nextTier;
 		}
-		if (isMFA == true) {
-			if (uS.partcmp(sp, "%wor", FALSE, TRUE) || uS.partcmp(sp, "%xwor", FALSE, TRUE))
-				nt = depTiers;
-		}
 		if (nt == NULL) {
 			tnt->nextTier = NEW(ELANCHATTIERS);
 			if (tnt->nextTier == NULL)
@@ -334,6 +331,9 @@ static char Elan_isUttDel(char *line) {
 	if (isMultiBullets)
 		return(FALSE);
 */
+	if (isAsIsTiers)
+		return(TRUE);
+	
 	bullet = FALSE;
 	i = strlen(line);
 	for (; i >= 0L; i--) {
@@ -617,7 +617,7 @@ static void Elan_addToTiers(char *ID, const char *refID, long beg, long end, con
 
 	Elan_fillNT(nt, ID, beg, end, refSp, sp, line, TRUE);
 }
-
+/*
 static void Elan_addHeadersTiers(char *ID, const char *refID, char *sp, char *line) {
 	ELANCHATTIERS *nt, *resNT, *headNt;
 	nt = e2c_RootTiers;
@@ -635,7 +635,7 @@ static void Elan_addHeadersTiers(char *ID, const char *refID, char *sp, char *li
 		nt = nt->nextTier;
 	}
 }
-
+*/
 static char Elan_isOverlapFound(char *line, char ovChar) {
 	long i;
 
@@ -733,8 +733,12 @@ static void Elan_printOutTiers(ELANCHATTIERS *p) {
 //int i;
 //if (strcmp(p->ID, "a31|") == 0)
 //	i = 0;
-		if (p->sp[0] == '*' || p->line[0] != EOS)
-			printout(p->sp, p->line, NULL, NULL, Elan_isSpecialCode(p->isWrap, p->line));
+		if (p->sp[0] == '*' || p->line[0] != EOS) {
+			if (p->sp[0] == '*' && p->sp[1] == '@')
+				printout(p->sp+1, p->line, NULL, NULL, Elan_isSpecialCode(p->isWrap, p->line));
+			else
+				printout(p->sp, p->line, NULL, NULL, Elan_isSpecialCode(p->isWrap, p->line));
+		}
 		if (p->depTiers != NULL)
 			Elan_printOutTiers(p->depTiers);
 		p = p->nextTier;
@@ -887,10 +891,6 @@ static void setElanTimeOrderElem(void) {
 				for (att=TimeSlots->atts; att != NULL; att=att->next) {
 					if (!strcmp(att->name, "TIME_SLOT_ID")) {
 						index = atol(att->value+2);
-						if (isMFA == TRUE) {
-							timeValue = 0L;
-							isTimeValueFound = TRUE;
-						}
 					} else if (!strcmp(att->name, "TIME_VALUE")) {
 						isTimeValueFound = TRUE;
 						timeValue = atol(att->value);
@@ -916,11 +916,7 @@ static long getElanTimeValue(char *TimeSlotIDSt) {
 	
 	index = atol(TimeSlotIDSt+2);
 	if (index >= 0L && index < Times_index) {
-		if (isMFA == TRUE && Times_table[index] == -1) {
-			fprintf(stderr, "\nCan't find TIME_SLOT_ID \"%s\" in <TIME_ORDER> table\n", TimeSlotIDSt);
-			return(0);
-		} else
-			return(Times_table[index]);
+		return(Times_table[index]);
 	} else
 		return(0L);
 }
@@ -1025,14 +1021,15 @@ static char getNextElanTier(UTTER *utterance, long *beg, long *end, char *ID, ch
 						parent_ref[SPEAKERLEN-1] = EOS;
 					}
 				}
-				if (parent_ref[0] == EOS && (isMFA == FALSE || tier_id[0] != '@')) {
+				if (tier_id[0] == '@') {
+				} else if (parent_ref[0] == EOS) {
 					p = strchr(tier_id, '@');
 					if (p != NULL)
 						strcpy(parent_ref, p+1);
 				}
 				utterance->speaker[0] = EOS;
 				if (parent_ref[0] == EOS) {
-					if (tier_id[0] != '*' && (isMFA == FALSE || tier_id[0] != '@'))
+					if (tier_id[0] != '*')
 						strcat(utterance->speaker, "*");
 					strcat(utterance->speaker, tier_id);
 				} else {
@@ -1452,19 +1449,14 @@ void call() {		/* this function is self-explanatory */
 				strcat(utterance->speaker, ":");
 		}
 		Elan_makeText(utterance->line);
-		if (isMFA == TRUE)
-			Elan_addToTiersID(ID, refID, beg, end, utterance->speaker, utterance->line);
-		else
-			Elan_addToTiers(ID, refID, beg, end, refSp, utterance->speaker, utterance->line, FALSE);
+		Elan_addToTiers(ID, refID, beg, end, refSp, utterance->speaker, utterance->line, FALSE);
 //		fprintf(fpout, "ID=%s, IDRef=%s; (%ld-%ld)\n", ID, refID, beg, end);
 //		fprintf(fpout, "%s:\t%s\n", utterance->speaker, utterance->line);
 	}
 	fprintf(stderr, "\r	  \r");
 	cutt_isMultiFound = isMultiBullets;
-	if (isMFA == FALSE) {
-		Elan_addUnmacthed();
-		Elan_finalTimeSort();
-	}
+	Elan_addUnmacthed();
+	Elan_finalTimeSort();
 	Elan_printOutTiers(e2c_RootTiers);
 	fprintf(fpout, "@End\n");
 	freeXML_Elements();

@@ -287,6 +287,10 @@ myFInfo *InitFileInfo(FNType *fname, long lLen, short id, char *isUTF8Header)
 	FInf->RootWindow = NULL;
 	FInf->RdW = NULL;
 	FInf->w1 = NULL;
+	if (LemmasColorNumPtr > 0)
+		FInf->re_colorLemmas = TRUE;
+	else
+		FInf->re_colorLemmas = FALSE;
 	FInf->ScrollBar = '\0';
 	FInf->VScrollBar = FALSE;
 	FInf->HScrollBar = FALSE;

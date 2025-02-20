@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -208,14 +208,59 @@ static void findWordInfo(int sp, int oldEp, int *ep, char *isCont) {
 	}
 }
 
-static void addRetraceToOutput(WORDLST *s, WORDLST *e, int lp, char *retrace_line) {
-	int i, j = 0;
+static void addRetraceToOutput(WORDLST *s, WORDLST *e, int lp, char *retrace_line, int num) {
+	int i, j = 0, cnt;
 	WORDLST *l;
 
 	for (l=s; l->nextWord != e; l=l->nextWord) ;
 	for (i=0; utterance->line[i] && i < s->sp; i++) {
 		retrace_line[j++] = utterance->line[i];
 	}
+
+	cnt = 0;
+	if (num > 1)
+		retrace_line[j++] = '<';
+	for (; utterance->line[i] && i < l->ep; i++) {
+		retrace_line[j++] = utterance->line[i];
+		if (isSpace(utterance->line[i]) || utterance->line[i] == '\n') {
+			cnt++;
+			if (cnt == num) {
+				if (num > 1) {
+					j--;
+					retrace_line[j++] = '>';
+					retrace_line[j++] = ' ';
+				}
+				retrace_line[j++] = '[';
+				retrace_line[j++] = '/';
+				retrace_line[j++] = ']';
+				retrace_line[j++] = ' ';
+				if (num > 1) {
+					retrace_line[j++] = '<';
+				}
+//				retrace_line[j++] = '\001';
+				cnt = 0;
+			}
+		}
+	}
+	
+	if (num > 1) {
+		retrace_line[j++] = '>';
+	}
+	retrace_line[j++] = ' ';
+	retrace_line[j++] = '[';
+	retrace_line[j++] = '/';
+	retrace_line[j++] = ']';
+	retrace_line[j++] = ' ';
+	retrace_line[j++] = '\001';
+
+	for (; utterance->line[i]; i++) {
+		retrace_line[j++] = utterance->line[i];
+		if (i == lp)
+			retrace_line[j++] = '\002';
+	}
+	if (i == lp)
+		retrace_line[j++] = '\002';
+/*
 	if (s != l)
 		retrace_line[j++] = '<';
 	for (; utterance->line[i] && i < l->ep; i++) {
@@ -236,6 +281,7 @@ static void addRetraceToOutput(WORDLST *s, WORDLST *e, int lp, char *retrace_lin
 	}
 	if (i == lp)
 		retrace_line[j++] = '\002';
+*/
 	retrace_line[j] = EOS;
 }
 
@@ -253,7 +299,7 @@ static char singleMatch(WORDLST *s, WORDLST *e, char *retrace_line) {
 			break;
 	}
 	if (isMatch) {
-		addRetraceToOutput(orgS, isMatch, isMatch->ep, retrace_line);
+		addRetraceToOutput(orgS, isMatch, isMatch->ep, retrace_line, 1);
 		return(TRUE);
 	} else
 		return(FALSE);
@@ -284,7 +330,7 @@ static char doubleMatch(WORDLST *s, WORDLST *e, char *retrace_line) {
 			break;
 	}
 	if (isMatch && lastMatch != NULL) {
-		addRetraceToOutput(orgS, isMatch, lastMatch->ep, retrace_line);
+		addRetraceToOutput(orgS, isMatch, lastMatch->ep, retrace_line, 2);
 		return(TRUE);
 	} else
 		return(FALSE);
@@ -323,7 +369,7 @@ static char tripleMatch(WORDLST *s, WORDLST *e, char *retrace_line) {
 			break;
 	}
 	if (isMatch && lastMatch != NULL) {
-		addRetraceToOutput(orgS, isMatch, lastMatch->ep, retrace_line);
+		addRetraceToOutput(orgS, isMatch, lastMatch->ep, retrace_line, 3);
 		return(TRUE);
 	} else
 		return(FALSE);

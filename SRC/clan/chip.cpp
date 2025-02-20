@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -53,7 +53,8 @@ int DOING_ADU = TRUE;		/* Doing adult responses			*/
 int DOING_CHI = TRUE;		/* Doing child responses			*/
 int DOING_SLF = TRUE;		/* Doing self-repetitions			*/
 int DOING_OTH = FALSE;		/* Doing responses for unknown speakers		*/
-int UTTWINDOW;			/* Default for the utterance window		*/
+int UTTWINDOW;				/* Default for the utterance window		*/
+int MINWORDS = 0;			/* Minimum number of words on source utterance */
 double MININDEX = 0.0;		/* Minimum repetition index			*/
 int DOING_CLASS = FALSE;	/* TRUE if wordclass include file specified */
 int DOING_SUBST = FALSE;	/* TRUE if substitutions are to be coded	*/
@@ -97,6 +98,8 @@ void usage(void)	/* Print proper usage and exit.  (Called by CLAN.)  */
 	puts(  "-hF: file F has words to be excluded");
 	printf("-nC: Do not code C: b (adu), c (chi), or s (asr & csr) responses.\n");
 	printf("+qN: Set the utterance window to N utterances before the response (2-%d).\n", MAXUTTWINDOW);
+	printf("+wN: Set minimum number of words on source utterance. (default: no minimum)\n");
+	printf("     +w2: one word source/Adult utterances will be ignored\n");
 	printf("+xN: Set minimum repetition index for coding.\n");
 	mainusage(FALSE);
 #ifdef UNX
@@ -160,12 +163,13 @@ void init(char first) {
 		mor_initwords();
 		ftime = TRUE;
 		isMorTier = TRUE;
-		UTTWINDOW = 6; /* the response plus 5 previous utterances */
+		UTTWINDOW = 7; /* the response plus 6 previous utterances */
 		DOING_ADU = TRUE;		/* Doing adult responses					*/
 		DOING_CHI = TRUE;		/* Doing child responses					*/
 		DOING_SLF = TRUE;		/* Doing self-repetitions					*/
 		DOING_OTH = FALSE;		/* Doing unknown speakers					*/
 		MININDEX = 0.0;			/* Minimum repetition index					*/
+		MINWORDS = 0;			/* Minimum number of words on source utterance */
 		DOING_CLASS = FALSE;	/* TRUE if wordclass include file specified */
 		DOING_SUBST = FALSE;	/* TRUE if substitutions are to be coded	*/
 		number_of_children = 0;
@@ -292,12 +296,13 @@ static void update_special(
 	double madd,			/* # of morphemes added					*/
 	double mdel,			/* # of morphemes deleted				*/
 	double mexa,			/* # of morphemes repeated				*/
-	double msub) {			/* # of morphemes substituted			*/
+	double msub,			/* # of morphemes substituted			*/
+	double posd) {			/* # of POS different					*/ // 2024-06-28
 
 	switch (int_type) {
 		case adult:
 			if ((add_ops + del_ops + clsub_ops + madd + mdel + msub) == 0) {
-				if (((!DOING_CLASS) && (exa_ops > 0)) || ((DOING_CLASS) && (clexa_ops > 0))) {
+				if (((!DOING_CLASS) && (exa_ops > 0)) || (DOING_CLASS && clexa_ops > 0 && posd == 0.0)) {
 					strcat(codes, " $EXACT");
 					++adu_dat.exact_match;
 				}
@@ -319,7 +324,7 @@ static void update_special(
 
 		case child:
 			if ((add_ops + del_ops + clsub_ops + madd + mdel + msub) == 0) {
-				if (((!DOING_CLASS) && (exa_ops > 0)) || ((DOING_CLASS) && (clexa_ops > 0))) {
+				if (((!DOING_CLASS) && (exa_ops > 0)) || (DOING_CLASS && clexa_ops > 0 && posd == 0.0)) {
 					strcat(codes, " $EXACT");
 					++chi_dat.exact_match;
 				}
@@ -342,7 +347,7 @@ static void update_special(
 
 		case aduslf:
 			if ((add_ops + del_ops + clsub_ops + madd + mdel + msub) == 0) {
-				if (((!DOING_CLASS) && (exa_ops > 0)) || ((DOING_CLASS) && (clexa_ops > 0))) {
+				if (((!DOING_CLASS) && (exa_ops > 0)) || (DOING_CLASS && clexa_ops > 0 && posd == 0.0)) {
 					strcat(codes, " $EXACT");
 					++asr_dat.exact_match;
 				}
@@ -364,7 +369,7 @@ static void update_special(
 
    		case chislf:
 			if ((add_ops + del_ops + clsub_ops + madd + mdel + msub) == 0) {
-				if (((!DOING_CLASS) && (exa_ops > 0)) || ((DOING_CLASS) && (clexa_ops > 0))) {
+				if (((!DOING_CLASS) && (exa_ops > 0)) || (DOING_CLASS && clexa_ops > 0 && posd == 0.0)) {
 					strcat(codes, " $EXACT");
 					++csr_dat.exact_match;
 				}
@@ -467,10 +472,11 @@ static int process_codes(
 	double madd,			/* # of morphemes added					*/
 	double mdel,			/* # of morphemes deleted				*/
 	double mexa,			/* # of morphemes repeated				*/
-	double msub) {			/* # of morphemes substituted			*/
+	double msub,			/* # of morphemes substituted			*/
+	double posd) {			/* # of POS different					*/ // 2024-06-28
 
-	real_word *s_word;			/* The current word from the source		*/
-	real_word *r_word;			/* The current word from the source		*/
+	real_word *s_word;		/* The current word from the source		*/
+	real_word *r_word;		/* The current word from the source		*/
 	enum match_enum s_match;/* Codes for word matching and marking  */
 	enum match_enum r_match;/* Codes for word matching and marking  */
 	int i, j;				/* Integers controlling the main loop   */
@@ -647,11 +653,11 @@ static int process_codes(
    /* Data about special responses */
    if (!DOING_CLASS) {
 	   if ((add_ops > 0) || (del_ops > 0) || (exa_ops > 0)) {
-		   update_special(int_type, codes, add_ops, del_ops, exa_ops,cladd_ops, cldel_ops, clexa_ops, clsub_ops,madd, mdel, mexa, msub);
+		   update_special(int_type, codes, add_ops, del_ops, exa_ops,cladd_ops, cldel_ops, clexa_ops, clsub_ops,madd, mdel, mexa, msub, posd);
 	   }
    } else if (DOING_CLASS) {
 	   if ((cladd_ops > 0) || (cldel_ops > 0) || (clexa_ops > 0) || (clsub_ops > 0)) {
-		   update_special(int_type, codes, add_ops, del_ops, exa_ops, cladd_ops, cldel_ops, clexa_ops, clsub_ops, madd, mdel, mexa, msub);
+		   update_special(int_type, codes, add_ops, del_ops, exa_ops, cladd_ops, cldel_ops, clexa_ops, clsub_ops, madd, mdel, mexa, msub, posd);
 		   class_word = TRUE;
 		   /* Test of class overlap counter */
 		   /* if (cldel_ops > 0) class_word = TRUE;*/
@@ -795,6 +801,7 @@ static double single_interaction(
 	int i, j;				/* Integers controlling the main loop   */
 	int DO_MORPH = FALSE;	/* T is we should update morph vars		*/
 	int class_word = FALSE;	/* T if word from WORD-CLASS found		*/
+	double posd = 0.0;		/* # of POS different					*/ // 2024-06-28
 	double madd = 0.0;		/* # of morphemes added					*/
 	double mdel = 0.0;		/* # of morphemes deleted				*/
 	double mexa = 0.0;		/* # of morphemes repeated				*/
@@ -806,6 +813,9 @@ static double single_interaction(
 	overlap = 0;
 	s_length = utter_words(source);
 	r_length = utter_words(response);
+
+	if (s_length < MINWORDS)
+		return (-1.0);
 
 	i = 0;
 	while (i < r_length) {
@@ -819,25 +829,53 @@ static double single_interaction(
 				overlap++;
 				insert_code(s_word, match_exact);
 				insert_code(r_word, match_exact);
-				if (!DOING_CLASS || (DOING_CLASS && word_pos_match(r_word, s_word, FALSE)))
+				if (!DOING_CLASS || (DOING_CLASS && word_pos_match(r_word, s_word, FALSE) == TRUE))
 					DO_MORPH = TRUE;
+				else if (DOING_CLASS && word_pos_match(r_word, s_word, FALSE) == FALSE) // 2024-06-28
+					++posd; // 2024-06-28
 				switch(morph_code(spareTier1, word_prefix(r_word), word_prefix(s_word))) {
-					case 0: break;		/* No morphology */
-					case 1: if (DO_MORPH) ++mexa; break;
-					case 2: if (DO_MORPH) ++madd; break;
-					case 3: if (DO_MORPH) ++mdel; break;
-					case 4: if (DO_MORPH) ++msub; break;
+					case 0:
+						break;		/* No morphology */
+					case 1: 
+						if (DO_MORPH)
+							++mexa;
+						break;
+					case 2:
+						if (DO_MORPH)
+							++madd;
+						break;
+					case 3:
+						if (DO_MORPH)
+							++mdel; 
+						break;
+					case 4:
+						if (DO_MORPH) 
+							++msub;
+						break;
 					default:
 						fprintf(stderr, "Unknown level for morphology.\n");
 						chip_exit(NULL, TRUE);
 						break;
 				}
 				switch(morph_code(spareTier1, word_suffix(r_word), word_suffix(s_word))) {
-					case 0: break;		/* No morphology */
-					case 1: if (DO_MORPH) ++mexa; break;
-					case 2: if (DO_MORPH) ++madd; break;
-					case 3: if (DO_MORPH) ++mdel; break;
-					case 4: if (DO_MORPH) ++msub; break;
+					case 0:
+						break;		/* No morphology */
+					case 1:
+						if (DO_MORPH)
+							++mexa;
+						break;
+					case 2:
+						if (DO_MORPH)
+							++madd;
+						break;
+					case 3:
+						if (DO_MORPH)
+							++mdel;
+						break;
+					case 4:
+						if (DO_MORPH)
+							++msub;
+						break;
 					default:
 						fprintf(stderr, "Unknown level for morphology.\n");
 						chip_exit(NULL, TRUE);
@@ -858,7 +896,7 @@ static double single_interaction(
 			j++;
 			if (word_match(r_word, s_word, FALSE)) {
 				break;
-			} else if (DOING_SUBST && word_pos_match(r_word, s_word, TRUE)) {
+			} else if (DOING_SUBST && word_pos_match(r_word, s_word, TRUE) == TRUE) {
 				insert_code(s_word, match_subst);
 				insert_code(r_word, match_subst);
 			}
@@ -897,8 +935,7 @@ static double single_interaction(
 	} else if (rep_index < MININDEX) {
 		strcat(codes, " $LO_REP");
 	} else {
-		class_word =
-		 process_codes(source, s_length, response, r_length, codes, int_type, madd, mdel, mexa, msub);
+		class_word = process_codes(source, s_length, response, r_length, codes, int_type, madd, mdel, mexa, msub, posd);
 		 strcat(codes, spareTier1);
 	}
 
@@ -1284,6 +1321,8 @@ void call() 		/* Handle an input file (Called by CLAN) */
 	interact_file();
 	if (!combinput && onlydata != 1)
 		print_data();
+	else if (stout)
+		fprintf(fpout, "\n");
 }
 
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
@@ -1323,6 +1362,10 @@ void getflag(char *f, char *f1, int *i) {
 			MININDEX = atof(f);
 			break;
 			
+		case 'w':
+			MINWORDS = atof(f);
+			break;
+
 		case 'g':		/* Doing substitutions								*/
 			DOING_SUBST = TRUE;
 			DOING_CLASS = TRUE;

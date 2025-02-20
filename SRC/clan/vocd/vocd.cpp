@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -133,9 +133,7 @@ static void default_excludes(void) {
 	addword('\0','\0',"+yy");
 	addword('\0','\0',"+yyy");
 	addword('\0','\0',"+www");
-	addword('\0','\0',"+*|xx");
 	addword('\0','\0',"+unk|xxx");
-	addword('\0','\0',"+*|yy");
 	addword('\0','\0',"+unk|yyy");
 	addword('\0','\0',"+*|www");
 	addword('\0','\0',"+.");

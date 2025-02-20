@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -26,7 +26,8 @@ extern "C"
 #define PUNCT_ID_SET ","
 
 
-extern const char *punctuation;/* contains main text line punctuation set	  */
+extern const char *cutt_punctuation;/* contains main text line punctuation set	  */
+extern const char *ced_punctuation;/* contains CED Editor line punctuation set	  */
 	
 class cUStr
 {

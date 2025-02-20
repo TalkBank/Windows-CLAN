@@ -285,9 +285,11 @@ static void UpdateCursorPos(int row, int col, char cnv, int extend) {
 
 	if (cnv == 3) {
 		GetCurCode();
-		if ((col=uS.partcmp(sp, "%gra:", FALSE, FALSE))) {
+		if ((col = uS.partcmp(sp, "%ugra:", FALSE, FALSE))) {
+			isPlayS = -9;
+		} else if ((col = uS.partcmp(sp, "%gra:", FALSE, FALSE))) {
 			isPlayS = -8;
-		} else if ((col=uS.partcmp(sp, "%grt:", FALSE, FALSE))) {
+		} else if ((col = uS.partcmp(sp, "%grt:", FALSE, FALSE))) {
 			isPlayS = -8;
 		} else if (global_df->SoundWin && (GetCurHidenCode(TRUE, NULL) || isAnyBulletsOnLine())) {
 			char isTopWinChanged;
@@ -759,7 +761,7 @@ void EndSelectCursorPosition(CPoint point, int extend) {
 	if (where == 1 || where == 6) {
 		GetCurCode();
 		FindRightCode(1);
-		if (isPlayS != -5 && isPlayS != -8 && isPlayS != 4) {
+		if (isPlayS != -5 && isPlayS != -8 && isPlayS != -9 && isPlayS != 4) {
 			isPlayS = 0;
 			InKey = 0;
 		}

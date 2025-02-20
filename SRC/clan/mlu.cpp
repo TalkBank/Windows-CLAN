@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -44,7 +44,7 @@ struct mlu_cnt {
 } ;
 
 static MLUSP *mlu_head;
-static char mlu_ftime1, mlu_ftime2, mlu_isMorExcluded, mlu_isCombineSpeakers, morTierSelected;
+static char mlu_ftime1, mlu_ftime2, mlu_isMorExcluded, mlu_isCombineSpeakers, morTierSelected, isCountWords;
 static float morf, mlu_utter, morfsqr;
 
 void usage() {
@@ -57,13 +57,11 @@ void usage() {
 	printf("%c%cMLU NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
 	printf("%c%cTO RUN MLU ON MAIN SPEAKER TIER PLEASE USE \"-t%%mor:\" OPTION.%c%c\n", ATTMARKER, error_start, ATTMARKER, error_end);
 #endif
-	printf("Usage: mlu [bS cS gS oN %s] filename(s)\n", mainflgs());
+	printf("Usage: mlu [b cS gS oN %s] filename(s)\n", mainflgs());
 //	printf("Usage: mlu [aC bS cS gF %s] filename(s)\n", mainflgs());
 //	puts("+a : count all utterances even the ones without words");
 //	puts("+at: count utterances that have [+ trn] code even the ones without words");
-	printf("+bS: add all S characters to morpheme delimiters list (default: %s)\n", rootmorf);
-	puts("-bS: remove all S characters from be morphemes list");
-	puts("-b:  counts words, not morphemes");
+	puts("-b :  counts words, not morphemes");
 	puts("+cS: look for clause marker S or markers listed in file @S");
 	puts("+gS: exclude utterance consisting solely of specified word S or words in file @S");
 	puts("+o3: combine selected speakers from each file into one results list for that file");
@@ -104,6 +102,7 @@ void init(char f) {
 		maininitwords();
 		mor_initwords();
 		isMLUEpostcode = TRUE;
+		isCountWords = FALSE;
 		ml_isSkip = FALSE;
 		ml_isXXXFound = FALSE;
 		ml_isYYYFound = FALSE;
@@ -210,7 +209,7 @@ static void mlu_pr_result(void) {
 		morf	  = mlu_head->morf;
 		mlu_utter = mlu_head->mlu_utter;
 		morfsqr   = mlu_head->morfsqr;
-		if (!onlydata || !chatmode) {
+		if (onlydata == 0 || onlydata == 4 || !chatmode) {
 			fprintf(fpout, "MLU for Speaker: %s\n", mlu_head->sp);
 			if (ml_isXXXFound && ml_isYYYFound) {
 				fprintf(fpout,"  MLU (xxx and yyy are EXCLUDED from the morpheme counts, but are INCLUDED in %s counts):\n", (ml_isclause() ? "clause" : "utterance"));
@@ -385,100 +384,13 @@ static MLUSP *mlu_FindSpeaker(char *fname, char *sp, char *ID, char isSpeakerFou
 	return(ts);
 }
 
-char mlu_excludeUtter(char *line, int pos, char *isWordsFound) { // xxx, yyy, www
-	int  i, j;
-	char isSkipFirst = FALSE;
-
-	if (MBF) {
-		if (my_CharacterByteType(line, (short)pos, &dFnt) != 0 ||
-			my_CharacterByteType(line, (short)pos+1, &dFnt) != 0 ||
-			my_CharacterByteType(line, (short)pos+2, &dFnt) != 0)
-			isSkipFirst = TRUE;
-	}
-	if (!isSkipFirst) {
-		i = 0;
-		j = 0;
-		if (pos == 0 || uS.isskip(line,pos-1,&dFnt,MBF)) {
-			for (j=pos; line[j] == 'x' || line[j] == 'X' ||
-						line[j] == 'y' || line[j] == 'Y' ||
-						line[j] == 'w' || line[j] == 'W' || 
-						line[j] == '(' || line[j] == ')'; j++) {
-				if (line[j] != '(' && line[j] != ')')
-					templineC2[i++] = line[j];
-			}
-		}
-		if (i == 3) {
-			if (uS.isskip(line, j, &dFnt,MBF) || line[j] == '@')
-				templineC2[i] = EOS;
-			else
-				templineC2[0] = EOS;
-		} else
-			templineC2[i] = EOS;
-		uS.lowercasestr(templineC2, &dFnt, FALSE);
-		if ((ml_isXXXFound && strcmp(templineC2, "xxx") == 0) ||
-			(ml_isYYYFound && strcmp(templineC2, "yyy") == 0)) {
-			if (isWordsFound == NULL && (CntWUT == 2 || CntWUT == 3)) {
-			} else {
-				line[pos] = ' ';
-				line[pos+1] = ' ';
-				line[pos+2] = ' ';
-			}
-			if (isWordsFound != NULL)
-				*isWordsFound = TRUE;
-		} else if (strcmp(templineC2, "xxx") == 0 ||
-				   strcmp(templineC2, "yyy") == 0 ||
-				   strcmp(templineC2, "www") == 0) {
-//			if (uS.isskip(line,pos+3,&dFnt,MBF) || line[pos+3] == EOS)
-				return(TRUE);
-		}
-	}
-	if (chatmode) {
-		if (uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE)) {
-			if (MBF) {
-				if (my_CharacterByteType(line, (short)pos, &dFnt)   != 0 ||
-					my_CharacterByteType(line, (short)pos+1, &dFnt) != 0 ||
-					my_CharacterByteType(line, (short)pos+2, &dFnt) != 0 ||
-					my_CharacterByteType(line, (short)pos+3, &dFnt) != 0 ||
-					my_CharacterByteType(line, (short)pos+4, &dFnt) != 0 ||
-					my_CharacterByteType(line, (short)pos+5, &dFnt) != 0 ||
-					my_CharacterByteType(line, (short)pos+6, &dFnt) != 0)
-					return(FALSE);
-			}
-			if (!uS.isskip(line,pos+7,&dFnt,MBF) && line[pos+7] != EOS)
-				return(FALSE);
-			strncpy(templineC2, line+pos, 7);
-			templineC2[7] = EOS;
-			uS.lowercasestr(templineC2, &dFnt, FALSE);
-			if ((ml_isXXXFound && strcmp(templineC2, "unk|xxx") == 0) ||
-				(ml_isYYYFound && strcmp(templineC2, "unk|yyy") == 0)) {
-				if (isWordsFound == NULL && (CntWUT == 2 || CntWUT == 3)) {
-				} else {
-					line[pos] = ' ';
-					line[pos+1] = ' ';
-					line[pos+2] = ' ';
-					line[pos+3] = ' ';
-					line[pos+4] = ' ';
-					line[pos+5] = ' ';
-					line[pos+6] = ' ';
-				}
-				if (isWordsFound != NULL)
-					*isWordsFound = TRUE;
-			} else if (strcmp(templineC2, "unk|xxx") == 0 ||
-					   strcmp(templineC2, "unk|yyy") == 0 ||
-					   strcmp(templineC2, "unk|www") == 0)
-				return(TRUE);
-		}
-	}
-	return(FALSE);	
-}
-
 // C_NNLA, EVAL, EVALD, KIDEVAL, MAXWD, WDLEN and SUGAR
 void call() {
-	register int pos;
+	int pos, oPos;
 	MLUSP *ts = NULL;
-	float tLocalmorf = 0.0, localmorf = 0.0;
-	char tmp, isWordsFound, sq, aq, isSkip;
-	char isPSDFound = FALSE, curPSDFound, isAmbigFound, isDepTierFound;
+	float tLocalmorf = 0.0, localmorf = 0.0, morphCnt;
+	char isWordsFound, sq, aq, isSkip, tchr;
+	char isPSDFound = FALSE, curPSDFound, isDepTierFound;
 
 	isDepTierFound = FALSE;
 	isSkip = FALSE;
@@ -604,12 +516,8 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 					if (uS.isRightChar(uttline, pos, '>', &dFnt, MBF)) aq = FALSE;
 			}
 			if (!uS.isskip(uttline,pos,&dFnt,MBF) && !sq && !aq) {
-				isAmbigFound = FALSE;
-				isWordsFound = TRUE;
-				tmp = TRUE;
+				oPos = pos;
 				while (uttline[pos]) {
-					if (uttline[pos] == '^')
-						isAmbigFound = TRUE;
 					if (uS.isskip(uttline,pos,&dFnt,MBF)) {
 						if (uS.IsUtteranceDel(utterance->line, pos)) {
 							if (!uS.atUFound(utterance->line, pos, &dFnt, MBF))
@@ -617,22 +525,25 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 						} else
 							break;
 					}
-					if (!uS.ismorfchar(uttline, pos, &dFnt, rootmorf, MBF) && !isAmbigFound) {
-						if (tmp) {
-							if (uttline[pos] != EOS) {
-								if (pos >= 2 && uttline[pos-1] == '+' && uttline[pos-2] == '|')
-									;
-								else {
-									morf = morf + 1;
-									localmorf = localmorf + 1;
-								}
-							}
-							tmp = FALSE;
-						}
-					} else
-						tmp = TRUE;
 					pos++;
 				}
+				isWordsFound = TRUE;
+				tchr = uttline[pos];
+				uttline[pos] = EOS;
+				morphCnt = countMorphs(uttline, oPos); // uS.ismorfchar
+				if (isCountWords == TRUE) {
+					if (morphCnt > 0.0) {
+						morf = morf + 1.0;
+						localmorf = localmorf + 1.0;
+					}
+				} else {
+					morf = morf + morphCnt;
+					localmorf = localmorf + morphCnt;
+				}
+				if (onlydata == 4) {
+					fprintf(stderr, "morphCnt=%.0f, new=%.0f: word=%s\n", morphCnt, morf, uttline+oPos);
+				}
+				uttline[pos] = tchr;
 			}
 			if (!ml_isclause()) {
 				if ((pos == 0 || uS.isskip(utterance->line,pos-1,&dFnt,MBF)) && utterance->line[pos] == '+' && 
@@ -714,31 +625,9 @@ void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
 		case 'b':
-				morf = getfarg(f,f1,i);
-				if (*(f-2) == '-') {
-					if (*morf != EOS) {
-						for (j=0; rootmorf[j] != EOS; ) {
-							if (uS.isCharInMorf(rootmorf[j],morf)) 
-								strcpy(rootmorf+j,rootmorf+j+1);
-							else
-								j++;
-						}
-					} else
-						rootmorf[0] = EOS;
-				} else {
-					if (*morf != EOS) {
-						t = rootmorf;
-						rootmorf = (char *)malloc(strlen(t)+strlen(morf)+1);
-						if (rootmorf == NULL) {
-							fprintf(stderr,"No more space left in core.\n");
-							ml_exit(1);
-						}
-						strcpy(rootmorf,t);
-						strcat(rootmorf,morf);
-						free(t);
-					}
-				}
-				break;
+			isCountWords = TRUE;
+			no_arg_option(f);
+			break;
 		case 'c':
 			if (!*f) {
 				fprintf(stderr,"Specify clause delemeters after +c option.\n");
@@ -848,7 +737,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	isWinMode = IS_WIN_MODE;
 	CLAN_PROG_NUM = MLU;
 	chatmode = CHAT_MODE;
-	OnlydataLimit = 3;
+	OnlydataLimit = 4;
 	UttlineEqUtterance = FALSE;
 	bmain(argc,argv,mlu_pr_result);
 	ml_WdHead = freeIEWORDS(ml_WdHead);

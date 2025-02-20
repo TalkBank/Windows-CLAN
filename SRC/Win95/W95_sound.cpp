@@ -2783,17 +2783,24 @@ char checkPCMPlaybackBuffer(void) {
 		if (cWaveHdr->dwBufferLength == 0 || isWinSndDonePlaying) {
 			isWinSndDonePlaying = 1;
 		} else {
+			long BUFSIZE;
+
+			if (global_df->SnTr.SNDsample == 3)
+				BUFSIZE = MACBUFSIZE - 2;
+			else
+				BUFSIZE = MACBUFSIZE;
+
 			gBufferDone = false;
 			if (isCurSB1) {
 				tWaveHdr = waveHdr2;
 				if (CurF < global_df->SnTr.EndF)
-					waveHdr2->dwBufferLength = ReadSound(SB2, MACBUFSIZE);
+					waveHdr2->dwBufferLength = ReadSound(SB2, BUFSIZE);
 				else
 					waveHdr2->dwBufferLength = 0;
 			} else {
 				tWaveHdr = waveHdr1;
 				if (CurF < global_df->SnTr.EndF) 
-					waveHdr1->dwBufferLength = ReadSound(SB1, MACBUFSIZE);
+					waveHdr1->dwBufferLength = ReadSound(SB1, BUFSIZE);
 				else
 					waveHdr1->dwBufferLength = 0;
 			}
@@ -2818,6 +2825,12 @@ char checkPCMPlaybackBuffer(void) {
 static char PlayPCMSound(int com) {
 	WAVEFORMATEX	pFormat;
 	DWORD	tickCount, lastTickCount;
+	long BUFSIZE;
+
+	if (global_df->SnTr.SNDsample == 3)
+		BUFSIZE = MACBUFSIZE - 2;
+	else
+		BUFSIZE = MACBUFSIZE;
 
 	sndCom = com;
 	if (com == 'p' || global_df->SnTr.EndF == 0) {
@@ -2874,12 +2887,12 @@ static char PlayPCMSound(int com) {
 	CurF = orgBeg = global_df->SnTr.BegF;
 	checkContinousSndPlayPossition(global_df->SnTr.BegF);
 
-	SB1 = (HPSTR)GlobalAllocPtr(GMEM_MOVEABLE | GMEM_SHARE, MACBUFSIZE);
+	SB1 = (HPSTR)GlobalAllocPtr(GMEM_MOVEABLE | GMEM_SHARE, BUFSIZE);
 	if (!SB1) {
 		strcpy(global_df->err_message, "+Out of memory.");
 		return(0);
 	}
-	SB2 = (HPSTR)GlobalAllocPtr(GMEM_MOVEABLE | GMEM_SHARE, MACBUFSIZE);
+	SB2 = (HPSTR)GlobalAllocPtr(GMEM_MOVEABLE | GMEM_SHARE, BUFSIZE);
 	if (!SB2) {
 		strcpy(global_df->err_message, "+Out of memory.");
 		GlobalFreePtr(SB1);
@@ -2974,7 +2987,7 @@ static char PlayPCMSound(int com) {
 	else
 		cWaveHdr = waveHdr2;
 
-	cWaveHdr->dwBufferLength = ReadSound(SB1, MACBUFSIZE);
+	cWaveHdr->dwBufferLength = ReadSound(SB1, BUFSIZE);
 	if (waveOutWrite(hWaveOut, cWaveHdr, sizeof(WAVEHDR)) != 0) {
 		if (waveOutSetVolume(hWaveOut, oDwVolume) != MMSYSERR_NOERROR) ;
 		waveOutReset(hWaveOut);
@@ -2990,13 +3003,13 @@ static char PlayPCMSound(int com) {
 	if (isCurSB1) {
 		tWaveHdr = waveHdr2;
 		if (CurF < global_df->SnTr.EndF)
-			waveHdr2->dwBufferLength = ReadSound(SB2, MACBUFSIZE);
+			waveHdr2->dwBufferLength = ReadSound(SB2, BUFSIZE);
 		else
 			waveHdr2->dwBufferLength = 0;
 	} else {
 		tWaveHdr = waveHdr1;
 		if (CurF < global_df->SnTr.EndF) 
-			waveHdr1->dwBufferLength = ReadSound(SB1, MACBUFSIZE);
+			waveHdr1->dwBufferLength = ReadSound(SB1, BUFSIZE);
 		else
 			waveHdr1->dwBufferLength = 0;
 	}
@@ -3052,7 +3065,8 @@ char PlayBuffer(int com) {
 }
 /* Play sound End */
 
-void WriteAIFFHeader(FILE *fpout, long numBytes, unsigned int frames, short numChannels, short sampleSize, double sampleRate) {
+void WriteAIFFHeader(FILE *fpout, long numBytes, unsigned int frames,
+	short numChannels, short sampleSize, double sampleRate) {
 	formAIFF.ckID = 'FORM';
 	formAIFF.ckSize = numBytes + sizeof(formAIFF)+sizeof(commonChunk)+sizeof(soundDataChunk) - 16;
 	formAIFF.formType = 'AIFF';

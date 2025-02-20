@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -202,15 +202,17 @@ static char isNumItemPointedToBy(char *line, int num, const char *tag) {
 }
 
 static void sugar_process_tier(struct sugar_speakers *ts, char *isVerbFound) {
-	int i, j, wi;
-	char morWord[1024], graWord[1024];
-	char tmp, isWordsFound, sq, aq, *vb;
-	char curPSDFound, isAmbigFound;
+	int i, j, wi, oPos;
+	char morWord[1024], graWord[1024], word[BUFSIZ+1];
+	char tchr, isWordsFound, sq, aq, *vb, isSkip;
+	char curPSDFound;
+	float morphCnt;
 	MORFEATS word_feats, *feat;
 
 	if (utterance->speaker[0] == '*') {
 		org_depTier[0] = EOS;
 		strcpy(spareTier1, utterance->line);
+		strcpy(spareTier3, uttline);
 	} else if (uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE)) {
 		if (org_depTier[0] == EOS) {
 			strcpy(org_depTier, utterance->line);
@@ -284,6 +286,14 @@ static void sugar_process_tier(struct sugar_speakers *ts, char *isVerbFound) {
 */
 			}
 		}
+		isSkip = FALSE;
+		i = 0;
+		while ((i=getword(utterance->speaker, spareTier3, word, NULL, i))) {
+			if (strcmp(word, "xxx") == 0 || strcmp(word, "yyy") == 0 || strcmp(word, "www") == 0) {
+				isSkip = TRUE;
+				break;
+			}
+		}
 		ts->isMORFound = TRUE;
 		curPSDFound = FALSE;
 		isWordsFound = FALSE;
@@ -320,12 +330,9 @@ static void sugar_process_tier(struct sugar_speakers *ts, char *isVerbFound) {
 					if (uS.isRightChar(uttline, i, '>', &dFnt, MBF)) aq = FALSE;
 			}
 			if (!uS.isskip(uttline,i,&dFnt,MBF) && !sq && !aq) {
-				isAmbigFound = FALSE;
 				isWordsFound = TRUE;
-				tmp = TRUE;
+				oPos = i;
 				while (uttline[i]) {
-					if (uttline[i] == '^')
-						isAmbigFound = TRUE;
 					if (uS.isskip(uttline,i,&dFnt,MBF)) {
 						if (uS.IsUtteranceDel(utterance->line, i)) {
 							if (!uS.atUFound(utterance->line, i, &dFnt, MBF))
@@ -333,21 +340,14 @@ static void sugar_process_tier(struct sugar_speakers *ts, char *isVerbFound) {
 						} else
 							break;
 					}
-					if (!uS.ismorfchar(uttline, i, &dFnt, rootmorf, MBF) && !isAmbigFound) {
-						if (tmp) {
-							if (uttline[i] != EOS) {
-								if (i >= 2 && uttline[i-1] == '+' && uttline[i-2] == '|')
-									;
-								else {
-									ts->mluMorfS = ts->mluMorfS + (float)1.0;
-								}
-							}
-							tmp = FALSE;
-						}
-					} else
-						tmp = TRUE;
 					i++;
 				}
+				tchr = uttline[i];
+				uttline[i] = EOS;
+				morphCnt = countMorphs(uttline, oPos); // uS.ismorfchar
+				if (!isSkip)
+					ts->mluMorfS = ts->mluMorfS + morphCnt;
+				uttline[i] = tchr;
 			}
 			if ((i == 0 || uS.isskip(utterance->line,i-1,&dFnt,MBF)) && utterance->line[i] == '+' && 
 				uS.isRightChar(utterance->line,i+1,',',&dFnt, MBF) && ts->isPSDFound) {
@@ -380,7 +380,8 @@ static void sugar_process_tier(struct sugar_speakers *ts, char *isVerbFound) {
 				if (uS.isRightChar(utterance->line, i, ']', &dFnt, MBF))
 					sq = FALSE;
 				if (isWordsFound) {
-					ts->mluUtt = ts->mluUtt + (float)1.0;
+					if (!isSkip)
+						ts->mluUtt = ts->mluUtt + (float)1.0;
 					isWordsFound = FALSE;
 				} else
 					j = 0;
@@ -527,9 +528,9 @@ static void sugar_pr_result(void) {
 
 void usage() {
 	printf("Usage: SUGAR [bS %s] filename(s)\n",mainflgs());
+	puts("+aN: set minimal utterances number limit to N utterances (default: 50 minimal limit)");
 	printf("+bS: add all S characters to morpheme delimiters list (default: %s)\n", rootmorf);
 	puts("-bS: remove all S characters from be morphemes list (-b: empty morphemes list)");
-	puts("+cN: set minimal utterances number limit to N utterances (default: 50 minimal limit)");
 	puts("-d : show utterances that do not meet at least one verb requirement");
 	mainusage(FALSE);
 	cutt_exit(0);

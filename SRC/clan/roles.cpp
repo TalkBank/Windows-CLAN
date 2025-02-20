@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -57,7 +57,7 @@ static void roles_overflow() {
 	cutt_exit(0);
 }
 
-static void roles_makenewsym(char *orig, char *role, char *code) {
+static void roles_makenewsym(char *orig, char *code, char *role) {
 	struct spkrs *nextone;
 
 	if (rootIDs == NULL) {
@@ -97,7 +97,7 @@ static void roles_makenewsym(char *orig, char *role, char *code) {
 
 static void roles_readdict(void) {
 	FILE *fdic;
-	char line[1024], *o, *r, *c;
+	char line[1024], *o, *c, *r;
 	FNType mFileName[FNSize];
 	struct spkrs *rootID, *nextID;
 
@@ -119,18 +119,18 @@ static void roles_readdict(void) {
 		uS.remFrontAndBackBlanks(line);
 		if (line[0] == EOS)
 			continue;
-		for (r=line; isSpace(*r) || *r == '\n'; r++) ;
-		o = r;
-		for (; *r != ' ' && *r != '\t' && *r != '\n' && *r != EOS; r++) ;
-		if (*r != EOS) {
-			*r = EOS;
-			for (r++; *r == ' ' || *r == '\t' || *r == '\n'; r++) ;
-			if (*r != EOS) {
-				for (c=r; *c != ' ' && *c != '\t' && *c != '\n' && *c != EOS; c++) ;
-				if (*c != EOS) {
-					*c = EOS;
-					for (c++; *c == ' ' || *c == '\t' || *c == '\n'; c++) ;
-					roles_makenewsym(o, r, c);
+		for (c=line; isSpace(*c) || *c == '\n'; c++) ;
+		o = c;
+		for (; *c != ' ' && *c != '\t' && *c != '\n' && *c != EOS; c++) ;
+		if (*c != EOS) {
+			*c = EOS;
+			for (c++; *c == ' ' || *c == '\t' || *c == '\n'; c++) ;
+			if (*c != EOS) {
+				for (r=c; *r != ' ' && *r != '\t' && *r != '\n' && *r != EOS; r++) ;
+				if (*r != EOS) {
+					*r = EOS;
+					for (r++; *r == ' ' || *r == '\t' || *r == '\n'; r++) ;
+					roles_makenewsym(o, c, r);
 				}
 			}
 		}
@@ -171,8 +171,8 @@ void usage()			/* print proper usage and exit */
 	puts("+LF: specify full path F of the lib folder");
 #endif
 	mainusage(FALSE);
-	puts("Dictionary file format: \"original_string role code\"");
-	puts("\nExample:");
+	puts("Dictionary file format: \"original_code speaker_code speaker_role\"");
+	puts("Example:");
 	puts("\troles +croles.cut *.cha");
 	cutt_exit(0);
 }
@@ -289,9 +289,9 @@ void call() {
 					break;
 				}
 			}
-			printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine+i, 0);
+			printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine, 0);
 		} else {
-			printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine+i, 0);
+			printout(utterance->speaker,utterance->line,utterance->attSp,utterance->attLine, 0);
 		}
 	}
 	fprintf(stderr,"\n");

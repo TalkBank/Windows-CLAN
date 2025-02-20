@@ -29,7 +29,6 @@ static BOOL firstFontTest = TRUE;
 static char *bArgv[10];
 static COLORWORDLIST *cColor = NULL;
 extern CWnd *isMouseButtonDn;
-extern char *ced_punctuation;
 extern float scalingSize;
 extern FONTINFO cmdFnt;
 
@@ -1124,6 +1123,17 @@ void CClan2View::OnDraw(CDC* pDC)
 	GlobalDC = pDC;
 	newlyCreated = FALSE;
 	testPresenceOfUnicodeFont(pDC);
+	if (pDoc->re_colorLemmas && pDoc->FileInfo != NULL) {
+		pDoc->re_colorLemmas = FALSE;
+		global_df = pDoc->FileInfo;
+		global_df->re_colorLemmas = TRUE;
+		global_df->WinChange = FALSE;
+		DisplayTextWindow(NULL, 0);
+		touchwin(global_df->w1);
+		wrefresh(global_df->w1);
+		global_df->WinChange = TRUE;
+		global_df->re_colorLemmas = FALSE;
+	}
 	if (pDoc->re_wrap && pDoc->FileInfo != NULL) {
 		global_df = pDoc->FileInfo;
 		Re_WrapLines(AddLineToRow, 0L, TRUE, NULL);
@@ -1266,8 +1276,7 @@ void CClan2View::OnDraw(CDC* pDC)
 			}
 		}
 		SetPBCglobal_df(false, 0L);
-	}
-	else if (pDoc->SaveMovieInfo) {
+	} else if (pDoc->SaveMovieInfo) {
 		pDoc->SaveMovieInfo = FALSE;
 		global_df = pDoc->FileInfo;
 		if (global_df && !PlayingContMovie) {
@@ -2962,10 +2971,6 @@ void CClan2View::OnLButtonUp(UINT nFlags, CPoint point)
 
 	ReleaseCapture();   // Release the mouse capture established at
 
-	//	if (isPlayS == -8) {
-	//		ShowFStruct();
-	//		isPlayS = 0;
-	//	}
 	while (isPlayS) {
 		win95_call(0, 0, 0, 0);
 	}

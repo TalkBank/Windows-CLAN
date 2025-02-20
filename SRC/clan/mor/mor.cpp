@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2024 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -1995,6 +1995,7 @@ void init(char f) {
 		addword('\0','\0',"+</>");  // list R6 in mmaininit funtion in cutt.c
 		addword('\0','\0',"+[- *]");
 		addword('\0','\0',"+0");
+		addword('\0','\0',"+0*");
 		addword('\0','\0',"+&*");
 		addword('\0','\0',"+-*");
 		addword('\0','\0',"+#*");
@@ -2351,7 +2352,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 		OnlydataLimit = 0;
 		onlydata = TRUE;
 		UttlineEqUtterance = FALSE;
-
+/*
 		if (NULL != 0) {
 			fprintf(stderr, "Internal error: 'NULL' is not properly define.\n");
 			if (debug_fp != stdout) {
@@ -2360,6 +2361,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 			}
 			cutt_exit(1);
 		}
+*/
 		isAborted = FALSE;
 		if (!bmain(argc,argv,NULL)) {
 			isRunPrepost = FALSE;
@@ -3556,7 +3558,8 @@ static void getOrgWord(int pos, char *str) {
 
 static void call_mor() {
 	unsigned int ln = 0, spCnt;
-	int  wi, last_wi, wpos, offset;
+//	int  last_wi;
+	int  wi, wpos, offset;
 	int  postRes;
 	char isPostCodeExclude;
 	char tword[MAX_WORD];
@@ -3597,7 +3600,7 @@ static void call_mor() {
 			isPostCodeExclude = (postRes == 5 || postRes == 1);
 			while (isSpace(utterance->line[wi]))
 				wi++;
-			last_wi = wi;
+//			last_wi = wi;
 			while ((wi=getword(utterance->speaker, uttline, w, &wpos, wi))) {
 //				if (isdigit(w[0]) && (w[0] != '0' || isdigit(w[1]) || ((w[1] == '.' || w[1] == ',') && isdigit(w[2])))) {
 //					strcat(tutt, "num|number ");
@@ -3662,8 +3665,8 @@ static void call_mor() {
 						}
 					}
 				}
-*/
 				last_wi = wi;
+*/
 				if (isTempItem) {
 					if (isTempItem != 3)
 						delete_word(w_temp,tmp_feats_comp);
