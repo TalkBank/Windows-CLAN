@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -128,7 +128,7 @@ static void extractUCs(char *line, unsigned long *uc0, unsigned long *uc1) {
 static void readConvFile(void) {
 	FILE *fdic;
 	int i, j;
-	unsigned char x, col[10];
+	unsigned char col[10];
 	unsigned long uc0;
 	unsigned long uc1;
 	unsigned long hex;
@@ -163,7 +163,6 @@ static void readConvFile(void) {
 		}
 		uc0 = 0L;
 		uc1 = 0L;
-		x = 0;
 		col[convCol] = 0;
 
 		if (templineC[0] != EOS && templineC[0] != '\n' && uS.mStrnicmp(templineC, "DEL", 3)) {
@@ -187,9 +186,9 @@ static void readConvFile(void) {
 			continue;
 		i++;
 		if (templineC[i] != '\t' && templineC[i] != '\n' && templineC[i])
-			x = templineC[i++];
+			i++;
 		if (templineC[i] != '\t' && templineC[i] != '\n' && templineC[i])
-			x = templineC[i++];
+			i++;
 
 		for (j=0; j < 10; j++) {
 			for (; templineC[i] != '\t' && templineC[i] != '\n' && templineC[i]; i++) ;
@@ -327,9 +326,6 @@ void usage() {
 	printf("+d : convert ONLY tiers specified with +t option. It overrides %s Header exception\n", UTF8HEADER);
 	puts("+d1: remove bullets from data file");
 	puts("+d2: convert CHAT file to .txt file to help applications recognize UTF-8 encoding");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	puts("+oS: specify code page. Please type \"+o?\" for full listing of codes");
 	puts("     utf16 - Unicode UTF-16 data file");
 	puts("     macl  - Mac Latin (German, Spanish ...)");
@@ -420,15 +416,6 @@ void getflag(char *f, char *f1, int *i) {
 			else if (res == 2)
 				isMakeTXT = TRUE;
 			break;
-#ifdef UNX
-		case 'L':
-			int len;
-			strcpy(lib_dir, f);
-			len = strlen(lib_dir);
-			if (len > 0 && lib_dir[len-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		case 't':
 			if (!uS.mStricmp(getfarg(f,f1,i), "@U"))
 				isUnibet = TRUE;
@@ -1709,7 +1696,7 @@ static void ReadLIPPDocument(void) {
 /* {===================== LIPP Document Reading End ========================} */
 
 static char isCAFile(FNType *fname) {
-	register int j;
+	int j;
 	unCH ext[3];
 	
 	j = strlen(fname) - 1;
@@ -1750,7 +1737,7 @@ void call() {
 		fputc(0xbf, fpout);
 	}
 //	fprintf(fpout, "%c%c%c", 0xef, 0xbb, 0xbf); // BOM UTF8
-	if (!isMakeTXT)
+	if (!isMakeTXT && lEncodeSet != UTF16)
 		fprintf(fpout, "%s\n", UTF8HEADER);
 	if (isCAFile(oldfname)) {
 #ifdef _WIN32 
@@ -1875,6 +1862,10 @@ void call() {
 				templineC[i] = EOS;
 				templineC[i+1] = EOS;
 				UnicodeToUTF8((unCH *)templineC, i/2, (unsigned char *)templineC4, NULL, UTTLINELEN);
+				for (j=0; templineC4[j] != EOS; j++) {
+					if (templineC4[j] == '\r')
+						templineC4[j] = '\n';
+				}
 				fputs(templineC4, fpout);
 				i = 0;
 			}
@@ -1883,6 +1874,10 @@ void call() {
 			templineC[i] = EOS;
 			templineC[i+1] = EOS;
 			UnicodeToUTF8((unCH *)templineC, i/2, (unsigned char *)templineC4, NULL, UTTLINELEN);
+			for (j=0; templineC4[j] != EOS; j++) {
+				if (templineC4[j] == '\r')
+					templineC4[j] = '\n';
+			}
 			fputs(templineC4, fpout);
 		}
 		return;

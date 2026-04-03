@@ -821,7 +821,8 @@ static webMFile *FindMediaFileName(unCH *line, int *oIndex, char *mvFName, char 
 	unCH wFilePathName[FNSize];
 	unCH	fname[FNSize];
 	webMFile *p;
-	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
+	HRESULT	hResult;
+	//	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
 
 	index = *oIndex;
 	orgIndex = index;
@@ -890,8 +891,9 @@ static webMFile *FindMediaFileName(unCH *line, int *oIndex, char *mvFName, char 
 				strcat(fname, ".mov");
 		}
 
-		if (curlURLDownloadToFile(URL, fname, 0L) != true)
-//		if (URLDownloadToFile(NULL, URL, fname, 0, NULL) != S_OK)
+		hResult = URLDownloadToFile(NULL, URL, fname, 0, NULL);
+		if (hResult != S_OK)
+//			if (curlURLDownloadToFile(URL, fname, 0L) != true)
 			do_warning("Error downloading data from the web (1)", 0);
 		else {
 			if (webMFiles == NULL) {
@@ -1114,7 +1116,7 @@ void CClan2View::OnDraw(CDC* pDC)
 	extern char DOSdataErr[];
 	extern long lineNumOverride;
 	extern short DOSdata;
-	extern unCH *getWebMedia;
+//	extern unCH *getWebMedia;
 
 	ASSERT_VALID(pDoc);
 	GlobalDoc = pDoc;
@@ -1662,8 +1664,7 @@ skipSyn:
 			}
 		}
 	}
-
-
+/*
 	if (getWebMedia != NULL) {
 		char *s;
 
@@ -1675,7 +1676,7 @@ skipSyn:
 		global_df->isTempFile = 1;
 		getWebMedia = NULL;
 	}
-
+*/
 	if (lineNumOverride >= 0L && !strcmp(lineNumFname, global_df->fileName)) {
 		if (global_df != NULL) {
 			strcpy(global_df->err_message, DASHES);

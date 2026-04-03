@@ -55,6 +55,8 @@ public:
 	BOOL	m_YUE;
 	BOOL	m_ZHO;
 
+	BOOL	m_Refvals;
+
 	int		m_AgeAuto;
 
 	BOOL	m_IndyAge;
@@ -161,6 +163,8 @@ protected:
 	CButton	m_DBSpaToyplay_CTRL;
 	CButton	m_DBSpaNarrative_CTRL;
 
+	CButton m_Refvals_CTRL;
+
 	CButton	m_OK_CTRL;
 	CButton	m_CANCEL_CTRL;
 
@@ -214,13 +218,13 @@ protected:
 	afx_msg void OnDBJpnToyplay();
 	afx_msg void OnDBSpaToyplay();
 	afx_msg void OnDBSpaNarrative();
+	afx_msg void OnSelectRefvals();
 
 	afx_msg void OnOKClicked();
 
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 public:
-	afx_msg void OnBnClickedSelectDbJpntoyplay();
 };
 
 extern void KidevalDialog(unCH *str);

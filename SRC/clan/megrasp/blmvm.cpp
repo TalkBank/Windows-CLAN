@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -73,7 +73,7 @@ ANL/MCS-P909-0901, 2001.
 #if defined(_MAC_CODE) || defined(_WIN32)
 	#define fprintf my_fprintf
 	#define fputc my_putc
-  extern "C"
+extern "C"
   {
 	extern void my_flush_chr(void);
 	extern void my_fprintf(FILE * file, const char * format, ...);
@@ -122,6 +122,7 @@ static int LMVMMatDestroy(LMVMMat);
 #define __FUNCT__ "BLMVMComputeFunctionGradient"
 int
 ME_Model::BLMVMComputeFunctionGradient(BLMVM blmvm, BLMVMVec X,double *f,BLMVMVec G){
+#pragma unused (blmvm)
   int info;
   double *x=X->val,*g=G->val;
   info=BLMVMFunctionGradient(x,f,g,G->dim);CHKERRQ(info);
@@ -132,9 +133,11 @@ ME_Model::BLMVMComputeFunctionGradient(BLMVM blmvm, BLMVMVec X,double *f,BLMVMVe
 #define __FUNCT__ "BLMVMComputeBounds"
 int
 ME_Model::BLMVMComputeBounds(BLMVM blmvm, BLMVMVec XL, BLMVMVec XU){
-  int info;
+#pragma unused (blmvm)
+//  int info;
   double *xl=XL->val,*xu=XU->val;
-  info=BLMVMLowerAndUpperBounds(xl,xu,XL->dim);
+//  info=
+	BLMVMLowerAndUpperBounds(xl,xu,XL->dim);
   return (0);
 }
 

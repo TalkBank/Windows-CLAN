@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -158,7 +158,7 @@ static void gemfreq_overflow() {
 }
 
 static void gemfreq_addwd(char opt, char ch, char *wd) {
-	register int i;
+	int i;
 	IEWORDS *tempwd;
 
 	for (i=strlen(wd)-1; wd[i]== ' ' || wd[i]== '\t' || wd[i]== '\n'; i--) ;
@@ -441,7 +441,7 @@ static void gemfreq_pr_result(void) {
 }
 
 static char gemfreq_IsEmptyLine(void) {
-	register int i;
+	int i;
 
 	for (i=0; uttline[i]; i++) {
 		if (!uS.isskip(uttline,i,&dFnt,MBF))
@@ -472,7 +472,7 @@ static int gemfreq_RightText(char *gem_word) {
 }
 
 static struct gemfreq_tgem *FindGemItem(char *st) {
-	register int res;
+	int res;
 	struct gemfreq_tgem *tgem, *ttgem;
 
 	if (gemfreq_Gem == NULL) {

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -26,7 +26,7 @@ static void ssort( char** L, int nL, int reverse )
 {
     int (*funcmp)(char *s,char *t) = (int (*)(char*,char*))strcmp;
     if ( reverse ) funcmp = funcmp_reverse;
-    register int  gap, i, j;
+    int  gap, i, j;
     char *sw;
 
     for (gap=nL/2; gap>0; gap/=2)
@@ -43,7 +43,7 @@ static void ssort( char** L, int nL, int reverse )
 
 static void ssort( char** L, int nL, int reverse )
 {
-	register int  gap, i, j, res;
+	int  gap, i, j, res;
 	char *sw;
 
 	for (gap=nL/2; gap>0; gap/=2)

@@ -3,7 +3,7 @@
 #include "MMedia.h"
 
 #ifdef _WIN32
-	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
+//	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
 	extern char isOverRidePicName;
 #endif
 
@@ -38,6 +38,7 @@ char ShowGRA(char *graSt, char *morSt) {
 	char hf, jpgTag[20], errMess[512];
 	FILE *fp;
 	ROWS *tr, *grt, *gra, *trn, *mor, *msp;
+	HRESULT	hResult;
 	extern FNType prefsDir[];
 
 	ChangeCurLineAlways(0);
@@ -199,7 +200,9 @@ char ShowGRA(char *graSt, char *morSt) {
 #ifdef _WIN32
 	u_strcpy(templine1, templineC1, UTTLINELEN);
 	u_strcpy(templine, global_df->PcTr.pictFName, UTTLINELEN);
-	if (curlURLDownloadToFile(templine1, templine, 60000L) == false) {
+	hResult = URLDownloadToFile(NULL, templine1, templine, 0, NULL);
+	if (hResult != S_OK) {
+//	if (curlURLDownloadToFile(templine1, templine, 60000L) == false) {
 		do_warning("WEB CONNECTION FAILED", 0);
 		return(FALSE);
 	}

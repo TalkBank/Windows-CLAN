@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -153,7 +153,7 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 		case 'g':
 			isGemFile = TRUE;
-			strcpy(GExt, ".slice");
+			strcpy(GExt, ".fxblts");
 			no_arg_option(f);
 			break;
 		case 'm':
@@ -742,7 +742,7 @@ void call() {
 								*s = EOS;
 						}
 					}
-					strcat(tMediaFName, ".slice");
+					strcat(tMediaFName, ".fxblts");
 					strcpy(templineC, utterance->line);
 					for (i=0; templineC[i] != EOS && templineC[i] != ',' && !isSpace(templineC[i]); i++) ;
 					strcpy(utterance->line, tMediaFName);

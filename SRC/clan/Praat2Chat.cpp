@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -774,6 +774,7 @@ static char Praat_isPostCodes(char *line) {
 }
 
 static long findEndTime(P2C_CHATTIERS *nt, long beg, long end, char *sp) {
+#pragma unused (beg)
 	while (nt != NULL && end > nt->beg) {
 		if (!strcmp(sp, nt->sp))
 			return(nt->beg);
@@ -1070,7 +1071,7 @@ static char findSpMatch(P2C_LINESEG *mwO, P2C_LINESEG *dw) {
 }
 
 static void matchDepTierToSpeakerTier(P2C_CHATTIERS *nt) {
-	char isOneToOne;
+//	char isOneToOne;
 	unsigned short wordCnt;
 	P2C_CHATTIERS *depT;
 	P2C_LINESEG *dw;
@@ -1085,7 +1086,7 @@ static void matchDepTierToSpeakerTier(P2C_CHATTIERS *nt) {
 		if (depT->lineSeg != NULL && timeMatch(nt, depT->lineSeg) && depT->lineSeg->nextSeg == NULL)
 			;
 		else {
-			isOneToOne = findSpMatch(nt->lineSeg, depT->lineSeg);
+			/*isOneToOne = */findSpMatch(nt->lineSeg, depT->lineSeg);
 /*
 			if (!isOneToOne) {
 				for (dw=depT->lineSeg; dw != NULL; dw=dw->nextSeg) {
@@ -1729,33 +1730,33 @@ static char getNextLine(char *st, int size, FILE *fp, char isUnicode, char *isNL
 
 	if (isUnicode == UTF16_code) {
 #ifdef UNX
-		return(fgets_cr(st, UTTLINELEN, fpin) != NULL);
+		return(fgets_cr(st, size, fp) != NULL);
 #else
 		i = 0;
-		while (!feof(fpin)) {
+		while (!feof(fp)) {
   #ifdef _WIN32 
 			if (lEncode == UPC) {
-				templineC1[i] = getc(fpin);
-				if (feof(fpin))
+				templineC1[i] = getc(fp);
+				if (feof(fp))
 					break;
-				templineC1[i+1] = getc(fpin);
+				templineC1[i+1] = getc(fp);
 			} else {
-				templineC1[i+1] = getc(fpin);
-				if (feof(fpin))
+				templineC1[i+1] = getc(fp);
+				if (feof(fp))
 					break;
-				templineC1[i] = getc(fpin);
+				templineC1[i] = getc(fp);
 			}
   #else
 			if (lEncode == UPC) {
-				templineC1[i+1] = getc(fpin);
-				if (feof(fpin))
+				templineC1[i+1] = getc(fp);
+				if (feof(fp))
 					break;
-				templineC1[i] = getc(fpin);
+				templineC1[i] = getc(fp);
 			} else {
-				templineC1[i] = getc(fpin);
-				if (feof(fpin))
+				templineC1[i] = getc(fp);
+				if (feof(fp))
 					break;
-				templineC1[i+1] = getc(fpin);
+				templineC1[i+1] = getc(fp);
 			}
   #endif
 			if ((templineC1[i] == '\r' && templineC1[i+1] == EOS) ||
@@ -1779,16 +1780,16 @@ static char getNextLine(char *st, int size, FILE *fp, char isUnicode, char *isNL
 			} else
 				*isNLFound = FALSE;
 			i += 2;
-			if (i > UTTLINELEN-10)
+			if (i > size-10)
 				break;
 		}
 		templineC1[i] = EOS;
 		templineC1[i+1] = EOS;
-		UnicodeToUTF8((unCH *)templineC1, i/2, (unsigned char *)st, NULL, UTTLINELEN);
-		return(!feof(fpin));
+		UnicodeToUTF8((unCH *)templineC1, i/2, (unsigned char *)st, NULL, size);
+		return(!feof(fp));
 #endif
 	} else {
-		return(fgets_cr(st, UTTLINELEN, fpin) != NULL);
+		return(fgets_cr(st, size, fp) != NULL);
 	}
 }
 

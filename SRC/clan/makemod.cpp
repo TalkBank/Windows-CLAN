@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -78,9 +78,6 @@ static void mod_overflow(void) {
 void usage() {
 	printf("Usage: makemod [a %s] filename(s)\n",mainflgs());
 	puts("+a : printout all alternative pronunciation");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	mainusage(TRUE);
 }
 
@@ -91,15 +88,6 @@ void getflag(char *f, char *f1, int *i) {
 		    isAllAlts = TRUE;
 		    no_arg_option(f);
 		    break;
-#ifdef UNX
-		case 'L':
-			int len;
-			strcpy(lib_dir, f);
-			len = strlen(lib_dir);
-			if (len > 0 && lib_dir[len-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		default:
 			maingetflag(f-2,f1,i);
 			break;

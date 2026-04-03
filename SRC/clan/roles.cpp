@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -167,9 +167,6 @@ void usage()			/* print proper usage and exit */
 	puts("change speaker codes and roles.");
     printf("Usage: roles [cF %s] filename(s)\n",mainflgs());
 	printf("+cF: dictionary file (Default %s) \n", DICNAME);
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	mainusage(FALSE);
 	puts("Dictionary file format: \"original_code speaker_code speaker_role\"");
 	puts("Example:");
@@ -195,15 +192,6 @@ void getflag(char *f, char *f1, int *i) {
 				if (*f)
 					uS.str2FNType(dicname, 0L, getfarg(f,f1,i));
 				break;
-#ifdef UNX
-		case 'L':
-			int len;
-			strcpy(lib_dir, f);
-			len = strlen(lib_dir);
-			if (len > 0 && lib_dir[len-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		default:
 			maingetflag(f-2,f1,i);
 			break;

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -26,7 +26,7 @@ extern char OverWriteFile;
 extern int  totalFilesNum; // 2019-04-18 TotalNumFiles
 
 static int  n2w_FileCount;
-static char n2w_lang;
+static char n2w_lang, n2w_stringOriented;
 static double n2w_oPrc;
 
 struct ZeroToTwenty {
@@ -76,6 +76,7 @@ static struct TwentyToNintyNine twentyToNintyNine[] = {
 void init(char f) {
 	if (f) {
 		n2w_FileCount = 0;
+		n2w_stringOriented = FALSE;
 		stout = FALSE;
 		FilterTier = 0;
 		LocalTierSelect = TRUE;
@@ -100,6 +101,7 @@ void usage()			/* print proper usage and exit */
 	puts("NUM2WORD replace Arabic numbers with Kanji words");
 	printf("Usage: num2word [%s] filename(s)\n",mainflgs());
 	printf("+lS: specify data language (eng - English, jpn - Japanese)\n");
+	puts("-w : do string oriented search and replacement");
 	mainusage(TRUE);
 }
 
@@ -135,6 +137,10 @@ void getflag(char *f, char *f1, int *i) {
 				fprintf(stderr, "Choose: eng - English, jpn - Japanese\n");
 				cutt_exit(0);
 			}
+			break;
+		case 'w':
+			n2w_stringOriented = TRUE;
+			no_arg_option(f);
 			break;
 		default:
 			maingetflag(f-2,f1,i);
@@ -515,7 +521,7 @@ void call() {
 				if (sq == TRUE || pr == TRUE || bullet == TRUE || (line[i] == 0 && !isdigit(line[i+1]))) {
 				} else if (((line[i] == '$' && isdigit(line[i+1])) || isdigit(line[i])) &&
 							(i == 0 || isSpace(line[i-1]) || line[i-1] == '(' || line[i-1] == ':' ||
-							 line[i-1] == ',' || line[i-1] == '_')) {
+							 line[i-1] == ',' || line[i-1] == '_' || n2w_stringOriented == TRUE)) {
 					k = 0;
 					j = i;
 					if (line[j] == '$') {

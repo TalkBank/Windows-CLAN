@@ -75,6 +75,7 @@ struct DefWin ClanOutSize;
 struct DefWin ClanWinSize;
 struct DefWin ThumbnailWin;
 struct DefWin RecallWinSize;
+struct DefWin DatasetWinSize;
 struct DefWin ProgsWinSize;
 struct DefWin FolderWinSize;
 struct DefWin WebItemsWinSize;
@@ -316,6 +317,7 @@ void LocalInit(void) {
 	PBCWinSize.top = PBCWinSize.width = PBCWinSize.height = PBCWinSize.left = 0;
 	ProgresWinSize.top = ProgresWinSize.width = ProgresWinSize.height = ProgresWinSize.left = 0;
 	RecallWinSize.top = RecallWinSize.width = RecallWinSize.height = RecallWinSize.left = 0;
+	DatasetWinSize.top = DatasetWinSize.width = DatasetWinSize.height = DatasetWinSize.left = 0;
 	ProgsWinSize.top = ProgsWinSize.width = ProgsWinSize.height = ProgsWinSize.left = 0;
 	FolderWinSize.top = FolderWinSize.width = FolderWinSize.height = FolderWinSize.left = 0;	
 	WebItemsWinSize.top = WebItemsWinSize.width = WebItemsWinSize.height = WebItemsWinSize.left = 0;
@@ -903,19 +905,20 @@ static void SetOption(char *text) {
 				}
 			}
 		}
-	} else if (id == 2000) {
+	}
+	else if (id == 2000) {
 		if (*text != EOS) {
 			height = atoi(text);
-			for (; *text && myIsAllDigit(*text); text++) ;
-			for (; *text && !myIsAllDigit(*text); text++) ;
+			for (; *text && myIsAllDigit(*text); text++);
+			for (; *text && !myIsAllDigit(*text); text++);
 			if (*text != EOS) {
 				width = atoi(text);
-				for (; *text && myIsAllDigit(*text); text++) ;
-				for (; *text && !myIsAllDigit(*text); text++) ;
+				for (; *text && myIsAllDigit(*text); text++);
+				for (; *text && !myIsAllDigit(*text); text++);
 				if (*text != EOS) {
 					top = atoi(text);
-					for (; *text && myIsAllDigit(*text); text++) ;
-					for (; *text && !myIsAllDigit(*text); text++) ;
+					for (; *text && myIsAllDigit(*text); text++);
+					for (; *text && !myIsAllDigit(*text); text++);
 					if (*text != EOS) {
 						RecallWinSize.left = atoi(text);
 						RecallWinSize.height = height;
@@ -925,7 +928,31 @@ static void SetOption(char *text) {
 				}
 			}
 		}
-	} else if (id == 2001) {
+			}
+	else if (id == 2018) {
+		if (*text != EOS) {
+			height = atoi(text);
+			for (; *text && myIsAllDigit(*text); text++);
+			for (; *text && !myIsAllDigit(*text); text++);
+			if (*text != EOS) {
+				width = atoi(text);
+				for (; *text && myIsAllDigit(*text); text++);
+				for (; *text && !myIsAllDigit(*text); text++);
+				if (*text != EOS) {
+					top = atoi(text);
+					for (; *text && myIsAllDigit(*text); text++);
+					for (; *text && !myIsAllDigit(*text); text++);
+					if (*text != EOS) {
+						DatasetWinSize.left = atoi(text);
+						DatasetWinSize.height = height;
+						DatasetWinSize.width = width;
+						DatasetWinSize.top = top;
+					}
+				}
+			}
+		}
+	}
+	else if (id == 2001) {
 		if (*text != EOS) {
 			height = atoi(text);
 			for (; *text && myIsAllDigit(*text); text++) ;
@@ -1587,7 +1614,8 @@ static void WriteCedPrefs(FILE *fp) {
 	fprintf(fp, "%d=%d %d %d %d\n", 1964,ClanOutSize.height, ClanOutSize.width, ClanOutSize.top, ClanOutSize.left);
 	fprintf(fp, "%d=%d %d %d %d\n", 1965,ThumbnailWin.height, ThumbnailWin.width, ThumbnailWin.top, ThumbnailWin.left);
 	fprintf(fp, "%d=%d %d %d %d\n", 1966,TextWinSize.height, TextWinSize.width, TextWinSize.top, TextWinSize.left);
-	fprintf(fp, "%d=%d %d %d %d\n", 2000,RecallWinSize.height, RecallWinSize.width, RecallWinSize.top, RecallWinSize.left);
+	fprintf(fp, "%d=%d %d %d %d\n", 2000, RecallWinSize.height, RecallWinSize.width, RecallWinSize.top, RecallWinSize.left);
+	fprintf(fp, "%d=%d %d %d %d\n", 2018, DatasetWinSize.height, DatasetWinSize.width, DatasetWinSize.top, DatasetWinSize.left);
 	fprintf(fp, "%d=%d %d %d %d\n", 2001,ProgsWinSize.height, ProgsWinSize.width, ProgsWinSize.top, ProgsWinSize.left);
 	fprintf(fp, "%d=%d %d %d %d\n", 2002,HlpCmdsWinSize.height, HlpCmdsWinSize.width, HlpCmdsWinSize.top, HlpCmdsWinSize.left);
 	fprintf(fp, "%d=%d %d %d %d\n", 2007,SpCharsWinSize.height, SpCharsWinSize.width, SpCharsWinSize.top, SpCharsWinSize.left);

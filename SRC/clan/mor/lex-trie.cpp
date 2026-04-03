@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -373,6 +373,7 @@ add_letter(TRIE_PTR cur_node, int letter) {
 }
 
 void delete_entry(TRIE_PTR node, FEATTYPE *entry) {
+#pragma unused (entry)
 	ELIST_PTR entry_p;
 	ELIST_PTR prev_p;
 	extern long trie_node_ctr;
@@ -395,6 +396,7 @@ void delete_entry(TRIE_PTR node, FEATTYPE *entry) {
 
 int       /* should be BOOL? */
 add_entry(const char *org_word, TRIE_PTR node, FEATTYPE *entry, const STRING *stem, const STRING *trans, const STRING *comp, char isTempItem) {
+#pragma unused (org_word)
 	ELIST_PTR entry_p;
 	ELIST_PTR prev_p;
 	

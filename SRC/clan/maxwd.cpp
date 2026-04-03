@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -504,7 +504,7 @@ printf("\n");
 }
 
 static int maxwd_count(char *c) {
-	register int wlen = 0;
+	int wlen = 0;
 
 	while (*c != EOS) {
 		if (*c != '+' && *c != '-' && *c != '#'  &&

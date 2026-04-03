@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
  */
 
@@ -126,7 +126,7 @@ static char isSegPostCode(char *line, int *i) {
 }
 
 static void addDelim(char *line) {
-	register int i;
+	int i;
 	char sb = FALSE, hid = FALSE;
 	
 	i = strlen(line) - 1;
@@ -383,15 +383,69 @@ static void printTiers(char *sp, char *main, char *wor, char hasChanged, char is
 	}
 }
 
+static void extractChild(char *main, int m, char *templineC1, char *templineC2, char isFirst) {
+	int b, i;
+	char *extractSt;
+	
+	if (isFirst)
+		extractSt = templineC1;
+	else
+		extractSt = templineC2;
+	b = m;
+	i = strlen(extractSt);
+	if (i > 0) {
+		strcat(extractSt, " ");
+		i++;
+	}
+	for (m--; m > 0; m--) {
+		if (!isSpace(main[m]))
+			break;
+	}
+	if (main[m] == ']') {
+		if (m > 3 && main[m-1] == '/' && main[m-2] == '[') {
+			strcpy(main+m-2, main+m+1);
+			b = b - 3;
+		} else if (m > 4 && main[m-1] == '/' && main[m-2] == '/' && main[m-3] == '[') {
+			strcpy(main+m-3, main+m+1);
+			b = b - 4;
+		}
+	}
+	m = b;
+	m = m + 2;
+	while (main[m] != EOS) {
+		if (main[m] == '&' && main[m+1] == '&')
+			break;
+		extractSt[i++] = main[m];
+		m++;
+	}
+	extractSt[i] = EOS;
+	if (main[m] == '&') {
+		strcpy(main+b, main+m+2);
+		m = b;
+		for (; main[m] != EOS; m++) {
+			if (!isSpace(main[m]))
+				break;
+		}
+		if (main[m] == '[') {
+			if (main[m+1] == '/' && main[m+2] == ']')
+				strcpy(main+m, main+m+3);
+			else if (main[m+1] == '/' && main[m+2] == '/' && main[m+3] == ']')
+				strcpy(main+m, main+m+4);
+		}
+	}
+}
+
 static void segmentMainWorTiers(char *sp, char *main, char *wor, char *isJoinNext, char isWorFound) {
 	int m, w;
-	char cm, cw, hasChanged;
+	char cm, cw, hasChanged, sq = FALSE, isFirst;
 
-//if (lineno == 169)
-//m = 0;
+	templineC1[0] = EOS;
+	templineC2[0] = EOS;
 	hasChanged = *isJoinNext;
 	*isJoinNext = FALSE;
 	m = 0;
+	sq = FALSE;
+	isFirst = TRUE;
 	while (main[m] != EOS) {
 		if (main[m] == '&' && main[m+1] == '&' && main[m+2] == '&') {
 			hasChanged = TRUE;
@@ -413,11 +467,32 @@ static void segmentMainWorTiers(char *sp, char *main, char *wor, char *isJoinNex
 			strcpy(wor, wor+w);
 			if (main[m] == EOS)
 				break;
-		} else
+		} else if (main[m] == '&' && main[m+1] == '&') {
+			extractChild(main, m, templineC1, templineC2, isFirst);
 			m++;
+		} else if (main[m] == '[') {
+			sq = TRUE;
+			m++;
+		} else if (main[m] == ']') {
+			sq = FALSE;
+			m++;
+		} else {
+			if (sq == FALSE && (uS.my_isalpha(main+m) == 1 || iswdigit(main[m])))
+				isFirst = FALSE;
+			m++;
+		}
 	}
 	if (main[0] != EOS) {
+		if (templineC1[0] != EOS) {
+			uS.remFrontAndBackBlanks(templineC1);
+			printout(sp, templineC1, NULL, NULL, FALSE);
+		}
+		removeExtraSpace(main);
 		printTiers(sp, main, wor, hasChanged, isWorFound);
+		if (templineC2[0] != EOS) {
+			uS.remFrontAndBackBlanks(templineC2);
+			printout(sp, templineC2, NULL, NULL, FALSE);
+		}
 	}
 }
 

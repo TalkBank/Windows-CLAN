@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -751,8 +751,8 @@ static void comuteAge(int *b, int *d, char *ageS, char *fNameAgeS) {
 }
 
 static FILE *Lena2chat_openfile(const FNType *oldfname, FNType *fname) {
-	register int i = 0;
-	register int len;
+	int i = 0;
+	int len;
 	FILE *fp;
 
 	len = strlen(fname);

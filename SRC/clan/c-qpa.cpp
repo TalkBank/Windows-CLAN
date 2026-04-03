@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -988,6 +988,7 @@ static void dealWithDiscontinuousWord(char *word, int i) {
 */
 
 static void isCountUtt(char *line, char *morline, struct c_qpa_speakers *ts) {
+#pragma unused (morline, ts)
 	int i;
 	char isCountwfSs;
 
@@ -1127,7 +1128,7 @@ static char isCurLinkedtoTag(int *num, char *line, const char *tag, char isStopA
 repeat:
 	i = 0;
 	cnt = 0;
-	while ((i=getNextDepTierPair(uttline, graWord, morWord, NULL, i)) != 0) {
+	while ((i=getNextDepTierPair(line, graWord, morWord, NULL, i)) != 0) {
 		if (graWord[0] != EOS && morWord[0] != EOS) {
 			cnt++;
 			if (cnt == *num) {
@@ -1272,7 +1273,7 @@ static char isFirstGRA(char *line, const char *tag) {
 
 	i = 0;
 	cnt = 0;
-	while ((i=getNextDepTierPair(uttline, graWord, morWord, NULL, i)) != 0) {
+	while ((i=getNextDepTierPair(line, graWord, morWord, NULL, i)) != 0) {
 		if (graWord[0] != EOS && morWord[0] != EOS) {
 			cnt++;
 			if (cnt == 1) {
@@ -1295,7 +1296,7 @@ static char isNumItemPointedToBy(char *line, int num, const char *tag) {
 	char morWord[1024], graWord[1024], *vb;
 
 	i = 0;
-	while ((i=getNextDepTierPair(uttline, graWord, morWord, NULL, i)) != 0) {
+	while ((i=getNextDepTierPair(line, graWord, morWord, NULL, i)) != 0) {
 		if (graWord[0] != EOS && morWord[0] != EOS) {
 			vb = strchr(graWord, '|');
 			if (vb != NULL) {
@@ -1637,6 +1638,7 @@ static int isSNP(int i, char *line, int wi, char *graWord, char *morWord, char *
 }
 
 static char isOcVP(int i, char *line, char *graWord, MORFEATS *feat, int *tOcVP) {
+#pragma unused (i)
 	char isOcVPfound;
 	int num;
 	char *vb;
@@ -1673,10 +1675,11 @@ static char isOcVP(int i, char *line, char *graWord, MORFEATS *feat, int *tOcVP)
 
 static void c_qpa_process_tier(struct c_qpa_speakers *ts, struct database *db, char *rightIDFound, char isOutputGem,
 							   FILE *PWordsListFP, FILE *AnalysisSheetFP) {
+#pragma unused (PWordsListFP)
 	int i, j, wi, wordCnt, nextNrd, tOcSNP, tOcVP, curScore, auxBeScore;
 //	char isLastINF;
 	char word[1024], graWord[1024], lFeatPOS[256], lFeatSTEM[256], lGraWord[1024];
-	char tmp, isWordsFound, sq, aq, isSkip, *vb, *isOcSNPWord, isAnySNPFound, isAuxBeFound, isThisSNP, isSentenceUttsCorrected;
+	char isWordsFound, sq, aq, isSkip, *vb, *isOcSNPWord, isAnySNPFound, isAuxBeFound, isThisSNP, isSentenceUttsCorrected;
 	char isPSDFound, curPSDFound, isCountNV, isCountInflectionsAuxScore, isMSsCounted;
 	char isMOD_INFfound;
 	long stime, etime;
@@ -1918,7 +1921,6 @@ static void c_qpa_process_tier(struct c_qpa_speakers *ts, struct database *db, c
 			}
 			if (!uS.isskip(uttline,i,&dFnt,MBF) && !sq && !aq) {
 				isWordsFound = TRUE;
-				tmp = TRUE;
 //				mluWords = mluWords + 1;
 //				oPos = i;
 				while (uttline[i]) {
@@ -3691,9 +3693,6 @@ printf("Usage: c-qpa [bS dS eN g gS lF n %s] filename(s)\n",mainflgs());
 	puts("-g : look for gems in Database only");
 	puts("+gS: select gems which are labeled by label S");
 	puts("+lF: specify language database file name F");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	puts("+n : Gem is terminated by the next @G (default: automatic detection)");
 	puts("-n : Gem is defined by @BG and @EG (default: automatic detection)");
 	mainusage(FALSE);
@@ -4427,14 +4426,6 @@ void getflag(char *f, char *f1, int *i) {
 		case 'l':
 			lang_prefix = f;
 			break;
-#ifdef UNX
-		case 'L':
-			strcpy(lib_dir, f);
-			j = strlen(lib_dir);
-			if (j > 0 && lib_dir[j-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		case 'n':
 			if (*(f-2) == '+') {
 				c_qpa_n_option = TRUE;

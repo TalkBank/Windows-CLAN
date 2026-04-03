@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -64,6 +64,7 @@ static vmStructure VM = { 0, 0, 0, 0L, 0L, 0, 0, {'\0'} } ;	/* global access to 
 
 static void testfilememory( FILE* f, long32 e, const char *s )
 {
+#pragma unused (f)
 	if (e<0) {
 		msg ( "cannot extend file with %ld bytes\n", e );
 		local_abort( VM.vmCurrentAllocatedSize, s );
@@ -390,6 +391,7 @@ long32 vmReadLong( address vmadr )
 
 double vmReadDouble( address vmadr )
 {
+#pragma unused (vmadr)
 	double v = .0;
 	msg( "double flip/flap not implemented\n" );
 	exit(1);
@@ -469,6 +471,7 @@ void	vmWriteLong( long32 v, address vmadr )
 
 void	vmWriteDouble( double v, address vmadr )
 {
+#pragma unused (v, vmadr)
 	msg( "double flip/flap not implemented\n" );
 	exit(1);
 }

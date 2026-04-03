@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -15,6 +15,7 @@ enum {
 	CHIPUTIL,
 	CODES_P,
 	COMBO,
+	COMPLEXITY,
 	COOCCUR,
 	DIST,
 	FREQ,
@@ -34,8 +35,8 @@ enum {
 	TIMEDUR,
 	VOCD,
 	WDLEN,
+	WDSIZE,
 
-	C_NNLA,
 	C_QPA,
 	CORELEX,
 	DSS,
@@ -45,6 +46,7 @@ enum {
 	FLUPOS,
 	IPSYN,
 	KIDEVAL,
+	LEXRARE,
 	MORTABLE,
 	SUGAR,
 
@@ -57,13 +59,9 @@ enum {
 	POSTTRAIN,
 	TRNFIX,
 
-	ANVIL2CHAT,
-	CHAT2ANVIL,
-	CHAT2CA,
 	CHAT2ELAN,
 	CHAT2PRAAT,
 	CHAT2SRT,
-	CHAT2XMAR,
 	ELAN2CHAT,
 	LAB2CHAT,
 	LENA2CHAT,
@@ -73,7 +71,6 @@ enum {
 	RTF2CHAT,
 	SALT2CHAT,
 	SRT2CHAT,
-	TANG2CHAT,
 	TEXT2CHAT,
 
 	CHSTRING,
@@ -100,7 +97,6 @@ enum {
 	TIERORDER,
 	UNIQ,
 	USEDLEX,
-	VALIDATEMFA,
 
 	COMBTIER,
 	CP2UTF,
@@ -110,9 +106,6 @@ enum {
 	LOWCASE,
 	QUOTES,
 	SILENCE_P,
-#ifdef _MAC_CODE
-	SLICE_P,
-#endif
 
 	TEMPLATE,
 	TEMP,

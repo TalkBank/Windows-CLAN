@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -409,9 +409,6 @@ void usage() {
 	printf("Creates table of frequency count of parts of speech and bound morphemes\n");
 	printf("Usage: mortable [lF oN %s] filename(s)\n", mainflgs());
 	puts("+lF: specify language script file name F");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	puts("+o3: combine selected speakers from each file into one results list for that file");
 	puts("+o4: output raw values instead of percentage values");
 	mainusage(FALSE);
@@ -432,15 +429,6 @@ void getflag(char *f, char *f1, int *i) {
 		case 'l':
 			script_file = f;
 			break;
-#ifdef UNX
-		case 'L':
-			int j;
-			strcpy(lib_dir, f);
-			j = strlen(lib_dir);
-			if (j > 0 && lib_dir[j-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		case 'o':
 			if (*f == '3') {
 				mortable_isCombineSpeakers = TRUE;

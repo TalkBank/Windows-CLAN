@@ -1,0 +1,372 @@
+OS = $(shell uname)
+
+ifeq ($(OS),Darwin)
+	DD  = ../unix/bin
+	OBJ = ../unix/obj
+	CFLAGS = -O -DUNX -DAPPLEUNX -DCLAN_SRV -fwritable-strings -fshort-wchar -Wcomment -Wdeprecated-declarations -Wempty-body -m32 -arch i386
+else ifeq ($(OS),Linux)
+	DD  = ../linux/bin
+	OBJ = ../linux/obj
+	CFLAGS = -O -DUNX -DCLAN_SRV -Wno-deprecated -Wno-deprecated-declarations
+else
+	$(error unknown OS $(OS))
+endif
+
+# for most OS:
+	CC = g++
+
+# for Apple MacOS 11 Big Sur and later, uncomment next one
+#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wno-deprecated-declarations -Wempty-body
+
+# for Apple prior to MacOS 11 Big Sur, uncomment next one
+#	CFLAGS = -O -DUNX -DAPPLEUNX -fwritable-strings -fshort-wchar -Wcomment -Wno-deprecated-declarations -Wempty-body -arch i386
+
+# for Ubuntu 20.04.6, uncomment next one
+#	CFLAGS = -O -DUNX -Wno-deprecated -Wno-deprecated-declarations -Wno-narrowing
+
+# for Ubuntu 20.04.6 Browser Server, uncomment next one
+#	CFLAGS = -O -DCLAN_SRV -DUNX -Wno-deprecated -Wno-deprecated-declarations -Wno-narrowing
+
+
+# do not uncomment this line: -m32
+
+# for SUN SPARC station:
+#	CFLAGS = -O2 -DUNX -fwritable-strings
+# for SunOS sparc SUNW, Ultra-5_10
+#	CFLAGS = -O2 -DUNX -DERRNO -fwritable-strings
+# Linux on Intel and most other machines:
+# 	CFLAGS = -O -DUNX -fwritable-strings -Wall
+# for Linux g++ 4.4.1-4ubuntu9 compiler:
+#	CFLAGS = -DUNX -DCLAN_SRV -Wno-deprecated -Wno-deprecated-declarations
+# if previous doesn't work try:
+#	CFLAGS = -DUNX -fwritable-strings
+# OR
+#	CFLAGS = -O -DUNX -DERRNO -fwritable-strings
+#	CFLAGS = -DUNX -DERRNO -fwritable-strings
+
+LIB = -lcurses -ltermcap
+
+MORFILES = mor/arules.cpp mor/crules.cpp mor/drules.cpp	mor/globals.cpp \
+		   mor/lex-trie.cpp mor/morlib.cpp mor/mor.cpp
+
+VOCD = vocd/args.cpp vocd/speaker.cpp vocd/tokens.cpp vocd/filter.cpp \
+	   vocd/dcompute.cpp vocd/vocd.cpp 
+
+POSTC = post/anaalgo.cpp post/atom.cpp post/brillanx.cpp post/brilltagger.cpp \
+		post/database.cpp post/hashbsc.cpp post/hashc.cpp post/input.cpp \
+		post/mortags.cpp post/msg.cpp post/rules.cpp post/storage.cpp post/tags.cpp \
+		post/workspace.cpp
+POSTH = post/atom.hpp post/database.hpp post/hashbsc.hpp post/hashc.hpp \
+		post/input.hpp post/mortags.hpp post/msg.hpp post/storage.hpp \
+		post/tags.hpp post/workspace.hpp post/sysdep.hpp post/system.hpp \
+		post/database.hpp
+MEGRASPC = megrasp/megrasp.cpp megrasp/maxent.cpp megrasp/blmvm.cpp
+MEGRASPH = megrasp/ksutil.h megrasp/maxent.h megrasp/blmvm.h
+
+all:	init chains chip combo cooccur dist dss freq freqmerg freqpos gem gemfreq gemlist keymap kwal \
+		maxwd mlt mlu modrep phonfreq rely timedur vocd wdlen 
+
+chains:	  		$(DD)/chains
+chat2ca:		$(DD)/chat2ca
+chat2elan:		$(DD)/chat2elan
+check:			$(DD)/check
+chip:			$(DD)/chip
+chstring:		$(DD)/chstring
+combo:			$(DD)/combo
+compound:		$(DD)/compound
+combtier:		$(DD)/combtier
+cooccur:		$(DD)/cooccur
+dataclean:		$(DD)/dataclean
+dates:			$(DD)/dates
+delim:			$(DD)/delim
+dist:			$(DD)/dist
+dss:			$(DD)/dss
+fixit:			$(DD)/fixit
+flo:			$(DD)/flo
+freq:			$(DD)/freq
+freqmerg:		$(DD)/freqmerg
+freqpos:		$(DD)/freqpos
+gem:			$(DD)/gem
+gemfreq:		$(DD)/gemfreq
+gemlist:		$(DD)/gemlist
+indent:			$(DD)/indent
+insert:			$(DD)/insert
+keymap:			$(DD)/keymap
+kwal:			$(DD)/kwal
+lines:			$(DD)/lines
+lipp2chat:		$(DD)/lipp2chat
+longtier:		$(DD)/longtier
+lowcase:		$(DD)/lowcase
+makemod:		$(DD)/makemod
+maxwd:			$(DD)/maxwd
+megrasp:		$(DD)/megrasp
+mlt:			$(DD)/mlt
+mlu:			$(DD)/mlu
+modrep:			$(DD)/modrep
+mor:			$(DD)/mor
+ort:			$(DD)/ort
+phonfreq:		$(DD)/phonfreq
+post:			$(DD)/post
+postlist:		$(DD)/postlist
+postmodrules:		$(DD)/postmodrules
+postmortem:		$(DD)/postmortem
+posttrain:		$(DD)/posttrain
+quotes:			$(DD)/quotes
+rely:			$(DD)/rely
+repeat:			$(DD)/repeat
+retrace:		$(DD)/retrace
+saltin:			$(DD)/saltin
+textin:			$(DD)/textin
+timedur:		$(DD)/timedur
+tierorder:		$(DD)/tierorder
+trnfix:			$(DD)/trnfix
+uniq:			$(DD)/uniq
+vocd:			$(DD)/vocd
+wdlen:			$(DD)/wdlen
+
+$(OBJ)/cut.o: cutt.cpp cu.h common.h mul.h
+	$(CC) -c $(CFLAGS) -o $(OBJ)/cut.o cutt.cpp
+
+$(OBJ)/stp.o: stringparser.cpp stringparser.h fontconvert.h
+	$(CC) -c $(CFLAGS) -o $(OBJ)/stp.o stringparser.cpp
+
+$(OBJ)/fntc.o: fontconvert.cpp fontconvert.h
+	$(CC) -c $(CFLAGS) -o $(OBJ)/fntc.o fontconvert.cpp
+
+$(OBJ)/c_ver.o: c_ver.cpp
+	$(CC) -c $(CFLAGS) -o $(OBJ)/c_ver.o c_ver.cpp
+
+
+$(DD)/chains: chains.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) chains.cpp -o $(DD)/chains $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o -lm
+
+$(DD)/chat2ca: Chat2CA.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) Chat2CA.cpp -o $(DD)/chat2ca $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/chat2elan: Chat2Elan.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) Chat2Elan.cpp -o $(DD)/chat2elan $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/check: check.cpp cu.h common.h check.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) check.cpp -o $(DD)/check $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o -lm
+
+$(DD)/chip: chip.cpp chip_utl.cpp chip.h cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) chip.cpp chip_utl.cpp -o $(DD)/chip $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o -lm
+
+$(DD)/chstring: chstring.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) chstring.cpp -o $(DD)/chstring $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/combo: combo.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) combo.cpp -o $(DD)/combo $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/compound: post/compound.cpp $(POSTH) $(POSTC) 
+	$(CC) -Ipost -I. $(CFLAGS) $(POSTC) post/compound.cpp -o $(DD)/compound
+
+$(DD)/combtier: combtier.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) combtier.cpp -o $(DD)/combtier $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/cooccur: cooccur.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) cooccur.cpp -o $(DD)/cooccur $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/dataclean: DataCleanUp.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) DataCleanUp.cpp -o $(DD)/dataclean $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/dates: dates.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) dates.cpp -o $(DD)/dates $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/delim: delim.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) delim.cpp -o $(DD)/delim $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/dist: dist.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) dist.cpp -o $(DD)/dist $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/dss: dss.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) dss.cpp -o $(DD)/dss $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/fixit: fixit.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) fixit.cpp -o $(DD)/fixit $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/flo: flo.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) flo.cpp -o $(DD)/flo $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/freq: freq.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) freq.cpp -o $(DD)/freq $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/freqmerg: freqmerg.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) freqmerg.cpp -o $(DD)/freqmerg $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/freqpos: freqpos.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) freqpos.cpp -o $(DD)/freqpos $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/gem: gem.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) gem.cpp -o $(DD)/gem $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/gemfreq: gemfreq.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) gemfreq.cpp -o $(DD)/gemfreq $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/gemlist: gemlist.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) gemlist.cpp -o $(DD)/gemlist $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/indent: indent.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) indent.cpp -o $(DD)/indent $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/insert: insert.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) insert.cpp -o $(DD)/insert $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/keymap: keymap.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) keymap.cpp -o $(DD)/keymap $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/kwal: kwal.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) kwal.cpp -o $(DD)/kwal $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/lines: lines.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) lines.cpp -o $(DD)/lines $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/lipp2chat: lippUTF2Chat.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) lippUTF2Chat.cpp -o $(DD)/lipp2chat $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/longtier: longtier.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) longtier.cpp -o $(DD)/longtier $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/lowcase: lowcase.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) lowcase.cpp -o $(DD)/lowcase $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/makemod: makemod.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) makemod.cpp -o $(DD)/makemod $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/maxwd: maxwd.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) maxwd.cpp -o $(DD)/maxwd $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/megrasp: $(MEGRASPC) $(MEGRASPH) cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) $(MEGRASPC) -o $(DD)/megrasp $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/mlt: mlt.cpp mllib.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) mlt.cpp mllib.cpp -o $(DD)/mlt $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/mlu: mlu.cpp mllib.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) mlu.cpp mllib.cpp -o $(DD)/mlu $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o -lm
+
+$(DD)/modrep: modrep.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) modrep.cpp -o $(DD)/modrep $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/ort: ort.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) ort.cpp -o $(DD)/ort $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/mor: $(MORFILES) mor/mor.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) -Imor -I. $(CFLAGS) $(MORFILES) -o $(DD)/mor $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/phonfreq: phonfreq.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) phonfreq.cpp -o $(DD)/phonfreq $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/post: post/post.cpp $(POSTH) $(POSTC) post/postana.cpp
+	$(CC) -Ipost -I. $(CFLAGS) $(POSTC) post/postana.cpp post/post.cpp -o $(DD)/post
+
+$(DD)/postlist: post/postlist.cpp $(POSTH) $(POSTC) post/trainproc.cpp
+	$(CC) -Ipost -I. $(CFLAGS) $(POSTC) post/trainproc.cpp post/postlist.cpp -o $(DD)/postlist
+
+$(DD)/postmodrules: post/postmodrules.cpp $(POSTH) $(POSTC)
+	$(CC) -Ipost -I. $(CFLAGS) $(POSTC) post/postmodrules.cpp -o $(DD)/postmodrules
+
+$(DD)/postmortem: postmortem.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) postmortem.cpp -o $(DD)/postmortem $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/posttrain: post/posttrain.cpp $(POSTH) $(POSTC) post/trainproc.cpp post/trainbrill.cpp post/contextrl.cpp post/darray.cpp post/darray.hpp post/registry.cpp post/registry.hpp post/registryP.hpp post/memory.cpp post/memory.hpp
+	$(CC) -Ipost -I. $(CFLAGS) $(POSTC) post/trainproc.cpp post/trainbrill.cpp post/contextrl.cpp post/darray.cpp post/registry.cpp post/memory.cpp post/posttrain.cpp -o $(DD)/posttrain
+
+$(DD)/quotes: Quotes.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) Quotes.cpp -o $(DD)/quotes $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/rely: rely.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) rely.cpp -o $(DD)/rely $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/repeat: repeat.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) repeat.cpp -o $(DD)/repeat $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/retrace: retrace.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) retrace.cpp -o $(DD)/retrace $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/saltin: saltin.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) saltin.cpp -o $(DD)/saltin $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/textin: textin.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) textin.cpp -o $(DD)/textin $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/timedur: timedur.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) timedur.cpp -o $(DD)/timedur $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/tierorder: tierorder.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) tierorder.cpp -o $(DD)/tierorder $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/trnfix: TrnFix.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) TrnFix.cpp -o $(DD)/trnfix $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/uniq: uniq.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) uniq.cpp -o $(DD)/uniq $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/vocd: $(VOCD) cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) -Ivocd -I. $(CFLAGS) $(VOCD) -o $(DD)/vocd $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+$(DD)/wdlen: wdlen.cpp cu.h common.h $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+	$(CC) $(CFLAGS) wdlen.cpp -o $(DD)/wdlen $(OBJ)/cut.o $(OBJ)/stp.o $(OBJ)/fntc.o $(OBJ)/c_ver.o
+
+clean:
+	-rm -f $(DD)/* $(OBJ)/*
+
+init:
+	@mkdir -p $(DD) $(OBJ)
+
+.PHONY: init all clean \
+	chains \
+	chat2ca \
+	chat2elan \
+	check \
+	chip \
+	chstring \
+	combo \
+	compound \
+	combtier \
+	cooccur \
+	dataclean \
+	dates \
+	delim \
+	dist \
+	dss \
+	fixit \
+	flo \
+	freq \
+	freqmerg \
+	freqpos \
+	gem \
+	gemfreq \
+	gemlist \
+	indent \
+	insert \
+	keymap \
+	kwal \
+	lines \
+	lipp2chat \
+	longtier \
+	lowcase \
+	makemod \
+	maxwd \
+	mlt \
+	mlu \
+	modrep \
+	mor \
+	ort \
+	phonfreq \
+	post \
+	postlist \
+	postmodrules \
+	postmortem \
+	posttrain \
+	quotes \
+	rely \
+	repeat \
+	retrace \
+	saltin \
+	textin \
+	timedur \
+	tierorder \
+	trnfix \
+	uniq \
+	wdlen

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -109,6 +109,12 @@ struct flucalc_speakers {
 	float closedClassD, closedClassA;
 	float allDisfluency;
 
+	float overlap_dur;
+	
+	float num_short_unfilled_pauses;
+	float dur_short_unfilled_pauses;
+	float num_long_unfilled_pauses;
+	float dur_long_unfilled_pauses;
 	float IWDur;
 	float UTTDur;
 	float SwitchDur;
@@ -126,6 +132,11 @@ struct flucalc_tnode {
 	struct flucalc_tnode *right;
 };
 
+struct noworFiles {
+	char *fname;
+	struct noworFiles *next_fname;
+} ;
+
 static int  flucalc_SpecWords, DBGemNum;
 static char *DBGems[NUMGEMITEMS];
 static char isUttList, isSyllWordsList, isWordMode, sampleType, isMorTierFirst, isFilterUtts, isWorTier, isPuaseDurFound;
@@ -136,12 +147,13 @@ static char isAddPhono_fragToTD;
 static long sampleSize;
 static struct flucalc_speakers *sp_head;
 static struct flucalc_tnode *rootWords;
+static struct noworFiles *rootnowors;
 static flucalc_lines *rootLines;
 static FILE *SyllWordsListFP;
 
 
 void usage() {
-	puts("FLUCALC creates a spreedsheet with a series of fluency measures.");
+	puts("FLUCALC creates a spreadsheet with a series of fluency measures.");
 /*
 #ifdef UNX
 	printf("FluCalc REQUIRES THE PRESENCE OF THE \"%%mor:\" TIER BY DEFAULT.\n");
@@ -254,6 +266,8 @@ static void flucalc_freetree(struct flucalc_tnode *p) {
 }
 
 static void flucalc_error(char IsOutOfMem) {
+	struct noworFiles *p;
+
 	if (IsOutOfMem)
 		fputs("ERROR: Out of memory.\n",stderr);
 	sp_head = freespeakers(sp_head);
@@ -262,7 +276,34 @@ static void flucalc_error(char IsOutOfMem) {
 	flucalc_freetree(rootWords);
 	rootWords = NULL;
 	rootLines = flucal_freeLines(rootLines, FALSE);
+	while (rootnowors != NULL) {
+		p = rootnowors;
+		rootnowors = rootnowors->next_fname;
+		if (p->fname != NULL)
+			free(p->fname);
+		free(p);
+	}
 	cutt_exit(0);
+}
+
+static struct noworFiles *addToNoWors(struct noworFiles *root, char *oldfname) {
+	struct noworFiles *p;
+
+	if (root == NULL) {
+		root = NEW(struct noworFiles);
+		p = root;
+	} else {
+		for (p=root; p->next_fname != NULL; p=p->next_fname) ;
+		p->next_fname = NEW(struct noworFiles);
+		p = p->next_fname;
+	}
+	if (p == NULL)
+		flucalc_error(TRUE);
+	p->fname = (char *)malloc(strlen(oldfname)+1);
+	if (p->fname == NULL)
+		flucalc_error(TRUE);
+	strcpy(p->fname, oldfname);
+	return(root);
 }
 
 // isPOSMatch beg
@@ -438,6 +479,12 @@ static void flucalc_initTSVars(struct flucalc_speakers *ts) {
 	ts->closedClassA	= 0.0;
 	ts->allDisfluency	= 0.0;
 
+	ts->overlap_dur		= 0.0;
+
+	ts->num_short_unfilled_pauses = 0.0;
+	ts->dur_short_unfilled_pauses = 0.0;
+	ts->num_long_unfilled_pauses = 0.0;
+	ts->dur_long_unfilled_pauses = 0.0;
 	ts->IWDur			= 0.0;
 	ts->UTTDur			= 0.0;
 	ts->SwitchDur		= 0.0;
@@ -874,7 +921,10 @@ static void flucalc_pr_result(void) {
 		}
 		sp_head = freespeakers(sp_head);
 	} else {
-		excelHeader(fpout, newfname, 105);
+		if (isWorTier == TRUE)
+			excelHeader(fpout, newfname, 200);
+		else
+			excelHeader(fpout, newfname, 105);
 		excelRow(fpout, ExcelRowStart);
 		excelStrCell(fpout, "File");
 		excelCommasStrCell(fpout, "Language,Corpus,Code,Age(Month),Sex,Group,Race,SES,Role,Education,Custom_field");
@@ -949,16 +999,26 @@ static void flucalc_pr_result(void) {
 			
 			excelStrCell(fpout, "Weighted_SLD");
 		}
+
+//		excelStrCell(fpout, "Overlap_duration_(msec)");
+
 		if (isWorTier == TRUE) {
-			excelStrCell(fpout, "IW_Dur");
-			excelStrCell(fpout, "Utt_dur");
-			excelStrCell(fpout, "IW_Dur/Utt_dur");
-			excelStrCell(fpout, "Switch_Dur");
+			excelStrCell(fpout, "Total_Utt_dur_sec");
+			excelStrCell(fpout, "#_short_unfilled_pauses");
+			excelStrCell(fpout, "#_long_unfilled_pauses");
+			excelStrCell(fpout, "dur_short_unfilled_pause_sec");
+			excelStrCell(fpout, "dur_long_unfilled_pause_sec");
+			excelStrCell(fpout, "dur_short_unfilled_pause/Utt_dur_sec");
+			excelStrCell(fpout, "dur_long_unfilled_pause/Utt_dur_sec");
+			excelStrCell(fpout, "IW_Dur_msec");
+			excelStrCell(fpout, "Utt_dur_msec");
+			excelStrCell(fpout, "IW_Dur/Utt_dur_msec");
+			excelStrCell(fpout, "Switch_Dur_msec");
 			excelStrCell(fpout, "#_Switch");
-			excelStrCell(fpout, "Switch_Dur/#_Switch");
-			excelStrCell(fpout, "No_Switch_Dur");
+			excelStrCell(fpout, "Switch_Dur_msec/#_Switch");
+			excelStrCell(fpout, "No_Switch_Dur_msec");
 			excelStrCell(fpout, "#_No_Switch");
-			excelStrCell(fpout, "No_Switch_Dur/#_No_Switch");
+			excelStrCell(fpout, "No_Switch_Dur_msec/#_No_Switch");
 		}
 
 		excelRow(fpout, ExcelRowEnd);
@@ -1008,7 +1068,8 @@ static void flucalc_pr_result(void) {
 				else
 					excelStrCell(fpout, "NA");
 				excelNumCell(fpout, "%.0f", ts->allWords);
-				excelCommasStrCell(fpout, "NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA");
+				excelCommasStrCell(fpout, "NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA");
+				excelCommasStrCell(fpout, "NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA");
 				if (isWorTier == TRUE)
 					excelCommasStrCell(fpout, "NA,NA,NA,NA,NA,NA,NA,NA,NA");
 			} else {
@@ -1136,13 +1197,30 @@ static void flucalc_pr_result(void) {
 						excelNumCell(fpout, "%.3f", SLD);
 					}
 				}
+
+//				excelNumCell(fpout, "%.0f", ts->overlap_dur);
+
 				if (isWorTier == TRUE) {
+					excelNumCell(fpout, "%.3f", ts->UTTDur/1000.000);
+					excelNumCell(fpout, "%.0f", ts->num_short_unfilled_pauses);
+					excelNumCell(fpout, "%.0f", ts->num_long_unfilled_pauses);
+					excelNumCell(fpout, "%.3f", ts->dur_short_unfilled_pauses/1000.000);
+					excelNumCell(fpout, "%.3f", ts->dur_long_unfilled_pauses/1000.000);
+					if (ts->UTTDur == 0.0)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%f", ts->dur_short_unfilled_pauses / ts->UTTDur);
+					if (ts->UTTDur == 0.0)
+						excelStrCell(fpout, "NA");
+					else
+						excelNumCell(fpout, "%f", ts->dur_long_unfilled_pauses / ts->UTTDur);
+
 					excelNumCell(fpout, "%.3f", ts->IWDur);
 					excelNumCell(fpout, "%.3f", ts->UTTDur);
 					if (ts->UTTDur == 0.0)
 						excelStrCell(fpout, "NA");
 					else
-						excelNumCell(fpout, "%.2f", ts->IWDur / ts->UTTDur);
+						excelNumCell(fpout, "%f", ts->IWDur / ts->UTTDur);
 
 					excelNumCell(fpout, "%.3f", ts->SwitchDur);
 					excelNumCell(fpout, "%.3f", ts->NumOfSwitch);
@@ -1248,8 +1326,14 @@ static int countSyllables(char *word, char *mor) {
 				isBullet = !isBullet;
 			} else if (word[i] == '@')
 				   break;
-			if (!isRepSeg && !isBullet && isalnum(word[i]))
-				tWord[j++] = word[i];
+			if (!isRepSeg && !isBullet) {
+				if (isalnum(word[i])) {
+					tWord[j++] = word[i];
+				} else if (uS.my_isalpha(word+i)) {
+					tWord[j++] = word[i];
+					tWord[j++] = word[i+1];
+				}
+			}
 		}
 		tWord[j] = EOS;
 		if (tWord[0] == EOS)
@@ -1693,21 +1777,22 @@ static int FindBulletTime(char isLastBullet, char *line, int i, float *cBeg, flo
 
 void call()	{		/* tabulate array of word lengths */
 	int  i, j, wi, wsLen, syllCnt, chrCnt, wwrSqI, wwrSqCnt, found;
-	char lRightspeaker;
+	char lRightspeaker, isWORTierFound;
 	unsigned char wwrSq[WWRSQMAX];
 	char word[BUFSIZ+1], *ws, *wm, *s;
 	char lastSp[SPEAKERLEN];
 	char isRepSeg, isWWRFound, ismWWRFound, isRepeatFound, isInternalPause, isFilterUttsOutputDepTier;
-	char isOutputGem, isSwitch, isMultiLang, isUDMor;
+	char isOutputGem, isSwitch, isMultiLang;
 	long stime, etime, uttCnt;
 	double tNum;
 	float lphrase_repets, lword_revis, lphrase_revis, lpauses_cnti, lfilled_pauses, lTD;
 	float lprolongation, lbroken_word, lblock, lPWR, lphono_frag, lmWWR, lSLD;
-	float lastEndTime, curEndTime, curBegTime, wBegTime, wEndTime, wLastEndTime;
+	float lastEndTime, curEndTime, curBegTime, wBegTime, wEndTime, wLastEndTime, wPauseDur;
 	struct flucalc_speakers *ts;
 	MORFEATS word_feats, *compd, *feat;
 	IEWORDS *twd;
 
+	isWORTierFound = FALSE;
 	uttCnt = 0L;
 	isMultiLang = FALSE;
 	langType = UNK;
@@ -1732,7 +1817,6 @@ void call()	{		/* tabulate array of word lengths */
 	found = 0;
 	lastSp[0] = EOS;
 	isSwitch = TRUE;
-	isUDMor = FALSE;
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);
 	while (getwholeutter()) {
@@ -2009,7 +2093,7 @@ void call()	{		/* tabulate array of word lengths */
 							if (isWWRFound == FALSE) {
 								ts->WWR++;
 								wwrSq[wwrSqCnt] = set_WWR_to_1(wwrSq[wwrSqCnt]);
-// 2022-08-29 								isWWRFound = TRUE;
+ 								isWWRFound = TRUE; // 2022-08-29 //2025-08-19
 							}
 							ts->WWRRU++;
 							wwrSq[wwrSqCnt] = set_WWRRU_to_1(wwrSq[wwrSqCnt]);
@@ -2021,7 +2105,7 @@ fprintf(stdout, "1 (%d) mWWR=%s\n", wwrSqCnt, utterance->line+wi); // lxs
 									ts->mWWR++;
 									lmWWR++;
 									wwrSq[wwrSqCnt] = set_mWWR_to_1(wwrSq[wwrSqCnt]);
-// 2022-08-29									ismWWRFound = TRUE;
+									ismWWRFound = TRUE;  // 2022-08-29 //2025-08-19
 								}
 								ts->mWWRRU++;
 								wwrSq[wwrSqCnt] = set_mWWRRU_to_1(wwrSq[wwrSqCnt]);
@@ -2083,6 +2167,7 @@ fprintf(stdout, "1 (%d) mWWR=%s\n", wwrSqCnt, utterance->line+wi); // lxs
 				}
 			}
 		} else if (uS.partcmp(utterance->speaker,"%wor",FALSE,TRUE) && ts != NULL && isOutputGem) {
+			isWORTierFound = TRUE;
 			if (isWorTier == TRUE) {
 				ts->UTTDur = ts->UTTDur + (curEndTime - curBegTime);
 				wLastEndTime = -1.0;
@@ -2092,6 +2177,17 @@ fprintf(stdout, "1 (%d) mWWR=%s\n", wwrSqCnt, utterance->line+wi); // lxs
 					if (wLastEndTime >= 0.0 && wBegTime > wLastEndTime)
 						ts->IWDur = ts->IWDur + (wBegTime - wLastEndTime);
 					wLastEndTime = wEndTime;
+					if (wBegTime < wEndTime) {
+						wPauseDur = wEndTime - wBegTime;
+						if (wPauseDur > 80 && wPauseDur < 180) {
+							ts->num_short_unfilled_pauses++;
+							ts->dur_short_unfilled_pauses += wPauseDur;
+						}
+						if (wPauseDur > 180) {
+							ts->num_long_unfilled_pauses++;
+							ts->dur_long_unfilled_pauses += wPauseDur;
+						}
+					}
 				}
 				if (lastEndTime > 0.0 && curBegTime > lastEndTime) {
 					if (isSwitch == TRUE) {
@@ -2226,8 +2322,6 @@ fprintf(stdout, "2 (%d) mWWR=%s\n", wwrSqI, spareTier2+wi); // lxs
 							if (ParseWordMorElems(templineC2, &word_feats) == FALSE)
 								flucalc_error(FALSE);
 							for (feat=&word_feats; feat != NULL; feat=feat->clitc) {
-								if (isEqual("noun", feat->pos) || isEqual("verb", feat->pos))
-									isUDMor = TRUE;
 								// counts open/closed BEG
 								if (langType == ENG) {
 									if (isEqual("adv:int", feat->pos)) {
@@ -2243,7 +2337,7 @@ fprintf(stdout, "2 (%d) mWWR=%s\n", wwrSqI, spareTier2+wi); // lxs
 //										else if (!isRepeatFound)
 											ts->openClassA++;
 									} else if ((isEqual("adv", feat->pos) || isnEqual("adv:", feat->pos, 4)) &&
-											   (isUDMor == TRUE || isEqualIxes("LY", feat->suffix, NUM_SUFF))) {
+											   (MorCodes == UD || isEqualIxes("LY", feat->suffix, NUM_SUFF))) { //2025-06-27
 										if (isDisfluency(ws))
 											ts->openClassD++;
 //										else if (!isRepeatFound)
@@ -2268,6 +2362,7 @@ fprintf(stdout, "2 (%d) mWWR=%s\n", wwrSqI, spareTier2+wi); // lxs
 //										else if (!isRepeatFound)
 											ts->openClassA++;
 									} else {
+										if (isDisfluency(ws))
 											ts->closedClassD++;
 //										else if (!isRepeatFound)
 											ts->closedClassA++;
@@ -2379,6 +2474,9 @@ finish:
 		flucalc_pr_result();
 		rootLines = flucal_freeLines(rootLines, FALSE);
 	}
+	if (isWorTier == TRUE && isWORTierFound == FALSE) {
+		rootnowors = addToNoWors(rootnowors, oldfname);
+	}
 }
 
 static void flucalc_treeprint(struct flucalc_tnode *p) {
@@ -2398,6 +2496,8 @@ static void flucalc_treeprint(struct flucalc_tnode *p) {
 }
 
 CLAN_MAIN_RETURN main(int argc, char *argv[]) {
+	struct noworFiles *p;
+
 	isWinMode = IS_WIN_MODE;
 	CLAN_PROG_NUM = FLUCALC;
 	chatmode = CHAT_MODE;
@@ -2406,7 +2506,19 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 	rootWords = NULL;
 	isSyllWordsList = FALSE;
 	SyllWordsListFP = NULL;
+	rootnowors = NULL;
 	bmain(argc,argv,flucalc_pr_result);
+	if (rootnowors != NULL) {
+		fprintf(stderr, "\nFile(s) without %%wor:\n");
+		while (rootnowors != NULL) {
+			p = rootnowors;
+			rootnowors = rootnowors->next_fname;
+			fprintf(stderr, "    %s\n", p->fname);
+			if (p->fname != NULL)
+				free(p->fname);
+			free(p);
+		}
+	}
 	rootLines = flucal_freeLines(rootLines, FALSE);
 	if (SyllWordsListFP != NULL) {
 		flucalc_treeprint(rootWords);

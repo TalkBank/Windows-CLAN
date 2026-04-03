@@ -1497,7 +1497,7 @@ void CClanTiersSelect::makeTiersList(int ProgNum, short pixelLen) {
 }
 
 static char isExcludeHeadFromProg(int ProgNum) {
-	if (ProgNum == TEXT2CHAT   || ProgNum == ANVIL2CHAT||
+	if (ProgNum == TEXT2CHAT   ||
 		ProgNum == COMBTIER  || ProgNum == ELAN2CHAT || ProgNum == LAB2CHAT || ProgNum == LIPP2CHAT ||
 		ProgNum == PRAAT2CHAT|| ProgNum == RTF2CHAT || ProgNum == SALT2CHAT ||
 		ProgNum == UNIQ      || ProgNum == COMPOUND || ProgNum == DOS2UNIX  ||

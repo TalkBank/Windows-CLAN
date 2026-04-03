@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -32,6 +32,7 @@
  */
 int filter_angle (Line *line, int c1, int c2, long flags)
 {
+#pragma unused (flags)
    int i,k;
    char ** wp;
    int angle = 0;
@@ -79,7 +80,7 @@ int filter_enclosed (Line *line, int c1, int c2, long flags)
 {
    int i,k;
    int replacement = 0;
-   int marked = 0;
+//   int marked = 0;
    char ** wp;
    int enclosure = 0;
    char *pt;
@@ -113,7 +114,7 @@ int filter_enclosed (Line *line, int c1, int c2, long flags)
          len = strlen(wp[k]);
          if ( wp[k][len-1] != '>' ) {
             wp[k][0] = '\0';
-            marked++;
+//            marked++;
             replacement = 0;
             /* continue; */
          }
@@ -127,7 +128,7 @@ int filter_enclosed (Line *line, int c1, int c2, long flags)
             }
             else {
                wp[k][0] = '\0';
-               marked++;
+//               marked++;
                replacement = 0;
                /* continue; */
             }
@@ -146,11 +147,11 @@ int filter_enclosed (Line *line, int c1, int c2, long flags)
                }
                if (*pt=='<') {        /* terminate track back */
                   wp[j][0] = '\0';
-                  marked++;
+//                  marked++;
                   break;
                }
                wp[j][0] = '\0';       /* exclude intermediate word */
-               marked++;
+//               marked++;
             }
             
          }
@@ -629,6 +630,7 @@ void filter_lowercase(VOCDSPs *speakers)
 
 int filter_overlapping ( Line *line, long flags )
 {
+#pragma unused (flags)
    int i,k;
    int len;
    char ** wp;

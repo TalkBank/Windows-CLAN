@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -294,7 +294,7 @@ static SPEAKERS *FindSpeaker(char *spname) {
 }
 
 static IEWORDS *modrep_addwdptr(char opt, char ch, char *wd, IEWORDS *wdptr, char *WordMode) {
-	register int i;
+	int i;
 	char plus = FALSE;
 	IEWORDS *tempwd;
 
@@ -579,7 +579,7 @@ static void addExcelCols_Rows(char *keyword, int count) {
 }
 
 static void modrep_treeprint(struct mod_s *p, char *sp) {
-	struct rep_s *r, *tr;
+	struct rep_s *r;
 
 	if (p != NULL) {
 		modrep_treeprint(p->left, sp);
@@ -594,7 +594,6 @@ static void modrep_treeprint(struct mod_s *p, char *sp) {
 					fprintf(fpout,"    %3u %s\n", r->count, r->word);
 				else
 					addExcelCols_Rows(r->word, r->count);
-				tr = r;
 				r = r->nextRep;
 			}
 			if (isExcel)
@@ -668,8 +667,8 @@ static void modrep_pr_result(void) {
 	rootspeaker = modrep_speakers_cleanup(rootspeaker);
 }
 
-static int getneww(register char *word, register int i) {
-	register char sq;
+static int getneww(char *word, int i) {
+	char sq;
 
 	while ((*word=OtherUtt[i++]) != EOS && uS.isskip(OtherUtt,i-1,&dFnt,MBF) && !uS.isRightChar(OtherUtt, i-1, '[', &dFnt, MBF)) ;
 	if (*word == EOS) return(0);
@@ -785,6 +784,7 @@ static char *modrep_MkStrAndShift(char *s, int shift) {
 }
 
 static void maketree(char w, char *tu, char *ts, char *wd, int mid, SPEAKERS *tsp) {
+#pragma unused (ts)
 	if (mid == -1)
 		tu = modrep_MkStrAndShift(tu,0);
 	else {

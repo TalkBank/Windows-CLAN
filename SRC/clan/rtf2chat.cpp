@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -249,7 +249,7 @@ void getflag(char *f, char *f1, int *i) {
 }
 
 static int rtf_getc_cr(FILE *fp) {
-	register int c;
+	int c;
 
 #if defined(_MAC_CODE) || defined(_WIN32)
 #ifndef _COCOA_APP
@@ -691,6 +691,7 @@ static int ecPrintChar(int ch, char isUTF) {
 //
 
 static int ecEndGroupAction(RDS rds) {
+#pragma unused (rds)
     return ecOK;
 }
 
@@ -1012,6 +1013,7 @@ ecParseRtfKeyword(FILE *fp, bool *isSkipNextHex)
 static int
 ecParseSpecialProperty(IPROP iprop, int val)
 {
+#pragma unused (val)
     switch (iprop)
     {
     case ipropPard:

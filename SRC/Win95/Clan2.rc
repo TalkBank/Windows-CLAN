@@ -70,11 +70,17 @@ END
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
 IDR_MAINFRAME           ICON                    "res\\Clan2.ico"
+
 IDR_CLAN2TYPE           ICON                    "res\\Clan2Doc.ico"
+
 IDR_MOVIEFRAME          ICON                    "res\\movie.ico"
+
 IDR_CLAN2CEX            ICON                    "res\\Clan2cex.ico"
+
 IDR_CLAN2CDC            ICON                    "res\\Clan2cdc.ico"
+
 IDR_CLAN2UTIL           ICON                    "res\\Clan2util.ico"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -82,25 +88,45 @@ IDR_CLAN2UTIL           ICON                    "res\\Clan2util.ico"
 //
 
 IDR_MAINFRAME           BITMAP                  "res\\Toolbar.bmp"
+
 PROGSBD                 BITMAP                  "res\\progsd.bmp"
+
 PROGSBU                 BITMAP                  "res\\progsu.bmp"
+
 PROGSBX                 BITMAP                  "res\\progsx.bmp"
+
 FILEIND                 BITMAP                  "res\\fileind.bmp"
+
 FILEINU                 BITMAP                  "res\\fileinu.bmp"
+
 FILEINX                 BITMAP                  "res\\fileinx.bmp"
+
 OPTD                    BITMAP                  "res\\optd.bmp"
+
 OPTU                    BITMAP                  "res\\optu.bmp"
+
 OPTX                    BITMAP                  "res\\optx.bmp"
+
 SEARCHBD                BITMAP                  "res\\searchd.bmp"
+
 SEARCHBU                BITMAP                  "res\\searchu.bmp"
+
 SEARCHBX                BITMAP                  "res\\searchx.bmp"
+
 FILEOUTD                BITMAP                  "res\\fileoutd.bmp"
+
 FILEOUTU                BITMAP                  "res\\fileoutu.bmp"
+
 FILEOUTX                BITMAP                  "res\\fileoutx.bmp"
+
 MYHELPD                 BITMAP                  "res\\mhelpd.bmp"
+
 MYHELPU                 BITMAP                  "res\\mhelpu.bmp"
+
 MYHELPX                 BITMAP                  "res\\mhelpx.bmp"
+
 IDB_MYHELP              BITMAP                  "res\\myhelp.bmp"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -1306,8 +1332,8 @@ STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Select KidEVAL options"
 FONT 8, "Arial", 400, 0, 0x0
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,37,329,46,14
-    PUSHBUTTON      "Cancel",IDCANCEL,139,329,46,14
+    DEFPUSHBUTTON   "OK",IDOK,37,351,46,14
+    PUSHBUTTON      "Cancel",IDCANCEL,139,351,46,14
     RADIOBUTTON     "123456",IDC_SELECT_SP1,56,51,34,10
     RADIOBUTTON     "123456",IDC_SELECT_SP2,97,51,34,10
     RADIOBUTTON     "123456",IDC_SELECT_SP3,138,51,34,10
@@ -1319,20 +1345,20 @@ BEGIN
     LTEXT           "Speaker:",IDC_STAT_SP,14,52,35,8
     LTEXT           "PLEASE SELECT ONE SPEAKER CODE FOR INPUT FILE",IDC_STAT_SEL_SP,3,40,197,8
     LTEXT           "Reading file 99999",IDC_SELECT_READING,0,2,60,9
-    LTEXT           "Age ranges:",IDC_STAT_AGE,18,259,84,8
-    RADIOBUTTON     "1;6 - 1;11",IDC_SELECT_OneH,30,270,46,10
-    RADIOBUTTON     "2; - 2;5",IDC_SELECT_Two,30,282,46,10
-    RADIOBUTTON     "2;6 - 2;11",IDC_SELECT_TwoH,30,294,46,10
-    RADIOBUTTON     "3; - 3;5",IDC_SELECT_Three,95,270,46,10
-    RADIOBUTTON     "3;6 - 3;11",IDC_SELECT_ThreeH,95,282,46,10
-    RADIOBUTTON     "4; - 4;5",IDC_SELECT_Four,95,294,46,10
-    RADIOBUTTON     "4;6 - 4;11",IDC_SELECT_FourH,158,270,46,10
-    RADIOBUTTON     "5; - 5;5",IDC_SELECT_Five,158,282,38,10
-    RADIOBUTTON     "5;6 - 6;",IDC_SELECT_FiveH,158,294,38,10
-    RADIOBUTTON     "Male only",IDC_SELECT_MALE,10,309,46,10
-    RADIOBUTTON     "Female only",IDC_SELECT_FEMALE,66,309,53,10
-    RADIOBUTTON     "English toyplay",IDC_SELECT_ENGTOYPLAY,17,155,71,10
-    LTEXT           "Choose Database type below to compare input file to",IDC_STAT_DBTYPE,3,143,206,8
+    LTEXT           "Age ranges:",IDC_STAT_AGE,18,281,84,8
+    RADIOBUTTON     "1;6 - 1;11",IDC_SELECT_OneH,30,292,46,10
+    RADIOBUTTON     "2; - 2;5",IDC_SELECT_Two,30,304,46,10
+    RADIOBUTTON     "2;6 - 2;11",IDC_SELECT_TwoH,30,316,46,10
+    RADIOBUTTON     "3; - 3;5",IDC_SELECT_Three,95,292,46,10
+    RADIOBUTTON     "3;6 - 3;11",IDC_SELECT_ThreeH,95,304,46,10
+    RADIOBUTTON     "4; - 4;5",IDC_SELECT_Four,95,316,46,10
+    RADIOBUTTON     "4;6 - 4;11",IDC_SELECT_FourH,158,292,46,10
+    RADIOBUTTON     "5; - 5;5",IDC_SELECT_Five,158,304,38,10
+    RADIOBUTTON     "5;6 - 6;",IDC_SELECT_FiveH,158,316,38,10
+    RADIOBUTTON     "Male only",IDC_SELECT_MALE,10,331,46,10
+    RADIOBUTTON     "Female only",IDC_SELECT_FEMALE,66,331,53,10
+    RADIOBUTTON     "English toyplay",IDC_SELECT_ENGTOYPLAY,17,177,71,10
+    LTEXT           "Choose Database type below to compare input file to",IDC_STAT_DBTYPE,3,165,206,8
     LTEXT           "Language:",IDC_STAT_LANG,13,77,35,8
     RADIOBUTTON     "eng",IDC_SELECT_ENG,56,77,27,10
     RADIOBUTTON     "fra",IDC_SELECT_FRA,138,77,27,10
@@ -1344,23 +1370,24 @@ BEGIN
     RADIOBUTTON     "do not compare to database",IDC_SELECT_NOT_CMP_DB,3,12,105,10
     RADIOBUTTON     "compare to database",IDC_SELECT_CMP_DB,127,12,83,10
     LTEXT           "PLEASE CHOOSE ONE:",IDC_STAT_CHOOSE_ONE,67,2,84,8
-    RADIOBUTTON     "Both Male and Female",IDC_SELECT_BOTHGEN,129,309,87,10
-    RADIOBUTTON     "choose Age Range independent of input file",IDC_SELECT_INDY_AGE,3,244,155,10
-    LTEXT           "CURRENT COMPARISONS ARE PRELIMINARY AND SHOULD",IDC_ERROR_MES_ONE,0,105,216,8
-    LTEXT           "NOT BE USED FOR CLINICAL DIAGNOSIS.    PLEASE ",IDC_ERROR_MES_TWO,0,115,216,8
-    LTEXT           "SEE SLP MANUAL FOR RECOMMENDED INTERPRETATION.",IDC_ERROR_MES_THR,0,126,216,8
-    RADIOBUTTON     "Chinese toyplay",IDC_SELECT_ZHOTOYPLAY,17,178,71,10
-    RADIOBUTTON     "Japanese toyplay",IDC_SELECT_JPNTOYPLAY,17,216,71,10
-    RADIOBUTTON     "English narrative",IDC_SELECT_ENGNARRATIVE,111,155,73,10
-    RADIOBUTTON     "Chinese narrative",IDC_SELECT_ZHONARRATIVE,112,179,73,10
-    RADIOBUTTON     "Spanish toyplay",IDC_SELECT_SPATOYPLAY,17,229,71,10
-    RADIOBUTTON     "Dutch toyplay",IDC_SELECT_NLDTOYPLAY,17,190,71,10
-    RADIOBUTTON     "French toyplay",IDC_SELECT_FRATOYPLAY,17,203,71,10
-    RADIOBUTTON     "French narrative",IDC_SELECT_FRANARRATIVE,111,204,69,10
-    RADIOBUTTON     "Spanish narrative",IDC_SELECT_SPANARRATIVE,111,228,73,10
-    RADIOBUTTON     "English UD toyplay",IDC_SELECT_ENGUTOYPLAY,17,166,71,10
-    RADIOBUTTON     "English UD narrative",IDC_SELECT_ENGUNARRATIVE,111,166,73,10
+    RADIOBUTTON     "Both Male and Female",IDC_SELECT_BOTHGEN,129,331,87,10
+    RADIOBUTTON     "choose Age Range independent of input file",IDC_SELECT_INDY_AGE,3,266,155,10
+    LTEXT           "CURRENT COMPARISONS ARE PRELIMINARY AND SHOULD",IDC_ERROR_MES_ONE,0,127,216,8
+    LTEXT           "NOT BE USED FOR CLINICAL DIAGNOSIS.    PLEASE ",IDC_ERROR_MES_TWO,0,137,216,8
+    LTEXT           "SEE SLP MANUAL FOR RECOMMENDED INTERPRETATION.",IDC_ERROR_MES_THR,0,148,216,8
+    RADIOBUTTON     "Chinese toyplay",IDC_SELECT_ZHOTOYPLAY,17,200,71,10
+    RADIOBUTTON     "Japanese toyplay",IDC_SELECT_JPNTOYPLAY,17,238,71,10
+    RADIOBUTTON     "English narrative",IDC_SELECT_ENGNARRATIVE,111,177,73,10
+    RADIOBUTTON     "Chinese narrative",IDC_SELECT_ZHONARRATIVE,112,201,73,10
+    RADIOBUTTON     "Spanish toyplay",IDC_SELECT_SPATOYPLAY,17,251,71,10
+    RADIOBUTTON     "Dutch toyplay",IDC_SELECT_NLDTOYPLAY,17,212,71,10
+    RADIOBUTTON     "French toyplay",IDC_SELECT_FRATOYPLAY,17,225,71,10
+    RADIOBUTTON     "French narrative",IDC_SELECT_FRANARRATIVE,111,226,69,10
+    RADIOBUTTON     "Spanish narrative",IDC_SELECT_SPANARRATIVE,111,250,73,10
+    RADIOBUTTON     "English UD toyplay",IDC_SELECT_ENGUTOYPLAY,17,188,71,10
+    RADIOBUTTON     "English UD narrative",IDC_SELECT_ENGUNARRATIVE,111,188,73,10
     RADIOBUTTON     "engu",IDC_SELECT_ENGU,97,77,27,10
+    RADIOBUTTON     "Select Refvals Dataset(s)",IDC_SELECT_REFVALS,13,106,112,10
 END
 
 IDD_CLAN_EVALD_SELECT DIALOGEX 0, 0, 241, 186
@@ -1406,6 +1433,15 @@ BEGIN
     RADIOBUTTON     "Rockwell",IDC_EVALD_ROCKWELL,113,151,45,10
 END
 
+IDD_CLAN_DATASET DIALOGEX 0, 0, 217, 240
+STYLE DS_SETFONT | WS_MAXIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "Select Refvals Dataset(s)"
+FONT 8, "MS Sans Serif", 400, 0, 0x0
+BEGIN
+    DEFPUSHBUTTON   "Select",IDOK,81,219,50,14
+    LISTBOX         IDC_LIST_OF_DATASETS,7,7,197,207,LBS_MULTIPLESEL | LBS_NOINTEGRALHEIGHT | LBS_DISABLENOSCROLL | WS_VSCROLL | WS_HSCROLL | WS_TABSTOP
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -1413,8 +1449,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 8,21,0,0
- PRODUCTVERSION 8,21,0,0
+ FILEVERSION 8,53,0,0
+ PRODUCTVERSION 8,53,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -1430,12 +1466,12 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "FileDescription", "Clan MFC Application"
-            VALUE "FileVersion", "8.21.0.0"
+            VALUE "FileVersion", "8.53.0.0"
             VALUE "InternalName", "Clan"
             VALUE "LegalCopyright", "Copyright (C) 2003"
             VALUE "OriginalFilename", "Clan.EXE"
             VALUE "ProductName", "Clan Application"
-            VALUE "ProductVersion", "8.21.0.0"
+            VALUE "ProductVersion", "8.53.0.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -1898,6 +1934,15 @@ BEGIN
         TOPMARGIN, 7
         BOTTOMMARGIN, 179
     END
+
+    IDD_CLAN_DATASET, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 210
+        VERTGUIDE, 34
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 233
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -1928,6 +1973,22 @@ BEGIN
 0x7550, 0x7072, 0x656c, 0x4320, 0x6c6f, 0x726f, "\000" 
     IDC_CEDO_COLORLEMMA, 0x403, 12, 0
 0x7242, 0x776f, 0x206e, 0x6f43, 0x6f6c, 0x0072, 
+    0
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+IDD_CLAN_KIDEVAL_SELECT AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+IDD_CLAN_DATASET AFX_DIALOG_LAYOUT
+BEGIN
     0
 END
 

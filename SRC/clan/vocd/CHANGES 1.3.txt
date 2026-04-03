@@ -1,0 +1,129 @@
+
+29 May 2001:
+Modified the speaker_parse_file function as well to
+parse follow-on lines that include spaces rather than
+tabs. Some files passed to me were of this form.
+I don't know why!
+
+29 May 2001:
+Adding a new function tokens_member_simple to perform
+a simple character-for-character membership test.
+No wildcard matching. Function needed because a "*"
+is used as an error indication on %mor tiers. Hence,
+errors are produced on type counts when using the
+existing membership function (tokens_member). The
+latter function, however, needs to be simplified,
+since it should in fact be able to cope okay.
+But it works at present for the remainder of tasks,
+so it will not be modified at present.
+
+Updated speaker_ttr to use the new function.
+
+
+10 May 2001:
+Added a line:
+current_dptr = NULL;
+to the '%' case selection of speaker_parse_files.
+The reason was that the analysis of the %mor tier was
+including tabbed lines that were not present in the
+%mor tier. The above line means that each time a
+% tier is found the current dependency tier pointer
+(i.e. "current_dptr") is reset to NULL.
+
+
+
+10 Jan 1999:
+Delete all DEBUG information. If I need it again, I will put it
+in in a more structure manner.
+Just means tokens_print_node is no longer used.
+
+
+8 Jan 1999:
+Modify to make random sampling without replacement the default.
+Main mod is in 'case R'. -R now signals random sampling with
+replacement.
+
+
+
+void truncate_cha (char *fname)
+{
+   char * pt;
+
+   pt = fname;
+   while (*pt != '\0') {
+      if (*pt=='.') {
+         if (strncmp(pt, ".cha",4)==0) {
+            *pt = '\0';
+            return;
+         }
+      }
+      pt++;
+   }
+}
+
+
+
+Request to repeat the TTR info in the results summary;
+and to repeat the name of the file.
+
+Need to think about this re. keeping the interactive stuff going?
+Or might have to modify the latter later to suit.
+
+TTR info is presented before I call d_compute.
+d_compute prints out the main set of results.
+Therefore, I should perhaps do all of the printing from
+d_compute, including a 'sequence ttr' report.
+Need to pass the filename to d_compute.
+
+What else?
+
+As part of this, I should perhaps apply the split half when
+actually generating the sequence. This, however, has stronger
+relation to the interactive, in which the user might want
+to mess with the full sequence or the various forms of the split
+half.
+
+So, keep them separate for the present.
+
+i.e.
+create full sequence,
+
+then create split half, if needed.
+
+then do the processing on this split half.
+
+
+So, how do we do the TTR from the sequence!
+
+
+We have: token_seq
+         tkns_in_seq
+
+Compute TTR:
+
+double ttr_fromseq(char **token_seq, int tkns_in_seq, int *typs)
+{
+   int types=0;
+   NODE *root;
+   double  ttr;
+ 
+   /* assemble the words into types */
+   root = tokens_create_node(NO_SUBNODES);
+
+   for (i=0;i<no_tokens;i++) {
+      if (!tokens_member(*token_seq[i],root)) {
+         if (tokens_insert(root, *token_seq[i])==-1)
+            fprintf(stderr,"ttr_fromseq: token insertion failed\n");
+         types++;
+      }
+
+
+   if (DEBUG)
+      tokens_print_tree(root, "types");
+ 
+   *typs = types;
+   ttr = (double ) types / (double ) tkns_in_seq;
+ 
+   return ttr;
+}
+

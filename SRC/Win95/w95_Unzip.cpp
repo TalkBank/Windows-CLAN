@@ -10,7 +10,7 @@ extern FNType home_dir[];
 extern FNType prefsDir[];
 
 extern void del_dir(FNType *pathO, char *wd_path);
-extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
+//extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
 
 static CUnzip *UnzipDlg = NULL;
 
@@ -184,6 +184,7 @@ static bool DownloadGrammar(char *grName, char *destName, size_t fileSize) {
 	unCH URLPath[512];
 	unCH fname[FNSize];
 	FILE *fp;
+	HRESULT	hResult;
 
 	//CSIDL_COMMON_DESKTOPDIRECTORY
 	//CSIDL_DESKTOPDIRECTORY
@@ -248,11 +249,13 @@ static bool DownloadGrammar(char *grName, char *destName, size_t fileSize) {
 	if (fp != NULL) {
 		fclose(fp);
 		unlink(destName);
-		u_strcpy(URLPath, "https://talkbank.org/morgrams/", 512);
+		u_strcpy(URLPath, "https://talkbank.org/0info/mor/", 512);
 		strcat(URLPath, grName);
 		strcat(URLPath, ".zip");
 		u_strcpy(fname, destName, UTTLINELEN);
-		if (curlURLDownloadToFile(URLPath, fname, fileSize) == true) {
+		hResult = URLDownloadToFile(NULL, URLPath, fname, 0, NULL);
+		if (hResult == S_OK) {
+//		if (curlURLDownloadToFile(URLPath, fname, fileSize) == true) {
 			destName[len] = EOS;
 			return(true);
 		} else {
@@ -428,7 +431,9 @@ static bool DownloadDatabase(const char *database, char *destName, size_t fileSi
 		strcat(URLPath, database);
 		strcat(URLPath, ".zip");
 		u_strcpy(fname, destName, UTTLINELEN);
-		if (curlURLDownloadToFile(URLPath, fname, fileSize) == true) {
+		hResult = URLDownloadToFile(NULL, URLPath, fname, 0, NULL);
+		if (hResult == S_OK) {
+//		if (curlURLDownloadToFile(URLPath, fname, fileSize) == true) {
 			destName[len] = EOS;
 			return(true);
 		} else {

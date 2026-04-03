@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -72,7 +72,7 @@ extern struct IDtype *IDField;
 
 static int fileID;
 static char *corelex_script_file;
-static char corelex_ftime, corelex_isCombineSpeakers, corelex_n_option, isNOptionSet, corelex_isWor, isNoGems;
+static char corelex_ftime, corelex_isCombineSpeakers, corelex_n_option, isNOptionSet, corelex_isWor, isNoGems, isNoMOR;
 static char corelex_BBS[5], corelex_CBS[5];
 static int  colLabelsNum;
 static LABELS *labelsRoot;
@@ -300,6 +300,7 @@ void init(char f) {
 		isNOptionSet = FALSE;
 		corelex_isWor = FALSE;
 		isNoGems = FALSE;
+		isNoMOR = FALSE;
 		strcpy(corelex_BBS, "@*&#");
 		strcpy(corelex_CBS, "@*&#");
 		if (defheadtier != NULL) {
@@ -327,9 +328,6 @@ void usage() {
 	puts("-g : do not look for GEMs");
 	puts("+lF: specify words group name F");
 	puts("     if name has a dash (-), then it will be abbreviated at (-) to get the GEM name");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	puts("+n : Gem is terminated by the next @G (default: automatic detection)");
 	puts("-n : Gem is defined by @BG and @EG (default: automatic detection)");
 	puts("+o3: combine selected speakers from each file into one results list for that file");
@@ -355,15 +353,6 @@ void getflag(char *f, char *f1, int *i) {
 		case 'l':
 			corelex_script_file = f;
 			break;
-#ifdef UNX
-		case 'L':
-			int j;
-			strcpy(lib_dir, f);
-			j = strlen(lib_dir);
-			if (j > 0 && lib_dir[j-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		case 'n':
 			if (*(f-2) == '+') {
 				corelex_n_option = TRUE;
@@ -391,7 +380,8 @@ void getflag(char *f, char *f1, int *i) {
 		case 't':
 			if (*(f-2) == '+' && *f == '*' && *(f+1) == EOS) {
 				corelex_isCombineSpeakers = TRUE;
-			}
+			} else if (*(f-2) == '-' && ((!uS.mStricmp(f, "%mor") || !uS.mStricmp(f, "%mor:"))))
+				isNoMOR = TRUE;
 		default:
 			maingetflag(f-2,f1,i);
 			break;
@@ -660,6 +650,25 @@ static void countCols(LSP *p) {
 	}
 }
 
+static void countNoMorCols(LSP *p) {
+	int  i;
+	char word[BUFSIZ];
+	LABELS *col;
+
+	i = 0;
+	while ((i=getword(utterance->speaker, uttline, word, NULL, i))) {
+		uS.remblanks(word);
+		for (col=labelsRoot; col != NULL; col=col->next_label) {
+			if (col->isStem == TRUE) {
+				if (isMatch(word, col->labelP)) {
+					p->count[col->num] = p->count[col->num] + 1;
+					break;
+				}
+			}
+		}
+	}
+}
+
 static long getTierTime(char *line) {
 	int  i;
 	long beg, end, totalTime = 0;
@@ -847,6 +856,9 @@ void call() {
 					ts->totaTime = ts->totaTime + getTierTime(utterance->line);
 				}
 				isLastBulletFound = FALSE;
+				if (isNoMOR) {
+					countNoMorCols(ts);
+				}
 			} else if (corelex_isWor==FALSE && uS.partcmp(utterance->speaker,"%mor:",FALSE,FALSE) && ts!=NULL) {
 				countCols(ts);
 			} else if (uS.partcmp(utterance->speaker, "%wor:", FALSE, FALSE) && ts != NULL) {

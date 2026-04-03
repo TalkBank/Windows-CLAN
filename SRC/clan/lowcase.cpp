@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -53,9 +53,6 @@ void usage() {
 	fprintf(stdout, "+d1: capitalize words from \"%s\" file, do NOT change the rest\n", DICNAME);
 	fprintf(stdout, "+d2: ignore \"%s\" file, lower case everything\n", DICNAME);
 	fprintf(stdout, "+iF: file F with capitalize words (default: %s)\n", DICNAME);
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	mainusage(TRUE);
 }
 
@@ -316,9 +313,9 @@ static char gotmatch(char *word) {
 }
 
 static int findNextWord(char *line, long *pos, int i) {
-	register int  temp;
-	register char sq;
-	register char t;
+	int  temp;
+	char sq;
+	char t;
 
 getnewword:
 	if (chatmode && *utterance->speaker == '%') {
@@ -416,7 +413,7 @@ getword_rep:
 //		i++;
 	return(i);
 }
-
+/*
 static int isNextCharUpper(char *line, NewFontInfo *finfo) {
 	while (*line) {
 		if (finfo->isUTF) {
@@ -437,7 +434,7 @@ static int isNextCharUpper(char *line, NewFontInfo *finfo) {
 	}
 	return(FALSE);
 }
-
+*/
 void call() {
 	char t;
 	char RightSpeaker = FALSE;
@@ -567,15 +564,6 @@ void getflag(char *f, char *f1, int *i) {
 				isCapsSpecified = TRUE;
 				uS.str2FNType(lc_dicname, 0L, getfarg(f,f1,i));
 				break;
-#ifdef UNX
-		case 'L':
-			int len;
-			strcpy(lib_dir, f);
-			len = strlen(lib_dir);
-			if (len > 0 && lib_dir[len-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		default:
 				maingetflag(f-2,f1,i);
 				break;

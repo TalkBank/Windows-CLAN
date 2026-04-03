@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -83,7 +83,7 @@ static char isPostCode(char *uttline, int *i) {
 }
 
 static void delim_anal(void) {
-    register int i, j;
+    int i, j;
     char sb = FALSE, hid = FALSE;
 
     i = strlen(uttline) - 1;

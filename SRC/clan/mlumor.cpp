@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -385,9 +385,9 @@ static MLUMORSP *mlumor_FindSpeaker(char *fname, char *sp, char *ID, char isSpea
 	return(ts);
 }
 
-// C_NNLA, EVAL, EVALD, KIDEVAL, MAXWD, WDLEN and SUGAR
+// EVAL, EVALD, KIDEVAL, MAXWD, WDLEN, WDSIZE and SUGAR
 void call() {
-	register int pos;
+	int pos;
 	MLUMORSP *ts = NULL;
 	float tLocalmorf = 0.0, localmorf = 0.0;
 	char tmp, isWordsFound, sq, aq, isSkip;

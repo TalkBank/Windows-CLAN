@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -138,9 +138,9 @@ static void printTier(char *line) {
 }
 
 void call() {		/* this function is self-explanatory */
-	register long pos;
-	register int cr;
-	register int i;
+	long pos;
+	int cr;
+	int i;
 	char bl, qf;
 
 	if (fgets_cr(utterance->line, UTTLINELEN, fpin) == NULL)

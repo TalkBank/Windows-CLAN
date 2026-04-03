@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -27,6 +27,7 @@
 extern char R8;
 extern char OverWriteFile;
 extern char Parans;
+extern char isRecursive;
 
 #define numberOfElements 7
 #define ARLEN 80
@@ -46,6 +47,7 @@ extern char Parans;
 #define WDLENSP struct wdlen_cnt
 struct wdlen_cnt {
 	char sp[SPEAKERLEN];
+	char *fname;
 	int  stats[numberOfElements][ARLEN];
 	int  morphcnt;
 	int  wordcnt;
@@ -168,6 +170,8 @@ static WDLENSP *wdlen_free_root(WDLENSP *p) {
 	while (p != NULL) {
 		t = p;
 		p = p->next_sp;
+		if (t->fname)
+			free(t->fname);
 		free(t);
 	}
 	return(NULL);
@@ -343,14 +347,17 @@ static int computeLimit(int num) {
 }
 
 static void wdlen_pr_result(void) {
-	int i, lim;
-	char  fontName[256];
+	int  i, lim;
+	char fontName[256];
 	double sum, num;
 	WDLENSP *ts;
 
-	if (onlydata == 1)
-		fprintf(fpout,"Number\tof\twords\tof\teach\tlength\tin\tcharacters\n");
-	else {
+	if (onlydata == 1) {
+		excelHeader(fpout, newfname, 105);
+		excelRow(fpout, ExcelRowStart);
+		excelCommasStrCell(fpout, "File,Number,of,words,of,each,length,in,characters");
+		excelRow(fpout, ExcelRowEnd);
+	} else {
 		if (!stout) {
 #ifdef _WIN32 
 			fprintf(fpout, "%s	Win95:CAfont:-15:0", FONTHEADER);
@@ -364,21 +371,24 @@ static void wdlen_pr_result(void) {
 		fprintf(fpout,"\nNumber of words of each length in characters\n");
 	}
 	lim = computeLimit(WDLNGS);
-	if (onlydata == 1)
-		fprintf(fpout,"lengths\t");
-	else
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, "");
+		excelStrCell(fpout, "lengths");
+	} else
 		fprintf(fpout,"lengths ");
 	for (i=1; i < lim; i++) {
 		if (onlydata == 1)
-			fprintf(fpout,"%d\t", i);
+			excelLongNumCell(fpout, "%d", i);
 		else
 			fprintf(fpout," %4d", i);
 	}
 	if (onlydata == 1) {
 		if (lim == ARLEN)
-			fprintf(fpout,"+ Mean\n");
+			excelStrCell(fpout, "> Mean");
 		else 
-			fprintf(fpout,"Mean\n");
+			excelStrCell(fpout, "Mean");
+		excelRow(fpout, ExcelRowEnd);
 	} else {
 		if (lim == ARLEN)
 			fprintf(fpout,"+  Mean\n");
@@ -387,10 +397,12 @@ static void wdlen_pr_result(void) {
 	}
 	for (ts=wdlen_head; ts != NULL; ts=ts->next_sp) {
 		sum = 0.0;
-		num = 0.0;		
-		if (onlydata == 1)
-			fprintf(fpout,"%s\t", ts->sp);
-		else {
+		num = 0.0;
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, ts->fname);
+			excelStrCell(fpout, ts->sp);
+		} else {
 			strncpy(templineC, ts->sp, 8);
 			templineC[8] = EOS;
 			fprintf(fpout,"%-8s", templineC);
@@ -399,15 +411,16 @@ static void wdlen_pr_result(void) {
 			sum += ((double)i * (double)ts->stats[WDLNGS][i]);
 			num += (double)ts->stats[WDLNGS][i];
 			if (onlydata == 1)
-				fprintf(fpout,"%d\t", ts->stats[WDLNGS][i]);
+				excelLongNumCell(fpout, "%d", ts->stats[WDLNGS][i]);
 			else
 				fprintf(fpout," %4d", ts->stats[WDLNGS][i]);
 		}
 		if (onlydata == 1) {
 			if (num > 0.0)
-				fprintf(fpout, "%f\n", sum/num);
+				excelNumCell(fpout, "%f", sum/num);
 			else
-				fprintf(fpout, "%f\n", 0.0);
+				excelNumCell(fpout, "%f", 0.0);
+			excelRow(fpout, ExcelRowEnd);
 		} else {
 			if (num > 0.0)
 				fprintf(fpout, " %6.3f\n", sum/num);
@@ -415,27 +428,38 @@ static void wdlen_pr_result(void) {
 				fprintf(fpout, " %6.3f\n", 0.0);
 		}
 	}
-	fprintf(fpout,"-------\n");
-	if (onlydata == 1)
-		fprintf(fpout,"\nNumber\tof\tutterances\tof\teach\tof\tthese\tlengths\tin\twords\n");
-	else
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, "-------");
+		excelRow(fpout, ExcelRowEnd);
+		excelRow(fpout, ExcelRowEmpty);
+	} else
+		fprintf(fpout,"-------\n");
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelCommasStrCell(fpout, "File,Number,of,utterances,of,each,of,these,lengths,in,words");
+		excelRow(fpout, ExcelRowEnd);
+	} else
 		fprintf(fpout,"\nNumber of utterances of each of these lengths in words\n");
 	lim = computeLimit(UTLNG);
-	if (onlydata == 1)
-		fprintf(fpout,"lengths\t");
-	else
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, "");
+		excelStrCell(fpout, "lengths");
+	} else
 		fprintf(fpout,"lengths ");
 	for (i=1; i < lim; i++) {
 		if (onlydata == 1)
-			fprintf(fpout,"%d\t", i);
+			excelLongNumCell(fpout, "%d", i);
 		else
 			fprintf(fpout," %4d", i);
 	}
 	if (onlydata == 1) {
 		if (lim == ARLEN)
-			fprintf(fpout,"> Mean\n");
+			excelStrCell(fpout, "> Mean");
 		else 
-			fprintf(fpout,"Mean\n");
+			excelStrCell(fpout, "Mean");
+		excelRow(fpout, ExcelRowEnd);
 	} else {
 		if (lim == ARLEN)
 			fprintf(fpout,">  Mean\n");
@@ -445,9 +469,11 @@ static void wdlen_pr_result(void) {
 	for (ts=wdlen_head; ts != NULL; ts=ts->next_sp) {
 		sum = 0.0;
 		num = 0.0;		
-		if (onlydata == 1)
-			fprintf(fpout,"%s\t", ts->sp);
-		else {
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, ts->fname);
+			excelStrCell(fpout, ts->sp);
+		} else {
 			strncpy(templineC, ts->sp, 8);
 			templineC[8] = EOS;
 			fprintf(fpout,"%-8s", templineC);
@@ -456,15 +482,16 @@ static void wdlen_pr_result(void) {
 			sum += ((double)i * (double)ts->stats[UTLNG][i]);
 			num += (double)ts->stats[UTLNG][i];
 			if (onlydata == 1)
-				fprintf(fpout,"%d\t", ts->stats[UTLNG][i]);
+				excelLongNumCell(fpout, "%d", ts->stats[UTLNG][i]);
 			else
 				fprintf(fpout," %4d", ts->stats[UTLNG][i]);
 		}
 		if (onlydata == 1) {
 			if (num > 0.0)
-				fprintf(fpout, "%f\n", sum/num);
+				excelNumCell(fpout, "%f", sum/num);
 			else
-				fprintf(fpout, "%f\n", 0.0);
+				excelNumCell(fpout, "%f", 0.0);
+			excelRow(fpout, ExcelRowEnd);
 		} else {
 			if (num > 0.0)
 				fprintf(fpout, " %6.3f\n", sum/num);
@@ -473,27 +500,38 @@ static void wdlen_pr_result(void) {
 		}
 	}
 	if (wdlen_clause != NULL) {
-		fprintf(fpout,"-------\n");
-		if (onlydata == 1)
-			fprintf(fpout,"\nNumber\tof\tutterances\tof\teach\tof\tthese\tlengths\tin\tclauses\n");
-		else
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, "-------");
+			excelRow(fpout, ExcelRowEnd);
+			excelRow(fpout, ExcelRowEmpty);
+		} else
+			fprintf(fpout,"-------\n");
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelCommasStrCell(fpout, "File,Number,of,utterances,of,each,of,these,lengths,in,clauses");
+			excelRow(fpout, ExcelRowEnd);
+		} else
 			fprintf(fpout,"\nNumber of utterances of each of these lengths in clauses\n");
 		lim = computeLimit(CUTTS);
-		if (onlydata == 1)
-			fprintf(fpout,"lengths\t");
-		else
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, "");
+			excelStrCell(fpout, "lengths");
+		} else
 			fprintf(fpout,"lengths ");
 		for (i=0; i < lim; i++) {
 			if (onlydata == 1)
-				fprintf(fpout,"%d\t", i);
+				excelLongNumCell(fpout, "%d", i);
 			else
 				fprintf(fpout," %4d", i);
 		}
 		if (onlydata == 1) {
 			if (lim == ARLEN)
-				fprintf(fpout,"> Mean\n");
+				excelStrCell(fpout,"> Mean\n");
 			else
-				fprintf(fpout,"Mean\n");
+				excelStrCell(fpout,"Mean\n");
+			excelRow(fpout, ExcelRowEnd);
 		} else {
 			if (lim == ARLEN)
 				fprintf(fpout,"+  Mean\n");
@@ -503,9 +541,11 @@ static void wdlen_pr_result(void) {
 		for (ts=wdlen_head; ts != NULL; ts=ts->next_sp) {
 			sum = 0.0;
 			num = 0.0;
-			if (onlydata == 1)
-				fprintf(fpout,"%s\t", ts->sp);
-			else {
+			if (onlydata == 1) {
+				excelRow(fpout, ExcelRowStart);
+				excelStrCell(fpout, ts->fname);
+				excelStrCell(fpout, ts->sp);
+			} else {
 				strncpy(templineC, ts->sp, 8);
 				templineC[8] = EOS;
 				fprintf(fpout,"%-8s", templineC);
@@ -514,15 +554,16 @@ static void wdlen_pr_result(void) {
 				sum += ((double)i * (double)ts->stats[CUTTS][i]);
 				num += (double)ts->stats[CUTTS][i];
 				if (onlydata == 1)
-					fprintf(fpout,"%d\t", ts->stats[CUTTS][i]);
+					excelLongNumCell(fpout, "%d", ts->stats[CUTTS][i]);
 				else
 					fprintf(fpout," %4d", ts->stats[CUTTS][i]);
 			}
 			if (onlydata == 1) {
 				if (num > 0.0)
-					fprintf(fpout, "%f\n", sum/num);
+					excelNumCell(fpout, "%f", sum/num);
 				else
-					fprintf(fpout, "%f\n", 0.0);
+					excelNumCell(fpout, "%f", 0.0);
+				excelRow(fpout, ExcelRowEnd);
 			} else {
 				if (num > 0.0)
 					fprintf(fpout, " %6.3f\n", sum/num);
@@ -532,27 +573,38 @@ static void wdlen_pr_result(void) {
 		}
 	}
 	if (chatmode) {
-		fprintf(fpout,"-------\n");
-		if (onlydata == 1)
-			fprintf(fpout,"\nNumber\tof\tsingle\tturns\tof\teach\tof\tthese\tlengths\tin\tutterances\n");
-		else
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, "-------");
+			excelRow(fpout, ExcelRowEnd);
+			excelRow(fpout, ExcelRowEmpty);
+		} else
+			fprintf(fpout,"-------\n");
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelCommasStrCell(fpout, "File,Number,of,single,turns,of,each,of,these,lengths,in,utterances");
+			excelRow(fpout, ExcelRowEnd);
+		} else
 			fprintf(fpout,"\nNumber of single turns of each of these lengths in utterances\n");
 		lim = computeLimit(TUTTS);
-		if (onlydata == 1)
-			fprintf(fpout,"lengths\t");
-		else
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, "");
+			excelStrCell(fpout, "lengths");
+		} else
 			fprintf(fpout,"lengths ");
 		for (i=1; i < lim; i++) {
 			if (onlydata == 1)
-				fprintf(fpout,"%d\t", i);
+				excelLongNumCell(fpout, "%d", i);
 			else
 				fprintf(fpout," %4d", i);
 		}
 		if (onlydata == 1) {
 			if (lim == ARLEN)
-				fprintf(fpout,"> Mean\n");
+				excelStrCell(fpout, "> Mean");
 			else 
-				fprintf(fpout,"Mean\n");
+				excelStrCell(fpout, "Mean");
+			excelRow(fpout, ExcelRowEnd);
 		} else {
 			if (lim == ARLEN)
 				fprintf(fpout,"+  Mean\n");
@@ -562,9 +614,11 @@ static void wdlen_pr_result(void) {
 		for (ts=wdlen_head; ts != NULL; ts=ts->next_sp) {
 			sum = 0.0;
 			num = 0.0;		
-			if (onlydata == 1)
-				fprintf(fpout,"%s\t", ts->sp);
-			else {
+			if (onlydata == 1) {
+				excelRow(fpout, ExcelRowStart);
+				excelStrCell(fpout, ts->fname);
+				excelStrCell(fpout, ts->sp);
+			} else {
 				strncpy(templineC, ts->sp, 8);
 				templineC[8] = EOS;
 				fprintf(fpout,"%-8s", templineC);
@@ -573,15 +627,16 @@ static void wdlen_pr_result(void) {
 				sum += ((double)i * (double)ts->stats[TUTTS][i]);
 				num += (double)ts->stats[TUTTS][i];
 				if (onlydata == 1)
-					fprintf(fpout,"%d\t", ts->stats[TUTTS][i]);
+					excelLongNumCell(fpout, "%d", ts->stats[TUTTS][i]);
 				else
 					fprintf(fpout," %4d", ts->stats[TUTTS][i]);
 			}
 			if (onlydata == 1) {
 				if (num > 0.0)
-					fprintf(fpout, "%f\n", sum/num);
+					excelNumCell(fpout, "%f", sum/num);
 				else
-					fprintf(fpout, "%f\n", 0.0);
+					excelNumCell(fpout, "%f", 0.0);
+				excelRow(fpout, ExcelRowEnd);
 			} else {
 				if (num > 0.0)
 					fprintf(fpout, " %6.3f\n", sum/num);
@@ -589,27 +644,38 @@ static void wdlen_pr_result(void) {
 					fprintf(fpout, " %6.3f\n", 0.0);
 			}
 		}
-		fprintf(fpout,"-------\n");
-		if (onlydata == 1)
-			fprintf(fpout,"\nNumber\tof\tsingle\tturns\tof\teach\tof\tthese\tlengths\tin\twords\n");
-		else
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, "-------");
+			excelRow(fpout, ExcelRowEnd);
+			excelRow(fpout, ExcelRowEmpty);
+		} else
+			fprintf(fpout,"-------\n");
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelCommasStrCell(fpout, "File,Number,of,single,turns,of,each,of,these,lengths,in,words");
+			excelRow(fpout, ExcelRowEnd);
+		} else
 			fprintf(fpout,"\nNumber of single turns of each of these lengths in words\n");
 		lim = computeLimit(TWRDS);
-		if (onlydata == 1)
-			fprintf(fpout,"lengths\t");
-		else
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, "");
+			excelStrCell(fpout, "lengths");
+		} else
 			fprintf(fpout,"lengths ");
 		for (i=1; i < lim; i++) {
 			if (onlydata == 1)
-				fprintf(fpout,"%d\t", i);
+				excelLongNumCell(fpout, "%d", i);
 			else
 				fprintf(fpout," %4d", i);
 		}
 		if (onlydata == 1) {
 			if (lim == ARLEN)
-				fprintf(fpout,"> Mean\n");
+				excelStrCell(fpout, "> Mean");
 			else 
-				fprintf(fpout,"Mean\n");
+				excelStrCell(fpout, "Mean");
+			excelRow(fpout, ExcelRowEnd);
 		} else {
 			if (lim == ARLEN)
 				fprintf(fpout,"+  Mean\n");
@@ -619,9 +685,11 @@ static void wdlen_pr_result(void) {
 		for (ts=wdlen_head; ts != NULL; ts=ts->next_sp) {
 			sum = 0.0;
 			num = 0.0;		
-			if (onlydata == 1)
-				fprintf(fpout,"%s\t", ts->sp);
-			else {
+			if (onlydata == 1) {
+				excelRow(fpout, ExcelRowStart);
+				excelStrCell(fpout, ts->fname);
+				excelStrCell(fpout, ts->sp);
+			} else {
 				strncpy(templineC, ts->sp, 8);
 				templineC[8] = EOS;
 				fprintf(fpout,"%-8s", templineC);
@@ -630,15 +698,16 @@ static void wdlen_pr_result(void) {
 				sum += ((double)i * (double)ts->stats[TWRDS][i]);
 				num += (double)ts->stats[TWRDS][i];
 				if (onlydata == 1)
-					fprintf(fpout,"%d\t", ts->stats[TWRDS][i]);
+					excelLongNumCell(fpout, "%d", ts->stats[TWRDS][i]);
 				else
 					fprintf(fpout," %4d", ts->stats[TWRDS][i]);
 			}
 			if (onlydata == 1) {
 				if (num > 0.0)
-					fprintf(fpout, "%f\n", sum/num);
+					excelNumCell(fpout, "%f", sum/num);
 				else
-					fprintf(fpout, "%f\n", 0.0);
+					excelNumCell(fpout, "%f", 0.0);
+				excelRow(fpout, ExcelRowEnd);
 			} else {
 				if (num > 0.0)
 					fprintf(fpout, " %6.3f\n", sum/num);
@@ -647,27 +716,38 @@ static void wdlen_pr_result(void) {
 			}
 		}
 	}
-	fprintf(fpout,"-------\n");
-	if (onlydata == 1)
-		fprintf(fpout,"\nNumber\tof\twords\tof\teach\tof\tthese\tmorpheme\tlengths\n");
-	else
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, "-------");
+		excelRow(fpout, ExcelRowEnd);
+		excelRow(fpout, ExcelRowEmpty);
+	} else
+		fprintf(fpout,"-------\n");
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelCommasStrCell(fpout, "File,Number,of,words,of,each,of,these,morpheme,lengths");
+		excelRow(fpout, ExcelRowEnd);
+	} else
 		fprintf(fpout,"\nNumber of words of each of these morpheme lengths\n");
 	lim = computeLimit(MLNGS);
-	if (onlydata == 1)
-		fprintf(fpout,"lengths\t");
-	else
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, "");
+		excelStrCell(fpout, "lengths");
+	} else
 		fprintf(fpout,"lengths ");
 	for (i=1; i < lim; i++) {
 		if (onlydata == 1)
-			fprintf(fpout,"%d\t", i);
+			excelLongNumCell(fpout, "%d", i);
 		else
 			fprintf(fpout," %4d", i);
 	}
 	if (onlydata == 1) {
 		if (lim == ARLEN)
-			fprintf(fpout,"+ Mean\n");
+			excelStrCell(fpout, "> Mean");
 		else 
-			fprintf(fpout,"Mean\n");
+			excelStrCell(fpout, "Mean");
+		excelRow(fpout, ExcelRowEnd);
 	} else {
 		if (lim == ARLEN)
 			fprintf(fpout,"+  Mean\n");
@@ -677,9 +757,11 @@ static void wdlen_pr_result(void) {
 	for (ts=wdlen_head; ts != NULL; ts=ts->next_sp) {
 		sum = 0.0;
 		num = 0.0;		
-		if (onlydata == 1)
-			fprintf(fpout,"%s\t", ts->sp);
-		else {
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, ts->fname);
+			excelStrCell(fpout, ts->sp);
+		} else {
 			strncpy(templineC, ts->sp, 8);
 			templineC[8] = EOS;
 			fprintf(fpout,"%-8s", templineC);
@@ -688,15 +770,16 @@ static void wdlen_pr_result(void) {
 			sum += ((double)i * (double)ts->stats[MLNGS][i]);
 			num += (double)ts->stats[MLNGS][i];
 			if (onlydata == 1)
-				fprintf(fpout,"%d\t", ts->stats[MLNGS][i]);
+				excelLongNumCell(fpout, "%d", ts->stats[MLNGS][i]);
 			else
 				fprintf(fpout," %4d", ts->stats[MLNGS][i]);
 		}
 		if (onlydata == 1) {
 			if (num > 0.0)
-				fprintf(fpout, "%f\n", sum/num);
+				excelNumCell(fpout, "%f", sum/num);
 			else
-				fprintf(fpout, "%f\n", 0.0);
+				excelNumCell(fpout, "%f", 0.0);
+			excelRow(fpout, ExcelRowEnd);
 		} else {
 			if (num > 0.0)
 				fprintf(fpout, " %6.3f\n", sum/num);
@@ -704,27 +787,38 @@ static void wdlen_pr_result(void) {
 				fprintf(fpout, " %6.3f\n", 0.0);
 		}
 	}
-	fprintf(fpout,"-------\n");
-	if (onlydata == 1)
-		fprintf(fpout,"\nNumber\tof\tutterances\tof\teach\tof\tthese\tlengths\tin\tmorphemes\n");
-	else
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, "-------");
+		excelRow(fpout, ExcelRowEnd);
+		excelRow(fpout, ExcelRowEmpty);
+	} else
+		fprintf(fpout,"-------\n");
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelCommasStrCell(fpout, "File,Number,of,utterances,of,each,of,these,lengths,in,morphemes");
+		excelRow(fpout, ExcelRowEnd);
+	} else
 		fprintf(fpout,"\nNumber of utterances of each of these lengths in morphemes\n");
 	lim = computeLimit(MORPH);
-	if (onlydata == 1)
-		fprintf(fpout,"lengths\t");
-	else
+	if (onlydata == 1) {
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout, "");
+		excelStrCell(fpout, "lengths");
+	} else
 		fprintf(fpout,"lengths ");
 	for (i=1; i < lim; i++) {
 		if (onlydata == 1)
-			fprintf(fpout,"%d\t", i);
+			excelLongNumCell(fpout, "%d", i);
 		else
 			fprintf(fpout," %4d", i);
 	}
 	if (onlydata == 1) {
 		if (lim == ARLEN)
-			fprintf(fpout,"> Mean\n");
+			excelStrCell(fpout, "> Mean");
 		else 
-			fprintf(fpout,"Mean\n");
+			excelStrCell(fpout, "Mean");
+		excelRow(fpout, ExcelRowEnd);
 	} else {
 		if (lim == ARLEN)
 			fprintf(fpout,"+  Mean\n");
@@ -734,9 +828,11 @@ static void wdlen_pr_result(void) {
 	for (ts=wdlen_head; ts != NULL; ts=ts->next_sp) {
 		sum = 0.0;
 		num = 0.0;		
-		if (onlydata == 1)
-			fprintf(fpout,"%s\t", ts->sp);
-		else {
+		if (onlydata == 1) {
+			excelRow(fpout, ExcelRowStart);
+			excelStrCell(fpout, ts->fname);
+			excelStrCell(fpout, ts->sp);
+		} else {
 			strncpy(templineC, ts->sp, 8);
 			templineC[8] = EOS;
 			fprintf(fpout,"%-8s", templineC);
@@ -745,15 +841,16 @@ static void wdlen_pr_result(void) {
 			sum += ((double)i * (double)ts->stats[MORPH][i]);
 			num += (double)ts->stats[MORPH][i];
 			if (onlydata == 1)
-				fprintf(fpout,"%d\t", ts->stats[MORPH][i]);
+				excelLongNumCell(fpout, "%d", ts->stats[MORPH][i]);
 			else
 				fprintf(fpout," %4d", ts->stats[MORPH][i]);
 		}
 		if (onlydata == 1) {
 			if (num > 0.0)
-				fprintf(fpout, "%f\n", sum/num);
+				excelNumCell(fpout, "%f", sum/num);
 			else
-				fprintf(fpout, "%f\n", 0.0);
+				excelNumCell(fpout, "%f", 0.0);
+			excelRow(fpout, ExcelRowEnd);
 		} else {
 			if (num > 0.0)
 				fprintf(fpout, " %6.3f\n", sum/num);
@@ -761,20 +858,36 @@ static void wdlen_pr_result(void) {
 				fprintf(fpout, " %6.3f\n", 0.0);
 		}
 	}
+	excelFooter(fpout);
 	wdlen_head = wdlen_free_root(wdlen_head);
 }
 
 static WDLENSP *wdlen_FindSpeaker(const char *sp) {
-	int i, j;
+	int  i, j;
+	char *s;
 	WDLENSP *ts;
 
+	if (isRecursive == FALSE) {
+		s = strrchr(oldfname, PATHDELIMCHR);
+		if (s != NULL)
+			strcpy(FileName1, s+1);
+		else
+			strcpy(FileName1, oldfname);
+	} else
+		strcpy(FileName1, oldfname);
 	for (ts=wdlen_head; ts != NULL; ts=ts->next_sp) {
-		if (uS.mStricmp(ts->sp, sp) == 0)
-			return(ts);
+		if (uS.mStricmp(ts->fname, FileName1) == 0) {
+			if (uS.mStricmp(ts->sp, sp) == 0)
+				return(ts);
+		}
 	}
 	if ((ts=NEW(WDLENSP)) == NULL)
 		out_of_mem();
 	strcpy(ts->sp, sp);
+	ts->fname = (char *)malloc(strlen(FileName1)+1);
+	if (ts->fname == NULL)
+		out_of_mem();
+	strcpy(ts->fname, FileName1);
 	ts->wordcnt = 0;
 	ts->morphcnt = 0;
 	for (j=0; j < numberOfElements; j++) {
@@ -787,10 +900,10 @@ static WDLENSP *wdlen_FindSpeaker(const char *sp) {
 }
 
 static void words_count(char *line, WDLENSP *ts, int *turn_uttCnt, int *turn_wordCnt) {
-	register int i;
-	register int c;
-	register int wlen;
-	register char isSameDelim;
+	int i;
+	int c;
+	int wlen;
+	char isSameDelim;
 
 	c = 0;
 	while (line[c] != EOS) {

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 /*
@@ -121,6 +121,7 @@ struct freq_speakers_list {
 static int  percent;
 static int  frame_size;
 static int  isCrossTabulation, isCTSpreadsheet;
+static long type_forms;
 static char percentC;
 static char isChange_nomain;
 static char isR6Legal;
@@ -131,6 +132,8 @@ static char isSearchForID = FALSE;
 static char isHeaderSeleted = FALSE;
 static char isSearchForCode;
 static char zeroMatch = FALSE;
+static char typeForms = FALSE;
+static char nonSpTierSpecified = FALSE;
 static char isSpreadsheetOnePerRow;
 static char isSearchForSpeaker[64];
 static char isCombineSpeakers = FALSE;
@@ -149,6 +152,7 @@ static FILE *StatFp;
 void usage() {
 	puts("FREQ creates a frequency word count");
 	printf("Usage: freq [bN cN oN %s] filename(s)\n",mainflgs());
+	puts("+a : compute standard forms, dialectal forms and actual forms");
 	puts("+bN: compute MATTR for frame size N");
 	puts("+c : find capitalized words only");
 	puts("+c1: find words with upper case letters in the middle only");
@@ -333,6 +337,8 @@ void init(char first) {
 		isSearchForID = FALSE;
 		isHeaderSeleted = FALSE;
 		zeroMatch = FALSE;
+		typeForms = FALSE;
+		nonSpTierSpecified = FALSE;
 		isMorUsed = FALSE;
 		isMorTierFirst = TRUE;
 		isCombineSpeakers = FALSE;
@@ -399,6 +405,10 @@ void init(char first) {
 					fprintf(stderr,"    please use +s option to specify a list of string with wild cards (* %% _)\n");
 					cutt_exit(0);
 				}
+			}
+			if (typeForms == TRUE && nonSpTierSpecified == TRUE) {
+				fprintf(stderr,"The +a option can't be used with +t%... or +t@... options\n");
+				cutt_exit(0);
 			}
 			if (zeroMatch) {
 				if (wdptr != NULL && isFoundWildCard(TRUE)) {
@@ -614,6 +624,10 @@ void getflag(char *f, char *f1, int *i) {
 
 	f++;
 	switch(*f++) {
+		case 'a':
+			typeForms = TRUE;
+			no_arg_option(f);
+			break;
 		case 'b':
 			if (*f == EOS) {
 				fprintf(stderr,"Please specify the frame size with +b option.\n");
@@ -740,6 +754,8 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			break;
 		case 't':
+			if (*f == '%' || *f == '@')
+				nonSpTierSpecified = TRUE;
 			if (*(f-2)=='+' && *f=='@' && (*(f+1)=='I' || *(f+1)=='i') && (*(f+2)=='D' || *(f+2)=='d'))
 				isSearchForID = TRUE;
 			if (*(f-2)=='+' && *f=='@')
@@ -776,9 +792,9 @@ void getflag(char *f, char *f1, int *i) {
 }
 
 static char *RevWd(char *s) {
-	register int i;
-	register int j;
-	register char c;
+	int i;
+	int j;
+	char c;
 
 	if (revconc == 2) {
 		for (j=0; !isSpace(s[j]) && s[j] != EOS; j++) ;
@@ -818,6 +834,27 @@ static void CleanUpLine(char *st) {
 	}
 }
 
+static char CleanUpTypeForms(char *st) {
+	int  i;
+	char *sb, *eq;
+
+	sb = strchr(st, '[');
+	if (sb != NULL) {
+		*sb = EOS;
+		uS.remFrontAndBackBlanks(st);
+		for (eq=sb+1; *eq != '=' && *eq != EOS; eq++) ;
+		if (*eq == '=') {
+			i = strlen(st);
+			while (*eq != ']' && *eq != EOS)
+				st[i++] = *eq++;
+			st[i] = EOS;
+		}
+		
+		return(TRUE);
+	} else
+		return(FALSE);
+}
+
 static struct freq_where *freq_AddNewMatch(struct freq_where *where, struct freq_lines *line) {
 	struct freq_where *p;
 
@@ -852,14 +889,20 @@ static struct freq_where *freq_AddNewMatch(struct freq_where *where, struct freq
 }
 
 static void freq_addlineno(struct freq_tnode *p, struct freq_lines *line) {
-	p->count++;
+	if (typeForms == TRUE) {
+		if (line == NULL || strchr(line->tier, '=') == NULL)
+			p->count++;
+		else
+			p->count = 1;
+	} else
+		p->count++;
 	if (isCrossTabulation > 0 && line != NULL) {
 		for (; isCrossTabulation > 1 && line != NULL; line=line->nextLine) {
 			p->where = freq_AddNewMatch(p->where, line);
 			isCrossTabulation--;
 		}
 		isCrossTabulation = 1;
-	} else if ((onlydata == 1 || onlydata == 7 || onlydata == 8) && line != NULL) {
+	} else if ((onlydata == 1 || onlydata == 7 || onlydata == 8 || typeForms == TRUE) && line != NULL) {
 		p->where = freq_AddNewMatch(p->where, line);
 	}
 }
@@ -948,6 +991,7 @@ static struct freq_tnode *freq_MATTR_tree(struct freq_tnode *p, FREQSP *ts, char
 }
 
 static void freq_printlines(struct freq_tnode *p) {
+	char *eq;
 	struct freq_where *w;
 
 	fprintf(fpout,"\n");
@@ -956,6 +1000,18 @@ static void freq_printlines(struct freq_tnode *p) {
 			if (w->line->loc[0] != EOS)
 				fprintf(fpout,"        %s\n", w->line->loc);
 			fprintf(fpout,"      %s\n", w->line->tier);
+		} else if (typeForms == TRUE) {
+			eq = strchr(w->line->tier, '=');
+			if (eq != NULL) {
+				*eq = EOS;
+				if (eq[1] != EOS) {
+					type_forms++;
+					fprintf(fpout,"    1 %s\n", eq+1);
+					fprintf(fpout,"        %3u %s\n", w->count, w->line->tier);
+				} else
+					fprintf(fpout,"    %3u %s\n", w->count, w->line->tier);
+			} else
+				fprintf(fpout,"    %3u %s\n", w->count, w->line->tier);
 		} else
 			fprintf(fpout,"    %3u %s\n", w->count, w->line->tier);
 	}
@@ -967,12 +1023,14 @@ static void freq_treeprint(struct freq_tnode *p) {
 		do {
 			if (revconc)
 				RevWd(p->word);
-			if (onlydata < 2 || onlydata == 7 || onlydata == 8 || isCrossTabulation)
+			if (typeForms == TRUE) {
+				fprintf(fpout,"%3u ",p->count);
+			} else if (onlydata < 2 || onlydata == 7 || onlydata == 8 || isCrossTabulation)
 				fprintf(fpout,"%3u ",p->count);
 			else if (onlydata == 3 || percent > 0)
 				fprintf(StatFp,"%u ",p->count);
 
-			if (onlydata == 1 || onlydata == 7 || onlydata == 8 || isCrossTabulation) {
+			if (onlydata == 1 || onlydata == 7 || onlydata == 8 || typeForms == TRUE || isCrossTabulation) {
 				fprintf(fpout,"%-10s", p->word);
 				freq_printlines(p);
 			} else if (onlydata == 3 || percent > 0)
@@ -1222,6 +1280,7 @@ static void freq_pr_result(void) {
 					ts->words = freq_tree_add_zeros(ts->words, templineC);
 				}
 			}
+			type_forms = 0L;
 			if (isSort) {
 				struct freq_tnode *p;
 				p = ts->words;
@@ -1236,6 +1295,8 @@ static void freq_pr_result(void) {
 				if (ts->total > 0) {
 					fprintf(fpout,"------------------------------\n");
 					fprintf(fpout,"%5ld  Total number of different item types used\n", ts->different);
+					if (typeForms == TRUE)
+						fprintf(fpout,"%5ld  Total number of different type forms used\n", type_forms);
 					fprintf(fpout,"%5ld  Total number of items (tokens)\n", ts->total);
 					if (ts->total > 0) {
 						t1 = (float)ts->total; t = (float)ts->different;
@@ -1257,6 +1318,8 @@ static void freq_pr_result(void) {
 #else // CLAN_SRV
 				fprintf(fpout,"------------------------------\n");
 				fprintf(fpout,"%5ld  Total number of different item types used\n", ts->different);
+				if (typeForms == TRUE)
+					fprintf(fpout,"%5ld  Total number of different type forms used\n", type_forms);
 				fprintf(fpout,"%5ld  Total number of items (tokens)\n", ts->total);
 				if (ts->total > 0) {
 					t1 = (float)ts->total; t = (float)ts->different;
@@ -1457,15 +1520,26 @@ static void comute_MATTR(FREQSP *ts, char *w) {
 }
 
 static void defaultProcessWords(FREQSP *ts, char isLineNull) {
-	register int i, wi;
-	char  word[BUFSIZ];
+	int i, wi;
+	char  word[BUFSIZ], *eq;
 	IEWORDS *twd;
 
 	i = 0;
 	while ((i=getword(utterance->speaker, uttline, word, &wi, i))) {
 		if (word[0] == '-' && !uS.isToneUnitMarker(word) && !exclude(word))
 			continue;
-		if (onlydata == 7) {
+		if (typeForms == TRUE) {
+			eq = strchr(word, '=');
+			if (eq != NULL)
+				*eq = EOS;
+			findWholeScope(utterance->line, wi, templineC4);
+			uS.remFrontAndBackBlanks(templineC4);
+			CleanUpLine(templineC4);
+			if (CleanUpTypeForms(templineC4) == TRUE)
+				rootLines = AddNewLine(rootLines, NULL, templineC4);
+			else
+				rootLines = NULL;
+		} else if (onlydata == 7) {
 			if (utterance->speaker[0] == '%' && isMORSearch()) {
 				findWholeWord(utterance->line, wi, templineC4);
 				uS.remFrontAndBackBlanks(templineC4);
@@ -1512,7 +1586,7 @@ static void defaultProcessWords(FREQSP *ts, char isLineNull) {
 				}
 			}
 		}
-		if (onlydata == 7 && rootLines != NULL && !rootLines->isUsed)
+		if ((onlydata == 7 || typeForms == TRUE) && rootLines != NULL && !rootLines->isUsed)
 			rootLines = freeLines(rootLines, TRUE);
 	}
 }
@@ -1545,12 +1619,11 @@ static void separateRepeatSegments(char *wline, int beg, int end) {
 
 static void filterRepeatSegs(char *wline) {
 	int pos, temp, i;
-	char res, pa;
+	char res;
 
 	pos = 0;
 	do {
 		for (; uS.isskip(wline,pos,&dFnt,MBF) && wline[pos] && !uS.isRightChar(wline,pos,'[',&dFnt,MBF); pos++) ;
-		pa = FALSE;
 		if (wline[pos]) {
 			temp = pos;
 			if (!nomap) {
@@ -1590,7 +1663,6 @@ static void filterRepeatSegs(char *wline) {
 				} while (1) ;
 			} else if (uS.isRightChar(wline, pos, '(', &dFnt, MBF) && uS.isPause(wline, pos, NULL,  &i)) {
 				pos = i + 1;
-				pa = TRUE;
 			} else {
 				do {
 					if (UTF8_IS_LEAD((unsigned char)wline[pos])) {
@@ -1737,7 +1809,7 @@ static ColLabels *addToColArr(ColLabels *root, char *st) {
 }
 
 void call() {
-	register int i, wi, cntItems, res;
+	int i, wi, cntItems, res;
 	char word[BUFSIZ], isRightSpeaker, *wF, *wS;
 	char tisLookAtSpeakerWord, isAddContextArr;
 	long tlineno = 0;
@@ -1977,7 +2049,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 			if (sDepTierName[1] != EOS && uS.partcmp(utterance->speaker,sDepTierName+1,FALSE,TRUE)) {
 				strcpy(spareTier2, uttline);
 			}
-		} else if (linkMain2Mor && uS.partcmp(utterance->speaker, "%mor:", FALSE, TRUE)){
+		} else if (linkMain2Mor && uS.partcmp(utterance->speaker, "%mor:", FALSE, TRUE)) {
 			if (strchr(uttline, dMarkChr) == NULL) {
 				defaultProcessWords(ts, TRUE);
 			} else {

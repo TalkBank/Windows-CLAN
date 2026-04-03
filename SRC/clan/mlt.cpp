@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -37,7 +37,7 @@ struct mlt_cnt {
 } ;
 
 static MLTSP *mlt_head;
-static char mlt_ftime, mlt_foutput, count_empty_utterences, isFromCall, mlt_isCombineSpeakers;
+static char mlt_ftime, mlt_foutput, count_empty_utterences, isTrnPostCode, isFromCall, mlt_isCombineSpeakers;
 static float mlt_utter, mlt_words, mlt_word_sqr;
 
 void usage() {
@@ -46,6 +46,7 @@ void usage() {
 	printf("Usage: mlt [a cS gS oN %s] filename(s)\n",mainflgs());
 //	puts("+a : count utterances that are not empty or have words specified with +/-s option");
 	puts("+a : do not count empty utterances, 0.");
+	puts("+at: count empty utterances if they have [+ trn] post-code");
 	puts("+cS: look for clause marker S or markers listed in file @S");
 	puts("+gS: exclude utterance consisting solely of specified word S or words in file @S");
 	puts("+o3: combine selected speakers from each file into one results list for that file");
@@ -87,6 +88,7 @@ void init(char f) {
 		mlt_isCombineSpeakers = FALSE;
 		isFromCall = FALSE;
 		count_empty_utterences = TRUE;
+		isTrnPostCode = FALSE;
 	} else {
 		if (onlydata == 1) {
 			combinput = TRUE;
@@ -385,7 +387,7 @@ static MLTSP *mlt_FindSpeaker(char *fname, char *sp, char *ID, char isSpeakerFou
 }
 
 void call() {
-	register int pos;
+	int pos;
 	MLTSP *ts = NULL;
 	char isWordsFound, sq, isSkip, addUttCnt;
 	char isPSDFound, curPSDFound;
@@ -419,6 +421,9 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				if (not_empty_utter > 0.0)
 					ts->mlt_utter = ts->mlt_utter + not_empty_utter;
 				if (empty_utter > 0.0 && count_empty_utterences && !ml_isclause())
+					ts->mlt_utter = ts->mlt_utter + empty_utter;
+				else if (count_empty_utterences == FALSE && isTrnPostCode == TRUE && empty_utter > 0.0 &&
+						 isPostCodeOnUtt(utterance->line, "[+ trn]"))
 					ts->mlt_utter = ts->mlt_utter + empty_utter;
 			}
 			if (mlt_isCombineSpeakers) {
@@ -478,6 +483,9 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 		pos = 0;
 		sq = FALSE;
 		if (count_empty_utterences && !ml_isclause())
+			addUttCnt = TRUE;
+		else if (count_empty_utterences == FALSE && isTrnPostCode == TRUE && 
+				 isPostCodeOnUtt(utterance->line, "[+ trn]"))
 			addUttCnt = TRUE;
 		else
 			addUttCnt = FALSE;
@@ -578,8 +586,9 @@ void getflag(char *f, char *f1, int *i) {
 	f++;
 	switch(*f++) {
 		case 'a':
+			if (*f == 't' || *f == 'T')
+				isTrnPostCode = TRUE;
 			count_empty_utterences = FALSE;
-			no_arg_option(f);
 			break;
 		case 'c':
 			if (!*f) {

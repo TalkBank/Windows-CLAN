@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -30,6 +30,7 @@ void cHashBasic::UpdateHeader()
 
 address cHashBasic::Create( long32 sizeBB, int type )
 {
+#pragma unused (type)
 	mVirtualAddress = vmAllocate( sz_cHashHeader + sz_cCellBB * sizeBB );
 
 	mHeader.mVersionNumber = HASHBSC_VERSION_NUMBER;
@@ -55,6 +56,7 @@ address cHashBasic::Create( long32 sizeBB, int type )
 
 int cHashBasic::Open( address vmadr, int type )
 {
+#pragma unused (type)
 	mVirtualAddress = vmadr;
 	// OLD *** vmRead( &mHeader, mVirtualAddress, sz_cHashHeader );
 	mHeader.mVersionNumber = vmReadLong( mVirtualAddress );		/* version number */

@@ -14,17 +14,18 @@
     <ProjectGuid>{9035A0C9-A05A-478B-8D2F-8FCC6450EA00}</ProjectGuid>
     <RootNamespace>Clan2</RootNamespace>
     <Keyword>MFCProj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Uni Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <UseOfMfc>Static</UseOfMfc>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Uni Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <UseOfMfc>Static</UseOfMfc>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -71,7 +72,6 @@
       <PreprocessorDefinitions>WINVER=0x0501;_CRT_SECURE_NO_DEPRECATE;NDEBUG;WIN32;_WINDOWS;POSTCODE;TARGET_OS_WIN32;CALL_NOT_IN_CARBON=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>false</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <StructMemberAlignment>2Bytes</StructMemberAlignment>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
       <PrecompiledHeaderOutputFile>$(OutDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
@@ -80,6 +80,7 @@
       <ProgramDataBaseFileName>$(OutDir)</ProgramDataBaseFileName>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
+      <StructMemberAlignment>Default</StructMemberAlignment>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -115,7 +116,7 @@
       <PreprocessorDefinitions>WINVER=0x0501;_CRT_SECURE_NO_DEPRECATE;_DEBUG;_CLAN_DEBUG;WIN32;_WINDOWS;POSTCODE;TARGET_OS_WIN32;CALL_NOT_IN_CARBON=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <StructMemberAlignment>2Bytes</StructMemberAlignment>
+      <StructMemberAlignment>Default</StructMemberAlignment>
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PrecompiledHeaderOutputFile>$(OutDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
@@ -148,17 +149,18 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="SRC\clan\c-nnla.cpp" />
     <ClCompile Include="SRC\clan\c-qpa.cpp" />
     <ClCompile Include="SRC\clan\Chat2Srt.cpp" />
     <ClCompile Include="SRC\clan\chiputil.cpp" />
     <ClCompile Include="SRC\clan\codes-p.cpp" />
+    <ClCompile Include="SRC\clan\complexity.cpp" />
     <ClCompile Include="SRC\clan\convort.cpp" />
     <ClCompile Include="SRC\clan\corelex.cpp" />
     <ClCompile Include="SRC\clan\eval-d.cpp" />
     <ClCompile Include="SRC\clan\flucalc.cpp" />
     <ClCompile Include="SRC\clan\flupos.cpp" />
     <ClCompile Include="SRC\clan\Lena2Chat.cpp" />
+    <ClCompile Include="SRC\clan\lexrare.cpp" />
     <ClCompile Include="SRC\clan\medialine.cpp" />
     <ClCompile Include="SRC\clan\merge.cpp" />
     <ClCompile Include="SRC\clan\mlumor.cpp" />
@@ -166,23 +168,20 @@
     <ClCompile Include="SRC\clan\PID.cpp" />
     <ClCompile Include="SRC\clan\Play2Chat.cpp" />
     <ClCompile Include="src\Clan\post\anaalgo.cpp" />
-    <ClCompile Include="SRC\clan\Anvil2Chat.cpp" />
     <ClCompile Include="SRC\clan\roles.cpp" />
     <ClCompile Include="SRC\clan\rtf2chat.cpp" />
     <ClCompile Include="SRC\clan\salt2chat.cpp" />
     <ClCompile Include="SRC\clan\segment.cpp" />
-    <ClCompile Include="SRC\clan\silence-pc.cpp" />
     <ClCompile Include="SRC\clan\Srt2Chat.cpp" />
     <ClCompile Include="SRC\clan\sugar.cpp" />
-    <ClCompile Include="SRC\clan\tang2chat.cpp" />
     <ClCompile Include="SRC\clan\text2chat.cpp" />
-    <ClCompile Include="SRC\clan\validateMFA.cpp" />
     <ClCompile Include="src\Clan\vocd\args.cpp" />
     <ClCompile Include="src\Clan\Mor\Arules.cpp" />
     <ClCompile Include="src\Clan\post\atom.cpp" />
     <ClCompile Include="SRC\clan\megrasp\blmvm.cpp" />
     <ClCompile Include="SRC\CLAN\POST\brillanx.cpp" />
     <ClCompile Include="SRC\CLAN\POST\brilltagger.cpp" />
+    <ClCompile Include="SRC\clan\wdsize.cpp" />
     <ClCompile Include="SRC\Win95\buildtree.cpp" />
     <ClCompile Include="src\Ced\C_curses.cpp" />
     <ClCompile Include="src\Ced\c_main.cpp" />
@@ -190,11 +189,8 @@
     <ClCompile Include="src\Ced\ced.cpp" />
     <ClCompile Include="src\Win95\ceddlgs.cpp" />
     <ClCompile Include="src\Clan\chains.cpp" />
-    <ClCompile Include="SRC\clan\Chat2Anvil.cpp" />
-    <ClCompile Include="SRC\clan\Chat2CA.cpp" />
     <ClCompile Include="SRC\clan\Chat2Elan.cpp" />
     <ClCompile Include="SRC\clan\Chat2Praat.cpp" />
-    <ClCompile Include="SRC\clan\Chat2Xmar.cpp" />
     <ClCompile Include="src\Clan\check.cpp" />
     <ClCompile Include="src\Ced\check_in.cpp" />
     <ClCompile Include="src\Win95\ChildFrm.cpp" />
@@ -326,6 +322,7 @@
     <ClCompile Include="SRC\clan\usedlex.cpp" />
     <ClCompile Include="src\Ced\utils.cpp" />
     <ClCompile Include="SRC\clan\vocd\vocd.cpp" />
+    <ClCompile Include="SRC\Win95\W95_cl_datasets.cpp" />
     <ClCompile Include="SRC\Win95\W95_cl_evald.cpp" />
     <ClCompile Include="SRC\Win95\W95_cl_kideval.cpp" />
     <ClCompile Include="SRC\Win95\W95_feedback.cpp" />
@@ -350,7 +347,6 @@
     <ClCompile Include="SRC\Win95\w95_TextBullet.cpp" />
     <ClCompile Include="SRC\Win95\w95_TxtBullet.cpp" />
     <ClCompile Include="src\Win95\W95_util.cpp" />
-    <ClCompile Include="SRC\Win95\W95_WebData.cpp" />
     <ClCompile Include="src\Win95\W95_wind.cpp" />
     <ClCompile Include="src\Clan\wdlen.cpp" />
     <ClCompile Include="src\Ced\windows.cpp" />
@@ -429,6 +425,7 @@
     <ClInclude Include="src\Clan\vocd\tokens.h" />
     <ClInclude Include="SRC\CLAN\POST\useful.hpp" />
     <ClInclude Include="src\Clan\vocd\vocdefs.h" />
+    <ClInclude Include="SRC\Win95\W95_cl_datasets.h" />
     <ClInclude Include="SRC\Win95\W95_cl_evald.h" />
     <ClInclude Include="SRC\Win95\W95_cl_kideval.h" />
     <ClInclude Include="SRC\Win95\W95_feedback.h" />
@@ -447,7 +444,6 @@
     <ClInclude Include="SRC\Win95\W95_progress.h" />
     <ClInclude Include="SRC\Win95\W95_SpCharsDialog.h" />
     <ClInclude Include="SRC\Win95\w95_TxtBullet.h" />
-    <ClInclude Include="SRC\Win95\W95_WebData.h" />
     <ClInclude Include="src\Win95\w95AIFF.h" />
     <ClInclude Include="src\Clan\post\workspace.hpp" />
     <ClInclude Include="SRC\clan\wstring.h" />

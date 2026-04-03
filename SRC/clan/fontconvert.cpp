@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -162,6 +162,7 @@ WindowsKoreanJohab = code page 1361, for Windows NT
 /************************************************************/
 /*	 Find and set the current font of the tier			*/
 short GetEncode(const char  *fontPref, const char *fontName, short fontType, int CharSet, char isShowErr) {
+#pragma unused (fontPref, fontName, isShowErr)
 #if defined(_MAC_CODE)
 	if (CharSet == 238)
 		return(kTextEncodingWindowsLatin2);
@@ -303,6 +304,7 @@ short GetEncode(const char  *fontPref, const char *fontName, short fontType, int
 
 #ifdef _MAC_CODE
 char GetFontNumber(char *fname, short *font) {
+#pragma unused (fname, font)
 #ifndef _COCOA_APP
 	Str255 sysFName, pFName;
 #endif
@@ -340,6 +342,7 @@ short getFontType(const char *fontName, char isPC) {
 }
 
 static void	IDFont(char *tFontName, char isUTF, NewFontInfo *finfo) {
+#pragma unused (isUTF)
 	finfo->fontTable = NULL;
 	if (finfo->platform == WIN95DATA) {
 		finfo->fontPref = "Win95:";

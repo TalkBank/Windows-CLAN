@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -21,7 +21,7 @@
 
 inline long32 funHashWord(unsigned char *key, int lkey, long32 hsize)
 {
- 	register int i;
+ 	int i;
   	long32 ret=1L;
 
 	for (i=0;i<lkey;i++)
@@ -56,7 +56,7 @@ inline int funBitTest(unsigned char *a, int bnum)
 
 inline long32 funHashNumber(unsigned char *key, int lkey, long32 hsize)
 {
- 	register int i;
+ 	int i;
   	static long32 prem[10]={2L,3L,5L,7L,11L,13L,17L,19L,23L,29L};
   	long32 ret=1L;
 

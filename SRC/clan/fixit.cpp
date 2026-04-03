@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -73,7 +73,7 @@ void init(char f) {
 }
 
 static void fixit_remblanks(char *st) {
-	register int i;
+	int i;
 
 	i = strlen(st) - 1;
 	while (i >= 0 && (st[i] == ' ' || st[i] == '\t' || st[i] == '\n' ||
@@ -177,6 +177,7 @@ static CODES *MkCodes(CODES *c, const char *scope, char *text) {
 
 static void SetScope(char *scope, int NumWords, 
 						   int u1, int u2, int w1, int w2, int s1, int s2) {
+#pragma unused (u1)
 	if (s1 > 0) sprintf(scope,"<%dw%ds", w1, s1);
 	else sprintf(scope,"<%dw", w1);
 	if (w1+w2 > NumWords) w2 = NumWords - w1;

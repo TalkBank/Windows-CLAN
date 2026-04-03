@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -77,7 +77,7 @@ static char *uniq_strsave(char *s) {
 }
 
 static void uniq_remove_endspace(char *line) {
-    register int i;
+    int i;
 
     i = strlen(line) - 1;
 	if (line[i] == '\n' && i >= 0) {

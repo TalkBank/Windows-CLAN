@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -146,9 +146,6 @@ void usage() {
 	printf("Usage: convort [cF %s] filename(s)\n", mainflgs());
 	printf("+cF: dictionary file (Default %s) \n", DICNAME);
 	printf("+d : only duplicate speaker tier on %%ort tier\n");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	mainusage(FALSE);
 	puts("Dictionary file format: \"from string\" \"to string\"");
 	puts("\nExample:");
@@ -179,7 +176,7 @@ static int isWordEng(char *line, int pos) {
 }
 
 static int change(char *line, AttTYPE *att, int pos, int wlen, int tlen, char *to_word) {
-	register int i;
+	int i;
 
 	if (tlen > wlen) {
 		int num;
@@ -217,7 +214,7 @@ static char isRightPos(char *line, int wlen, struct words *nextone) {
 }
 
 static long FindAndChange(char *line, AttTYPE *att, long isFound) {
-	register int pos;
+	int pos;
 	struct words *nextone;
 	int wlen, tlen;
 	char isOneMatch;
@@ -229,6 +226,10 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 			pos += 3;
 		} else if (line[pos] == '#' || line[pos] == '_') {
 			pos++;
+		} else if (line[pos] == HIDEN_C) {
+			for (pos++; line[pos] != HIDEN_C && line[pos] != '\n' && line[pos] != EOS; pos++) ;
+			if (line[pos] == HIDEN_C)
+				pos++;
 		} else if (line[pos] == '@') {
 			for (pos++; !isSpace(line[pos]) && line[pos] != '\n' && line[pos] != EOS; pos++) ;
 		} else if (line[pos] == '&' && (line[pos+1] == '=' || line[pos+1] == '~')) {
@@ -261,10 +262,10 @@ static long FindAndChange(char *line, AttTYPE *att, long isFound) {
 			if (isOneMatch == FALSE) {
 				if (line[pos] == '.' || line[pos] == ',' || line[pos] == '?' || line[pos] == '!' ||
 					line[pos] == '(' || line[pos] == ')' || line[pos] == '[' || line[pos] == ']' ||
-					line[pos] == '<' || line[pos] == '>' ||
+					line[pos] == '<' || line[pos] == '>' || line[pos] == '-' || 
 					line[pos] == '~' || line[pos] == '+' || line[pos] == '%' || line[pos] == '"' ||
 					line[pos] == ':' || line[pos] == '^' || line[pos] == '/' || line[pos] == '0' ||
-					isSpace(line[pos])) {
+					line[pos] == '\n' ||isSpace(line[pos])) {
 				} else {
 					fprintf(stderr,"\rFailed to match letter starting at \"%s\"\n", line+pos);
 				}
@@ -340,15 +341,6 @@ void getflag(char *f, char *f1, int *i) {
 				nomap = TRUE;
 				no_arg_option(f);
 				break;
-#ifdef UNX
-		case 'L':
-			int len;
-			strcpy(lib_dir, f);
-			len = strlen(lib_dir);
-			if (len > 0 && lib_dir[len-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		default:
 				maingetflag(f-2,f1,i);
 				break;

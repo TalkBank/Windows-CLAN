@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -41,10 +41,13 @@ int main( int argc, char** argv );
 	#define IS_WIN_MODE FALSE
 	#include "mul.h"
 
-	extern char isRecursive;
+extern char isRecursive;
 
-	void usage() { }
-	void init(char f) { }
+void usage() {
+}
+void init(char f) {
+#pragma unused (f)
+}
 	void getflag(char *f, char *f1, int *i) {
 		f++;
 		switch(*f++) {

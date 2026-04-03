@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -298,6 +298,7 @@ static void update_special(
 	double mexa,			/* # of morphemes repeated				*/
 	double msub,			/* # of morphemes substituted			*/
 	double posd) {			/* # of POS different					*/ // 2024-06-28
+#pragma unused (mexa)
 
 	switch (int_type) {
 		case adult:

@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -88,7 +88,7 @@ static char tlex_tree_find(struct tlex_tnode *p, char *w) {
 static void OpenLex(FNType *mFileName, int *isOpenOne) {
 	int  i, s, k, index, t, len;
 	char word[BUFSIZ], isFoundNot, isFoundUsed;
-	long ln;
+//	long ln;
 	FNType tFName[FNSize], lex_out_used[FNSize], lex_out_not[FNSize];
 	FILE *lex_fp_in, *lex_fp_used, *lex_fp_not;
 	
@@ -116,9 +116,9 @@ static void OpenLex(FNType *mFileName, int *isOpenOne) {
 				}
 				isFoundNot = FALSE;
 				isFoundUsed = FALSE;
-				ln = 0L;
+//				ln = 0L;
 				while (fgets_cr(templineC,UTTLINELEN,lex_fp_in)) {
-					ln++;
+//					ln++;
 					uS.remblanks(templineC);
 					if (uS.isUTF8(templineC) || uS.isInvisibleHeader(templineC))
 						continue;
@@ -235,7 +235,7 @@ static struct tlex_tnode *tlex_tree(struct tlex_tnode *p, char *w) {
 }
 
 void call() {
-	register int i, wi;
+	int i, wi;
 	char word[BUFSIZ];
 
 	currentatt = 0;

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -215,9 +215,6 @@ void usage() {
 	puts("+lx: do not show the list of changes specified with +s or +c option");
 	puts("+q : clean up tiers. (add tabs after colons and remove blank spaces)");
 	puts("+q1: clean up tiers for CORELEX command");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	puts("+sS S: string to change followed by string to change to (\"\\t\"=tab, \"\\n\"=newline)");
 	puts("-w : do string oriented search and replacement");
 //	puts("-w1: do string oriented search and replacement except within \"quoted\" text");
@@ -342,12 +339,7 @@ static long FindAndChangeCoreLex(char *line, AttTYPE *att, long isFound) {
 			isFound++;
 		} else if (line[pos] == '[' && line[pos+1] == ':' && line[pos+2] == ' ') {
 			if (errorReplace(line+pos)) {
-				for (i=strlen(line); i >= pos+2; i--) {
-					line[i+1] = line[i];
-					att[i+1] = att[i];
-				}
-				line[pos+2] = ':';
-				att[pos+2] = att[pos+1];
+				line[pos+1] = '=';
 				isFound++;
 			}
 		} else if (line[pos] == '<' || 
@@ -363,7 +355,7 @@ static long FindAndChangeCoreLex(char *line, AttTYPE *att, long isFound) {
 
 static int chstring_found(char *line, int pos, char *pat) {
 	int len;
-	register int n, m;
+	int n, m;
 
 	if (strlen(line+pos) < strlen(pat))
 		return(FALSE);
@@ -526,8 +518,8 @@ printf("4; pat=%s; line=%s;\n", pat, line+pos);
 }
 
 static void make_replacement_str(char *old_pat, char *old_s, int old_s_len, char *new_pat, char *new_s) {
-    register int j, k;
-    register int n, m;
+    int j, k;
+    int n, m;
     int t, end;
 
 	*new_s = EOS;
@@ -585,8 +577,8 @@ f1:
 }
 
 static int change(char *line, AttTYPE *att, int pos, int wlen, char *from_word, char *to_word) {
-	register int i;
-	register int tlen;
+	int i;
+	int tlen;
 
 	if (wildcard) {
 		make_replacement_str(from_word, line+pos, wlen, to_word, templineC4);
@@ -630,7 +622,7 @@ static int change(char *line, AttTYPE *att, int pos, int wlen, char *from_word, 
 }	
 
 static long FindAndChange(char *line, AttTYPE *att, long isFound) {
-	register int pos, lPos;
+	int pos, lPos;
 	char percentFound, sq;
 	struct words *nextone;
 	int wlen;
@@ -819,6 +811,7 @@ static void fixCodes(void) {
 }
 
 static char isIDTier(char *sp, char *line) {
+#pragma unused (sp)
 //2015-03-30 	if (cutt_isCAFound) return(TRUE);
 	for (; *line != EOS; line++) {
 		if (*line == '\n' && isSpeaker(*(line+1)))
@@ -1149,15 +1142,6 @@ void getflag(char *f, char *f1, int *i) {
 				}
 //				no_arg_option(f);
 				break;
-#ifdef UNX
-		case 'L':
-			int len;
-			strcpy(lib_dir, f);
-			len = strlen(lib_dir);
-			if (len > 0 && lib_dir[len-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		case 'w':
 				if (*f == EOS)
 					stringOriented = 1;

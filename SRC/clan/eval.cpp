@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -108,7 +108,7 @@ Verbs
 #define IS_WIN_MODE FALSE
 #include "mul.h" 
 
-#define EVAL_DB_VERSION 5
+#define EVAL_DB_VERSION 6
 
 #define NUMGEMITEMS 10
 #define DATABASE_FILE_NAME "_eval_db.cut"
@@ -232,7 +232,7 @@ static char *targv[MAX_ARGS];
 #endif
 static int  eval_SpecWords, DBGemNum, wdOffset;
 static char *DBGems[NUMGEMITEMS];
-static const char *lang_prefix;
+static char lang_prefix[257];
 static char isSpeakerNameGiven, isExcludeWords, ftime, isPWordsList, isDBFilesList, isCreateDB, isRawVal, specialOptionUsed;
 static char eval_BBS[5], eval_CBS[5], eval_group, eval_n_option, isNOptionSet, onlyApplyToDB, isGOptionSet, GemMode, langType;
 static float tmDur;
@@ -262,9 +262,6 @@ void usage() {
 	puts("+gS: select gems which are labeled by label S");
 	puts("+lF: specify language database file name F");
 	puts("     choices: eng, fra");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	puts("+n : Gem is terminated by the next @G (default: automatic detection)");
 	puts("-n : Gem is defined by @BG and @EG (default: automatic detection)");
 	puts("+o4: output raw values instead of percentage values");
@@ -1207,6 +1204,7 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 		ts->clause++;
 */
 
+// density CPIDR beg1
 		char isCopAux, isIf, isEach, isHow, isAnd, isOr, isFound[1024], resOth;
 		short wi, isGoing, isGoing_to, isDetNum, adj[9], min, isLike, isKind,
 			minPos, isBoth, isEither, isNeither, isNeg, isFor, isTo, isCop_pro, isCop_oth;
@@ -1467,6 +1465,7 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 				}
 				if (isEqual("for", feat->stem))
 					isFor = wi;
+// density CPIDR end1
 
 				// counts nouns/verbes BEG
 				if (isEqual("noun", feat->pos) || isEqual("n", feat->pos) || isnEqual("n:", feat->pos, 2)) {
@@ -1521,7 +1520,8 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 							isEqualIxes("int", feat->suffix, NUM_SUFF))) {
 					ts->det++;
 				}
-				if (isEqualIxes("3s", feat->suffix, NUM_SUFF) || isEqualIxes("3s", feat->fusion, NUM_FUSI)) {
+				if (isEqualIxes("S3", feat->suffix, NUM_SUFF) || isEqualIxes("3s", feat->suffix, NUM_SUFF) || 
+					isEqualIxes("3s", feat->fusion, NUM_FUSI)) {
 					if (isIxesMatchPat(feat->error, NUM_ERRS, "m:03s*") ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:vun*"))
 						j = 0;
@@ -1535,8 +1535,9 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 					else
 						ts->thrnS++;
 				}
-				if (!isEqual("part", feat->pos) &&
-					(isEqualIxes("past", feat->suffix, NUM_SUFF) || isEqualIxes("past", feat->fusion, NUM_FUSI))) {
+				if ((isEqualIxes("Fin", feat->suffix, NUM_SUFF) && isEqualIxes("Past", feat->suffix, NUM_SUFF)) ||
+					(!isEqual("part", feat->pos) && (isEqualIxes("past", feat->suffix, NUM_SUFF) ||
+													 isEqualIxes("past", feat->fusion, NUM_FUSI)))) {
 					if (isIxesMatchPat(feat->error, NUM_ERRS, "m:0ed")  ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:base:ed") ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:=ed"))
@@ -1544,7 +1545,8 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 					else
 						ts->past++;
 				}
-				if (isEqualIxes("pastp", feat->suffix, NUM_SUFF) || isEqualIxes("pastp", feat->fusion, NUM_FUSI) ||
+				if ((isEqualIxes("Part", feat->suffix, NUM_SUFF) && isEqualIxes("Past", feat->suffix, NUM_SUFF)) ||
+					isEqualIxes("pastp", feat->suffix, NUM_SUFF) || isEqualIxes("pastp", feat->fusion, NUM_FUSI) ||
 					(isEqual("part", feat->pos) && isEqualIxes("past", feat->suffix, NUM_SUFF))) {
 					if (isIxesMatchPat(feat->error, NUM_ERRS, "m:sub:en") ||
 						isIxesMatchPat(feat->error, NUM_ERRS, "m:base:en") ||
@@ -1554,7 +1556,8 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 						ts->pastp++;
 				}
 				if (isEqualIxes("presp", feat->suffix, NUM_SUFF) || isEqualIxes("presp", feat->fusion, NUM_FUSI) ||
-					(isEqual("part", feat->pos) && isEqualIxes("pres", feat->suffix, NUM_SUFF))) {
+					(isEqual("part", feat->pos) && isEqualIxes("pres", feat->suffix, NUM_SUFF)) ||
+					(isEqualIxes("Part", feat->suffix, NUM_SUFF) && isEqualIxes("Pres", feat->suffix, NUM_SUFF))) {
 					if (isIxesMatchPat(feat->error, NUM_ERRS, "m:0ing"))
 						j = 0;
 					else
@@ -1573,6 +1576,7 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 			freeUpFeats(&word_feats);
 			wi++;
 		}
+// density CPIDR beg2
 		if (isFiller) {
 			for (i=0; i < wi; i++) {
 				isFound[i] = FALSE;
@@ -1586,6 +1590,7 @@ static void eval_process_tier(struct eval_speakers *ts, struct database *db, cha
 				if (isFound[i] == TRUE)
 					ts->density++;
 			}
+// density CPIDR end2
 			if (isPWordsList && PWordsListFP != NULL) {
 				char *done, *s;
 
@@ -2393,18 +2398,11 @@ static void ParseDatabase(struct database *db) {
 	FILE *fp;
 
 	tmDur = -1.0;
-// remove beg
 	strcpy(FileName1, lib_dir);
+	addFilename2Path(FileName1, "eval");
 	addFilename2Path(FileName1, lang_prefix);
 	strcat(FileName1, DATABASE_FILE_NAME);
 	fp = fopen(FileName1, "r");
-	if (fp == NULL) {
-		strcpy(FileName1, lib_dir);
-		addFilename2Path(FileName1, "eval");
-		addFilename2Path(FileName1, lang_prefix);
-		strcat(FileName1, DATABASE_FILE_NAME);
-		fp = fopen(FileName1, "r");
-	}
 	if (fp == NULL) {
 		fprintf(stderr, "Can't find database in folder \"%s\"\n", FileName1);
 		fprintf(stderr, "If you do not use database, then do not include +d option in command line\n");
@@ -2498,21 +2496,27 @@ static void eval_pr_result(void) {
 	} else {
 		excelCommasStrCell(fpout, "Word_Errors,Utt_Errors");
 	}
-	if (langType == ENG)
+	if (langType == ENG && MorCodes != UD)
 		excelStrCell(fpout, "density");
 	if (!isRawVal) {
 		excelCommasStrCell(fpout, "%_Nouns,%_Plurals");
 		excelCommasStrCell(fpout, "%_Verbs,%_Aux");
-		if (langType == ENG)
+		if (langType == ENG && MorCodes != UD)
 			excelStrCell(fpout, "%_Mod");
-		excelCommasStrCell(fpout, "%_3S,%_13S,%_PAST,%_PASTP,%_PRESP");
+		excelCommasStrCell(fpout, "%_3S");
+		if (MorCodes != UD)
+			excelCommasStrCell(fpout, "%_13S");
+		excelCommasStrCell(fpout, "%_PAST,%_PASTP,%_PRESP");
 		excelCommasStrCell(fpout, "%_prep,%_adj,%_adv,%_conj,%_det,%_pro");
 	} else {
 		excelCommasStrCell(fpout, "Nouns,Plurals");
 		excelCommasStrCell(fpout, "Verbs,Aux");
-		if (langType == ENG)
+		if (langType == ENG && MorCodes != UD)
 			excelStrCell(fpout, "Mod");
-		excelCommasStrCell(fpout, "3S,13S,PAST,PASTP,PRESP");
+		excelCommasStrCell(fpout, "3S");
+		if (MorCodes != UD)
+			excelCommasStrCell(fpout, "13S");
+		excelCommasStrCell(fpout, "PAST,PASTP,PRESP");
 		excelCommasStrCell(fpout, "prep,adj,adv,conj,det,pro");
 	}
 	excelCommasStrCell(fpout, "noun_verb,open_closed");
@@ -2586,7 +2590,7 @@ static void eval_pr_result(void) {
 			excelNumCell(fpout, "%.0f",ts->werr);
 		excelNumCell(fpout, "%.0f", ts->uerr);
 //		excelNumCell(fpout, "%.0f" ,ts->morTotal); // comment to remove X column
-		if (langType == ENG) {
+		if (langType == ENG && MorCodes != UD) {
 			if (ts->morTotal == 0.0) {
 				ts->density = 0.000;
 				excelStrCell(fpout, "NA");
@@ -2640,10 +2644,11 @@ static void eval_pr_result(void) {
 			excelNumCell(fpout, "%.3f", ts->pl);
 			excelNumCell(fpout, "%.3f", ts->verb);
 			excelNumCell(fpout, "%.3f", ts->aux);
-			if (langType == ENG)
+			if (langType == ENG && MorCodes != UD)
 				excelNumCell(fpout, "%.3f", ts->mod);
 			excelNumCell(fpout, "%.3f", ts->thrS);
-			excelNumCell(fpout, "%.3f", ts->thrnS);
+			if (MorCodes != UD)
+				excelNumCell(fpout, "%.3f", ts->thrnS);
 			excelNumCell(fpout, "%.3f", ts->past);
 			excelNumCell(fpout, "%.3f", ts->pastp);
 			excelNumCell(fpout, "%.3f", ts->presp);
@@ -2658,10 +2663,11 @@ static void eval_pr_result(void) {
 			excelNumCell(fpout, "%.0f", ts->pl);
 			excelNumCell(fpout, "%.0f", ts->verb);
 			excelNumCell(fpout, "%.0f", ts->aux);
-			if (langType == ENG)
+			if (langType == ENG && MorCodes != UD)
 				excelNumCell(fpout, "%.0f", ts->mod);
 			excelNumCell(fpout, "%.0f", ts->thrS);
-			excelNumCell(fpout, "%.0f", ts->thrnS);
+			if (MorCodes != UD)
+				excelNumCell(fpout, "%.0f", ts->thrnS);
 			excelNumCell(fpout, "%.0f", ts->past);
 			excelNumCell(fpout, "%.0f", ts->pastp);
 			excelNumCell(fpout, "%.0f", ts->presp);
@@ -2705,14 +2711,17 @@ static void eval_pr_result(void) {
 			compute_SD(&SD[SDn++], ts->werr,  NULL, db->werr_sqr, db->werr, num, NULL);
 			compute_SD(&SD[SDn++], ts->uerr,  NULL, db->uerr_sqr, db->uerr, num, NULL);
 //			compute_SD(&SD[SDn++], ts->morTotal,  NULL, db->morTotal_sqr, db->morTotal, num, NULL); // comment to remove X column
-			compute_SD(&SD[SDn++], ts->density,   NULL, db->density_sqr,  db->density,  num, NULL);
+			if (langType == ENG && MorCodes != UD)
+				compute_SD(&SD[SDn++], ts->density,   NULL, db->density_sqr,  db->density,  num, NULL);
 			compute_SD(&SD[SDn++], ts->noun,  NULL, db->noun_sqr, db->noun, num, NULL);
 			compute_SD(&SD[SDn++], ts->pl,  NULL, db->pl_sqr, db->pl, num, NULL);
 			compute_SD(&SD[SDn++], ts->verb,  NULL, db->verb_sqr, db->verb, num, NULL);
 			compute_SD(&SD[SDn++], ts->aux,  NULL, db->aux_sqr, db->aux, num, NULL);
-			compute_SD(&SD[SDn++], ts->mod,  NULL, db->mod_sqr, db->mod, num, NULL);
+			if (langType == ENG && MorCodes != UD)
+				compute_SD(&SD[SDn++], ts->mod,  NULL, db->mod_sqr, db->mod, num, NULL);
 			compute_SD(&SD[SDn++], ts->thrS,  NULL, db->thrS_sqr, db->thrS, num, NULL);
-			compute_SD(&SD[SDn++], ts->thrnS,  NULL, db->thrnS_sqr, db->thrnS, num, NULL);
+			if (langType == ENG && MorCodes != UD)
+				compute_SD(&SD[SDn++], ts->thrnS,  NULL, db->thrnS_sqr, db->thrnS, num, NULL);
 			compute_SD(&SD[SDn++], ts->past,  NULL, db->past_sqr, db->past, num, NULL);
 			compute_SD(&SD[SDn++], ts->pastp,  NULL, db->pastp_sqr, db->pastp, num, NULL);
 			compute_SD(&SD[SDn++], ts->presp,  NULL, db->presp_sqr, db->presp, num, NULL);
@@ -2761,14 +2770,17 @@ static void eval_pr_result(void) {
 		excelNumCell(fpout, "%.3f", db->werr/num);
 		excelNumCell(fpout, "%.3f", db->uerr/num);
 //		excelNumCell(fpout, "%.3f", db->morTotal/num); // comment to remove X column
-		excelNumCell(fpout, "%.3f", db->density/num);
+		if (langType == ENG && MorCodes != UD)
+			excelNumCell(fpout, "%.3f", db->density/num);
 		excelNumCell(fpout, "%.3f", db->noun/num);
 		excelNumCell(fpout, "%.3f", db->pl/num);
 		excelNumCell(fpout, "%.3f", db->verb/num);
 		excelNumCell(fpout, "%.3f", db->aux/num);
-		excelNumCell(fpout, "%.3f", db->mod/num);
+		if (langType == ENG && MorCodes != UD)
+			excelNumCell(fpout, "%.3f", db->mod/num);
 		excelNumCell(fpout, "%.3f", db->thrS/num);
-		excelNumCell(fpout, "%.3f", db->thrnS/num);
+		if (langType == ENG && MorCodes != UD)
+			excelNumCell(fpout, "%.3f", db->thrnS/num);
 		excelNumCell(fpout, "%.3f", db->past/num);
 		excelNumCell(fpout, "%.3f", db->pastp/num);
 		excelNumCell(fpout, "%.3f", db->presp/num);
@@ -2806,15 +2818,18 @@ static void eval_pr_result(void) {
 		}
 		excelNumCell(fpout, "%.0f", db->mn_uerr);
 //		excelNumCell(fpout, "%.0f", db->mn_morTotal); // comment to remove X column
-		excelNumCell(fpout, "%.3f", db->mn_density);
+		if (langType == ENG && MorCodes != UD)
+			excelNumCell(fpout, "%.3f", db->mn_density);
 		if (!isRawVal) {
 			excelNumCell(fpout, "%.3f", db->mn_noun);
 			excelNumCell(fpout, "%.3f", db->mn_pl);
 			excelNumCell(fpout, "%.3f", db->mn_verb);
 			excelNumCell(fpout, "%.3f", db->mn_aux);
-			excelNumCell(fpout, "%.3f", db->mn_mod);
+			if (langType == ENG && MorCodes != UD)
+				excelNumCell(fpout, "%.3f", db->mn_mod);
 			excelNumCell(fpout, "%.3f", db->mn_thrS);
-			excelNumCell(fpout, "%.3f", db->mn_thrnS);
+			if (langType == ENG && MorCodes != UD)
+				excelNumCell(fpout, "%.3f", db->mn_thrnS);
 			excelNumCell(fpout, "%.3f", db->mn_past);
 			excelNumCell(fpout, "%.3f", db->mn_pastp);
 			excelNumCell(fpout, "%.3f", db->mn_presp);
@@ -2829,9 +2844,11 @@ static void eval_pr_result(void) {
 			excelNumCell(fpout, "%.0f", db->mn_pl);
 			excelNumCell(fpout, "%.0f", db->mn_verb);
 			excelNumCell(fpout, "%.0f", db->mn_aux);
-			excelNumCell(fpout, "%.0f", db->mn_mod);
+			if (langType == ENG && MorCodes != UD)
+				excelNumCell(fpout, "%.0f", db->mn_mod);
 			excelNumCell(fpout, "%.0f", db->mn_thrS);
-			excelNumCell(fpout, "%.0f", db->mn_thrnS);
+			if (langType == ENG && MorCodes != UD)
+				excelNumCell(fpout, "%.0f", db->mn_thrnS);
 			excelNumCell(fpout, "%.0f", db->mn_past);
 			excelNumCell(fpout, "%.0f", db->mn_pastp);
 			excelNumCell(fpout, "%.0f", db->mn_presp);
@@ -2870,15 +2887,18 @@ static void eval_pr_result(void) {
 		}
 		excelNumCell(fpout, "%.0f", db->mx_uerr);
 //		excelNumCell(fpout, "%.0f", db->mx_morTotal); // comment to remove X column
-		excelNumCell(fpout, "%.3f", db->mx_density);
+		if (langType == ENG && MorCodes != UD)
+			excelNumCell(fpout, "%.3f", db->mx_density);
 		if (!isRawVal) {
 			excelNumCell(fpout, "%.3f", db->mx_noun);
 			excelNumCell(fpout, "%.3f", db->mx_pl);
 			excelNumCell(fpout, "%.3f", db->mx_verb);
 			excelNumCell(fpout, "%.3f", db->mx_aux);
-			excelNumCell(fpout, "%.3f", db->mx_mod);
+			if (langType == ENG && MorCodes != UD)
+				excelNumCell(fpout, "%.3f", db->mx_mod);
 			excelNumCell(fpout, "%.3f", db->mx_thrS);
-			excelNumCell(fpout, "%.3f", db->mx_thrnS);
+			if (langType == ENG && MorCodes != UD)
+				excelNumCell(fpout, "%.3f", db->mx_thrnS);
 			excelNumCell(fpout, "%.3f", db->mx_past);
 			excelNumCell(fpout, "%.3f", db->mx_pastp);
 			excelNumCell(fpout, "%.3f", db->mx_presp);
@@ -2893,9 +2913,11 @@ static void eval_pr_result(void) {
 			excelNumCell(fpout, "%.0f", db->mx_pl);
 			excelNumCell(fpout, "%.0f", db->mx_verb);
 			excelNumCell(fpout, "%.0f", db->mx_aux);
-			excelNumCell(fpout, "%.0f", db->mx_mod);
+			if (langType == ENG && MorCodes != UD)
+				excelNumCell(fpout, "%.0f", db->mx_mod);
 			excelNumCell(fpout, "%.0f", db->mx_thrS);
-			excelNumCell(fpout, "%.0f", db->mx_thrnS);
+			if (langType == ENG && MorCodes != UD)
+				excelNumCell(fpout, "%.0f", db->mx_thrnS);
 			excelNumCell(fpout, "%.0f", db->mx_past);
 			excelNumCell(fpout, "%.0f", db->mx_pastp);
 			excelNumCell(fpout, "%.0f", db->mx_presp);
@@ -3273,8 +3295,8 @@ void init(char first) {
 	FNType debugfile[FNSize];
 
 	if (first) {
-//		lang_prefix = NULL;
-		lang_prefix = "eng";
+//		lang_prefix[0] = EOS;
+		strcpy(lang_prefix, "eng");
 		isRawVal = FALSE;
 		specialOptionUsed = FALSE;
 		ftime = TRUE;
@@ -3337,11 +3359,13 @@ void init(char first) {
 	} else {
 		if (ftime) {
 			ftime = FALSE;
-			if (lang_prefix == NULL) {
+			if (lang_prefix[0] == EOS) {
 				fprintf(stderr,"Please specify language script file name with \"+l\" option.\n");
 				fprintf(stderr,"For example, \"eval +leng\" or \"eval +leng.cut\".\n");
 				cutt_exit(0);
 			}
+			if (strcmp(lang_prefix, "eng") == 0 && MorCodes == UD && isCreateDB == 0) //2025-06-27
+				strcat(lang_prefix, "u");
 			if (isExcludeWords && DBKeyRoot != NULL) {
 				fprintf(stderr, "ERROR:  Analyses that use the +s option cannot be compared to the database, \n");
 				fprintf(stderr, "        because +s option cannot be applied to the database in EVAL\n");
@@ -3475,12 +3499,8 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 		if (!isFileGiven) {
 			fileArgcStart = argc;
 			strcpy(filesPath[0], wd_dir);
-			addFilename2Path(filesPath[0], "English/Aphasia/*.cha");
+			addFilename2Path(filesPath[0], "English/Protocol/*.cha");
 			argv[argc] = filesPath[0];
-			argc++;
-			strcpy(filesPath[1], wd_dir);
-			addFilename2Path(filesPath[1], "English/Control/*.cha");
-			argv[argc] = filesPath[1];
 			argc++;
 			fileArgcEnd = argc;
 		}
@@ -3606,16 +3626,9 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			break;
 		case 'l':
-			lang_prefix = f;
+			strncpy(lang_prefix, f,255);
+			lang_prefix[255] = EOS;
 			break;
-#ifdef UNX
-		case 'L':
-			strcpy(lib_dir, f);
-			j = strlen(lib_dir);
-			if (j > 0 && lib_dir[j-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		case 'n':
 			if (*(f-2) == '+') {
 				eval_n_option = TRUE;

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -138,6 +138,7 @@ static void getStemStr(char *to, int num, char *line) {
 */
 static void print_errmortag( FILE* out, ambmortag* amt, int num, char *line)
 {
+#pragma unused (num, line)
 	int  j;
 
 	msgfile( out, "(%d ", amt->nA );
@@ -255,7 +256,7 @@ int train_file(FNType* name, int style, int withmatrix, FNType* outfilename)
 	char* storeMorComp;	// storage for word split
 	char* storeMorOriginal; // storage for word split and display
 	char* storeTrain;	// storage for word split
-	char* storeTrainOriginal; // storage for word split and display
+//	char* storeTrainOriginal; // storage for word split and display
 	char* storeUtterance;	// storage for word split
 
 	int nMorCompData, nTrainData, nUtterance, ii=7;	// must wait for a name
@@ -379,7 +380,7 @@ for (i=0; i<nMorCompData; i++) msg("{%s} ", pwMorCompData[i] ); msg("\n");
 #endif
 				// CORRECT SENTENCE (%trn)
 				storeTrain = dynalloc( strlen(TTrainForDisplay)*2+1 );
-				storeTrainOriginal = dynalloc( strlen(TTrainForDisplay)*2+1 );
+//				storeTrainOriginal = dynalloc( strlen(TTrainForDisplay)*2+1 );
 
 				// clean the line of new element such as [xx]
 				cleanedTrainLine = dynalloc( strlen(TTrainForDisplay)+1 );

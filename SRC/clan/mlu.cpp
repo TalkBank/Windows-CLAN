@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -44,11 +44,12 @@ struct mlu_cnt {
 } ;
 
 static MLUSP *mlu_head;
-static char mlu_ftime1, mlu_ftime2, mlu_isMorExcluded, mlu_isCombineSpeakers, morTierSelected, isCountWords;
+static char mlu_ftime1, mlu_ftime2, mlu_ftime3;
+static char mlu_isMorExcluded, mlu_isCombineSpeakers, morTierSelected, isCountWords;
 static float morf, mlu_utter, morfsqr;
 
 void usage() {
-	puts("MLU- Mean Length Utterance computes the number of utterances, morphemes");
+	puts("MLU- Mean Length Utterance computes the number of utterances, morphemes (words, characters)");
 	puts("     and their ratio.");
 #ifdef UNX
 	printf("MLU NOW WORKS ON \"%%mor:\" TIER BY DEFAULT.\n");
@@ -61,7 +62,8 @@ void usage() {
 //	printf("Usage: mlu [aC bS cS gF %s] filename(s)\n", mainflgs());
 //	puts("+a : count all utterances even the ones without words");
 //	puts("+at: count utterances that have [+ trn] code even the ones without words");
-	puts("-b :  counts words, not morphemes");
+	puts("-bw:  counts words, not morphemes");
+	puts("-bc:  counts characters, not morphemes");
 	puts("+cS: look for clause marker S or markers listed in file @S");
 	puts("+gS: exclude utterance consisting solely of specified word S or words in file @S");
 	puts("+o3: combine selected speakers from each file into one results list for that file");
@@ -77,6 +79,8 @@ void usage() {
 }
 
 void init(char f) {
+	char ts[256];
+
 	if (f) {
 		addword('\0','\0',"+</?>");
 		addword('\0','\0',"+</->");
@@ -102,7 +106,7 @@ void init(char f) {
 		maininitwords();
 		mor_initwords();
 		isMLUEpostcode = TRUE;
-		isCountWords = FALSE;
+		isCountWords = 0;
 		ml_isSkip = FALSE;
 		ml_isXXXFound = FALSE;
 		ml_isYYYFound = FALSE;
@@ -111,6 +115,7 @@ void init(char f) {
 		ml_WdHead = NULL;
 		mlu_ftime1 = TRUE;
 		mlu_ftime2 = TRUE;
+		mlu_ftime3 = TRUE;
 		morTierSelected = FALSE;
 		mlu_isMorExcluded = FALSE;
 		mlu_isCombineSpeakers = FALSE;
@@ -124,6 +129,17 @@ void init(char f) {
 		} else if (morTierSelected && ml_isclause()) {
 			linkMain2Mor = TRUE;
 		}
+		if (mlu_ftime3) {
+			mlu_ftime3 = FALSE;
+#ifndef UNX
+			if (mlu_isMorExcluded == FALSE && isCountWords == 2) {
+				linkMain2Mor = TRUE;
+				strcpy(ts, "m;*,o%");
+				ts[0] = '\002';
+				addword('s','i',ts);
+			}
+#endif
+		}
 		if (R8)
 			linkMain2Mor = FALSE;
 		if (onlydata == 1 || onlydata == 3) {
@@ -135,6 +151,7 @@ void init(char f) {
 	if (!combinput || f) {
 		mlu_head = NULL;
 	}
+
 	if ((onlydata == 1 || onlydata == 2 || onlydata == 3) && mlu_ftime1 && chatmode) {
 		maketierchoice("@ID:",'+',FALSE);
 /*
@@ -184,24 +201,39 @@ static void mlu_outputIDInfo(char *fname, char *s) {
 }
 
 static void mlu_pr_result(void) {
-	char *sFName;
+	char *sFName, types[16];
 	float tt;
 	MLUSP *ts;
 
+	if (isCountWords == 1)
+		strcpy(types, "words");
+	else if (isCountWords == 2)
+		strcpy(types, "characters");
+	
 	if (onlydata == 1) {
 		excelHeader(fpout, newfname, 95);
 		excelRow(fpout, ExcelRowStart);
 		excelCommasStrCell(fpout,"File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field,");
-		sprintf(spareTier1,"#%s,#%s,%s/%s,Standard deviation",
-				(ml_isclause() ? "clauses" : "utterances"),((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"),
-				((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"),(ml_isclause() ? "clauses" : "utterances"));
+		if (isCountWords != 0) {
+			sprintf(spareTier1,"#%s,#%s,%s/%s,Standard deviation",
+					(ml_isclause() ? "clauses" : "utterances"),types,types,(ml_isclause() ? "clauses" : "utterances"));
+		} else {
+			sprintf(spareTier1,"#%s,#%s,%s/%s,Standard deviation",
+					(ml_isclause() ? "clauses" : "utterances"),((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"),
+					((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"),(ml_isclause() ? "clauses" : "utterances"));
+		}
 		excelCommasStrCell(fpout, spareTier1);
 		excelRow(fpout, ExcelRowEnd);
 	} else if (onlydata == 3) {
 		excelHeader(fpout, newfname, 95);
 		excelRow(fpout, ExcelRowStart);
-		excelCommasStrCell(fpout,"File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field,");
-		sprintf(spareTier1,"#%s, utterance", ((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"));
+		if (isCountWords != 0) {
+			excelCommasStrCell(fpout,"File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field,");
+			sprintf(spareTier1,"#%s, utterances", types);
+		} else {
+			excelCommasStrCell(fpout,"File,Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field,");
+			sprintf(spareTier1,"#%s, utterance", ((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"));
+		}
 		excelCommasStrCell(fpout, spareTier1);
 		excelRow(fpout, ExcelRowEnd);
 	}
@@ -220,13 +252,21 @@ static void mlu_pr_result(void) {
 			} else {
 				fprintf(fpout,"  MLU (xxx, yyy and www are EXCLUDED from the %s and morpheme counts):\n", (ml_isclause() ? "clause" : "utterance"));
 			}
-			fprintf(fpout,"	Number of: %s = %.0f, %s = %.0f\n",
-					(ml_isclause() ? "clauses" : "utterances"), mlu_utter,
-					((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"), morf);
+			if (isCountWords != 0) {
+				fprintf(fpout,"	Number of: %s = %.0f, %s = %.0f\n", (ml_isclause() ? "clauses" : "utterances"), mlu_utter, types, morf);
+			} else {
+				fprintf(fpout,"	Number of: %s = %.0f, %s = %.0f\n",
+						(ml_isclause() ? "clauses" : "utterances"), mlu_utter,
+						((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"), morf);
+			}
 			if (mlu_utter > (float)0.0) {
-				fprintf(fpout,"\tRatio of %s over %s = %.3f\n",
-						((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"), 
+				if (isCountWords != 0) {
+					fprintf(fpout,"\tRatio of %s over %s = %.3f\n", types, (ml_isclause() ? "clauses" : "utterances"), morf/mlu_utter);
+				} else {
+					fprintf(fpout,"\tRatio of %s over %s = %.3f\n",
+							((rootmorf[0] == EOS || mlu_isMorExcluded) ? "words" : "morphemes"), 
 							(ml_isclause() ? "clauses" : "utterances"), morf/mlu_utter);
+				}
 				if (mlu_utter > (float)0.0) {
 					// tt = (morfsqr - ((morf * morf) / mlu_utter)) / mlu_utter;
 					// fprintf(fpout,"\tStandard deviation = %.3f\n", sqrt(tt));
@@ -384,7 +424,7 @@ static MLUSP *mlu_FindSpeaker(char *fname, char *sp, char *ID, char isSpeakerFou
 	return(ts);
 }
 
-// C_NNLA, EVAL, EVALD, KIDEVAL, MAXWD, WDLEN and SUGAR
+// EVAL, EVALD, KIDEVAL, MAXWD, WDLEN, WDSIZE and SUGAR
 void call() {
 	int pos, oPos;
 	MLUSP *ts = NULL;
@@ -531,11 +571,19 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				tchr = uttline[pos];
 				uttline[pos] = EOS;
 				morphCnt = countMorphs(uttline, oPos); // uS.ismorfchar
-				if (isCountWords == TRUE) {
+				if (isCountWords == 1) {
 					if (morphCnt > 0.0) {
 						morf = morf + 1.0;
 						localmorf = localmorf + 1.0;
 					}
+#ifndef UNX
+				} else if (isCountWords == 2) {
+					if (morphCnt > 0.0) {
+						u_strcpy(templine, uttline+oPos, UTTLINELEN);
+						morf = morf + strlen(templine);
+						localmorf = localmorf + strlen(templine);
+					}
+#endif
 				} else {
 					morf = morf + morphCnt;
 					localmorf = localmorf + morphCnt;
@@ -620,17 +668,29 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 
 void getflag(char *f, char *f1, int *i) {
 	int j;
-	char *morf, *t, *s;
+	char *t, *s;
 
 	f++;
 	switch(*f++) {
 		case 'b':
-			isCountWords = TRUE;
-			no_arg_option(f);
+			if (*f == 'w')
+				isCountWords = 1;
+#ifndef UNX
+			else if (*f == 'c')
+				isCountWords = 2;
+#endif
+			else {
+#ifndef UNX
+				fprintf(stderr,"Please specify w - words or c - characters after -b option.\n");
+#else
+				fprintf(stderr,"Please specify w - words after -b option.\n");
+#endif
+				ml_exit(0);
+			}
 			break;
 		case 'c':
 			if (!*f) {
-				fprintf(stderr,"Specify clause delemeters after +c option.\n");
+				fprintf(stderr,"Please specify clause delemeters after +c option.\n");
 				ml_exit(0);
 			} 
 			if (*f == '@') {

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -203,11 +203,12 @@ msg ("found AnyWord-%s ? = %lx\n", nt, record );
 
 int process_a_rule( char* text_of_rule, int size, int count, char** word_corpus_array, TAG* tag_corpus_array, AMBTAG* ambtag_array )
 {
+#pragma unused (size)
 #ifdef DEBUG_PRINT_brilltagger
 msg ("process rule : <%s>\n", text_of_rule );
 #endif
 	/* analyse the rule */
-	char*	word_to_check;
+//	char*	word_to_check;
 	char    when[MAXWORDLEN],
 	curwd[MAXWORDLEN],
 	word[MAXWORDLEN],
@@ -221,7 +222,7 @@ msg ("process rule : <%s>\n", text_of_rule );
 			next2, curtag;
 	char    atempstr2[256];
 
-	const int TOCHECK = 0;
+//	const int TOCHECK = 0;
 	const int OLD = 1;
 	const int NOUV = 2;
 	const int WHEN = 3;
@@ -240,8 +241,8 @@ msg ("process rule : <%s>\n", text_of_rule );
 	next1 = 0L;
 	next2 = 0L;
 	split_with( text_of_rule, split_ptr, " \t", 12 );
-        word_to_check = split_ptr[TOCHECK];
-        old = classname_to_tag(split_ptr[OLD]);
+//	word_to_check = split_ptr[TOCHECK];
+	old = classname_to_tag(split_ptr[OLD]);
 	nouv = classname_to_tag(split_ptr[NOUV]);
 	strcpy(when, split_ptr[WHEN]);
 
@@ -501,7 +502,7 @@ int process_a_rule_along_the_text( char* text_of_rule, char** word_corpus_array,
 	// msg ("process rule : <%s>\n", text_of_rule );
 
 	/* analyse the rule */
-	char*	word_to_check;
+//	char*	word_to_check;
 	char    when[MAXWORDLEN],
 			curwd[MAXWORDLEN],
 			word[MAXWORDLEN],
@@ -515,7 +516,7 @@ int process_a_rule_along_the_text( char* text_of_rule, char** word_corpus_array,
 			next2, curtag;
 	char    atempstr2[256];
 
-	const int TOCHECK = 0;
+//	const int TOCHECK = 0;
 	const int OLD = 1;
 	const int NOUV = 2;
 	const int WHEN = 3;
@@ -535,8 +536,8 @@ int process_a_rule_along_the_text( char* text_of_rule, char** word_corpus_array,
 	next2 = 0L;
 
 	split_with( text_of_rule, split_ptr, " \t", 12 );
-        word_to_check = split_ptr[TOCHECK];
-        old = classname_to_tag(split_ptr[OLD]);
+//	word_to_check = split_ptr[TOCHECK];
+	old = classname_to_tag(split_ptr[OLD]);
 	nouv = classname_to_tag(split_ptr[NOUV]);
 	strcpy(when, split_ptr[WHEN]);
 

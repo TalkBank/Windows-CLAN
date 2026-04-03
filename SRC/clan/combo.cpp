@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -1473,6 +1473,7 @@ static void combo_outputIDInfo(FILE *fp, char *sp, char *fname) {
 }
 
 static void outputExcelUtts(struct combo_utts_list *u, char *keyword) {
+#pragma unused (keyword)
 	int  i;
 	char tCombinput;
 	struct combo_utts_list *t;
@@ -1709,7 +1710,7 @@ static int graMatch(char *s, PAT_ELEM *tm, int i, char end) {
 }
 
 static int strMatch(char *s, char *pat, int i, char end) {
-	register int j, k, n, m;
+	int j, k, n, m;
 
 	if (combo_string <= 0)
 		firstmatch = i;
@@ -1794,7 +1795,7 @@ static int subindex(char *s, PAT_ELEM *tm, int i, char end) {
 }
 
 static int CMatch(char *s, PAT_ELEM *tm, char wild, int *wildOffset) { /* return index of pat in s, -1 if no Match */
-	register int i, j;
+	int i, j;
 
 	*wildOffset = 0;
 	i = 0;

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -506,7 +506,7 @@ void usage() {
 #endif
 	printf("+cF: dictionary file. (Default %s)\n", RULESFNAME);
 #ifdef UNX
-	puts("+LF: specify full path F of the mor lib folder");
+	puts("+MF: specify full path F of the mor lib folder");
 #endif
 	puts("+p1: look for \"postmortem.cut\" in working directory first");
 	mainusage(FALSE);
@@ -548,7 +548,7 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			break;
 #ifdef UNX
-		case 'L':
+		case 'M':
 			int len;
 			strcpy(mor_lib_dir, f);
 			len = strlen(mor_lib_dir);
@@ -584,7 +584,7 @@ void getflag(char *f, char *f1, int *i) {
 }
 
 static int skipDelims(int i) {
-	register int  temp;
+	int  temp;
 
 	if (chatmode && *utterance->speaker == '%') {
 		if (uttline[i] == EOS)
@@ -626,8 +626,8 @@ static int skipDelims(int i) {
 }
 
 static void make_new_to_str(char *old_patF, char *old_s, int si, int li, char *new_pat, char *new_s) {
-    register int j, k;
-    register int n, m;
+    int j, k;
+    int n, m;
     int  t, end;
 	char *comma, *old_pat;
 
@@ -1067,6 +1067,7 @@ repeatWord:
 }
 
 static void addFullAlternatives(char *org, AttTYPE *orgAtts, char *line, AttTYPE *atts) {
+#pragma unused (orgAtts, atts)
 	int i, ti, j, tj, k;
 
 	i = 0;

@@ -92,7 +92,7 @@ static char ced_AtBeginFound;
 static char ced_AtEndFound;
 static char ced_AtIDFound;
 static char ced_CodeLegalPos;
-static char ced_isNumberShouldBeHere;
+static char ced_isNumberShouldBeHere, ced_isWORNumberShouldBeHere;
 static char ced_isArabic;
 static char ced_isHebrew;
 static char ced_isGerman;
@@ -3918,11 +3918,13 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 							digFound = TRUE;
 							if (check_err(47, pos+s-1, pos+s-1, templine))
 								return(FALSE);
-						} else if (!ced_isNumberShouldBeHere) {
+						} else if ((ts->code[0] == '*' && !ced_isNumberShouldBeHere) ||
+							(uS.partcmp(ts->code, "%wor", FALSE, TRUE) && !ced_isWORNumberShouldBeHere)) {
 							digFound = TRUE;
 							if (check_err(47, pos+s-1, pos+s-1, templine))
 								return(FALSE);
-						} else if (ced_isNumberShouldBeHere) {
+						} else if ((ts->code[0] == '*' && ced_isNumberShouldBeHere) ||
+							(uS.partcmp(ts->code, "%wor", FALSE, TRUE) && ced_isWORNumberShouldBeHere)) {
 							if (s == 0) {
 								digFound = TRUE;
 								if (check_err(47, pos+s-1, pos+s-1, templine))
@@ -4023,7 +4025,7 @@ static char ced_CheckWords(unCH *w, int pos, unCH *templine, CHECK_IN_TIERS *ts)
 							if (check_err(65, pos+s-1, pos+s-1, templine))
 								return(FALSE);
 						}
-					} else if (uS.isRightChar(w,s,'`',&tFnt,TRUE) && ced_isArabic) {
+					} else if ((uS.isRightChar(w, s, '`', &tFnt, TRUE) || uS.isRightChar(w, s, '=', &tFnt, TRUE)) && ced_isArabic) {
 					} else if (uS.isRightChar(w,s,'#',&tFnt,TRUE)) {
 						if (ced_isEndOfWord(w+s+1) || ced_isHebrew == TRUE);
 						else {
@@ -4589,9 +4591,16 @@ static char ced_CheckFixes(CHECK_IN_TIERS *ts, unCH *word, unCH *templine, int s
 				isPrefix = FALSE;
 				bw = word + pos;
 				s1 = s;
-				for (pos++, s++; word[pos] && !uS.isRightChar(word, pos, '@', &tFnt, TRUE) &&
-											!uS.ismorfchar(word,pos,&tFnt,CHECK_MORPHS,TRUE) &&
-											!uS.isRightChar(word, pos, '$', &tFnt, TRUE); pos++, s++) ;
+				if (ced_sp[0] == '*' && bw[0] == '@') {
+					for (pos++, s++; word[pos] && !uS.isRightChar(word, pos, '@', &tFnt, TRUE) &&
+						!uS.isRightChar(word, pos, '#', &tFnt, TRUE) &&
+						!uS.isRightChar(word, pos, '~', &tFnt, TRUE) &&
+						!uS.isRightChar(word, pos, '$', &tFnt, TRUE); pos++, s++);
+				} else {
+					for (pos++, s++; word[pos] && !uS.isRightChar(word, pos, '@', &tFnt, TRUE) &&
+						!uS.ismorfchar(word, pos, &tFnt, CHECK_MORPHS, TRUE) &&
+						!uS.isRightChar(word, pos, '$', &tFnt, TRUE); pos++, s++);
+				}
 				pos--;
 				s--;
 			} else
@@ -5287,12 +5296,26 @@ static char ced_isPlayBullet(unCH *word) {
 }
 
 
+static void ced_cleanUpLemmas(unCH *ch) {
+	int i;
+
+	for (i=0; ch[i] != EOS; i++) {
+		if (ch[i] == '!') {
+			if (i >= 0 && isalnum(ch[i-1]) && isalnum(ch[i+1]))
+				strcpy(ch+i, ch+i+1);				
+		} else if (ch[i] == ',') {
+			if (i >= 0 && isalnum(ch[i-1]) && isalnum(ch[i+1]))
+				strcpy(ch+i, ch+i+1);				
+		}
+	}
+}
+
 static char ced_ParseWords(CHECK_IN_TIERS *ts) {
-	int j, r, s, e, te, res;
+	int j, r, s, e, te, res, isReplaceFound = -1;
 	int matchType;
 	unCH *st, t;
 	char sq, hidenc;
-	char FirstWordFound = FALSE, FirstBulletFound = FALSE, isTextBetweenBulletsFound = FALSE,
+	char FirstWordFound = FALSE, CommaWordFound = FALSE, FirstBulletFound = FALSE, isTextBetweenBulletsFound = FALSE,
 		isBulletFound = FALSE, isTextFound, isPoundSymFound, isSpecialDelimFound, isR2L, CADelFound = FALSE,
 		isPreLanguageCodeFound = FALSE, isLastItemBullet,
 		isLcodeFound, isLNumberShouldBeHere, isGLcodeFound, isGNumberShouldBeHere, isPauseFound;
@@ -5301,6 +5324,10 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 		isYawnMatched, isSingingMatched, isPreciseMatched, isBreathyMatched, isLeftArrowMatched;
 	int sb = 0, pb = 0, ab = 0, cb = 0, lpb = 0, gm = 0, sgm = 0, qt = 0, anb = FALSE, DelFound = 0;
 	int pauseBeg, pauseEnd;
+
+	if (ced_u.check_partcmp(ced_sp, "%mor", FALSE)) {
+		ced_cleanUpLemmas(templine);
+	}
 
 	pauseBeg = 0;
 	pauseEnd = 0;
@@ -5343,17 +5370,24 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 		while ((*st=templine[s++]) != EOS && uS.isskip(templine,s-1,&tFnt,TRUE) && !uS.isRightChar(templine,s-1,'[',&tFnt,TRUE)) {
 			if (*st == '>')
 				isPoundSymFound = FALSE;
-
+/*
 			if (is_italic(tempAtt[s-1])) {
 				if (check_err(102,s-1,s-1,templine)) return(FALSE);
 			}
+*/
 			if (*ced_sp == '*' || uS.partcmp(ced_sp, "%wor:", FALSE, FALSE)) {
+				if (templine[s-1] == ',' && !CommaWordFound && !isPreLanguageCodeFound) {
+					if (s == 0 || (s > 0 && templine[s - 2] != '+')) {
+						if (check_err(48, s - 1, s - 1, templine)) return(FALSE);
+					}
+				}
 				if (templine[s-1] == ';') {
 					if (check_err(48, s-1, s-1, templine)) return(FALSE);
-				} else if (templine[s-1] == '<' && isSpace(templine[s])) {
+				}
+				if (templine[s-1] == '<' && isSpace(templine[s])) {
 					if (check_err(160, s-1, s+1, templine)) return(FALSE);
 				}
-				else if (templine[s] == '>' && isSpace(templine[s - 1])) {
+				if (templine[s] == '>' && isSpace(templine[s - 1])) {
 					j = s - 2;
 					if (j < 0)
 						j = 0;
@@ -5413,7 +5447,16 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 					while (isSpace(templine[s])) s++;
 				}
 			} else {
-				ced_CheckBrakets(templine,s-1,&sb,&pb,&ab,&cb,&anb);
+				if (templine[s - 1] == ']' && s - 1 == isReplaceFound) {
+				} else {
+					ced_CheckBrakets(templine, s - 1, &sb, &pb, &ab, &cb, &anb);
+					if (sb < 0) { if (check_err(23, s - 1, s - 1, templine)) return(FALSE); }
+					if (pb < 0) { if (check_err(29, s - 1, s - 1, templine)) return(FALSE); }
+					if (ab < 0 && ced_u.check_partcmp(ced_sp, "%com", FALSE) == FALSE) {
+						if (check_err(25, s - 1, s - 1, templine)) return(FALSE);
+					}
+					if (cb < 0) { if (check_err(27, s - 1, s - 1, templine)) return(FALSE); }
+				}
 			}
 		}
 		if ((*ced_sp == '*' || ced_u.check_partcmp(ced_sp, "%wor", FALSE)) && templine[s-1] == '[') {
@@ -5453,6 +5496,12 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 			}
 		}
 		ced_CheckBrakets(templine,s-1,&sb,&pb,&ab,&cb,&anb);
+		if (sb < 0) { if (check_err(23, s - 1, s - 1, templine)) return(FALSE); }
+		if (pb < 0) { if (check_err(29, s - 1, s - 1, templine)) return(FALSE); }
+		if (ab < 0 && ced_u.check_partcmp(ced_sp, "%com", FALSE) == FALSE) {
+			if (check_err(25, s - 1, s - 1, templine)) return(FALSE);
+		}
+		if (cb < 0) { if (check_err(27, s - 1, s - 1, templine)) return(FALSE); }
 		e = s;
 		if (*st == '&' && (*ced_sp == '*' || uS.partcmp(ced_sp, "%wor:", FALSE, FALSE))) {
 			if (templine[e] == '+' && (templine[e+1] < '!' || templine[e+1] > '?')) {
@@ -5483,11 +5532,25 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 				e++;
 				if (hidenc && templine[e-1] == HIDEN_C) { hidenc = FALSE; st++; break; }
 				if (!hidenc && templine[e] == HIDEN_C) { st++; break; }
-				if (uS.isRightChar(templine, e-1, ']', &tFnt, TRUE)) { sb--; st++; break; }
-				if (!sq)
-					ced_CheckBrakets(templine,e-1,&sb,&pb,&ab,&cb,&anb);
-				else if (uS.isRightChar(templine, e-1, '[', &tFnt, TRUE))
+				if (templine[e - 1] == ']' && e - 1 == isReplaceFound) {
+					st--;
+					break;
+				} else if (uS.isRightChar(templine, e - 1, ']', &tFnt, TRUE)) {
+					sb--;
+					st++;
+					break;
+				}
+				if (!sq) {
+					ced_CheckBrakets(templine, e - 1, &sb, &pb, &ab, &cb, &anb);
+					if (sb < 0) { if (check_err(23, s - 1, s - 1, templine)) return(FALSE); }
+					if (pb < 0) { if (check_err(29, s - 1, s - 1, templine)) return(FALSE); }
+					if (ab < 0 && ced_u.check_partcmp(ced_sp, "%com", FALSE) == FALSE) {
+						if (check_err(25, s - 1, s - 1, templine)) return(FALSE);
+					}
+					if (cb < 0) { if (check_err(27, s - 1, s - 1, templine)) return(FALSE); }
+				} else if (uS.isRightChar(templine, e - 1, '[', &tFnt, TRUE)) {
 					sb++;
+				}
 			}
 			if (templine[e] == '>' && templine[e + 1] == '[') {
 				if (check_err(93, e+1, e+1, templine)) return(FALSE);
@@ -5569,9 +5632,7 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 		}
 		//detecting pause markers before retrace markers-END
 		if (ced_line[0] == '[' && ced_line[1] == ':' && ced_line[2] == ' ') {
-			templine[s-1] = ' ';
-			templine[s] = ' ';
-			templine[e-1] = ' ';
+			isReplaceFound = e - 1;
 			e = s + 1;
 		}
 		if (uS.IsUtteranceDel(ced_line, 0) == 2) {
@@ -5644,9 +5705,11 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 					if (matchType == CA_APPLY_RISETOHIGH || matchType == CA_APPLY_RISETOMID || matchType == CA_APPLY_LEVEL ||
 						matchType == CA_APPLY_FALLTOMID || matchType == CA_APPLY_FALLTOLOW || matchType == CA_APPLY_UNMARKEDENDING) {
 						CADelFound = TRUE;
+/* 2025-07-04
 						if (isBulletFound) {
 							if (check_err(118,s-1,e-1,templine)) return(FALSE);
 						}
+*/
 					} else if (matchType == CA_APPLY_FASTER) {
 						if (isFasterMatched != -1)
 							isFasterMatched = -1;
@@ -5735,6 +5798,9 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 						else
 							isLeftArrowMatched = s+r;
 					}
+					if (gm < 0) { if (check_err(129, s - 1, e - 1, templine)) return(FALSE); }
+					if (sgm < 0) { if (check_err(131, s - 1, e - 1, templine)) return(FALSE); }
+					if (qt < 0) { if (check_err(137, s - 1, e - 1, templine)) return(FALSE); }
 					r += res;
 				} else
 					r++;
@@ -5742,7 +5808,7 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 		}
 
 //		uS.uppercasestr(ced_line, &tFnt, TRUE);
-		if (!strcmp(ced_line, "/")) {
+		if (!strcmp(ced_line, "/") && uS.partcmp(ced_sp, "%com:", FALSE, FALSE) == FALSE) {//2025-07-07
 			if (check_err(48,s-1,e-1,templine)) return(FALSE);
 		}
 		isLcodeFound = FALSE;
@@ -5781,6 +5847,8 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 				isPreLanguageCodeFound = TRUE;
 			if (!ced_CheckLanguageCodes(ced_line, s, &isLcodeFound, &isGLcodeFound))
 				return(FALSE);
+			if (*ced_sp == '*')
+				ced_isWORNumberShouldBeHere = ced_isNumberShouldBeHere;
 		}
 
 		if (W_CHECK_COUNT(ced_GenOpt) && ts->WORDCHECK && ced_line[0] != HIDEN_C) {
@@ -5811,9 +5879,11 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 						if (templine[k] == '\n')
 							break;
 					}
+/* 2025-07-04
 					if (templine[k] != '\n') {
 						if (check_err(81,s-1,e-1,templine)) return(FALSE);
 					}
+*/
 				}
 			}
 			if (hidenc) {
@@ -5923,6 +5993,10 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 					if (check_err(r,s-1,te-1,templine)) return(FALSE);
 				}
 			} else if (*ced_line != EOS) {
+				if (ced_line[0] != '+' && ced_line[0] != '&' && ced_line[0] != '[' &&
+					strcmp(ced_line, "xxx") && strcmp(ced_line, "xx") && strcmp(ced_line, "yyy") && strcmp(ced_line, "yy") &&
+					strcmp(ced_line, "www"))
+					CommaWordFound = TRUE;
 				if (ced_line[0] != '+') {
 					FirstWordFound = TRUE;
 					isTextBetweenBulletsFound = TRUE;
@@ -6041,8 +6115,8 @@ static char ced_ParseWords(CHECK_IN_TIERS *ts) {
 	}
 	if (sb > 0) { if (check_err(22,-1,-1,templine)) return(FALSE); }
 	if (sb < 0) { if (check_err(23,-1,-1,templine)) return(FALSE); }
-	if (ab > 0) { if (check_err(24,-1,-1,templine)) return(FALSE); }
-	if (ab < 0) { if (check_err(25,-1,-1,templine)) return(FALSE); }
+	if (ab > 0 && uS.partcmp(ced_sp, "%com:", FALSE, FALSE) == FALSE) { if (check_err(24,-1,-1,templine)) return(FALSE); }//2025-07-07
+	if (ab < 0 && uS.partcmp(ced_sp, "%com:", FALSE, FALSE) == FALSE) { if (check_err(25,-1,-1,templine)) return(FALSE); }//2025-07-07
 	if (cb > 0) { if (check_err(26,-1,-1,templine)) return(FALSE); }
 	if (cb < 0) { if (check_err(27,-1,-1,templine)) return(FALSE); }
 	if (pb > 0) { if (check_err(28,-1,-1,templine)) return(FALSE); }

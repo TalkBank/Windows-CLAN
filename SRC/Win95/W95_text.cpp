@@ -62,6 +62,9 @@ char FindFileLine(char isTest, char *message) {
 		strncpy(ced_line, global_df->row_txt->line, UTTLINELEN);
 		ced_line[UTTLINELEN] = EOS;
 	}
+	for (len = 0; ced_line[len] == 0x13; len++);
+	if (len > 0)
+		strcpy(ced_line, ced_line+len);
 	if (ced_line[0] == '0') {
 		isZeroFound = TRUE;
 		strcpy(ced_line, ced_line+1);

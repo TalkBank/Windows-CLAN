@@ -991,7 +991,7 @@ extern char *TempFileStringTag;
 				if (finfo.fontTable != NULL && !global_df->isUTF) {
 					long j;
 					for (i=0L, j=0L; in_buf[i]; i++) {
-						len = (*finfo.fontTable)(in_buf, &i, templineC2+j, NULL, NULL);
+						len = (*finfo.fontTable)(in_buf, &i, templineC2+j, NULL);
 /* 28-03-03
 						long k;
 						if (len > 1) {

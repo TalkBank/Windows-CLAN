@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -64,7 +64,7 @@ void init(char first) {
 }
 
 static void addfreqpos_wdptr(char *wd) {
-	register int i;
+	int i;
 	IEWORDS *tempwd;
 
 	for (i=strlen(wd)-1; wd[i]== ' ' || wd[i]== '\t' || wd[i]== '\n'; i--) ;
@@ -81,6 +81,8 @@ static void addfreqpos_wdptr(char *wd) {
 		if (!nomap)
 			uS.lowercasestr(wd+i, &dFnt, C_MBF);
 		strcpy(freqpos_wdptr->word, wd+i);
+		IsSearchR7(freqpos_wdptr->word);
+		IsSearchCA(freqpos_wdptr->word);
 	}
 }
 
@@ -228,8 +230,8 @@ static void freqpos_pr_result(void) {
 }
 
 void call() {
-	register int i;
-	register int pos;
+	int i;
+	int pos;
 	char word[BUFSIZ];
 
 	currentatt = 0;

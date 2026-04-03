@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -67,7 +67,7 @@ public:
 	char ismorfchar(const unCH *org, int pos, NewFontInfo *finfo, const char *morfsList, char MBC);
 	char isCharInMorf(char c, unCH *morf);
 	char atUFound(const unCH *w, int s, NewFontInfo *finfo, char MBC);
-	char isRightChar(const unCH *org, long pos, register char chr, NewFontInfo *finfo, char MBC);
+	char isRightChar(const unCH *org, long pos, char chr, NewFontInfo *finfo, char MBC);
 	char isSqBracketItem(const unCH *s, int pos, NewFontInfo *finfo, char MBC);
 	char isSqCodes(const unCH *word, unCH *tWord, NewFontInfo *finfo, char isForce);
 	void remblanks(unCH *st);
@@ -155,7 +155,7 @@ public:
 	char ismorfchar(const char *org, int pos, NewFontInfo *finfo, const char *morfsList, char MBC);
 	char isCharInMorf(char c, char *morf);
 	char atUFound(const char *w, int s, NewFontInfo *finfo, char MBC);
-	char isRightChar(const char *org, long pos, register char chr, NewFontInfo *finfo, char MBC);
+	char isRightChar(const char *org, long pos, char chr, NewFontInfo *finfo, char MBC);
 	char isSqBracketItem(const char *s, int pos, NewFontInfo *finfo, char MBC);
 	char isSqCodes(const char *word, char *tWord, NewFontInfo *finfo, char isForce);
 	char *sp_cp(char *s1, char *s2);

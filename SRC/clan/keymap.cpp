@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -653,7 +653,7 @@ static int getNextWord(char *cleanLine, char *orgWord, int i) {
 }
 
 void call() {
-	register int i, j;
+	int i, j;
 	char *mask, *maskCompl;
 	char word[BUFSIZ+1], fullWord[BUFSIZ+SPEAKERLEN+1];
 	char spName[SPEAKERLEN], lastSpName[SPEAKERLEN];

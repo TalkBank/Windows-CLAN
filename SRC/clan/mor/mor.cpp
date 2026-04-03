@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -1547,7 +1547,7 @@ static void mor_MatchedAndReplaced(char *out) {
 #define PrepostEND
 
 static void init_lex(char f) {
-	register int i;
+	int i;
 	FNType mFileName[FNSize];
 
 	if (f) {
@@ -1802,7 +1802,7 @@ void usage() {
 //  puts("+gF: alternative grammar = F");
 //  puts("     MOR expects set of files Far.cut Fcr.cut (Fdr.cut)");
 #ifdef UNX
-	puts("+LF: specify full path of the lexicon in F");
+	puts("+MF: specify full path of the lexicon in F");
 #endif
 	puts("+p : use pinyin lexicon format");
 	puts("+xi: interactive test mode");
@@ -1886,7 +1886,7 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 */
 #ifdef UNX
-		case 'L':
+		case 'M':
 			int j;
 
 			if (*f == '/')
@@ -2096,6 +2096,7 @@ static struct prepost_rules *prepost_cleanup(struct prepost_rules *p) {
 }
 
 void CleanUpAll(char all) {
+#pragma unused (all)
 	prepostRules = prepost_cleanup(prepostRules);
 	if (trie_root)  { free_trie(trie_root); trie_root = NULL; }
 	if (lex_root) {
@@ -2561,7 +2562,7 @@ static XWORDLIST *outputXTests(const char *fname, const char *errmess, XWORDLIST
 }
 
 static char justBlank(char *line) {
-	register int i;
+	int i;
 
 	i = 0;
 	while ((i=getword(utterance->speaker, line, w, NULL, i))) {
@@ -2598,9 +2599,13 @@ static char preprocess_word(STRING *word, char *isZeroWord) {
 	dash = NULL;
 	*w_temp = EOS;
 	at = strrchr(word,'@');
-	if (at != NULL)
+	if (at != NULL) {
+		if (*(at+1) == 'l' && *(at+2) == 's') {
+			uS.shiftright(at+1, 1);
+			at[2] = '-';
+		}
 		dollar = strchr(at,'$');
-	else
+	} else
 		dollar = NULL;
 	for (t=sf_rules; t != NULL; t=t->nextSF) {
 repeat_preprocess_word:
@@ -3226,9 +3231,9 @@ static void printword(STRING *word, RESULT_REC_PTR word_list, int num_words, STR
 }
 
 static void mor_process_strings() {
-	register int k;
-	register int i;
-	register int j;
+	int k;
+	int i;
+	int j;
 	int  cnt;
 	char isTempItem = 0, isZeroWord, tcat[256];
 	
@@ -3527,7 +3532,7 @@ static void call_analyze_lex() {
 
 /* 2007-08-14
 static void AddPostCodes(char *line, char *utt) {
-	register long i = 0L, j;
+	long i = 0L, j;
 
 	if (*utterance->speaker != '*')
 		return;

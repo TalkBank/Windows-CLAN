@@ -2074,6 +2074,7 @@ void wrefresh(WINDOW *w) {
 					if (is_error(sAtts[cCol])) {
 						rDC->SetTextColor(RGB(240,0,0));
 					}
+//					rDC->SetLayout(LAYOUT_RTL); // LAYOUT_LTR  //2025-03-19
 					if (w->isUTF) {
 						unsigned short *puText=NULL;
 						long totalw=0;

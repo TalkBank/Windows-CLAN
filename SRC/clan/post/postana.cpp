@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -837,7 +837,7 @@ static void tag_to_classname_filtered_multicat(TAG T, ambmortag* amt, char* s, i
 }
 
 static void post_shiftright(char *st, int num) {
-	register int i;
+	int i;
 
 	for (i=strlen(st); i >= 0; i--)
 		st[i+num] = st[i];

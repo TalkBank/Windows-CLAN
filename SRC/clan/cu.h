@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -191,8 +191,8 @@ struct IDparts {
 } ;
 
 #define NUM_PREF 3
-#define NUM_SUFF 5
-#define NUM_FUSI 4
+#define NUM_SUFF 8
+#define NUM_FUSI 5
 #define NUM_ERRS 3
 
 #define IXXS struct Ixes
@@ -292,6 +292,13 @@ struct aliasesList {
 } ;
 typedef struct aliasesList ALIASES_LIST;
 
+enum {
+	Unknown = 0,
+	UD,
+	OldMor
+} ;
+
+extern char MorCodes;				/* automatically identify %mor codes */
 
 extern const char *AddCEXExtension;
 extern const char *delSkipedFile;	/* if +t@id="" option used and file didn't match, then delete output file */
@@ -372,7 +379,7 @@ extern int  CheckOutTier(char *s);
 extern int  rightrange(char,char *,char *);
 extern int  rightUttLen(const char *sp, char *line, char *tLine, long *cUttLen);
 extern int  gettextspeaker(void);
-extern int  getspeaker(char *, AttTYPE *att, register int index);
+extern int  getspeaker(char *, AttTYPE *att, int index);
 extern int  getrawkey(void);
 extern int  checkkey(void);
 extern int  getc_cr(FILE *fp, AttTYPE *att);
@@ -455,6 +462,7 @@ extern void ActualPrint(const char *, AttTYPE *, AttTYPE *, char, char, FILE *);
 extern void printout(const char *, char *, AttTYPE *, AttTYPE *, char);
 extern void printoutline(FILE *fp, char *line);
 extern void printArg(char *argv[], int argc, FILE *fp, char specialCase, FNType *fname);
+extern void sprintArg(char *cmd, char *argv[], int argc, char specialCase, const FNType *fname);
 extern void freedefwdptr(char *);
 extern void addword(char,char,const char *);
 extern void rdexclf(char,char,const FNType *);
@@ -472,7 +480,7 @@ extern void FOption(char *);
 extern void maingetflag(char *, char *, int *);
 extern void parsfname(FNType *, FNType *, const char *);
 extern void CurTierSearch(char *);
-extern void cutt_getline(const char *, char *, AttTYPE *, register int);
+extern void cutt_getline(const char *, char *, AttTYPE *, int);
 extern void killline(char *line, AttTYPE *atts);
 extern void filterwords(const char *,char *,int (*)(char *));
 extern void filterData(const char *,char *);

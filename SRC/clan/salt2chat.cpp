@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -413,7 +413,8 @@ static void readmap(FNType *fname) {
 		chrs = (char)getc_cr(fdic, NULL);
 		if (chrs == term) {
 			word[index] = EOS;
-			uS.lowercasestr(word, &dFnt, C_MBF);
+			if (nomap == FALSE)
+				uS.lowercasestr(word, &dFnt, C_MBF);
 			if (first) {
 				if (*word == '$')
 					strcpy(word, word+1);
@@ -542,7 +543,7 @@ static void cleancom(char *st) {
 }
 
 static void remJunkBack(char *st) {
-	register int i;
+	int i;
 
 	i = strlen(st) - 1;
 	while (i >= 0 && (isSpace(st[i]) || st[i] == '\n' || st[i] == ',' || st[i] == NL_C || st[i] == SNL_C)) i--;
@@ -550,7 +551,7 @@ static void remJunkBack(char *st) {
 }
 
 static void remJunkFrontAndBack(char *st) {
-	register int i;
+	int i;
 
 	for (i=0; isSpace(st[i]) || st[i] == '\n' || st[i] == ','; i++) ;
 	if (i > 0)
@@ -2252,7 +2253,7 @@ static char isItem(char *s, int i) {
 }
 
 static void breakupLangCodeWords(char *line, int fi, char *w, char **vw, char **sw) {
-	int  f, e, vi, si;
+	int  f, e;
 	char *v, *s, nextCode, curCode, isEOS;
 
 	if (w[0] == EOS)
@@ -2270,8 +2271,6 @@ static void breakupLangCodeWords(char *line, int fi, char *w, char **vw, char **
 	curCode = 0;
 	f = 0;
 	e = 0;
-	vi = 0;
-	si = 0;
 	while (w[f] != EOS) {
 		if (w[e] == EOS || (curCode=isLangCode(w, e)) != 0) {
 			if (w[e] == EOS) {
@@ -2420,7 +2419,7 @@ static void Sophie_extractSin(char *line, char *toline, char *sin) {
 		}
 		templineC2[wi] = EOS;
 		if (templineC2[0]=='{' || templineC2[0]=='[' || templineC2[0]=='&' || templineC2[0]=='+') {
-			if (templineC2[0] != '&')
+			if (templineC2[0] != '&' && nomap == FALSE)
 				uS.lowercasestr(templineC2, &dFnt, MBF);
 			if (templineC2[0] == '{') {
 				for (wi=strlen(templineC2)-1; wi > 0 && (templineC2[wi] == '}' || isSpace(templineC2[wi])); wi--) ;
@@ -2462,7 +2461,8 @@ static void Sophie_extractSin(char *line, char *toline, char *sin) {
 						strcat(toline, " ");
 					else
 						strcat(toline, "_");
-					uS.lowercasestr(vw[wi], &dFnt, MBF);
+					if (nomap == FALSE)
+						uS.lowercasestr(vw[wi], &dFnt, MBF);
 					strcat(toline, vw[wi]);
 				}
 				if (sw[wi] == NULL/* || sw[wi][0] == EOS */) {
@@ -2537,6 +2537,7 @@ static void cleanComment(char *comment) {
 }
 
 static void parseLineIntoSingleUtterance(char *sp, char *line) {
+#pragma unused (sp)
 	int  b, e;
 	char t;
 
@@ -2645,9 +2646,10 @@ static void prline(char tcode, char *line, char *part) {
 				printout("@Comment:", comment, NULL, NULL, TRUE);
 				comment[0] = EOS;
 			}
-			uS.uppercasestr(templineC+1, &dFnt, MBF);
+			if (nomap == FALSE)
+				uS.uppercasestr(templineC+1, &dFnt, MBF);
 		} else
-			if (*templineC == '%')
+			if (*templineC == '%' && nomap == FALSE)
 				uS.lowercasestr(templineC+1, &dFnt, MBF);
 		if (coding == 1 && !uselcode && *lcode) {
 			strcat(line, lcode);
@@ -2839,9 +2841,8 @@ static void prline(char tcode, char *line, char *part) {
 }
 
 static char isAlreadyParan(char *st, int i) {
-	int t;
 
-	for (t=i; isdigit(st[i]) && i >= 0; i--) ;
+	for (; isdigit(st[i]) && i >= 0; i--) ;
 	if (i >= 0 && st[i] == '(')
 		return(TRUE);
 	return(FALSE);
@@ -3546,10 +3547,11 @@ static char isSophieAmpersandCode(char *line, char *code) {
 		i++;
 		code[i] = EOS;
 		if (code[0] == 'g') {
-			uS.lowercasestr(code, &dFnt, C_MBF);
+			if (nomap == FALSE)
+				uS.lowercasestr(code, &dFnt, C_MBF);
 			if (code[1] == EOS)
 				strcat(code, ":");
-		} else
+		} else if (nomap == FALSE)
 			uS.uppercasestr(code, &dFnt, C_MBF);
 		return(TRUE);
 	} else if (uS.mStricmp(line, "GP") == 0 || uS.mStricmp(line, "G:POINT") == 0 || uS.mStricmp(line, "GES:PT") == 0 ||
@@ -3867,6 +3869,29 @@ static char *getcom(char *s, char end, char isComment) {
 	return(s);
 }
 
+static int isOverlap(char *s, char *buf) {
+	int i, offset;
+
+	offset = 0;
+	for (; isSpace(*s) || *s == '['; s++) 
+		offset++;
+	i = 0;
+	while (*s == '<' || *s == '>' || isdigit(*s)) {
+		offset++;
+		buf[i] = *s;
+		i++;
+		s++;
+	}
+	if (*s != ']') {
+		buf[0] = EOS;
+		return(0);
+	} else {
+		offset++;
+		buf[i] = EOS;
+		return(offset);
+	}
+}
+
 static void salt2chat_remblanks(char *st) {
 	int i;
 	
@@ -3875,7 +3900,7 @@ static void salt2chat_remblanks(char *st) {
 }
 
 static void parseSaltTier(char *s) {
-	int lpos;
+	int lpos, offset;
 	char PCode, lastC, *code, t;
 
 	for (s++; isSpace(*s); s++)
@@ -4075,7 +4100,12 @@ static void parseSaltTier(char *s) {
 				utterance->line[pos++] = '>';
 				utterance->line[pos++] = ' ';
 				utterance->line[pos++] = '[';
-				if (toupper((unsigned char)oldsp) == toupper((unsigned char)curspeaker) &&
+				if ((offset=isOverlap(s, templineC3)) > 0) {
+					utterance->line[pos] = EOS;
+					strcpy(utterance->line+pos, templineC3);
+					pos += strlen(templineC3);
+					s = s + offset;
+				} else if (toupper((unsigned char)oldsp) == toupper((unsigned char)curspeaker) &&
 					(toupper((unsigned char)overlap) == toupper((unsigned char)curspeaker) || overlap == 0)) {
 					utterance->line[pos++]= (char)((overlap == 0)? '<' : '>');
 				} else {
@@ -4277,116 +4307,120 @@ static void cleanUpQuotes(char *line) {
 	char isConvDblQT;
 
 	for (i=0; line[i] != EOS; i++) {
-		if (line[i] == (char)0xD2 || line[i] == (char)0x93) {
-			uS.shiftright(line+i,2);
-			line[i] = (char)0xE2;
-			line[i+1] = (char)0x80;
-			line[i+2] = (char)0x9C;
-		} else if (line[i] == (char)0xD3 || line[i] == (char)0x94) {
-			uS.shiftright(line+i,2);
-			line[i] = (char)0xE2;
-			line[i+1] = (char)0x80;
-			line[i+2] = (char)0x9D;
-		}
-
-		if (i > 0 && line[i-1] == '/' && line[i] == (char)0x92) {
-			line[i] = '\'';
-		} else if (line[i] == (char)0xEF && line[i+1] == (char)0x81 && line[i+2] == (char)0xBC) {
-			for (j=i+3; isSpace(line[j]); j++) ;
-			if (j > i + 1)
-				strcpy(line+i+1, line+j);
-			line[i] = '|';
-		} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x98) {
-			isConvDblQT = FALSE;
-			for (j=i+1; line[j] != EOS; j++) {
-				if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x98) {
-					break;
-				} else if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x99) {
-					if (!isalnum(line[j+3]))
-						isConvDblQT = TRUE;
-					break;
-				}
-			}
-			if (isConvDblQT == FALSE) {
-				strcpy(line+i, line+i+2);
-				line[i] = '\'';
-			} else {
-				line[i+2] = (char)0x9C;
-				line[j+2] = (char)0x9D;
-			}
-		} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x9C) {
-			for (j=i+1; line[j] != EOS; j++) {
-				if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x99) {
-					strcpy(line+j, line+j+2);
-					line[j] = '\'';
-				} else if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x9B) {
-					strcpy(line+j, line+j+2);
-					line[j] = '\'';
-				} else if (line[j] == '"') {
-					uS.shiftright(line+j,2);
-					line[j] = (char)0xE2;
-					line[j+1] = (char)0x80;
-					line[j+2] = (char)0x9D;
-				} else if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x9D) {
-					i = j + 2;
-					break;
-				} else if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x9C) {
-					line[j+2] = (char)0x9D;
-				}
-			}
-		} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x99) {
-			strcpy(line+i, line+i+2);
-			line[i] = '\'';
-		} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x9B) {
-			strcpy(line+i, line+i+2);
-			line[i] = '\'';
-		} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x93) {
-			strcpy(line+i, line+i+2);
-			line[i] = '-';
-		} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x92) {
-			strcpy(line+i, line+i+2);
-			line[i] = '-';
-		} else if (UTF8_IS_SINGLE((unsigned char)line[i])) {
-			if (line[i] == (char)0xD0 || line[i] == (char)0x96 || line[i] == (char)0xF1) {
-				line[i] = '-';
-			} else if (line[i] == (char)0xC9 || line[i] == (char)0x85) {
+		if (UTF8_IS_SINGLE((unsigned char)line[i])) {
+			if (line[i] == (char)0xD2 || line[i] == (char)0x93) {
 				uS.shiftright(line+i,2);
 				line[i] = (char)0xE2;
 				line[i+1] = (char)0x80;
-				line[i+2] = (char)0xA6;
-				i = i + 2;
-			} else if (line[i] == '`' || line[i] == (char)0xB4 || line[i] == (char)0xD5 || line[i] == (char)0x92) {
+				line[i+2] = (char)0x9C;
+			} else if (line[i] == (char)0xD3 || line[i] == (char)0x94) {
+				uS.shiftright(line+i,2);
+				line[i] = (char)0xE2;
+				line[i+1] = (char)0x80;
+				line[i+2] = (char)0x9D;
+			}
+			
+			if (i > 0 && line[i-1] == '/' && line[i] == (char)0x92) {
 				line[i] = '\'';
+			} else if (line[i] == (char)0xEF && line[i+1] == (char)0x81 && line[i+2] == (char)0xBC) {
+				for (j=i+3; isSpace(line[j]); j++) ;
+				if (j > i + 1)
+					strcpy(line+i+1, line+j);
+				line[i] = '|';
+			} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x98) {
+				isConvDblQT = FALSE;
+				for (j=i+1; line[j] != EOS; j++) {
+					if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x98) {
+						break;
+					} else if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x99) {
+						if (!isalnum(line[j+3]))
+							isConvDblQT = TRUE;
+						break;
+					}
+				}
+				if (isConvDblQT == FALSE) {
+					strcpy(line+i, line+i+2);
+					line[i] = '\'';
+				} else {
+					line[i+2] = (char)0x9C;
+					line[j+2] = (char)0x9D;
+				}
+			} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x9C) {
+				for (j=i+1; line[j] != EOS; j++) {
+					if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x99) {
+						strcpy(line+j, line+j+2);
+						line[j] = '\'';
+					} else if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x9B) {
+						strcpy(line+j, line+j+2);
+						line[j] = '\'';
+					} else if (line[j] == '"') {
+						uS.shiftright(line+j,2);
+						line[j] = (char)0xE2;
+						line[j+1] = (char)0x80;
+						line[j+2] = (char)0x9D;
+					} else if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x9D) {
+						i = j + 2;
+						break;
+					} else if (line[j] == (char)0xE2 && line[j+1] == (char)0x80 && line[j+2] == (char)0x9C) {
+						line[j+2] = (char)0x9D;
+					}
+				}
+			} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x99) {
+				strcpy(line+i, line+i+2);
+				line[i] = '\'';
+			} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x9B) {
+				strcpy(line+i, line+i+2);
+				line[i] = '\'';
+			} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x93) {
+				strcpy(line+i, line+i+2);
+				line[i] = '-';
+			} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x92) {
+				strcpy(line+i, line+i+2);
+				line[i] = '-';
+			} else {
+				if (line[i] == (char)0xD0 || line[i] == (char)0x96 || line[i] == (char)0xF1) {
+					line[i] = '-';
+				} else if (line[i] == (char)0xC9 || line[i] == (char)0x85) {
+					uS.shiftright(line+i,2);
+					line[i] = (char)0xE2;
+					line[i+1] = (char)0x80;
+					line[i+2] = (char)0xA6;
+					i = i + 2;
+				} else if (line[i] == '`' || line[i] == (char)0xB4 || line[i] == (char)0xD5 || line[i] == (char)0x92) {
+					line[i] = '\'';
+				}
 			}
 		}
 	}
 	j = -1;
 	isConvDblQT = FALSE;
 	for (i=0; line[i] != EOS; i++) {
-		if (line[i] == '"') {
-			isConvDblQT = !isConvDblQT;
-			if (isConvDblQT) {
-				uS.shiftright(line+i,2);
-				line[i] = (char)0xE2;
-				line[i+1] = (char)0x80;
-				line[i+2] = (char)0x9C;
-				j = i;
-			} else {
-				uS.shiftright(line+i,2);
-				line[i] = (char)0xE2;
-				line[i+1] = (char)0x80;
-				line[i+2] = (char)0x9D;
-				j = i;
+		if (UTF8_IS_SINGLE((unsigned char)line[i])) {
+			if (line[i] == '"') {
+				isConvDblQT = !isConvDblQT;
+				if (isConvDblQT) {
+					uS.shiftright(line+i,2);
+					line[i] = (char)0xE2;
+					line[i+1] = (char)0x80;
+					line[i+2] = (char)0x9C;
+					j = i;
+				} else {
+					uS.shiftright(line+i,2);
+					line[i] = (char)0xE2;
+					line[i+1] = (char)0x80;
+					line[i+2] = (char)0x9D;
+					j = i;
+				}
+			} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x9C) {
+				isConvDblQT = TRUE;
+			} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x9D) {
+				isConvDblQT = FALSE;
 			}
-		} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x9C) {
-			isConvDblQT = TRUE;
-		} else if (line[i] == (char)0xE2 && line[i+1] == (char)0x80 && line[i+2] == (char)0x9D) {
-			isConvDblQT = FALSE;
 		}
 	}
 	if (isConvDblQT) {
 		for (i=j+1; line[i] != EOS; i++) {
-			if (uS.isskip(line,i,&dFnt,MBF))
+			if (uS.isskip(line,i,&dFnt,MBF) && UTF8_IS_SINGLE((unsigned char)line[i]))
 				break;
 		}
 		if (i > j+1) {

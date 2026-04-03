@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
 */
 
@@ -33,7 +33,7 @@
 
 //#define DEBUGEVALRESULTS
 
-#define KIDEVAL_DB_VERSION 7
+#define KIDEVAL_DB_VERSION 8
 
 #define DATABASE_FILE_NAME "_db.cut"
 #define DATABSEFILESLIST "0kideval_Database_IDs.cex"
@@ -154,6 +154,11 @@ struct kideval_speakers {
 	struct kideval_speakers *next_sp;
 } ;
 
+struct kideval_ds {
+	char *row;
+	struct kideval_ds *next_ds;
+};
+
 struct SDs {
 	char isSDComputed;
 	float dbSD;
@@ -216,7 +221,7 @@ static int  colLabelsNum;
 static int  gMisalignmentError;
 static float DB_UTT_NUM_LIMIT;
 static long agesFound[13], dummyFiles;
-static char *ke_script_file;
+static char ke_script_file[257];
 static char DB_version[65], DB_type[128], DB_MIN_UTTS[16+1];
 static char ftime, isDBFilesList, isCreateDB, isRawVal, isLinkAge;
 static char ke_Design[TYPESLEN+1], ke_Activity[TYPESLEN+1], ke_Group[TYPESLEN+1];
@@ -227,6 +232,7 @@ static struct kideval_speakers *sp_head;
 static struct database *gdb;
 static COLS *colsRoot;
 static struct label_cols *labelsRoot;
+static struct kideval_ds *DSList;
 #ifdef DEBUGEVALRESULTS
 FILE *dbResults;
 #endif
@@ -254,15 +260,14 @@ void usage() {
 	puts("+dtd~S: specify database keyword(s) S. For example:");
 	puts("    +dtoyplay~\"2;7-3;\" for children of age 31 to 36 months old.");
 	puts("    +dnarrative~\"2;-2;6|female\" for females children of age 24 to 30 months old.");
-	puts("+dmd~S: specify database keyword(s) S. For example:");
-	puts("    +dmd~\"2;7-3;\" for children of age 31 to 36 months old.");
-	puts("    +dmd~\"2;-2;6|female\" for females children of age 24 to 30 months old.");
+	puts("+eS: specify dataset keyword(s) S. For example:");
+	puts("    +esalt_enni~\"4;0-4;6\" for children of age 48 to 54 months old."); // DSList
+	puts("    +esalt_narrative_sss~\"5;6-6;0\" for children of age 66 to 83 months old.");
+	puts("+e+: display all dataset names, ages and activity");
+	puts("+e-: display all dataset names and ages, no activity");
 	puts("+e1: create list of database files used for comparisons");
 	puts("+lF: specify language script file name F (default: eng)");
 	puts("     choices: eng, engu, fra, jpn, nld, spa, yue, zho");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	puts("+o4: output percentage values instead of raw values");
 	puts("+qN: change the minimum limit of utterance for DSS and IPSYN (default: DSS=50, IPSYN=50)");
 	puts("+s : counts utterances and other words found along with \"xxx\"");
@@ -406,6 +411,19 @@ static struct kideval_speakers *freespeakers(struct kideval_speakers *p) {
 	return(NULL);
 }
 
+static struct kideval_ds *freeDSList(struct kideval_ds *p) {
+	struct kideval_ds *ts;
+
+	while (p) {
+		ts = p;
+		p = p->next_ds;
+		if (ts->row != NULL)
+			free(ts->row);
+		free(ts);
+	}
+	return(NULL);
+}
+
 static struct database *freedb(struct database *db) {
 	if (db != NULL) {
 		db->db_sp = freespeakers(db->db_sp);
@@ -446,6 +464,7 @@ static void kideval_error(struct database *tdb, char IsOutOfMem) {
 		fputs("ERROR: Out of memory.\n",stderr);
 	sp_head = freespeakers(sp_head);
 	DBKeyRoot = freeDBKeys(DBKeyRoot);
+	DSList = freeDSList(DSList);
 	labelsRoot = freeLabels(labelsRoot);
 	colsRoot = freeColsP(colsRoot);
 	if (tdb != NULL)
@@ -557,6 +576,174 @@ static void addDBKeys(const char *key) {
 	}
 }
 
+static struct kideval_ds *getDatasetRows(struct kideval_ds *root, char *name, int agef, int aget, char *activity) {
+	char *b, *e, ds_name[128], ds_activity[128];
+	int cnt, ds_agef, ds_aget;
+	FILE *fp;
+	struct kideval_ds *ts;
+
+	strcpy(FileName1, lib_dir);
+	addFilename2Path(FileName1, "kideval");
+	addFilename2Path(FileName1, "0refvals.csv");
+	fp = fopen(FileName1, "r");
+	if (fp == NULL) {
+		strcpy(FileName1, wd_dir);
+		addFilename2Path(FileName1, "0refvals.csv");
+		fp = fopen(FileName1, "r");
+	}
+	if (fp == NULL) {
+		fprintf(stderr, "\nCan't find dataset in libary \"%s\"\n", FileName1);
+#ifdef UNX
+		fprintf(stderr,"Please use -L option to specify libary path.\n");
+#elif defined(_WIN32)
+		fprintf(stderr,"Please make sure that the \"lib\" in the Commands window is set to the \"clan/lib\" directory.\n");
+#endif
+		fprintf(stderr, "If you do not use dataset, then do not include +eS option in command line\n");
+		kideval_error(NULL, TRUE);
+	} else {
+		fprintf(stderr, "    Databset File used: %s\n", FileName1);
+	}
+	uS.lowercasestr(name, &dFnt, MBF);
+	uS.lowercasestr(activity, &dFnt, MBF);
+	while (fgets_cr(templineC4, BUFSIZ, fp)) {
+		if (uS.isUTF8(templineC4) || uS.isInvisibleHeader(templineC4))
+			continue;
+		ds_name[0] = EOS;
+		ds_agef = 0;
+		ds_aget = 0;
+		ds_activity[0] = EOS;
+		uS.remblanks(templineC4);
+		b = templineC4;
+		cnt = 0;
+		while (b != NULL) {
+			e = strchr(b, ',');
+			if (e != NULL) {
+				*e = EOS;
+				cnt++;
+				if (cnt == 3) {
+					strncpy(ds_name, b, 126);
+					ds_name[126] = EOS;
+				} else if (cnt == 5) {
+					isAge(b, &ds_agef, &ds_aget);
+				} else if (cnt == 14) {
+					strncpy(ds_activity, b, 126);
+					ds_activity[126] = EOS;
+					*e = ',';
+					break;
+				}
+				*e = ',';
+				b = e + 1;
+			} else {
+				cnt++;
+				if (cnt == 3) {
+					strncpy(ds_name, b, 126);
+					ds_name[126] = EOS;
+				} else if (cnt == 5) {
+					isAge(b, &ds_agef, &ds_aget);
+				} else if (cnt == 14) {
+					strncpy(ds_activity, b, 126);
+					ds_activity[126] = EOS;
+					break;
+				}
+				b = NULL;
+			}
+		}
+		uS.lowercasestr(ds_name, &dFnt, MBF);
+		if (name[0] == EOS || uS.fpatmat(ds_name, name) == 1) {
+			if ((agef == 0 && aget == 0) ||
+				(aget == 0 && agef >= ds_agef && agef <= ds_aget) ||
+				(agef == ds_agef && aget == ds_aget)) {
+				uS.lowercasestr(ds_activity, &dFnt, MBF);
+				if (activity[0] == EOS || uS.fpatmat(ds_activity, activity) == 1) {
+					if (root == NULL) {
+						if ((root=NEW(struct kideval_ds)) == NULL)
+							kideval_error(NULL, TRUE);
+						ts = root;
+					} else {
+						for (ts=root; ts->next_ds != NULL; ts=ts->next_ds) ;
+						if ((ts->next_ds=NEW(struct kideval_ds)) == NULL)
+							kideval_error(NULL, TRUE);
+						ts = ts->next_ds;
+					}
+					ts->next_ds = NULL;
+					ts->row = (char *)malloc(strlen(templineC4)+1);
+					if (ts->row == NULL) {
+						kideval_error(NULL, TRUE);
+					}
+					strcpy(ts->row, templineC4);
+				}
+			}
+		}
+	}
+	fclose(fp);
+	return(root);
+}
+
+static struct kideval_ds *getDatasets(char *f) {
+	char *b, *e, age[64], name[128], activity[512];
+	int  agef, aget;
+
+
+//	if (*f == EOS) {
+//		fprintf(stderr,"Missing dataset name argument for option: %s\n", f-2);
+//		cutt_exit(0);
+//	}
+	name[0] = EOS;
+	age[0] = EOS;
+	activity[0] = EOS;
+	agef = 0;
+	aget = 0;
+	b = f;
+	while (b != NULL) {
+		e = strchr(b, '~');
+		if (e != NULL) {
+			*e = EOS;
+			if (b == f) {
+				if (isdigit(*b) && (isdigit(*(b+1)) || *(b+1) == ';' ||  *(b+1) == '.' ||  *(b+1) == '-' ||  *(b+1) == EOS)) {
+					strncpy(age, b, 62);
+					age[62] = EOS;
+				} else {
+					strncpy(name, b, 126);
+					name[126] = EOS;
+				}
+			} else if (isdigit(*b)) {
+				strncpy(age, b, 62);
+				age[62] = EOS;
+			} else {
+				strncpy(activity, b, 510);
+				activity[510] = EOS;
+			}
+			*e = '~';
+			b = e + 1;
+		} else {
+			if (b == f) {
+				if (isdigit(*b) && (isdigit(*(b+1)) || *(b+1) == ';' ||  *(b+1) == '.' ||  *(b+1) == '-' ||  *(b+1) == EOS)) {
+					strncpy(age, b, 62);
+					age[62] = EOS;
+				} else {
+					strncpy(name, b, 126);
+					name[126] = EOS;
+				}
+			} else if (isdigit(*b)) {
+				strncpy(age, b, 62);
+				age[62] = EOS;
+			} else {
+				strncpy(activity, b, 510);
+				activity[510] = EOS;
+			}
+			b = NULL;
+		}
+	}
+	if (age[0] != EOS) {
+		if (isAge(age, &agef, &aget) == FALSE) {
+			fprintf(stderr,"Illegal age argument for option: %s\n", f-2);
+			cutt_exit(0);
+		}
+	}
+	DSList = getDatasetRows(DSList, name, agef, aget, activity);
+	return(DSList);
+}
+
 static int isEqualKey(char *DBk, char *IDk) {
 	if (DBk == NULL || IDk == NULL) {
 		return(1);
@@ -564,9 +751,230 @@ static int isEqualKey(char *DBk, char *IDk) {
 	return(uS.mStricmp(IDk, DBk));
 }
 
+static struct label_cols *addDSToList(label_cols *root, char *label) {
+	struct label_cols *ts;
+
+	if (root == NULL) {
+		root = NEW(struct label_cols);
+		ts = root;
+	} else {
+		for (ts=root; ts->next_label != NULL; ts=ts->next_label) {
+			if (uS.mStricmp(ts->label, label) == 0)
+				return(root);
+		}
+		if (uS.mStricmp(ts->label, label) == 0)
+			return(root);
+		ts->next_label = NEW(struct label_cols);
+		ts = ts->next_label;
+	}
+	if (ts == NULL) {
+		root = freeLabels(root);
+		kideval_error(NULL, TRUE);
+	}
+	ts->next_label = NULL;
+	ts->label = (char *)malloc(strlen(label)+1);
+	if (ts->label == NULL) {
+		root = freeLabels(root);
+		kideval_error(NULL, TRUE);
+	}
+//	uS.lowercasestr(label, &dFnt, C_MBF);
+	strcpy(ts->label, label);
+	return(root);
+}
+
+static void listDatasets(char *f) {
+	char *b, *e;
+	char ds_name[128], ds_nameo[512], name[128], ds_age[64], age[64];
+	char ds_activity[128], ds_activityo[128], activity[128], isAddActivity;
+	int cnt, agef, aget, ds_agef, ds_aget;
+	FILE *fp;
+	struct label_cols *datasets, *ts;
+
+	strcpy(FileName1, lib_dir);
+	addFilename2Path(FileName1, "kideval");
+	addFilename2Path(FileName1, "0refvals.csv");
+	fp = fopen(FileName1, "r");
+	if (fp == NULL) {
+		strcpy(FileName1, wd_dir);
+		addFilename2Path(FileName1, "0refvals.csv");
+		fp = fopen(FileName1, "r");
+	}
+	if (fp == NULL) {
+		fprintf(stderr, "\nCan't find dataset in libary \"%s\"\n", FileName1);
+#ifdef UNX
+		fprintf(stderr,"Please use -L option to specify libary path.\n");
+#elif defined(_WIN32)
+		fprintf(stderr,"Please make sure that the \"lib\" in the Commands window is set to the \"clan/lib\" directory.\n");
+#endif
+		
+		fprintf(stderr, "If you do not use dataset, then do not include +eS option in command line\n");
+		kideval_error(NULL, TRUE);
+	} else {
+		fprintf(stderr, "    Databset File used: %s\n", FileName1);
+	}
+
+	if (*f == '+')
+		isAddActivity = TRUE;
+	else
+		isAddActivity = FALSE;
+	f++;
+	name[0] = EOS;
+	age[0] = EOS;
+	activity[0] = EOS;
+	agef = 0;
+	aget = 0;
+	b = f;
+	while (b != NULL) {
+		e = strchr(b, '~');
+		if (e != NULL) {
+			*e = EOS;
+			if (b == f) {
+				if (isdigit(*b) && (isdigit(*(b+1)) || *(b+1) == ';' ||  *(b+1) == '.' ||  *(b+1) == '-' ||  *(b+1) == EOS)) {
+					strncpy(age, b, 62);
+					age[62] = EOS;
+				} else {
+					strncpy(name, b, 126);
+					name[126] = EOS;
+					uS.lowercasestr(name, &dFnt, MBF);
+				}
+			} else if (isdigit(*b)) {
+				strncpy(age, b, 62);
+				age[62] = EOS;
+			} else {
+				strncpy(activity, b, 126);
+				activity[126] = EOS;
+				uS.lowercasestr(activity, &dFnt, MBF);
+			}
+			*e = '~';
+			b = e + 1;
+		} else {
+			if (b == f) {
+				if (isdigit(*b) && (isdigit(*(b+1)) || *(b+1) == ';' ||  *(b+1) == '.' ||  *(b+1) == '-' ||  *(b+1) == EOS)) {
+					strncpy(age, b, 62);
+					age[62] = EOS;
+				} else {
+					strncpy(name, b, 126);
+					name[126] = EOS;
+					uS.lowercasestr(name, &dFnt, MBF);
+				}
+			} else if (isdigit(*b)) {
+				strncpy(age, b, 62);
+				age[62] = EOS;
+			} else {
+				strncpy(activity, b, 126);
+				activity[126] = EOS;
+				uS.lowercasestr(activity, &dFnt, MBF);
+			}
+			b = NULL;
+		}
+	}
+	if (age[0] != EOS) {
+		if (isAge(age, &agef, &aget) == FALSE) {
+			fprintf(stderr,"Illegal age argument for option: %s\n", f-2);
+			cutt_exit(0);
+		}
+	}
+	datasets = NULL;
+	if (!fgets_cr(templineC4, BUFSIZ, fp))
+		return;
+	while (fgets_cr(templineC4, BUFSIZ, fp)) {
+		if (uS.isUTF8(templineC4) || uS.isInvisibleHeader(templineC4))
+			continue;
+		ds_name[0] = EOS;
+		ds_nameo[0] = EOS;
+		uS.remblanks(templineC4);
+		b = templineC4;
+		cnt = 0;
+		while (b != NULL) {
+			e = strchr(b, ',');
+			if (e != NULL) {
+				*e = EOS;
+				cnt++;
+				if (cnt == 3) {
+					strncpy(ds_nameo, b, 510);
+					ds_nameo[510] = EOS;
+					strncpy(ds_name, b, 126);
+					ds_name[126] = EOS;
+					uS.lowercasestr(ds_name, &dFnt, MBF);
+				} else if (cnt == 5) {
+					strncpy(ds_age, b, 62);
+					ds_age[62] = EOS;
+					isAge(ds_age, &ds_agef, &ds_aget);
+				} else if (cnt == 14) {
+					strncpy(ds_activityo, b, 126);
+					ds_activityo[126] = EOS;
+					strncpy(ds_activity, b, 126);
+					ds_activity[126] = EOS;
+					uS.lowercasestr(ds_activity, &dFnt, MBF);
+					*e = ',';
+					if (name[0] == EOS || uS.fpatmat(ds_name, name) == 1) {
+						if ((agef == 0 && aget == 0) ||
+							(aget == 0 && agef >= ds_agef && agef <= ds_aget) ||
+							(agef == ds_agef && aget == ds_aget)) {
+							if (activity[0] == EOS || uS.fpatmat(ds_activity, activity) == 1) {
+								strcat(ds_nameo, "~");
+								strcat(ds_nameo, ds_age);
+								if (isAddActivity) {
+									strcat(ds_nameo, "    ");
+									strcat(ds_nameo, ds_activityo);
+								}
+								datasets = addDSToList(datasets, ds_nameo);
+							}
+						}
+					}
+					break;
+				}
+				*e = ',';
+				b = e + 1;
+			} else {
+				cnt++;
+				if (cnt == 3) {
+					strncpy(ds_nameo, b, 510);
+					ds_nameo[510] = EOS;
+					strncpy(ds_name, b, 126);
+					ds_name[126] = EOS;
+					uS.lowercasestr(ds_name, &dFnt, MBF);
+				} else if (cnt == 5) {
+					strncpy(ds_age, b, 62);
+					ds_age[62] = EOS;
+					isAge(ds_age, &ds_agef, &ds_aget);
+				} else if (cnt == 14) {
+					strncpy(ds_activity, b, 126);
+					ds_activity[126] = EOS;
+					uS.lowercasestr(ds_activity, &dFnt, MBF);
+					if (name[0] == EOS || uS.fpatmat(ds_name, name) == 1) {
+						if ((agef == 0 && aget == 0) ||
+							(aget == 0 && agef >= ds_agef && agef <= ds_aget) ||
+							(agef == ds_agef && aget == ds_aget)) {
+							if (activity[0] == EOS || uS.fpatmat(ds_activity, activity) == 1) {
+								strcat(ds_nameo, "~");
+								strcat(ds_nameo, ds_age);
+								if (isAddActivity) {
+									strcat(ds_nameo, "    ");
+									strcat(ds_nameo, ds_activityo);
+								}
+								datasets = addDSToList(datasets, ds_nameo);
+							}
+						}
+					}
+					break;
+				}
+				b = NULL;
+			}
+		}
+	}
+	cnt = 0;
+	for (ts=datasets; ts != NULL; ts=ts->next_label) {
+		cnt++;
+		fprintf(stderr, "#%3d: %s\n", cnt, ts->label);
+	}
+	datasets = freeLabels(datasets);
+	fclose(fp);
+}
+
 static void changeAgeField(char *fr, char *to) {
 	int i, j, k, cnt, years, months, days;
-	char age[BUFSIZ], *s;
+	char age[DSS_BUFSIZ], *s;
 
 	j = 0;
 	cnt = 0;
@@ -1008,7 +1416,7 @@ static void getTypes(char *line) {
 
 static void kideval_process_tier(struct kideval_speakers *ts, struct database *db) {
 	int i, j, comps, num, oPos;
-	char word[BUFSIZ+1], tword[1024], *w[NUMCOMPS], isMatchFound, isMatch2Found;
+	char word[DSS_BUFSIZ+1], tword[1024], *w[NUMCOMPS], isMatchFound, isMatch2Found;
 	char tchr, patsType, isWordsFound, isWordsFound50, sq, aq, isSkip;
 	char isPSDFound, curPSDFound, isAuxFound;
 	long stime, etime;
@@ -1149,6 +1557,7 @@ static void kideval_process_tier(struct kideval_speakers *ts, struct database *d
 							fprintf(stderr, "    Intenal Error: # of pre/post clitics is > %d in word: \"%s\"\n", NUMCOMPS-1, word);
 							sp_head = freespeakers(sp_head);
 							DBKeyRoot = freeDBKeys(DBKeyRoot);
+							DSList = freeDSList(DSList);
 							labelsRoot = freeLabels(labelsRoot);
 							colsRoot = freeColsP(colsRoot);
 							db = freedb(db);
@@ -1493,7 +1902,7 @@ static char kideval_process_dss_tier(struct kideval_speakers *ts, struct databas
 
 static void kideval_process_vocd_tier(struct kideval_speakers *ts, struct database *db) {
 	int  i;
-	char word[BUFSIZ+1];
+	char word[DSS_BUFSIZ+1];
 	MORFEATS word_feats, *clitic, *feat;
 	VOCDSP *vocd_sp;
 
@@ -1886,7 +2295,7 @@ static void prTSResults(struct kideval_speakers *ts, char *IDText) {
 
 static void OpenDBFile(FILE *fp, struct database *db, char *isDbSpFound) {
 	int  t, i;
-	char word[BUFSIZ+1], DBFname[BUFSIZ+1], IDText[BUFSIZ+1];
+	char word[DSS_BUFSIZ+1], DBFname[DSS_BUFSIZ+1], IDText[DSS_BUFSIZ+1];
 	float tt;
 	FILE *tfpin;
 	struct kideval_speakers *ts;
@@ -1944,14 +2353,14 @@ static void OpenDBFile(FILE *fp, struct database *db, char *isDbSpFound) {
 		if (templineC[0] == '=') {
 			uS.remblanks(templineC+1);
 			if (templineC[1] == '/')
-				strncpy(DBFname, templineC+24, BUFSIZ);
+				strncpy(DBFname, templineC+24, DSS_BUFSIZ);
 			else
-				strncpy(DBFname, templineC+1, BUFSIZ);
-			DBFname[BUFSIZ] = EOS;
+				strncpy(DBFname, templineC+1, DSS_BUFSIZ);
+			DBFname[DSS_BUFSIZ] = EOS;
 		} else if (templineC[0] == '+') {
 			uS.remblanks(templineC+1);
-			strncpy(IDText, templineC+1, BUFSIZ);
-			IDText[BUFSIZ] = EOS;
+			strncpy(IDText, templineC+1, DSS_BUFSIZ);
+			IDText[DSS_BUFSIZ] = EOS;
 			breakIDsIntoFields(&IDTier, templineC+1);
 			if (!isKeyMatch(&IDTier))  {
 				while (fgets_cr(templineC, UTTLINELEN, fpin)) {
@@ -2373,11 +2782,53 @@ static char *getFileName(char *oFname) {
 	return(oFname+i);
 }
 
+static void outputPercentile(char *sFName, char *ds_name, char *ds_age, float ds_mean_mlu, float ds_SD_mlu, char isUseMLU50) {
+	float  s_mlu, normsdist;
+	char   st[32];
+	struct kideval_speakers *ts;
+
+	for (ts=sp_head; ts != NULL; ts=ts->next_sp) {
+		sFName = getFileName(ts->fname);
+		excelRow(fpout, ExcelRowStart);
+		if (ts->mUtt == 0.0) {
+			excelStrCell(fpout, "NA");
+			s_mlu = 0.0;
+		} else {
+			s_mlu = ts->morf/ts->mUtt;
+		}
+		excelStrCell(fpout, ds_name);
+		excelStrCell(fpout, ds_age);
+		if (s_mlu == 0.00000 || ds_mean_mlu == 0.00000 || ds_SD_mlu == 0.00000) {
+			excelStrCell(fpout, "NA");
+		} else {
+			normsdist = s_mlu - ds_mean_mlu;
+			normsdist = normsdist / ds_SD_mlu;
+			normsdist = 0.5 * (1.0 + erf(normsdist / sqrt(2.0)));
+			normsdist = normsdist * 100.0000;
+			sprintf(st, "%.2f", normsdist);
+			strcat(st, "%");
+			if (s_mlu == 0.00000 || ds_mean_mlu == 0.00000 || ds_SD_mlu == 0.00000)
+				excelStrCell(fpout, "NA");
+			else
+				excelStrCell(fpout, st);
+//		excelNumCell(fpout, "%.2f", normsdist);
+		}
+		excelStrCell(fpout, sFName);
+		if (isUseMLU50)
+			excelStrCell(fpout, "*Percentile based on MLU50_Morphemes");
+		excelRow(fpout, ExcelRowEnd);
+	}
+	excelRow(fpout, ExcelRowEmpty);
+}
+
 static void kideval_pr_result(void) {
 	int    i, SDn = 0;
-	char   *sFName;
+	char   *sFName, *b, *e;
+	char   isUseMLU50, ds_row[32], ds_name[128], ods_name[128], ds_age[64], ods_age[64];
 	float  tNum, nonZeroMorTotal;
+	float  ds_mean_mlu, ods_mean_mlu, ds_SD_mlu, ods_SD_mlu;
 	struct kideval_speakers *ts;
+	struct kideval_ds *ds;
 	struct SDs SD[SDRESSIZE];
 	struct DBKeys *DBKey;
 	struct label_cols *col;
@@ -2392,7 +2843,10 @@ static void kideval_pr_result(void) {
 			fprintf(stderr,"OR No input file had speaker in the right age range\n");
 		fprintf(stderr,"\n");
 	}
-	excelHeader(fpout, newfname, 95);
+	if (DSList != NULL)
+		excelHeader(fpout, newfname, 115);
+	else
+		excelHeader(fpout, newfname, 95);
 	excelRow(fpout, ExcelRowStart);
 	if (DBKeyRoot != NULL) {
 		for (i=0; i < SDRESSIZE; i++) {
@@ -2402,7 +2856,7 @@ static void kideval_pr_result(void) {
 	} else
 		excelStrCell(fpout,"File");
 	excelCommasStrCell(fpout, "Language,Corpus,Code,Age(Month),Sex,Group,Race,SES,Role,Education,Custom_field");
-	excelCommasStrCell(fpout, "Design,Activity,Group");
+	excelCommasStrCell(fpout, "Design,Activity,Type");
 	excelCommasStrCell(fpout, "Total_Utts");
 	excelCommasStrCell(fpout, "MLU_Utts,MLU_Words,MLU_Morphemes");
 	excelCommasStrCell(fpout, "MLU50_Utts,MLU50_Words,MLU50_Morphemes");
@@ -2706,7 +3160,7 @@ static void kideval_pr_result(void) {
 			compute_SD(&SD[SDn++], ts->morTotal,  NULL, gdb->morTotal_sqr, gdb->morTotal, gdb->morTotal_num);
 
 			// exclude %mor items columns
-			if (uS.mStricmp(ke_script_file,"eng") != 0 /* engu && uS.mStricmp(ke_script_file,"engu") != 0*/) {
+			if (uS.mStricmp(ke_script_file, "eng") != 0 && uS.mStricmp(ke_script_file, "engu") != 0) {
 				for (col=labelsRoot; col != NULL; col=col->next_label) {
 					if (ts->mor_count != NULL) {
 						compute_SD(&SD[SDn++], ts->mor_count[col->num],  NULL, gdb->morItems_sqr[col->num], gdb->morItems[col->num], gdb->morItems_num);
@@ -2861,7 +3315,7 @@ static void kideval_pr_result(void) {
 			excelNumCell(fpout, "%.3f",gdb->morTotal/gdb->morTotal_num);
 
 		// exclude %mor items columns
-		if (uS.mStricmp(ke_script_file, "eng") != 0) {
+		if (uS.mStricmp(ke_script_file, "eng") != 0 && uS.mStricmp(ke_script_file, "engu") != 0) {
 			for (col=labelsRoot; col != NULL; col=col->next_label) {
 				if (gdb->morItems_num <= 0.0)
 					excelStrCell(fpout, "NA");
@@ -2930,7 +3384,7 @@ static void kideval_pr_result(void) {
 		excelNumCell(fpout, "%.0f",gdb->morTotal_num);
 
 		// exclude %mor items columns
-		if (uS.mStricmp(ke_script_file, "eng") != 0) {
+		if (uS.mStricmp(ke_script_file, "eng") != 0 && uS.mStricmp(ke_script_file, "engu") != 0) {
 			for (col=labelsRoot; col != NULL; col=col->next_label) {
 				if (gdb->morItems != NULL) {
 					excelNumCell(fpout, "%.0f",gdb->morItems_num);
@@ -3009,7 +3463,189 @@ static void kideval_pr_result(void) {
 			strcat(templineC4, DB_MIN_UTTS);
 			excelRowOneStrCell(fpout, ExcelBlkCell, templineC4);
 		}
-//		printArg(targv, targc, fpout, FALSE, "");
+	}
+	if (DSList != NULL) {
+		excelRow(fpout, ExcelRowEmpty);
+		excelRowOneStrCell(fpout, ExcelRedCell, "Norming dataset");
+		excelRow(fpout, ExcelRowStart);
+		excelStrCell(fpout,"Stat");
+		excelCommasStrCell(fpout, "Language,Corpus,Code,Age,Sex,Group,Race,SES,Role,Education,Custom_field");
+		excelCommasStrCell(fpout, "Design,Activity,Type");
+		excelCommasStrCell(fpout, "Total_Utts");
+		excelCommasStrCell(fpout, "MLU_Utts,MLU_Words,MLU_Morphemes");
+		excelCommasStrCell(fpout, "MLU50_Utts,MLU50_Words,MLU50_Morphemes");
+		excelCommasStrCell(fpout, "FREQ_types,FREQ_tokens");
+		excelCommasStrCell(fpout, "NDW_100");
+		excelCommasStrCell(fpout, "VOCD_D_optimum_average");
+		excelCommasStrCell(fpout, "Verbs_Utt");
+		if (DBKeyRoot == NULL) { // exclude TD columns
+			excelCommasStrCell(fpout, "TD_Words,TD_Utts,TD_Time_(secs),TD_Words_Time,TD_Utts_Time");
+		}
+		if (isRawVal) {
+			excelCommasStrCell(fpout, "Word_Errors");
+		} else {
+			excelCommasStrCell(fpout, "%_Word_Errors");
+		}
+		excelCommasStrCell(fpout, "Utt_Errors");
+		excelCommasStrCell(fpout, "retracing,repetition");
+		if (strcmp(dss_script_file, DSSNOCOMPUTE) != 0) {
+			excelCommasStrCell(fpout, "DSS_Utts,DSS");
+		}
+		if (strcmp(ipsyn_lang, IPSYNNOCOMPUTE) != 0) {
+			excelCommasStrCell(fpout, "IPSyn_Utts,IPSyn_Total");
+		}
+		excelCommasStrCell(fpout, "mor_Words");
+		for (col=labelsRoot; col != NULL; col=col->next_label) {
+			if (col->label != NULL)
+				excelStrCell(fpout, col->label);
+		}
+		excelCommasStrCell(fpout, "Total_non_zero_mors");
+		excelCommasStrCell(fpout, "#_participants");
+		excelRow(fpout, ExcelRowEnd);
+		ds_name[0] = EOS;
+		ods_name[0] = EOS;
+		ds_age[0] = EOS;
+		ods_age[0] = EOS;
+		for (ds=DSList; ds != NULL; ds=ds->next_ds) {
+
+			b = ds->row;
+			i = 0;
+			while (b != NULL) {
+				e = strchr(b, ',');
+				if (e != NULL) {
+					*e = EOS;
+					i++;
+					if (i == 3) {
+						strncpy(ds_name, b, 126);
+						ds_name[126] = EOS;
+					} else if (i == 5) {
+						strncpy(ds_age, b, 62);
+						ds_age[62] = EOS;
+						*e = ',';
+						break;
+					}
+					*e = ',';
+					b = e + 1;
+				} else {
+					i++;
+					b = NULL;
+				}
+			}
+
+			if (ds != DSList && (strcmp(ds_name, ods_name) != 0 || strcmp(ds_age, ods_age) != 0)) {
+				excelRow(fpout, ExcelRowEmpty);
+			}
+
+			excelRow(fpout, ExcelRowStart);
+			b = ds->row;
+			i = 0;
+			while (b != NULL) {
+				e = strchr(b, ',');
+				if (e != NULL) {
+					*e = EOS;
+					i++;
+					if (i == 28) {
+						if (DBKeyRoot == NULL) { // exclude TD columns
+							excelStrCell(fpout, ".");
+							excelStrCell(fpout, ".");
+							excelStrCell(fpout, ".");
+							excelStrCell(fpout, ".");
+							excelStrCell(fpout, ".");
+						}
+					} else if (i == 41) {
+						excelStrCell(fpout, "."); // "irr-PAST" column is missing in 0refvals.csv
+					}
+					excelStrCell(fpout, b);
+					*e = ',';
+					b = e + 1;
+				} else {
+					i++;
+					excelStrCell(fpout, b);
+					b = NULL;
+				}
+			}
+//			excelCommasStrCell(fpout, ds->row);
+			excelRow(fpout, ExcelRowEnd);
+			strcpy(ods_name, ds_name);
+			strcpy(ods_age, ds_age);
+		}		
+
+		excelRow(fpout, ExcelRowEmpty);
+		excelRowOneStrCell(fpout, ExcelRedCell, "Percentile score MLU_Morphemes");
+
+		isUseMLU50 = FALSE;
+		ds_name[0] = EOS;
+		ods_name[0] = EOS;
+		ds_age[0] = EOS;
+		ods_age[0] = EOS;
+		ds_mean_mlu = 0.0;
+		ods_mean_mlu = 0.0;
+		ds_SD_mlu = 0.0;
+		ods_SD_mlu = 0.0;
+		for (ds=DSList; ds != NULL; ds=ds->next_ds) {
+			isUseMLU50 = FALSE;
+			b = ds->row;
+			i = 0;
+			while (b != NULL) {
+				e = strchr(b, ',');
+				if (e != NULL) {
+					*e = EOS;
+					i++;
+					if (i == 1) {
+						strncpy(ds_row, b, 30);
+						ds_row[30] = EOS;
+					} else if (i == 3) {
+						strncpy(ds_name, b, 126);
+						ds_name[126] = EOS;
+					} else if (i == 5) {
+						strncpy(ds_age, b, 62);
+						ds_age[62] = EOS;
+					} else if (i == 19) {
+						if (strcmp(ds_row, "Mean") == 0) {
+							ds_mean_mlu = atof(b);
+							if (strcmp(b, ".") == 0)
+								isUseMLU50 = TRUE;
+						}
+						if (strcmp(ds_row, "SD") == 0) {
+							ds_SD_mlu = atof(b);
+							if (strcmp(b, ".") == 0)
+								isUseMLU50 = TRUE;
+						} 
+						*e = ',';
+						if (isUseMLU50 == FALSE)
+							break;
+					} else if (isUseMLU50 == TRUE && i == 22) {
+						if (strcmp(ds_row, "Mean") == 0) {
+							ds_mean_mlu = atof(b);
+						}
+						if (strcmp(ds_row, "SD") == 0) {
+							ds_SD_mlu = atof(b);
+						} 
+						*e = ',';
+						break;
+					}
+					*e = ',';
+					b = e + 1;
+				} else {
+					i++;
+					b = NULL;
+				}
+			}
+			if (ds != DSList && (strcmp(ds_name, ods_name) != 0 || strcmp(ds_age, ods_age) != 0)) {
+				outputPercentile(sFName, ods_name, ods_age, ods_mean_mlu, ods_SD_mlu, isUseMLU50);
+			}
+			strcpy(ods_name, ds_name);
+			strcpy(ods_age, ds_age);
+			ods_mean_mlu = ds_mean_mlu;
+			ods_SD_mlu = ds_SD_mlu;
+		}
+		outputPercentile(sFName, ods_name, ods_age, ds_mean_mlu, ds_SD_mlu, isUseMLU50);	
+		
+		excelRow(fpout, ExcelRowEmpty);
+		sprintArg(templineC, targv, targc, FALSE, "");
+		excelRowOneStrCell(fpout, ExcelRedCell, "Command line:");
+		excelRowOneStrCell(fpout, ExcelRedCell, templineC);
+
 	}
 	excelFooter(fpout);
 	sp_head = freespeakers(sp_head);
@@ -3225,7 +3861,7 @@ void call() {
 	char isPRCreateDBRes, isSpeakerFound, isDummy;
 	char lRightspeaker, rightIDFound;
 	char isGRA, isMOR;
-	char word[BUFSIZ+1], IDText[BUFSIZ+1];
+	char word[DSS_BUFSIZ+1], IDText[DSS_BUFSIZ+1];
 	time_t timer;
 	struct tm *TmS;
 	struct kideval_speakers *ts;
@@ -3651,21 +4287,9 @@ static void processScriptLine(const FNType *mFileName, int  ln, const char *line
 				strcpy(templineC1, b);
 				uS.remblanks(templineC1);
 				if ((templineC1[0] == '+' || templineC1[0] == '-') && (templineC1[1] == 'l' || templineC1[1] == 'L')) {
-					if (strlen(templineC1+2) > 250) {
-						fprintf(stderr, "This language is too long (250): %d.\n", strlen(templineC1+2));
-						fprintf(stderr, "Choose: eng - English, bss - English, jpn - Japanese\n");
-						cutt_exit(0);
-					} else
-						strcpy(dss_script_file, templineC1+2);
+					strncpy(dss_script_file, templineC1+2, 256);
+					dss_script_file[256] = EOS;
 					uS.lowercasestr(dss_script_file, &dFnt, C_MBF);
-					if (*dss_script_file == 'b' || *dss_script_file == 'e' || *dss_script_file == 'j' ||
-						*dss_script_file == '0') {
-					} else {
-						fprintf(stderr,"*** File \"%s\": line: \"%d\"\n", mFileName, ln);
-						fprintf(stderr,"    Illegal option argument found: %s\n", templineC1);
-						fprintf(stderr,"    Please specify either \"+le\" for English or \"+lj\" for Japanese.\n");
-						cutt_exit(0);
-					}
 				} else {
 					fprintf(stderr,"*** File \"%s\": line: \"%d\"\n", mFileName, ln);
 					fprintf(stderr,"    Unsupported option specified: %s\n", templineC1);
@@ -4109,7 +4733,7 @@ void init(char first) {
 		isLinkAge = FALSE;
 		DB_version[0] = EOS;
 		isRawVal = TRUE;
-		ke_script_file = NULL;
+		ke_script_file[0] = EOS;
 		stout = FALSE;
 		outputOnlyData = TRUE;
 		OverWriteFile = TRUE;
@@ -4133,6 +4757,7 @@ void init(char first) {
 		labelsRoot = NULL;
 		gdb = NULL;
 		DBKeyRoot = NULL;
+		DSList = NULL;
 		if (isCreateDB) {
 			stout = TRUE;
 			isRecursive = TRUE;
@@ -4149,11 +4774,13 @@ void init(char first) {
 	} else {
 		if (ftime) {
 			ftime = FALSE;
-			if (ke_script_file == NULL) {
+			if (ke_script_file[0] == EOS) {
 				fprintf(stderr,"\nPlease specify language script file name with \"+l\" option.\n");
 				fprintf(stderr,"For example, \"kideval +leng\" or \"kideval +leng.cut\".\n");
 				cutt_exit(0);
 			}
+			if (strcmp(ke_script_file, "eng") == 0 && MorCodes == UD && isCreateDB == 0) //2025-06-27
+				strcat(ke_script_file, "u");
 			if (DBKeyRoot != NULL && strcmp(ke_script_file, "eng") && strcmp(ke_script_file, "engu") &&
 				strcmp(ke_script_file, "fra") && strcmp(ke_script_file, "nld") &&
 				strcmp(ke_script_file, "spa") && strcmp(ke_script_file, "zho") &&
@@ -4450,8 +5077,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 				if (cOption == NULL) {
 					fprintf(stderr, "\nSpecify database type with \"+c\" option.\n");
 					cutt_exit(0);
-				} else if (strcmp(cOption, "_toyplay") == 0 || strcmp(cOption, "_narrative") == 0 ||
-						   strcmp(cOption, "_md") == 0 || strcmp(cOption, "_td") == 0) {
+				} else if (strcmp(cOption, "_toyplay") == 0 || strcmp(cOption, "_narrative") == 0) {
 					strcpy(DB_type, cOption);
 				} else {
 					fprintf(stderr, "\nUnknown database type specified with \"-c%s\" option.\n", cOption);
@@ -4525,6 +5151,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 		fclose(DBFilesListFP);
 	gdb = freedb(gdb);
 	DBKeyRoot = freeDBKeys(DBKeyRoot);
+	DSList = freeDSList(DSList);
 	dss_cleanSearchMem();
 	ipsyn_cleanSearchMem();
 	labelsRoot = freeLabels(labelsRoot);
@@ -4557,7 +5184,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 			argc--;
 		}
 		fprintf(stderr, "files dummy @Comments:   %ld\n", dummyFiles);
-		fprintf(stderr, "\n%s files:\n", DB_type);
+		fprintf(stderr, "\n%s%s files:\n", ke_script_file, DB_type);
 		fprintf(stderr, "files for ages 1;6-1;11: %ld\n", agesFound[0]);
 		fprintf(stderr, "files for ages 2;-2;5:    %ld\n", agesFound[1]);
 		fprintf(stderr, "files for ages 2;6-2;11: %ld\n", agesFound[2]);
@@ -4639,28 +5266,23 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			break;
 		case 'e':
-			if (*f == '1')
+			if (strcmp(f, "1") == 0) {
 				isDBFilesList = TRUE;
-			else {
-				fprintf(stderr,"Invalid argument for option: %s\n", f-2);
+			} else if (*f == '+' || *f == '-') {
+				listDatasets(f);
 				cutt_exit(0);
+			} else {
+				DSList = getDatasets(f);
 			}
 			break;
 		case 'l':
-			ke_script_file = f;
+			strncpy(ke_script_file, f, 255);
+			ke_script_file[255] = EOS;
 			break;
 		case 'L':
 			if (strcmp(f-1, "LinkAge") == 0) {
 				isLinkAge = TRUE;
 			}
-#ifdef UNX
-			else {
-				strcpy(lib_dir, f);
-				j = strlen(lib_dir);
-				if (j > 0 && lib_dir[j-1] != '/')
-					strcat(lib_dir, "/");
-			}
-#endif
 			break;
 		case 'o':
 			if (*f == '4') {

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -54,9 +54,6 @@ void usage() {
 	puts("PHONFREQ ");
 	printf("Usage: phonfreq [bS %s] filename(s)\n", mainflgs());
 	printf("+bS: set phonological tier name to S, (default %s)\n", PHONLINE);
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	mainusage(TRUE);
 }
 
@@ -152,15 +149,6 @@ void getflag(char *f, char *f1, int *i) {
 			}
 			maketierchoice(f,*(f-2),FALSE);
 			break;
-#ifdef UNX
-		case 'L':
-			int len;
-			strcpy(lib_dir, f);
-			len = strlen(lib_dir);
-			if (len > 0 && lib_dir[len-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		default:
 			maingetflag(f-2,f1,i);
 			break;
@@ -316,8 +304,8 @@ static void phonfreq_pr_result(void) {
 }
 
 static char *GetSound(char *st) {
-	register int i;
-	register char *su;
+	int i;
+	char *su;
 	ALPHA *t;
 
 	for (t=RootAlphabet; t != NULL; t=t->next_sound) {
@@ -364,7 +352,7 @@ static void ProcessWord(char *s) {
 }
 
 void call() {
-	register int i;
+	int i;
 
 	currentatt = 0;
 	currentchar = (char)getc_cr(fpin, &currentatt);

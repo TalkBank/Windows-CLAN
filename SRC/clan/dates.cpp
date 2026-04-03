@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -126,7 +126,7 @@ static int nd(int n) {
 }
 
 static int pm(int n, char *s) {
-	register int i;
+	int i;
 	extern const char *MonthNames[];
 
 	if (n == 0) {
@@ -417,7 +417,7 @@ static void comdate(CHILD *p) {
 }
 
 static void comage(CHILD *p, char *st) {
-	register int temp_d_month;
+	int temp_d_month;
 
 	p->a[2] = d[2] - p->b[2];
 	p->a[1] = d[1] - p->b[1];

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -146,7 +146,7 @@ static FILE *SyllListFP;
 
 
 void usage() {
-	puts("FLUPOS creates a spreedsheet with a SLD word's position and fluency types.");
+	puts("FLUPOS creates a spreadsheet with a SLD word's position and fluency types.");
 /*
 #ifdef UNX
 	printf("FluPos REQUIRES THE PRESENCE OF THE \"%%mor:\" TIER BY DEFAULT.\n");
@@ -462,6 +462,7 @@ static int getCodeData(char *line, int e, char isSameThread) {
 }
 
 static void createUtt(char *sp, char *line) {
+#pragma unused (sp)
 	int  b, e;
 	char code;
 
@@ -1318,7 +1319,7 @@ static struct syll_tnode *syll_tree(struct syll_tnode *p, char *word, int count)
 	}
 	return(p);
 }
-
+/*
 static char flp_isUttDel(char *line, int pos) {
 	if (line[pos] == '?' && line[pos+1] == '|')
 		;
@@ -1328,7 +1329,7 @@ static char flp_isUttDel(char *line, int pos) {
 	}
 	return(FALSE);
 }
-
+*/
 static char isOnlyOneWordPreCode(char *line, int wi) {
 	int  i, wCnt;
 	char word[BUFSIZ+1];
@@ -1373,7 +1374,7 @@ static char isMonoWordPreCode(char *line, int wi) {
 	return(FALSE); 
 	// 2024-05-01 in French language the result might be off by 1
 }
-
+/*
 static char isPreviousItemWWR(char *line, int wi) {
 
 	for (wi--; wi >= 0 && (isSpace(line[wi]) || line[wi] == '\n'); wi--) ;
@@ -1393,7 +1394,7 @@ static float roundFloat(double num) {
 		t++;
 	return(t);
 }
-
+*/
 static int countMatchedWordSyms(char *word, char *nPat) {
 	int i, len, cnt;
 
@@ -1477,7 +1478,7 @@ static int isRightText(char *gem_word) {
 	else
 		return((flp_group == TRUE && flp_SpecWords > found) || (found == 0));
 }
-
+/*
 static char isEndTier(char *sp, char *line, int i) {
 	char word[BUFSIZ+1];
 
@@ -1521,7 +1522,7 @@ static int FindBulletTime(char isLastBullet, char *line, int i, float *cBeg, flo
 	}
 	return(i);
 }
-
+*/
 void call()	{		/* tabulate array of word lengths */
 	int  i, j, wi, wsLen, syllCnt, chrCnt, wwrSqI, wwrSqCnt, found;
 	char lRightspeaker;

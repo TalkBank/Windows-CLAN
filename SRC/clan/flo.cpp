@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -35,7 +35,7 @@ extern struct tier *defheadtier;
 extern char GExt[];
 
 static char isFirstTime;
-static char isMorFlo, isRFlo, isMFAFlo, isSpeakerSpecified, isAntConc, isKeepBullets;
+static char isMorFlo, isRFlo, isJFlo, isMFAFlo, isSpeakerSpecified, isAntConc, isKeepBullets;
 static char leave_AT;
 static char substitute_flag;	/* Flo line will be output in */
 								/* addition to original main line */
@@ -46,6 +46,7 @@ void usage() {
 	puts("+a : do not remove @.. suffixes from words (default: change \"word@s\" to \"word\").");
 	puts("+cm: filter main tier as \"mor\" does.");
 	puts("+cr: filter main tier and remove speaker codes and utterance delimiters.");
+	puts("+cj: filter main tier for JSON comparison.");
 	puts("+ca: create output for MFA aligner");
 	puts("+cb: keep bullets in the output");
 	puts("+d:  replaces the main tier with the simplified %flo tier in the output");
@@ -61,6 +62,7 @@ void init(char first) {
 		isFirstTime = TRUE;
 		isMorFlo = FALSE;
 		isRFlo = FALSE;
+		isJFlo = FALSE;
 		isKeepBullets = FALSE;
 		leave_AT = FALSE;
 		isSpeakerSpecified = FALSE;
@@ -87,9 +89,9 @@ void init(char first) {
 			addword('\0','\0',"+xxx");
 			addword('\0','\0',"+yyy");
 			addword('\0','\0',"+www");
-			addword('\0','\0',"+xxx@s*");
-			addword('\0','\0',"+yyy@s*");
-			addword('\0','\0',"+www@s*");
+			addword('\0','\0',"+xxx@*");
+			addword('\0','\0',"+yyy@*");
+			addword('\0','\0',"+www@*");
 			addword('\0','\0',"+-*");
 			addword('\0','\0',"+#*");
 			addword('\0','\0',"+(*.*)");
@@ -103,7 +105,7 @@ void init(char first) {
 				strcpy(GExt, ".txt");
 				AddCEXExtension = "";
 			} else {
-				if (isRFlo || isMFAFlo) {
+				if (isRFlo || isJFlo || isMFAFlo) {
 					if (!isSpeakerSpecified) {
 						fputs("\nPlease specify at least one speaker tier code with \"+t\" option\n", stderr);
 						cutt_exit(0);
@@ -160,6 +162,8 @@ void getflag(char *f, char *f1, int *i) {
 				isKeepBullets = TRUE;
 			else if (*f == 'r' || *f == 'R')
 				isRFlo = TRUE;
+			else if (*f == 'j' || *f == 'J')
+				isJFlo = TRUE;
 			else if (*f == 'a' || *f == 'A') {
 				isMFAFlo = TRUE;
 				addword('s','i',"+&+*");
@@ -260,8 +264,8 @@ static FLO_UTT *add2Utts(FLO_UTT *root_utts) {
 */
 /*
 static void makeflo(char *line, char *flo_line) {
-    register int ui, fi, qi; // indexes into strings
-	register int scope_start, scope_end; // indexes to < and > respectively
+    int ui, fi, qi; // indexes into strings
+	int scope_start, scope_end; // indexes to < and > respectively
 
     ui = 0;
     fi = 0;
@@ -371,7 +375,10 @@ static void filterAtSym(char *line) {
 	i = 0L;
 	while (line[i] != EOS) {
 		if (line[i] == '@') {
-			for (j=i; !uS.isskip(line,j,&dFnt,MBF) && line[j] != '+' && line[j] != '-' && line[j] != EOS; j++) ;
+			if (isJFlo == TRUE)
+				for (j=i; !uS.isskip(line,j,&dFnt,MBF) && line[j] != '+' && line[j] != EOS; j++) ;
+			else
+				for (j=i; !uS.isskip(line,j,&dFnt,MBF) && line[j] != '+' && line[j] != '-' && line[j] != EOS; j++) ;
 			strcpy(line+i, line+j);
 		} else
 			i++;
@@ -437,7 +444,7 @@ static void outputUtts(FLO_UTT *root_utts) {
 					printout(utt->speaker,utt->line,utt->attSp,utt->attLine,FALSE);
 					if (spareTier1[0] != EOS)
 						printout(flo_tier_code,spareTier1,NULL,NULL,TRUE);
-				} else if (isRFlo || isMFAFlo) {
+				} else if (isRFlo || isJFlo || isMFAFlo) {
 					for (i=0; spareTier1[i] != EOS; i++) {
 						if (uS.IsUtteranceDel(spareTier1, i))
 							spareTier1[i] = ' ';
@@ -489,10 +496,12 @@ static void outputUtts(FLO_UTT *root_utts) {
 						removeExtraSpace(utt->tuttline);
 						printout(flo_tier_code,utt->tuttline,NULL,NULL,FALSE); // TRUE
 					}
-				} else if (isRFlo || isMFAFlo) {
+				} else if (isRFlo || isJFlo || isMFAFlo) {
 					if (isRFlo == FALSE) {
 						for (i=0; utt->tuttline[i] != EOS; i++) {
-							if (uS.IsUtteranceDel(utt->tuttline, i))
+							if (uS.IsUtteranceDel(utt->tuttline, i) || utt->tuttline[i] == ',' || utt->tuttline[i] == ';')
+								utt->tuttline[i] = ' ';
+							else if (isJFlo && (utt->tuttline[i] == '\n' || utt->tuttline[i] == '\t'))
 								utt->tuttline[i] = ' ';
 						}
 					}
@@ -500,7 +509,7 @@ static void outputUtts(FLO_UTT *root_utts) {
 					if (isMFAFlo)
 						cleanupAnPercentFlo(utt->tuttline);
 					if (utt->tuttline[0] != EOS) {
-						if (isRFlo == FALSE) {
+						if (isRFlo == FALSE && isJFlo == FALSE) {
 							strcat(utt->tuttline, ".");
 							removeExtraSpace(utt->tuttline);
 							printout(NULL,utt->tuttline,NULL,NULL,FALSE); // TRUE
@@ -508,6 +517,8 @@ static void outputUtts(FLO_UTT *root_utts) {
 							removeExtraSpace(utt->tuttline);
 							printout(NULL,utt->tuttline,NULL,NULL,FALSE); // TRUE
 						}
+					} else if (isJFlo == TRUE) {
+						fprintf(fpout, "\n");
 					}
 				} else if (substitute_flag == 2) {
 					for (i=strlen(utt->speaker)-1; (isSpace(utt->speaker[i]) || utt->speaker[i] == ':') && i >= 0; i--) ;

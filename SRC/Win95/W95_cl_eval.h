@@ -95,7 +95,6 @@ protected:
 	// Generated message map functions
 	//{{AFX_MSG(CClanEval)
 	afx_msg void OnDDB();
-	afx_msg void OnUDB();
 	afx_msg void OnAnomic();
 	afx_msg void OnGlobal();
 	afx_msg void OnControl();

@@ -1,0 +1,7 @@
+﻿cl : command line  warning D9035: option 'Gm' has been deprecated and will be removed in a future release
+  W95_cl_kideval.cpp
+C:\USR\ClanWin\SRC\Win95\W95_cl_kideval.cpp(1753,6): warning C4101: 'i': unreferenced local variable
+  W95_cl_datasets.cpp
+C:\USR\ClanWin\SRC\Win95\W95_cl_datasets.cpp(263,6): warning C4101: 'i': unreferenced local variable
+  Generating Code...
+  Clan2.vcxproj -> C:\USR\ClanWin\Uni_Debug\CLAND.exe

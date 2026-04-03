@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -45,7 +45,7 @@ static void out_of_mem(void) {
 }
 
 void remFrontAndBackBlanks(char *st) {
-	register int i;
+	int i;
 
 	for (i=0; isSpace(st[i]) || st[i] == '\n'; i++) ;
 	if (i > 0)
@@ -129,7 +129,7 @@ static void sp_mod(char *s1, char *s2) {
 }
 
 static int patmat(char *s, const char *pat) {
-	register int j, k;
+	int j, k;
 	int n, m, t, l;
 	char *lf;
 
@@ -377,6 +377,7 @@ char isConllSpecified(void) {
 }
 
 void readConllFile(FNType *dbname) {
+#pragma unused (dbname)
 	char *to;
 	FILE *fp;
 	FNType conllFN[128];
@@ -497,6 +498,7 @@ static void getConllTranslation(char *elem, char *trans, FNType* fn, char *oItem
 }
 
 static void initElem(struct SimpleTier *t, char *elem, char isClitic, FNType* fn, char *line, char *oItem) {
+#pragma unused (line)
 	char trans[BUFSIZ], *s;
 
 	if (t == NULL) {

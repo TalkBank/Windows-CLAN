@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -856,7 +856,7 @@ NotResolved:
 	for ( i=1 ; i<n ; i++ ) {
 		// find for left and right triples when
 		// there is at least two choices.
-		register int a, b, c, x, cx;
+		int a, b, c, x, cx;
 		for ( cx=0, x = 1 ; x < R[i][0]+1 ; x++ )
 			if ( R[i][x] != -1 ) cx++;
 		if (cx<2) continue;
@@ -1073,7 +1073,7 @@ void fisort(double* array_of_double, int* array_of_int, int size_of_array)
 |*/
 void	fisort(double* ob, int* co, int ta)
 {
-  	register int gap,i,j;
+  	int gap,i,j;
 	double	sw_ob ;
 	int	sw_co ;
 
@@ -1102,7 +1102,7 @@ void fksort(double* array_of_double, int* array_of_int, int size_of_array)
 |*/
 void	fksort(double* ob, int* co, int ta)
 {
-  	register int gap,i,j;
+  	int gap,i,j;
 	double	sw_ob ;
 	int	sw_co ;
 
@@ -1132,7 +1132,7 @@ void isort(int* array_of_int, int size_of_array)
 |*/
 void	isort(int* ob, int ta)	// integer array sort.
 {
-  	register int gap,i,j;
+  	int gap,i,j;
   	int sw;
 
 	for (gap=ta/2; gap>0; gap/=2)

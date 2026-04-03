@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -119,9 +119,6 @@ void usage() {
 	puts("+d : do not show file and line number where points are found.");
 	puts("+d1: outputs in SPREADSHEET format");
 	puts("+lF: specify ipsyn rules file name F");
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	puts("+o : use the original rule set with 100 utterances.");
 	puts("-sS: specify [+ ip] or [+ ipe] to ignore those postcodes.");
 	mainusage(TRUE);
@@ -3956,16 +3953,6 @@ void getflag(char *f, char *f1, int *i) {
 			strncpy(ipsyn_lang, f, 253);
 			ipsyn_lang[253] = EOS;
 			break;
-#ifdef UNX
-		case 'L':
-			int  j;
-
-			strcpy(lib_dir, f);
-			j = strlen(lib_dir);
-			if (j > 0 && lib_dir[j-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		case 'o':
 			no_arg_option(f);
 			break;

@@ -55,7 +55,7 @@ static char ControlTp, MCITp, MemoryTp, PossibleADTp, ProbableADTp, VascularTp,
 			MaleOnly, FemaleOnly,
 			CatGm, CookieGm, HometownGm, RockwellGm, CinderellaGm, SandwichGm,
 			Communication, Illness;
-static char AgeRange[256];
+static char AgeRange[256], langSt[8];
 static 	time_t GlobalTime;
 static struct SpeakersListS *spRoot;
 
@@ -75,6 +75,7 @@ void InitEvaldOptions(void) {
 	CinderellaGm = 0;
 	SandwichGm = 0;
 	AgeRange[0] = EOS;
+	strcpy(langSt, "eng");
 }
 
 static struct SpeakersListS *cleanSpeakersList(struct SpeakersListS *p) {
@@ -717,8 +718,14 @@ void CClanEvald::getTierNamesFromFile(char *fname) {
 				isFoundFile = TRUE;
 			}
 		} else if (strncmp(templineC3, "@ID:", 4) == 0) {
+			s = templineC3 + 4;
+			while (isSpace(*s))
+				s++;
+			code = s;
 			s = strchr(templineC3, '|');
 			if (s != NULL) {
+				if (s - code < 7)
+					strncpy(langSt, code, s - code);
 				s++;
 				code = strchr(s, '|');
 				if (code != NULL) {
@@ -1083,7 +1090,9 @@ static void selectEvaldDialog() {
 		}
 
 		strcat(templineC3, " +u");
-	} else {
+		strcat(templineC3, " +l");
+		strcat(templineC3, langSt);
+		} else {
 		templineC3[0] = EOS;
 	}
 	spRoot = cleanSpeakersList(spRoot);

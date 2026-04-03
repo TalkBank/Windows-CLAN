@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -121,7 +121,7 @@ void usage() {			/* print usage and synopsis of options */
 }
 
 void init(char t) {
-	register int i;
+	int i;
 	struct tier *p;
 
 	if (t) {
@@ -309,13 +309,18 @@ static KWALSP *kwal_freeSpeakers(KWALSP *p) {
 
 static void kwal_outputIDInfo(FILE *fp, char *sp, char *fname) {
 	char *s;
+	int  len;
 	KWALSP *ts;
 
 	s = strrchr(fname, PATHDELIMCHR);
 	if (s == NULL)
 		s = fname;
-	else
-		s++;
+	else {
+		len = strlen(wd_dir);
+		if (fname[len] == PATHDELIMCHR)
+			len++;
+		s = fname+len;
+	}
 	excelStrCell(fpout, s);
 	for (ts=kwal_head; ts != NULL; ts=ts->next_sp) {
 		if (uS.partcmp(ts->sp, sp, FALSE, FALSE) && uS.mStricmp(ts->fname, fname) == 0) {			
@@ -489,6 +494,68 @@ static void excelKWALStrCell(FILE *fp, const char *st) {
 	}
 }
 
+static char kwal_isTierLabel(char *line, char isFirstChar) {
+	if (isSpeaker(*line) && (*(line-1) =='\n' || *(line-1) == '\r' || isFirstChar)) {
+		for (; *line != ':' && *line != '\n' && *line != '\r' && *line != EOS; line++) ;
+		if (*line == ':')
+			return(TRUE);
+	}
+	return(FALSE);
+}
+
+static void kwal_remove_main_tier_print(const char *sp, char *line, AttTYPE *att) {
+	char isBulletFound;
+	long i, j;
+
+	i = 0L;
+	j = 0L;
+	isBulletFound = FALSE;
+	if (*sp == '*' && (!kwal_isTierLabel(line+i, TRUE) || line[i] != '%')) {
+		while (!kwal_isTierLabel(line+i, FALSE) && line[i] != EOS)
+			i++;
+	}
+
+	for (; line[i] != EOS; i++) {
+		if (line[i] == '*' && kwal_isTierLabel(line+i, FALSE)) {
+			do {
+				i++;
+			} while (!kwal_isTierLabel(line+i, FALSE) && line[i] != EOS) ;
+			if (line[i] == EOS)
+				break;
+		}
+
+		if ((line[i-1] =='\n' || line[i-1] == '\r') && !kwal_isTierLabel(line+i, FALSE)) {
+			if (line[i] == ' ')
+				line[i] = '\t';
+			else if (!isSpace(line[i])) {
+				templineC4[j] = '\t';
+				if (att != NULL)
+					tempAtt[j] = att[i];
+				else
+					tempAtt[j] = 0;
+				j++;
+			}
+		}
+		if (line[i] == HIDEN_C)
+			isBulletFound = TRUE;
+		templineC4[j] = line[i];
+		if (att != NULL)
+			tempAtt[j] = att[i];
+		else
+			tempAtt[j] = 0;
+		j++;
+	}
+	templineC4[j] = EOS;
+	if (isBulletFound && cMediaFileName[0] != EOS)
+		changeBullet(templineC4, tempAtt);
+	if (onlydata == 5) {
+		remove_CRs_Tabs(templineC4);
+		excelKWALStrCell(fpout, templineC4);
+		excelRow(fpout, ExcelRowEnd);
+	} else
+		printout(NULL,templineC4,NULL,tempAtt,FALSE);
+}
+
 static void PrintUtt(struct utts_list *u, char *keyword) {
 	int  i, j;
 	struct utts_list *t;
@@ -560,7 +627,7 @@ static void PrintUtt(struct utts_list *u, char *keyword) {
 				excelStrCell(fpout, keyword);
 		}
 		if (nomain) {
-			remove_main_tier_print("", u->line, NULL);
+			kwal_remove_main_tier_print("", u->line, NULL);
 		} else if (onlydata == 5) {
 			remove_CRs_Tabs(u->line);
 			excelKWALStrCell(fpout, u->line);
@@ -586,7 +653,7 @@ static void PrintKeywords(struct key *p) {
 }
 
 static void AddToTotalLine(char *s) {
-	register int len;
+	int len;
 	
 	if ((len=strlen(s)) >= kwal_total_line_size) {
 		if (kwal_total_line != NULL) {
@@ -751,7 +818,6 @@ static void pr_idfld(const char *pref, char *wd, long lineno) {
 		s = oldfname;
 	if (isFPrTime) {
 		isFPrTime = FALSE;
-		fprintf(stdout,"<a href=\"http://%s/index.php?url=%s/%s\">From file \"%s\"</a>\n", SRV_NAME, SRV_PATH, s, s);
 	}
 	if (pref[0] == '@')
 		fputs("@Comment:\t----------------------------------------\n", fpout);
@@ -782,8 +848,8 @@ static void pr_idfld(const char *pref, char *wd, long lineno) {
 }
 
 static char excludeutter(char isCheckNomain, char *isKeywordChecked) {
-	register char found;
-	register int i;
+	char found;
+	int i;
 	char otherFound, oldFound;
 
 	if (onlydata && *utterance->speaker == '@') {
@@ -1277,7 +1343,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 				if (utterance->nextutt == utterance || *utterance->speaker != '@' || !CheckOutTier(utterance->speaker))
 					befprintout(onlydata != 1);
 				if (!CheckOutTier(utterance->speaker) && *utterance->speaker == '*' && nomain) {
-					remove_main_tier_print(utterance->speaker, outLine, utterance->attLine);
+					kwal_remove_main_tier_print(utterance->speaker, outLine, utterance->attLine);
 				} else if (chatmode == 0) {
 					if (onlydata == 5)
 						remove_CRs_Tabs(outLine);
@@ -1445,7 +1511,7 @@ if (uttline[strlen(uttline)-1] != '\n') putchar('\n');
 							} else
 								printout(NULL,outLine,NULL,tempAtt,TRUE);
 						} else
-							remove_main_tier_print(utterance->speaker, outLine, utterance->attLine);
+							kwal_remove_main_tier_print(utterance->speaker, outLine, utterance->attLine);
 					} else if (chatmode == 0) {
 						if (onlydata == 5)
 							remove_CRs_Tabs(outLine);
@@ -1567,14 +1633,24 @@ void getflag(char *f, char *f1, int *i) {
 					linkDep2Other = TRUE;
 					break;
 				} else if (*f == '4' && *(f+1) == '0') {
+#if defined(CLAN_SRV)
+					fprintf(stderr,"Invalid argument for option: %s\n", f-2);
+					cutt_exit(0);
+#else
 					isDuplicateTiers = TRUE;
 					isKeywordOneColumn = FALSE;
 					onlydata = 5;
 					combinput = TRUE;
+#endif // !defined(CLAN_SRV)
 					break;
 				} else if (*f == '4') {
+#if defined(CLAN_SRV)
+					fprintf(stderr,"Invalid argument for option: %s\n", f-2);
+					cutt_exit(0);
+#else
 					combinput = TRUE;
 					isKeywordOneColumn = TRUE;
+#endif // !defined(CLAN_SRV)
 				} else if (*f == '9' && *(f+1) == '0') {
 					isExpendX = TRUE;
 					isExpandXForAll = TRUE;

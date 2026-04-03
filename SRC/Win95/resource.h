@@ -78,6 +78,7 @@
 #define IDD_USER_FEEDBACK               218
 #define IDD_CLAN_KIDEVAL_SELECT         219
 #define IDD_CLAN_EVALD_SELECT           220
+#define IDD_CLAN_DATASET                221
 #define IDC_CEDO_CHECKPOINT_E           1000
 #define IDC_BUTTON_PLAY                 1000
 #define IDC_CEDO_CODES_B                1001
@@ -533,6 +534,9 @@
 #define IDC_COMBO2                      1388
 #define IDC_CEDO_COLORLEMMA             1388
 #define IDC_SELECT_ENGU                 1388
+#define IDC_SELECT_SP9                  1389
+#define IDC_SELECT_REFVALS              1389
+#define IDC_LIST_OF_DATASETS            1389
 #define ID_CHOOSE_FONT                  32771
 #define ID_VIEW_SETFONT                 32772
 #define ID_CHOOSE_DEFAULT_FONT          32773
@@ -650,9 +654,9 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_3D_CONTROLS                     1
-#define _APS_NEXT_RESOURCE_VALUE        216
+#define _APS_NEXT_RESOURCE_VALUE        223
 #define _APS_NEXT_COMMAND_VALUE         32893
-#define _APS_NEXT_CONTROL_VALUE         1389
+#define _APS_NEXT_CONTROL_VALUE         1390
 #define _APS_NEXT_SYMED_VALUE           103
 #endif
 #endif

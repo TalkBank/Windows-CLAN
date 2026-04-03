@@ -89,7 +89,7 @@ protected:
 	afx_msg void OnFuncShortcuts();
 	afx_msg void OnFuncsShortcutsFile();
 	afx_msg void OnClanCaChars();
-	afx_msg void OnWebData();
+//	afx_msg void OnWebData();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 public:

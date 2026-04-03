@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -25,10 +25,16 @@
 	#define IS_WIN_MODE FALSE
 	#include "mul.h"
 	
-	void usage() { }
-	void init(char f) { }
-	void getflag(char *f, char *f1, int *i) { }
-	void call( ) { }
+void usage() {
+}
+void init(char f) {
+#pragma unused (f)
+}
+void getflag(char *f, char *f1, int *i) {
+#pragma unused (f, f1, i)
+}
+void call( ) {
+}
 
 #elif defined(UNX) || (!defined(POSTCODE) && !defined(MAC_CODE))
 	#define CLAN_MAIN_RETURN int

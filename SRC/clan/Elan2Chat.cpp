@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -465,6 +465,7 @@ static char insertIntoMatchedRef(ELANCHATTIERS *nt, const char *refID, char *sp,
 	return(FALSE);
 }
 
+/*
 static void Elan_addToTiersID(char *ID, const char *refID, long beg, long end, char *sp, char *line) {
 	int  IDn;
 //	char isPostCodeFound, isJustPause;
@@ -518,6 +519,7 @@ static void Elan_addToTiersID(char *ID, const char *refID, long beg, long end, c
 	}
 	Elan_fillNT(nt, ID, beg, end, NULL, sp, line, TRUE);
 }
+*/
 
 static void Elan_addToTiers(char *ID, const char *refID, long beg, long end, const char *refSp, char *sp, char *line, char isCreateEmpty) {
 	char isRefIDMatch, isPostCodeFound, isJustPause;

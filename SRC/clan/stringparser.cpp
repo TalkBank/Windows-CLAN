@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -67,7 +67,7 @@ unCH AccentVowels_UTF16[29][1] = {
 	{ 0 } // NULL
 } ;
 
-char AccentVowels_UTF8[29][2] = {
+unsigned char AccentVowels_UTF8[29][2] = {
 	{ 0xC3, 0xA9}, // é
 	{ 0xC3, 0xA0}, // à
 	{ 0xC3, 0xA8}, // è
@@ -398,7 +398,7 @@ long cUStr::atol(const unCH *s) {
 }
 
 static char isskip_wchar(unCH chr, unCH *wPunctuation) {
-	register unCH *w;
+	unCH *w;
 
 	if (iswalnum(chr)) return(FALSE);
 	if (iswspace(chr)) return(TRUE);
@@ -409,8 +409,9 @@ static char isskip_wchar(unCH chr, unCH *wPunctuation) {
 }
 
 char cUStr::isskip(const unCH *org, int pos, NewFontInfo *finfo, char MBC) {
-	register unCH chr;
-	register unCH *w;
+#pragma unused (finfo, MBC)
+	unCH chr;
+	unCH *w;
 	unCH wPunctuation[50];
 	const char *c;
 
@@ -441,7 +442,8 @@ char cUStr::isskip(const unCH *org, int pos, NewFontInfo *finfo, char MBC) {
 }
 
 char cUStr::ismorfchar(const unCH *org, int pos, NewFontInfo *finfo, const char *morfsList, char MBC) {
-	register unCH chr, nextChr, prevChr;
+#pragma unused (finfo)
+	unCH chr, nextChr, prevChr;
 	const char *morf;
 
 	if (morfsList == NULL)
@@ -487,7 +489,8 @@ char cUStr::atUFound(const unCH *w, int s, NewFontInfo *finfo, char MBC) {
 	return(FALSE);
 }
 
-char cUStr::isRightChar(const unCH *org, long pos, register char chr, NewFontInfo *finfo, char MBC) {
+char cUStr::isRightChar(const unCH *org, long pos, char chr, NewFontInfo *finfo, char MBC) {
+#pragma unused (finfo)
 	if (MBC) {
 	}
 	if (org[pos] == (unCH)chr)
@@ -499,6 +502,7 @@ char cUStr::isRightChar(const unCH *org, long pos, register char chr, NewFontInf
 #define MyLowerChars(c) ((c) >= (unCH)0xE0 && (c) <= (unCH)0xFD)
 
 char cUStr::isUpperChar(unCH *org, int pos, NewFontInfo *finfo, char MBC) {
+#pragma unused (finfo, MBC)
 	if (MyUpperChars(org[pos]))
 		return(TRUE);
 	else
@@ -575,7 +579,7 @@ char cUStr::isSqCodes(const unCH *word, unCH *tWord, NewFontInfo *finfo, char is
 }
 
 void cUStr::remblanks(unCH *st) {
-	register int i;
+	int i;
 
 	i = cUStr::strlen(st) - 1;
 	while (i >= 0 && (isSpace(st[i]) || st[i] == '\n' || st[i] == '\r'))
@@ -585,7 +589,7 @@ void cUStr::remblanks(unCH *st) {
 }
 
 void cUStr::remFrontAndBackBlanks(unCH *st) {
-	register int i;
+	int i;
 
 	for (i=0; isSpace(st[i]) || st[i] == '\n' || st[i] == '\r'; i++) ;
 	if (i > 0)
@@ -597,7 +601,7 @@ void cUStr::remFrontAndBackBlanks(unCH *st) {
 }
 
 void cUStr::shiftright(unCH *st, int num) {
-	register int i;
+	int i;
 
 	for (i=cUStr::strlen(st); i >= 0; i--)
 		st[i+num] = st[i];
@@ -626,6 +630,7 @@ void cUStr::extractString(unCH *out, const unCH *line, const char *type, unCH en
 }
 
 int cUStr::isToneUnitMarker(unCH *word) {
+#pragma unused (word)
 /*
 	if (!cUStr::strcmp(word, "-?")  || !cUStr::strcmp(word, "-!")  || !cUStr::strcmp(word, "-.") || 
 		!cUStr::strcmp(word, "-'.") || !cUStr::strcmp(word, "-,.") || !cUStr::strcmp(word, "-,") || 
@@ -695,6 +700,7 @@ int cUStr::isPause(const unCH *st, int posO, int *beg, int *end) {
 }
 
 long cUStr::lowercasestr(unCH *str, NewFontInfo *finfo, char MBC) {
+#pragma unused (finfo, MBC)
 	long count;
 
 	count = 0L;
@@ -708,6 +714,7 @@ long cUStr::lowercasestr(unCH *str, NewFontInfo *finfo, char MBC) {
 }
 
 long cUStr::uppercasestr(unCH *str, NewFontInfo *finfo, char MBC) {
+#pragma unused (finfo, MBC)
 	long count;
 
 	count = 0L;
@@ -980,7 +987,7 @@ int cUStr::HandleCAChars(unCH *w, int *matchedType) { // CA CHARS
 		if (matchedType != NULL)
 			*matchedType = NOTCA_LEFT_ARROW_CIRCLE;
 		return(1);
-	} else if (*w == 0x02D0) { // left arrow with circle ː - NOT CA
+	} else if (*w == 0x02D0) { // length on the %pho line ː - NOT CA
 		if (matchedType != NULL)
 			*matchedType = NOTCA_VOWELS_COLON;
 		return(1);
@@ -1069,7 +1076,7 @@ int cUStr::partwcmp(const unCH *st1, const char *st2) { // st1- full, st2- part
    is 1 if there is a match, and 0 otherwise.
 */
 char cUStr::fpatmat(const unCH *s, const unCH *pat) {
-	register int j, k;
+	int j, k;
 	int n, m;
 
 	if (s[0] == EOS)
@@ -1106,7 +1113,7 @@ f0:
 		return(0);
 }
 char cUStr::fpatmat(const unCH *s, const char *pat) {
-	register int j, k;
+	int j, k;
 	int n, m;
 
 	if (s[0] == EOS)
@@ -1148,7 +1155,7 @@ f0:
  is 1 if there is a match, and 0 otherwise.
  */
 char cUStr::fIpatmat(const unCH *s, const unCH *pat) {
-	register int j, k;
+	int j, k;
 	int n, m;
 
 	if (s[0] == EOS)
@@ -1185,7 +1192,7 @@ f0:
 		return(0);
 }
 char cUStr::fIpatmat(const unCH *s, const char *pat) {
-	register int j, k;
+	int j, k;
 	int n, m;
 
 	if (s[0] == EOS)
@@ -1230,7 +1237,7 @@ f0:
    is 1 if there is a match, and 0 otherwise.
 */
 int cUStr::patmat(unCH *s, const unCH *pat) {
-	register int j, k;
+	int j, k;
 	int n, m, t, l;
 	unCH *lf;
 
@@ -1479,7 +1486,7 @@ char cUStr::isVowel(const unCH *st) {
 		return(TRUE);
 
 	for (i=0; AccentVowels_UTF16[i][0] != 0; i++) {
-		if (uS.mStrnicmp(st, AccentVowels_UTF16[i], 1) == 0)
+		if (st[0] == AccentVowels_UTF16[i][0])
 			return(TRUE);
 	}
 	return(FALSE);
@@ -1736,8 +1743,8 @@ static char isskip_char(const char chr, const char *TempPunctPtr) {
 }
 
 char cUStr::isskip(const char *org, int pos, NewFontInfo *finfo, char MBC) {
-	register char chr;
-	register const char *TempPunctPtr;
+	char chr;
+	const char *TempPunctPtr;
 
 	if (MBC) {
 		if (my_CharacterByteType(org, (short)pos, finfo) != 0)
@@ -1762,7 +1769,7 @@ char cUStr::isskip(const char *org, int pos, NewFontInfo *finfo, char MBC) {
 }
 
 char cUStr::ismorfchar(const char *org, int pos, NewFontInfo *finfo, const char *morfsList, char MBC) {
-	register char chr, nextChr, prevChr;
+	char chr, nextChr, prevChr;
 	const char *morf;
 
 	if (morfsList == NULL)
@@ -1807,7 +1814,7 @@ char cUStr::atUFound(const char *w, int s, NewFontInfo *finfo, char MBC) {
 	return(FALSE);
 }
 
-char cUStr::isRightChar(const char *org, long pos, register char chr, NewFontInfo *finfo, char MBC) {
+char cUStr::isRightChar(const char *org, long pos, char chr, NewFontInfo *finfo, char MBC) {
 	if (MBC) {
 		if (my_CharacterByteType(org, (short)pos, finfo) != 0)
 			return(FALSE);
@@ -1934,7 +1941,7 @@ void removeExtraSpace(char *st) {
 }
 
 void cUStr::remblanks(char *st) {
-	register int i;
+	int i;
 
 	i = cUStr::strlen(st) - 1;
 	while (i >= 0 && (isSpace(st[i]) || st[i] == '\n' || st[i] == '\r'))
@@ -1944,7 +1951,7 @@ void cUStr::remblanks(char *st) {
 }
 
 void cUStr::remFrontAndBackBlanks(char *st) {
-	register int i;
+	int i;
 
 	for (i=0; isSpace(st[i]) || st[i] == '\n' || st[i] == '\r'; i++) ;
 	if (i > 0)
@@ -1956,7 +1963,7 @@ void cUStr::remFrontAndBackBlanks(char *st) {
 }
 
 void cUStr::shiftright(char *st, int num) {
-	register int i;
+	int i;
 
 	for (i=cUStr::strlen(st); i >= 0; i--)
 		st[i+num] = st[i];
@@ -1985,6 +1992,7 @@ void cUStr::extractString(char *out, const char *line, const char *type, char en
 }
 
 int cUStr::isToneUnitMarker(char *word) {
+#pragma unused (word)
 /*
 	if (!::strcmp(word, "-?")  || !::strcmp(word, "-!")  || !::strcmp(word, "-.") || 
 		!::strcmp(word, "-'.") || !::strcmp(word, "-,.") || !::strcmp(word, "-,") || 
@@ -2076,7 +2084,7 @@ long cUStr::lowercasestr(char *str, NewFontInfo *finfo, char MBC) {
 
 	count = 0L;
 	if (MBC) {
-		register int pos;
+		int pos;
 
 		for (pos=0; str[pos] != EOS; pos++) {
 			if (my_CharacterByteType(str, (short)pos, finfo) == 0) {
@@ -2102,7 +2110,7 @@ long cUStr::uppercasestr(char *str, NewFontInfo *finfo, char MBC) {
 
 	count = 0L;
 	if (MBC) {
-		register int pos;
+		int pos;
 
 		for (pos=0; str[pos] != EOS; pos++) {
 			if (my_CharacterByteType(str, (short)pos, finfo) == 0) {
@@ -2472,7 +2480,7 @@ int cUStr::partwcmp(const char *st1, const char *st2) { // st1- full, st2- part
 }
 
 char cUStr::fpatmat(const char *s, const char *pat) {
-	register int j, k;
+	int j, k;
 	int n, m;
 
 	if (s[0] == EOS)
@@ -2510,7 +2518,7 @@ f0:
 }
 
 char cUStr::fIpatmat(const char *s, const char *pat) {
-	register int j, k;
+	int j, k;
 	int n, m;
 
 	if (s[0] == EOS)
@@ -2548,7 +2556,7 @@ f0:
 }
 
 int cUStr::patmat(char *s, const char *pat) {
-	register int j, k;
+	int j, k;
 	int n, m, t, l;
 	char *lf;
 
@@ -2798,7 +2806,7 @@ char cUStr::isVowel(const char *st) {
 		return(TRUE);
 
 	for (i=0; AccentVowels_UTF8[i][0] != 0; i++) {
-		if (uS.mStrnicmp(st, AccentVowels_UTF8[i], 2) == 0)
+		if ((unsigned char)st[0] == AccentVowels_UTF8[i][0] && (unsigned char)st[1] == AccentVowels_UTF8[i][1])
 			return(TRUE);
 	}
 	return(FALSE);

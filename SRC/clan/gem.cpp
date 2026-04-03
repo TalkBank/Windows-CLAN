@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -31,6 +31,7 @@ static char gem_Hash[HASHMAX];
 static char BBS[10], CBS[10];
 static char allGemsFound;
 static char a_option;
+static char isExtSpecified;
 static char gem_n_option;
 static char group;
 static char gem_ftime;
@@ -60,6 +61,7 @@ void init(char first) {
 		gem_isTimestamp = FALSE;
     	a_option = FALSE;
 		gem_n_option = FALSE;
+		isExtSpecified = FALSE;
 		addword('\0','\0',"+xxx");
 		addword('\0','\0',"+yyy");
 	    addword('\0','\0',"+www");
@@ -90,7 +92,7 @@ void init(char first) {
 			maketierchoice(BBS,'+',FALSE);
 			if (!gem_n_option)
 				maketierchoice(CBS,'+',FALSE);
-			if (onlydata == 2) {
+			if (onlydata == 2 && isExtSpecified == FALSE) {
 				maketierchoice("@ID:",'+',FALSE);
 				maketierchoice(MEDIAHEADER,'+',FALSE);
 				if (wdptr != NULL && strlen(wdptr->word) < 505) {
@@ -145,6 +147,9 @@ void getflag(char *f, char *f1, int *i) {
 			strcpy(CBS, "@*&#");
 			no_arg_option(f);
 			break;
+		case 'f':
+			if (f[0] != EOS)
+				isExtSpecified = TRUE;
 		default:
 			maingetflag(f-2,f1,i);
 			break;
@@ -197,7 +202,7 @@ static long getBulletBeg(char *line) {
 }
 
 void call() {
-	register int i;
+	int i;
 	char *code;
 	char isOutputGem, isGemsFound, isRightTextGem;
 	int  found = 0, postRes;

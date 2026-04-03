@@ -9,7 +9,7 @@
 #include "CedDlgs.h"
 #include "W95_commands.h"
 #include "W95_SpCharsDialog.h"
-#include "W95_WebData.h"
+//#include "W95_WebData.h"
 //#include "insertDlg.h"
 #include "mmedia.h"
 #include "Clan2.h"
@@ -95,7 +95,7 @@ BEGIN_MESSAGE_MAP(CClan2App, CWinApp)
 	ON_COMMAND(ID_FUNC_SHORTCUTS, OnFuncShortcuts)
 	ON_COMMAND(ID_FUNCS_SHORTCUTS_FILE, OnFuncsShortcutsFile)
 	ON_COMMAND(ID_CLAN_CA_CHARS, OnClanCaChars)
-	ON_COMMAND(ID_WEB_DATA, OnWebData)
+//	ON_COMMAND(ID_WEB_DATA, OnWebData)
 	//}}AFX_MSG_MAP
 	// Standard file based document commands
 //	ON_COMMAND(ID_FILE_NEW, CWinApp::OnFileNew)
@@ -135,7 +135,7 @@ BOOL CClan2App::InitInstance()
 	extern char *nameOverride, *pathOverride, *lineNumFname,
 		*clanBuf, clanRun, quickTranscribe, isSpOverride;
 	extern long rowLimitOverride, lineNumOverride;
-	extern unCH *getWebMedia;
+//	extern unCH *getWebMedia;
 	int  PPI;
 	float tf;
 	HDC   hDC;
@@ -203,7 +203,7 @@ BOOL CClan2App::InitInstance()
 	pathOverride = NULL;
 	lineNumFname = NULL;
 	isSpOverride = FALSE;
-	getWebMedia = NULL;
+//	getWebMedia = NULL;
 	clanBuf = NULL;
 	clanRun = FALSE;
 	quickTranscribe = FALSE;
@@ -626,7 +626,7 @@ void CClan2App::OnClanCaChars()
 	}	
 }
 
-
+/*
 void CClan2App::OnWebData() 
 {
 	if (webDataDlg == NULL) {
@@ -634,7 +634,7 @@ void CClan2App::OnWebData()
 //		webDataDlg = new CWebData(AfxGetApp()->m_pMainWnd);
 	}	
 }
-
+*/
 /*
 void CClan2App::OnInsertDialog() 
 {
@@ -735,10 +735,11 @@ static void checkForUpdate(void) {
 	FILE *fp;
 	time_t		timer;
 	CUpdateCLAN dlgUpdate;
+	HRESULT	hResult;
 	extern int WebCLANVersion;
 	extern time_t versionTime;
 	extern FNType prefsDir[];
-	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
+//	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
 
 	time(&timer);
 	if (versionTime > timer)
@@ -752,7 +753,9 @@ static void checkForUpdate(void) {
 	strcpy(fname, prefsDir);
 	strcat(fname, "CLAN_VERSION.txt");
 	u_strcpy(templine, fname, UTTLINELEN);
-	if (curlURLDownloadToFile(URLPath, templine, 0L) == true) {
+	hResult = URLDownloadToFile(NULL, URLPath, templine, 0, NULL);
+	if (hResult == S_OK) {
+//	if (curlURLDownloadToFile(URLPath, templine, 0L) == true) {
 		fp = fopen(fname, "r");
 		if (fp == NULL) {
 			WriteCedPreference();
@@ -784,7 +787,9 @@ static void checkForUpdate(void) {
 					strcpy(fname, prefsDir);
 					strcat(fname, "clanwin.exe");
 					u_strcpy(templine, fname, UTTLINELEN);
-					if (curlURLDownloadToFile(URLPath, templine, 2400000L /* 3072000L*/) == true) {
+					hResult = URLDownloadToFile(NULL, URLPath, templine, 0, NULL);
+					if (hResult == S_OK) {
+//					if (curlURLDownloadToFile(URLPath, templine, 2400000L /* 3072000L*/) == true) {
 //						_wsystem(templine);
 						_wexecl(templine, templine, NULL);
 						exit(0);

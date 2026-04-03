@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -115,6 +115,7 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 }
 
 void getflag(char *f, char *f1, int *i) {
+#pragma unused (f1, i)
 	f++;
 	switch(*f++) {
 		case 'd':
@@ -527,7 +528,7 @@ static void pc_printTiers(LINESLIST *p, long spBt, long spEt) {
 }
 
 static int pm(int n, char *s) {
-	register int i;
+	int i;
 	extern const char *MonthNames[];
 
 	if (n == 0) {
@@ -608,6 +609,7 @@ static void play2chat_comage(int b[], int d[], char *str) {
 }
 
 static void output_ID(char *ID, long IDln, char *dataFname) {
+#pragma unused (dataFname)
 	int  i, j;
 	int a[3], b[3], d[3], age;
 	char *name, *fname, *dateS, *BDayS, *ageS, *genderS;

@@ -1,6 +1,7 @@
 #include "ced.h"
 #include "cu.h"
 #include "CedDlgs.h"
+#include "w95_cl_datasets.h"
 #include "w95_commands.h"
 #include "w95_cl_kideval.h"
 
@@ -55,7 +56,7 @@ extern char URL_passwd[];
 
 static BOOL DBEngToyplayTp, DBEngNarrativeTp, DBEngUToyplayTp, DBEngUNarrativeTp, DBZhoToyplayTp, DBZhoNarrativeTp, DBNldToyplayTp,
 	DBFraToyplayTp, DBFraNarrativeTp, DBJpnToyplayTp, DBSpaToyplayTp, DBSpaNarrativeTp;
-static BOOL LinkAgeTp, CmpDBTp, NotCmpDBTp;
+static BOOL LinkAgeTp, RefvalsTp, CmpDBTp, NotCmpDBTp;
 static BOOL IndyAgeTp, OneHTp, TwoTp, TwoHTp, ThreeTp, ThreeHTp, FourTp, FourHTp, FiveTp, FiveHTp, MaleOnly, FemaleOnly, BothGen;
 static 	time_t GlobalTime;
 char spCode[TOTAL_SP_NUMBER][CODESTRLEN + 1];
@@ -77,6 +78,7 @@ void InitKidevalOptions(void) {
 	CmpDBTp = FALSE;
 	NotCmpDBTp = FALSE;
 	IndyAgeTp = FALSE;
+	RefvalsTp = FALSE;
 	OneHTp = FALSE;
 	TwoTp = FALSE;
 	TwoHTp = FALSE;
@@ -157,6 +159,8 @@ void CClanKideval::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_SELECT_SP7, m_SP[6]);
 	DDX_Control(pDX, IDC_SELECT_SP8, m_SP_CTRL[7]);
 	DDX_Check(pDX, IDC_SELECT_SP8, m_SP[7]);
+	DDX_Control(pDX, IDC_SELECT_REFVALS, m_Refvals_CTRL);
+	DDX_Check(pDX, IDC_SELECT_REFVALS, m_Refvals);
 
 	DDX_Control(pDX, IDC_SELECT_ENG, m_ENG_CTRL);
 	DDX_Check(pDX, IDC_SELECT_ENG, m_ENG);
@@ -253,6 +257,7 @@ BEGIN_MESSAGE_MAP(CClanKideval, CDialog)
 	ON_BN_CLICKED(IDC_SELECT_SP6, OnSelectSP6)
 	ON_BN_CLICKED(IDC_SELECT_SP7, OnSelectSP7)
 	ON_BN_CLICKED(IDC_SELECT_SP8, OnSelectSP8)
+	ON_BN_CLICKED(IDC_SELECT_REFVALS, OnSelectRefvals)
 
 	ON_BN_CLICKED(IDC_SELECT_ENG, OnSelectENG)
 	ON_BN_CLICKED(IDC_SELECT_ENGU, OnSelectENGU)
@@ -364,6 +369,7 @@ void CClanKideval::ResizeOptionsWindow() {
 			m_FourH_CTRL.ShowWindow(SW_SHOW);
 			m_Five_CTRL.ShowWindow(SW_SHOW);
 			m_FiveH_CTRL.ShowWindow(SW_SHOW);
+			m_Refvals_CTRL.ShowWindow(SW_HIDE);
 		} else {
 			m_AgeCTRL.ShowWindow(SW_HIDE);
 			m_OneH_CTRL.ShowWindow(SW_HIDE);
@@ -375,6 +381,7 @@ void CClanKideval::ResizeOptionsWindow() {
 			m_FourH_CTRL.ShowWindow(SW_HIDE);
 			m_Five_CTRL.ShowWindow(SW_HIDE);
 			m_FiveH_CTRL.ShowWindow(SW_HIDE);
+			m_Refvals_CTRL.ShowWindow(SW_SHOW);
 		}
 
 		m_MALE_CTRL.ShowWindow(SW_SHOW);
@@ -590,7 +597,7 @@ void CClanKideval::ResizeOptionsWindow() {
 		pw->MoveWindow(&client, TRUE);
 		wHeight = wHeight + (delta.bottom - delta.top) + 10;
 
-		wLeft = 8;
+		wLeft = 18;
 		pw = GetDlgItem(IDC_SELECT_INDY_AGE);
 		pw->GetWindowRect(&delta);
 		client.top = wHeight;
@@ -598,7 +605,7 @@ void CClanKideval::ResizeOptionsWindow() {
 		client.left = wLeft;
 		client.right = client.left + (delta.right - delta.left);
 		pw->MoveWindow(&client, TRUE);
-		wHeight = wHeight + (delta.bottom - delta.top) + 12;
+		wHeight = wHeight + (delta.bottom - delta.top) + 10;
 
 		if (m_IndyAge) {
 			wLeft = 35;
@@ -696,6 +703,21 @@ void CClanKideval::ResizeOptionsWindow() {
 			wHeight = wHeight + (delta.bottom - delta.top) + 10;
 		}
 
+		if (m_IndyAge) {
+			wHeight = wHeight + 2;
+		} else {
+			wHeight = wHeight + 3;
+			wLeft = 8;
+			pw = GetDlgItem(IDC_SELECT_REFVALS);
+			pw->GetWindowRect(&delta);
+			client.top = wHeight;
+			client.bottom = wHeight + (delta.bottom - delta.top);
+			client.left = wLeft;
+			client.right = client.left + (delta.right - delta.left);
+			pw->MoveWindow(&client, TRUE);
+			wHeight = wHeight + (delta.bottom - delta.top) + 12;
+		}
+
 		wLeft = 50;
 		pw = GetDlgItem(IDOK);
 		pw->GetWindowRect(&delta);
@@ -778,6 +800,8 @@ void CClanKideval::ResizeOptionsWindow() {
 		m_DBJpnToyplay_CTRL.ShowWindow(SW_HIDE);
 		m_DBSpaToyplay_CTRL.ShowWindow(SW_HIDE);
 		m_DBSpaNarrative_CTRL.ShowWindow(SW_HIDE);
+
+		m_Refvals_CTRL.ShowWindow(SW_SHOW);
 
 		m_OK_CTRL.ShowWindow(SW_SHOW);
 
@@ -937,7 +961,9 @@ void CClanKideval::ResizeOptionsWindow() {
 		wLeft = 20;
 		pw = GetDlgItem(IDC_STAT_LANG);
 		pw->GetWindowRect(&delta);
-		wLeft = wLeft + (delta.right - delta.left) + 10;
+		client.left = wLeft;
+		client.right = client.left + (delta.right - delta.left);
+		wLeft = wLeft + (client.right - client.left) + 10;
 
 		pw = GetDlgItem(IDC_SELECT_JPN);
 		pw->GetWindowRect(&delta);
@@ -964,7 +990,19 @@ void CClanKideval::ResizeOptionsWindow() {
 		client.left = wLeft;
 		client.right = client.left + (delta.right - delta.left);
 		pw->MoveWindow(&client, TRUE);
-		wHeight = wHeight + (delta.bottom - delta.top) + 7;
+		wHeight = wHeight + (delta.bottom - delta.top) + 10;
+
+
+		wLeft = 20;
+		pw = GetDlgItem(IDC_SELECT_REFVALS);
+		pw->GetWindowRect(&delta);
+		client.top = wHeight;
+		client.bottom = wHeight + (delta.bottom - delta.top);
+		client.left = wLeft;
+		client.right = client.left + (delta.right - delta.left);
+		pw->MoveWindow(&client, TRUE);
+		wHeight = wHeight + (delta.bottom - delta.top) + 12;
+
 
 /*
 // show gender in "no database"
@@ -1710,6 +1748,24 @@ void CClanKideval::OnSelectZHO() {
 	UpdateData(false);
 }
 
+void CClanKideval::OnSelectRefvals()
+{
+	int i;
+
+	CClanDataset dlg;
+
+	UpdateData(TRUE);
+
+	m_Refvals = !m_Refvals;
+	if (m_Refvals) {
+		strcpy(dlg.datasetArg, "4;"); // m_AgeAuto;
+		if (dlg.DoModal() == IDOK) {
+		}
+	}
+	UpdateData(false);
+}
+
+
 void CClanKideval::OnOKClicked() {
 	UpdateData(TRUE);
 //	if (saveIDFields())
@@ -1969,6 +2025,9 @@ static void selectKidevalDialog(void) {
 	dlg.m_DBSpaToyplay = DBSpaToyplayTp;
 	dlg.m_DBSpaNarrative = DBSpaNarrativeTp;
 
+	dlg.m_Refvals = RefvalsTp; // IndyAgeTp;
+
+
 repeat:
 	if (dlg.DoModal() == IDOK) {
 		CmpDBTp = dlg.m_CmpDB;
@@ -1999,6 +2058,7 @@ repeat:
 		DBJpnToyplayTp = dlg.m_DBJpnToyplay;
 		DBSpaToyplayTp = dlg.m_DBSpaToyplay;
 		DBSpaNarrativeTp = dlg.m_DBSpaNarrative;
+		RefvalsTp = dlg.m_Refvals;
 
 		if (MaleOnly)
 			genSt = "male";
@@ -2209,3 +2269,4 @@ void KidevalDialog(unCH *str) {
 	} else
 		str[0] = EOS;
 }
+

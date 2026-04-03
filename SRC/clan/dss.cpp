@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -31,7 +31,7 @@
 
 #define POINTS_NAME_TAG "#Points:"
 #define POINTS_FORM "%-3s|"
-#define POINTS_S 40
+#define POINTS_S 60 // 40
 #define POINTNAME_LEN 20
 #define RULE  struct rule_s
 #define RULES struct rulte_s
@@ -104,14 +104,13 @@ void usage() {
 	printf("Usage: dss [a cN dN lS %s] filename(s)\n",mainflgs());
 	printf("+aN: debug dss rules level N (1-3).\n");
 	printf("+cN: analyse N complete unique utterances. (default: 50 utterances)\n");
+#if !defined(CLAN_SRV)
 	printf("+d : outputs in SPREADSHEET format\n");
 	printf("+d1: outputs in SPREADSHEET format one TOTAL line per file\n");
+#endif // !defined(CLAN_SRV)
 //	printf("+i : interactively generates dss table\n");
 	printf("+lF: specify language script file name F\n");
 	puts("     choices:  eng - English MOR, engu - English UD, bss - English MOR, jpn - Japanese");
-#ifdef UNX
-	printf("+LF: specify full path F of the lib folder\n");
-#endif
 	mainusage(TRUE);
 }
 #endif // KIDEVAL_LIB
@@ -253,20 +252,21 @@ static DSS_MACH *dss_mkmac() {
 }
 
 static void dss_display(const char *sp, char *inst, FILE  *fp) {
-	register int i, k, j = 0;
+	int i, k, j = 0;
 	char arr[256], f = 0, ft = 1;
 
 	if (*sp)
 		fputs(sp,fp);
-	for (i=0; inst[i]; i++) {
+	for (i=0; inst[i] != EOS; i++) {
 		if (inst[i] != '\n') {
 			if (dss_mat[i]) {
 				arr[j] = (char)((int)dss_mat[i] + (int)'0');
 				dss_mat[i] = 0;
 				f = 1;
-			} else 
-			if (inst[i] == '\t') arr[j] = '\t';
-			else arr[j] = ' ';
+			} else if (inst[i] == '\t')
+				arr[j] = '\t';
+			else
+				arr[j] = ' ';
 			if (j < 255) j++;
 			putc(inst[i],fp);
 		} else {
@@ -279,7 +279,7 @@ static void dss_display(const char *sp, char *inst, FILE  *fp) {
 			}
 			if (f) {
 				if (ft) {
-					for (k=0; sp[k]; k++) {
+					for (k=0; sp[k] != EOS; k++) {
 						if (sp[k] == '\t')
 							putc('\t',fp);
 						else
@@ -287,7 +287,10 @@ static void dss_display(const char *sp, char *inst, FILE  *fp) {
 					}
 				}
 				if (j < 255) {
-					for (k=0; k < j; k++) { putc(arr[k],fp); arr[k] = ' '; }
+					for (k=0; k < j; k++) {
+						putc(arr[k],fp);
+						arr[k] = ' ';
+					}
 					putc('\n',fp);
 				}
 			}
@@ -304,35 +307,39 @@ static void dss_err(const char *s, char *st) {
 	temp = (int )(st-dss_expression);
 	dss_mat[temp] = 1;
 	dss_display("",dss_expression,stderr);
-	for (temp=0; s[temp]; temp++)
+	for (temp=0; s[temp] != EOS; temp++)
 		putc(s[temp], stderr);
 	fprintf(stderr,"\n");
 	dss_mferr = 1;
 }
 
 static int dss_storepat(DSS_MACH *tt, char *ln, int pos) {
-	register int s1, s2;
+	int s1, s2;
 	char t;
 
 	s1 = pos;
 	do {
 		for (;  !uS.isRightChar(ln, pos, '(', &dFnt, C_MBF) && !uS.isRightChar(ln, pos, '!', &dFnt, C_MBF) && 
 						!uS.isRightChar(ln, pos, '+', &dFnt, C_MBF) && !uS.isRightChar(ln, pos, ')', &dFnt, C_MBF) &&
-						!uS.isRightChar(ln, pos, '^', &dFnt, C_MBF) && !uS.isRightChar(ln, pos, '\n', &dFnt, C_MBF); pos++) ;
-		if (pos-1 < s1 || !uS.isRightChar(ln, pos-1, '\\', &dFnt, C_MBF)) break;
+						!uS.isRightChar(ln, pos, '^', &dFnt, C_MBF) && !uS.isRightChar(ln, pos, '\n', &dFnt, C_MBF) &&
+			 			ln[pos] != EOS; pos++) ;
+		if (pos-1 < s1 || !uS.isRightChar(ln, pos-1, '\\', &dFnt, C_MBF))
+			break;
 		else if (ln[pos] == '\n' || ln[pos] == EOS) {
 			if (uS.isRightChar(ln, pos-1, '\\', &dFnt, C_MBF))
 				dss_err("Unexpected ending.",ln+pos);
 			break;
-		} else pos++;
+		} else
+			pos++;
 	} while (1) ;
 	if (uS.isRightChar(ln,pos,'!',&dFnt,C_MBF) || uS.isRightChar(ln,pos,'(',&dFnt,C_MBF))
 		dss_err("Illegal element found.",ln+pos);
 	s2 = pos;
-	for (; s1 != s2 && uS.isskip(ln,s1,&dFnt,C_MBF) && !uS.isRightChar(ln,s1,'[',&dFnt,C_MBF) && !uS.isRightChar(ln,s1,']',&dFnt,C_MBF); s1++) ;
+	for (; s1 != s2 && uS.isskip(ln,s1,&dFnt,C_MBF) && !uS.isRightChar(ln,s1,'[',&dFnt,C_MBF) && !uS.isRightChar(ln,s1,']',&dFnt,C_MBF) &&
+		 ln[s1] != EOS; s1++) ;
 	if (s1 != s2) {
 		for (s2--; s2 >= s1 && uS.isskip(ln,s2,&dFnt,C_MBF) && 
-			!uS.isRightChar(ln, s2, '[', &dFnt, C_MBF) && !uS.isRightChar(ln, 2, ']', &dFnt, C_MBF); s2--) ;
+			!uS.isRightChar(ln, s2, '[', &dFnt, C_MBF) && !uS.isRightChar(ln, s2, ']', &dFnt, C_MBF); s2--) ;
 		s2++;
 	}
 	if (uS.isRightChar(ln,s2-1,'*',&dFnt,C_MBF) && (!uS.isRightChar(ln,s2-2,'\\',&dFnt,C_MBF) || uS.isRightChar(ln,s2-3,'\\',&dFnt,C_MBF))) {
@@ -345,7 +352,8 @@ static int dss_storepat(DSS_MACH *tt, char *ln, int pos) {
 		if (s1 == s2) {
 			s2 = s1;
 			tt->wild = 1;
-		} else s2++;
+		} else
+			s2++;
 		t = ln[s2];
 		ln[s2] = EOS;
 		tt->pat = (char *)malloc(strlen(ln+s1)+1);
@@ -373,6 +381,7 @@ static int dss_storepat(DSS_MACH *tt, char *ln, int pos) {
 }
 
 static void promote_wild(DSS_MACH *tm, char wild) {
+#pragma unused (wild)
 	DSS_NMN *ts;
 
 	ts = tm->nextmac;
@@ -388,6 +397,7 @@ static void promote_wild(DSS_MACH *tm, char wild) {
 }
 
 static void dss_debug(DSS_MACH *tm, char wild) {
+#pragma unused (wild)
 	DSS_NMN *ts;
 
 	if (tm->nextmac->tmac != NULL) putc('(',debug_dss_fp);
@@ -465,7 +475,8 @@ static int dss_makemach(char *exp, int pos, DSS_NMN *mac, char mneg) {
 			else if (!uS.isRightChar(exp, pos, '(', &dFnt, C_MBF)) {
 				pos = dss_storepat(tt,exp,pos);
 				tt->neg = 1;
-			} else if (!mneg) lneg = 1;
+			} else if (!mneg)
+				lneg = 1;
 		} else if (uS.isRightChar(exp, pos, '+', &dFnt, C_MBF)) { /* or */
 			lmac->nextmn = dss_mknextmac();
 			lmac = lmac->nextmn;
@@ -513,7 +524,7 @@ static char *dss_setmat(char *txt, int *last, char pat) {
 }	
 
 static int dss_subindex(char *s, char *pat, int i, char end) {
-	register int j, k, n, m;
+	int j, k, n, m;
 	
 	dss_firstmatch = i;
 	for (j = i, k = 0; pat[k]; j++, k++) {
@@ -524,7 +535,12 @@ static int dss_subindex(char *s, char *pat, int i, char end) {
 		forward:
 			while (s[j] != end && s[j] != pat[k]) j++;
 			if (dss_firstmatch == -1) dss_firstmatch = j;
-			if (s[j] == end) { if (!pat[k]) return(j); else return(-1); }
+			if (s[j] == end) {
+				if (!pat[k])
+					return(j);
+				else
+					return(-1);
+			}
 			for (m=j+1, n=k+1; s[m] != end && pat[n]; m++, n++) {
 				if (pat[n]=='*' || pat[n]=='_' || pat[n]=='\\') break;
 				else if (s[m] == '\001') n--;
@@ -547,17 +563,18 @@ static int dss_subindex(char *s, char *pat, int i, char end) {
 	if (pat[k] == EOS) {
 		if (s[j] == end) return(j);
 		else return(-1);
-	} else return(-1);
+	} else
+		return(-1);
 }
 
 /* return index of pat in s, -1 if no match */
 static int dss_CMatch(char *b, char *s, char *pat, char wild) {
-	register int i;
-	register int j;
-	register int e;
+	int i;
+	int j;
+	int e;
 	char t;
 	
-	if (*pat == EOS) {
+	if (*pat == EOS || *s == EOS) {
 		dss_firstmatch = 0;
 		return(0);
 	}
@@ -574,16 +591,28 @@ static int dss_CMatch(char *b, char *s, char *pat, char wild) {
 			while (s[i] == ' ') i++;
 			e = i;
 			do {
-				for (i=e; s[e] != ' ' && s[e] != '^'; e++) ;
-				if (s[e] == '^') { s[e] = ' '; t = '^'; } else t = ' ';
+				for (i=e; s[e] != ' ' && s[e] != '^' && s[e] != EOS; e++) ;
+				if (s[e] == '^') {
+					s[e] = ' ';
+					t = '^';
+				} else
+					t = ' ';
 				/* printf("s+i=%s;\n", s+i); */
 				if ((j=dss_subindex(s, pat, i, ' ')) != -1) {
-					s[e] = t;
-					if (t != ' ') for (; s[j] != ' '; j++) ;
-					while(s[j] == ' ') j++;
+					if (s[e] != EOS)
+						s[e] = t;
+					if (t != ' ') {
+						for (; s[j] != ' ' && s[j] != EOS; j++) ;
+					}
+					while(s[j] == ' ')
+						j++;
 					return(j);
-				} else s[e] = t;
-				if (t == ' ') break; else e++;
+				} else if (s[e] != EOS)
+					s[e] = t;
+				if (t == ' ')
+					break;
+				else if (s[e] != EOS)
+					e++;
 			} while (1) ;
 			while (s[i] != ' ' && s[i] != 0) i++;
 			while (s[i] == ' ') i++;
@@ -591,17 +620,28 @@ static int dss_CMatch(char *b, char *s, char *pat, char wild) {
 	} else {
 		e = i = 0;
 		do {
-			for (i=e; s[e] != ' ' && s[e] != '^'; e++) ;
-			if (s[e] == '^') { s[e] = ' '; t = '^'; } else t = ' ';
+			for (i=e; s[e] != ' ' && s[e] != '^' && s[e] != EOS; e++) ;
+			if (s[e] == '^') {
+				s[e] = ' ';
+				t = '^';
+			} else
+				t = ' ';
 			/* printf("s+i=%s;\n", s+i); */
 			j = dss_subindex(s, pat, i, ' ');
-			s[e] = t;
+			if (s[e] != EOS)
+				s[e] = t;
 			if (j != -1) {
-				if (t != ' ') for (; s[j] != ' '; j++) ;
-				while (s[j] == ' ') j++;
+				if (t != ' ') {
+					for (; s[j] != ' ' && s[j] != EOS; j++) ;
+				}
+				while (s[j] == ' ')
+					j++;
 				return(j);
 			}
-			if (t == ' ') break; else e++;
+			if (t == ' ') 
+				break;
+			else if (s[e] != EOS)
+				e++;
 		} while (1) ;
 	}
 	return(-1);
@@ -685,7 +725,10 @@ static char *dss_match(char *beg_txt, char *txt, DSS_MACH *tm, char wild, char *
 				}
 			}
 			if (tm->pat == NULL || !wild) {
-				if (neg_or) return(NULL); else break;
+				if (neg_or)
+					return(NULL);
+				else
+					break;
 			}
 			if (last > -1) dss_mat[last] = 0;
 			if (*tm->pat == EOS || last == -1 || tm->neg) {
@@ -701,9 +744,16 @@ static char *dss_match(char *beg_txt, char *txt, DSS_MACH *tm, char wild, char *
 				tm->fmatch = txt + dss_firstmatch;
 				tm->lmatch = last - dss_firstmatch;
 				if ((neg && txt+dss_firstmatch >= neg) || tm->neg) {
-					if (neg_or) return(NULL); else break;
-				} else txt = dss_setmat(txt,&last,*tm->pat);
-			} else if (neg_or) return(NULL); else break;
+					if (neg_or)
+						return(NULL);
+					else
+						break;
+				} else
+					txt = dss_setmat(txt,&last,*tm->pat);
+			} else if (neg_or)
+				return(NULL);
+			else
+				break;
 
 			if (debug_level > 2)
 				fprintf(debug_dss_fp, "6; pat=%s;tm->wild=%d; wild=%d;tm->neg=%d;neg=%s;l=%d; txt=%s\n", tm->pat, tm->wild, wild, tm->neg, neg, last, txt);
@@ -748,7 +798,8 @@ static int LastMatch(DSS_MACH *tm, char *beg_txt, char *txt) {
 	if (txt == uttline)
 		return(FALSE);
 	for (; txt != uttline && *txt != ' '; txt--) ;
-	if (txt != uttline && *txt == ' ') txt++;
+	if (txt != uttline && *txt == ' ')
+		txt++;
 	return(dss_match(beg_txt, txt,tm,0,NULL) != NULL);
 }
 
@@ -768,7 +819,8 @@ static void DebugLastMatch(DSS_MACH *tm, char *txt) {
 	if (txt == uttline)
 		return;
 	for (; txt != uttline && *txt != ' '; txt--) ;
-	if (txt != uttline && *txt == ' ') txt++;
+	if (txt != uttline && *txt == ' ')
+		txt++;
 	fprintf(debug_dss_fp, "*** last=");
 	dss_debug(tm, (char)0); putc('\n',debug_dss_fp);
 	fprintf(debug_dss_fp, "txt=%s\n", txt);
@@ -806,15 +858,15 @@ static RULES *FindRule(char *s) {
 }
 
 static char TakeAction(char *st, char isDebug) {
-	register int  s;
-	register int  l;
-	register char t;
+	int  s;
+	int  l;
+	char t;
 	RULES *tr, *ts;
 	
 	l = 0;
 	do {
 		for (s=l; st[s] == ' '; s++) ;
-		for (l=s; st[l] != ' ' && st[l]; l++) ;
+		for (l=s; st[l] != ' ' && st[l] != EOS; l++) ;
 		t = st[l];
 		st[l] = EOS;
 		if ((tr=FindRule(st+s+1)) == NULL)
@@ -842,9 +894,12 @@ static char TakeAction(char *st, char isDebug) {
 		} else {
 			for (ts=stack; ts != NULL; ts=ts->next_rule) {
 				if (!strcmp(ts->name, st+s+1)) {
-					if (ts == stack) stack = ts->next_rule;
-					else tr->next_rule = ts->next_rule;
-					free(ts);
+					if (ts == stack)
+						stack = ts->next_rule;
+					else
+						tr->next_rule = ts->next_rule;
+					if (ts != NULL)
+						free(ts);
 					if (debug_level > 0 && isDebug) {
 						fprintf(debug_dss_fp, "***** Removed rule from stack: %s\n", st+s+1);
 					}
@@ -874,7 +929,7 @@ static char dss_findmatch(char *beg_txt) {
 	RULES *ts;
 	char *txt;
 	char *ltxt;
-	register int i;
+	int i;
 
 	txt = beg_txt;
 	templineC4[0] = EOS;
@@ -898,12 +953,12 @@ static char dss_findmatch(char *beg_txt) {
 					}
 				}
 
-				for (i=0; i < BUFSIZ; i++)
+				for (i=0; i < DSS_BUFSIZ; i++)
 					dss_mat[i] = 0;
 				ltxt = txt;
 
 				if ((txt=dss_match(beg_txt,txt,tr->focus,0,NULL)) != NULL) {
-					for (i=0; i < BUFSIZ; i++) MatCop[i] = dss_mat[i];
+					for (i=0; i < DSS_BUFSIZ; i++) MatCop[i] = dss_mat[i];
 					dss_clearmac(tr->focus);
 					if (debug_level > 1) {
 						fprintf(debug_dss_fp, "focus match SUCCEEDED\n");
@@ -949,7 +1004,7 @@ static char dss_findmatch(char *beg_txt) {
 									fprintf(debug_dss_fp,"Total Points=%s\n", templineC3);
 								}
 								fprintf(debug_dss_fp,"txt=%s\n", ltxt);
-								for (i=0; i < BUFSIZ; i++)
+								for (i=0; i < DSS_BUFSIZ; i++)
 									dss_mat[i] = MatCop[i];
 								dss_display("",uttline, debug_dss_fp);
 								fputs("--- MATCHED ---\n", debug_dss_fp);
@@ -959,7 +1014,7 @@ static char dss_findmatch(char *beg_txt) {
 								if (!TakeAction(tr->action, TRUE))
 									return(FALSE);
 							}
-							if (dss_script_file[0] == 'e') {
+							if (dss_script_file[0] == 'e' || dss_script_file[0] == 'b') {
 								txt = ltxt;
 								goto en_cont;
 							} else if (dss_script_file[0] == 'j') {
@@ -1027,6 +1082,7 @@ static int prep_exps(int s, int l) {
 }
 
 static RULE *mk_patt(int contr, int s, int l, RULE  *lr, RULES *tr, FILE  *fp) {
+#pragma unused (tr)
 	DSS_MACH *int_pat;
 	RULE *tlr;
 
@@ -1067,8 +1123,10 @@ dss_debug(int_pat, (char)0); putc('\n',debug_dss_fp);
 			for (; tlr->next_rlist != NULL; tlr=tlr->next_rlist) ;
 			tlr->next_rlist = lr;
 		}
-	} else if (contr == 0) lr->lcont = int_pat;
-	else lr->rcont = int_pat;
+	} else if (contr == 0)
+		lr->lcont = int_pat;
+	else
+		lr->rcont = int_pat;
 	return(lr);
 }
 
@@ -1099,14 +1157,16 @@ static char parsePointsNames(char *line) {
 }
 
 static void MakeRules() {
-	register int s;
-	register int l;
+	int s;
+	int l;
 	char  isFoundPointsNames;
 	RULE  *lr = NULL;
 	RULES *tr;
 	FILE  *fp;
 	FNType mFileName[FNSize];
 
+	if (strcmp(dss_script_file, "eng") == 0 && MorCodes == UD) //2025-06-27
+		strcat(dss_script_file, "u");
 	strcpy(mFileName, lib_dir);
 	addFilename2Path(mFileName, "dss");
 	addFilename2Path(mFileName, dss_script_file);
@@ -1144,7 +1204,7 @@ static void MakeRules() {
 #endif
 	isFoundPointsNames = FALSE;
 	tr = NULL;
-	while (fgets_cr(dss_expression, BUFSIZ, fp)) {
+	while (fgets_cr(dss_expression, DSS_BUFSIZ, fp)) {
 		if (uS.isUTF8(dss_expression) || uS.isInvisibleHeader(dss_expression))
 			continue;
 		if (uS.mStrnicmp(dss_expression, POINTS_NAME_TAG, strlen(POINTS_NAME_TAG)) == 0) {
@@ -1267,22 +1327,22 @@ char init_dss(char first) {
 		tfp = NULL;
 		stack = NULL;
 		INITSTACK = NULL;
-		strcpy(dss_script_file, DSSNOCOMPUTE);
+		dss_script_file[0] = EOS;
 		dss_sp_head.sp[0] = EOS;
-		dss_mat = (char *)malloc((size_t) (BUFSIZ + 1));
+		dss_mat = (char *)malloc((size_t) (DSS_BUFSIZ + 1));
 		if (dss_mat == NULL) {
 			return(FALSE);
 		}
-		for (i=0; i < BUFSIZ; i++)
+		for (i=0; i < DSS_BUFSIZ; i++)
 			dss_mat[i] = 0;
-		MatCop = (char *)malloc((size_t) (BUFSIZ + 1));
+		MatCop = (char *)malloc((size_t) (DSS_BUFSIZ + 1));
 		if (MatCop == NULL) {
 			free(dss_mat);
 			dss_mat = NULL;
 			return(FALSE);
 		}
-		for (i=0; i < BUFSIZ; i++) MatCop[i] = 0;
-		dss_expression = (char *)malloc((size_t) (BUFSIZ + 1));
+		for (i=0; i < DSS_BUFSIZ; i++) MatCop[i] = 0;
+		dss_expression = (char *)malloc((size_t) (DSS_BUFSIZ + 1));
 		if (dss_expression == NULL) {
 			free(dss_mat);
 			dss_mat = NULL;
@@ -1291,7 +1351,7 @@ char init_dss(char first) {
 			return(FALSE);
 		}
 	} else {
-		if (strcmp(dss_script_file, DSSNOCOMPUTE) == 0) {
+		if (dss_script_file[0] == EOS) {
 			if (CLAN_PROG_NUM == DSS) {
 				fprintf(stderr, "Please specify data language with \"+l\" option.\n");
 				fprintf(stderr, "  eng - English MOR, engu - English UD, bss - English MOR, jpn - Japanese\n");
@@ -1313,7 +1373,7 @@ char init_dss(char first) {
 
 #ifndef KIDEVAL_LIB
 void init(char first) {
-	register int i;
+	int i;
 	NewFontInfo finfo;
 	struct tier *nt;
 
@@ -1434,8 +1494,8 @@ CLAN_MAIN_RETURN main(int argc, char *argv[]) {
 #endif // KIDEVAL_LIB
 
 static int FinishPointsFixing(char *s, char *buf, int  i, char let) {
-	register int j;
-	register int k;
+	int j;
+	int k;
 
 	while (isalpha(buf[i]))
 		i++;
@@ -1474,7 +1534,8 @@ static int FinishPointsFixing(char *s, char *buf, int  i, char let) {
 							while (!isalpha(templineC3[k]) && templineC3[k]!= EOS)
 								k++;
 							strcpy(templineC3+j, templineC3+k);
-						} else j++;
+						} else
+							j++;
 					}
 					break;
 				}
@@ -1504,7 +1565,8 @@ static int FinishPointsFixing(char *s, char *buf, int  i, char let) {
 							templineC3[j+1] = buf[i+2];
 							j += 2;
 						}
-					} else j++;
+					} else
+						j++;
 				}
 				break;
 			}
@@ -1521,7 +1583,8 @@ static int FinishPointsFixing(char *s, char *buf, int  i, char let) {
 						k = j + 2;
 						while (!isalpha(templineC3[k]) && templineC3[k]!=EOS) k++;
 						strcpy(templineC3+j, templineC3+k);
-					} else j++;
+					} else
+						j++;
 				}
 				break;
 			}
@@ -1537,10 +1600,10 @@ static int FinishPointsFixing(char *s, char *buf, int  i, char let) {
 }
 
 static void PrintRow(char points[POINTS_N][POINTS_S], char *line, float total, char ans, FILE *fp) {
-	register int i;
-	register int col;
-	register int rpos;
-	register int pointsNameLen;
+	int i;
+	int col;
+	int rpos;
+	int pointsNameLen;
 	char ftime = TRUE, isBulletFound;
 	int done = FALSE;
 	int l_index = 0, index[POINTS_N];
@@ -1626,9 +1689,9 @@ static void PrintRow(char points[POINTS_N][POINTS_S], char *line, float total, c
 }
 
 static char HandleNoAnswer(char points[POINTS_N][POINTS_S], char *line) {
-	register int i;
+	int i;
 	char *s;
-	char buf[BUFSIZ];
+	char buf[DSS_BUFSIZ];
 
 	s = NULL;
 	do {
@@ -1645,7 +1708,7 @@ static char HandleNoAnswer(char points[POINTS_N][POINTS_S], char *line) {
 		StdInErrMessage = "Please finish \"dss\" answer first.";
 		StdDoneMessage  = "Done with \"dss\" answer mode.";
 #endif
-		for (i=0; (templineC4[i]=(char)getc(stdin)) != '\n' && i < BUFSIZ-2; i++) ;
+		for (i=0; (templineC4[i]=(char)getc(stdin)) != '\n' && i < DSS_BUFSIZ-2; i++) ;
 		templineC4[i++] = ' ';
 		templineC4[i] = EOS;
 
@@ -1671,7 +1734,7 @@ static char HandleNoAnswer(char points[POINTS_N][POINTS_S], char *line) {
 #endif
 			return('q');
 		}
-		if (dss_script_file[0] == 'e') {
+		if (dss_script_file[0] == 'e' || dss_script_file[0] == 'b') {
 			for (i=0; buf[i] != EOS; i++) {
 				if (uS.mStrnicmp(buf+i, "ip", 2) == 0) {
 					s = points[0]; i = FinishPointsFixing(s,buf,i,0+'A');
@@ -1726,8 +1789,8 @@ static char HandleNoAnswer(char points[POINTS_N][POINTS_S], char *line) {
 }
 
 float PrintOutDSSTable(char *line, int spNum, int spRowNum, char isOutput) {
-	register int i;
-	register int index;
+	int i;
+	int index;
 	float total, num, totalPerCell;
 	char *s, ans;
 	char points[POINTS_N][POINTS_S];
@@ -1753,6 +1816,7 @@ float PrintOutDSSTable(char *line, int spNum, int spRowNum, char isOutput) {
 			}
 			index = strlen(points[i]);
 			if (index >= POINTS_S-1) {
+				fprintf(stderr,"\n*** File \"%s\": line %ld.\n", oldfname, lineno);
 				fprintf(stderr, "DSS: ERROR: Too many codes.\n");
 				if (debug_dss_fp != stdout)
 					fclose(debug_dss_fp);
@@ -1771,7 +1835,7 @@ float PrintOutDSSTable(char *line, int spNum, int spRowNum, char isOutput) {
 
 	total = 0.0;
 	if (DSSAutoMode) {
-		if (dss_script_file[0] == 'e') {
+		if (dss_script_file[0] == 'e' || dss_script_file[0] == 'b') {
 			ans = 'p';
 			for (i=0; line[i] != EOS; i++) {
 				if (line[i] == '[' && line[i+1] == '*' && line[i+2] == ' ' &&  (line[i+3] == 'p' || line[i+3] == 'P')) {
@@ -1876,7 +1940,7 @@ int PassedDSSMorTests(char *osp, char *mor, char *dss) {
 			return(FALSE);
 		}
 	}
-	if (dss_script_file[0] == 'e') {
+	if (dss_script_file[0] == 'e' || dss_script_file[0] == 'b') {
 		j = 0;
 		for (pos=0; osp[pos]; pos++) {
 			i = 0;
@@ -1973,9 +2037,9 @@ int PassedDSSMorTests(char *osp, char *mor, char *dss) {
 }
 
 static void PrintTotalRow(FILE *fp) {
-	register int i;
-	register int col;
-	register int pointsNameLen;
+	int i;
+	int col;
+	int pointsNameLen;
 
 	fprintf(fp, "TOTAL");
 	for (col=5; col < 39; col++)
@@ -1997,35 +2061,35 @@ static void PrintTotalSpRow(FILE *fp, float TotalUtts, DSSSP *tsp) {
 	char *s, sFName[FILENAME_MAX];
 	float tf;
 	
-	excelRow(fpout, ExcelRowStart);
+	excelRow(fp, ExcelRowStart);
 	s = strrchr(oldfname, PATHDELIMCHR);
 	if (s == NULL)
 		s = oldfname;
 	else
 		s++;
 	strcpy(sFName, s);
-	excelStrCell(fpout, sFName);
+	excelStrCell(fp, sFName);
 	if (tsp->ID) {
-		excelOutputID(fpout, tsp->ID);
+		excelOutputID(fp, tsp->ID);
 	} else {
-		excelCommasStrCell(fpout, ".,.");
-		excelStrCell(fpout, tsp->sp);
-		excelCommasStrCell(fpout, ".,.,.,.,.,.,.,.,.,.,.");
+		excelCommasStrCell(fp, ".,.");
+		excelStrCell(fp, tsp->sp);
+		excelCommasStrCell(fp, ".,.,.,.,.,.,.,.,.,.,.");
 	}
-	excelNumCell(fpout, "%.0f", TotalUtts);
-	excelNumCell(fpout, "%.2f", tsp->TotalNum);
+	excelNumCell(fp, "%.0f", TotalUtts);
+	excelNumCell(fp, "%.2f", tsp->TotalNum);
 	for (i=0; i < PointsCnt; i++) {
 		tf = (float)TotalsAcrossPoints[i];
-		excelNumCell(fpout, "%.0f", tf);
+		excelNumCell(fp, "%.0f", tf);
 	}
 	tf = (float)TotalsUttPoints;
-	excelNumCell(fpout, "%.0f", tf);
-	excelNumCell(fpout, "%.0f", tsp->GrandTotal);
-	excelRow(fpout, ExcelRowEnd);
+	excelNumCell(fp, "%.0f", tf);
+	excelNumCell(fp, "%.0f", tsp->GrandTotal);
+	excelRow(fp, ExcelRowEnd);
 }
 
 char make_DSS_tier(char *mor_tier) {
-	register int k;
+	int k;
 	
 	for (k=0; mor_tier[k]; k++) {
 		if (mor_tier[k] == '\n' || mor_tier[k] == '\t')
@@ -2203,10 +2267,14 @@ void call() {
 			}
 		}
 	} else {
+#if defined(CLAN_SRV)
+		tfp = NULL;
+#else
 		parsfname(oldfname, tfname, ".dss");
 		if ((tfp=openwfile(oldfname,tfname,tfp)) == NULL) {
 			fprintf(stderr,"WARNING: Can't create dss file %s.\n", tfname);
 		}
+#endif
 		for (tsp=&dss_sp_head; tsp->next_sp != NULL; tsp=tsp->next_sp) {
 			tsp->TotalNum = 0.0;
 			tsp->GrandTotal = 0.0;
@@ -2450,11 +2518,16 @@ void getflag(char *f, char *f1, int *i) {
 				DSS_UTTLIM = 50;
 			break;
 		case 'd': 
+#if defined(CLAN_SRV)
+			fprintf(stderr,"Invalid option: %s\n", f-2);
+			cutt_exit(0);
+#else
 			if (*f == EOS) {
 				IsOutputSpreadsheet = 1;
 			} else if (*f == '1') {
 				IsOutputSpreadsheet = 2;
 			}
+#endif // !defined(CLAN_SRV)
 			break;
 		case 'e':
 			DSSAutoMode = TRUE;
@@ -2481,15 +2554,6 @@ void getflag(char *f, char *f1, int *i) {
 				cutt_exit(0);
 			}
 			break;
-#ifdef UNX
-		case 'L':
-			int len;
-			strcpy(lib_dir, f);
-			len = strlen(lib_dir);
-			if (len > 0 && lib_dir[len-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		case 't':
 			if (*f == '%') {
 				strcpy(fDepTierName, f);

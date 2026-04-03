@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -37,7 +37,7 @@ void ml_exit(int i) {
 }
 
 void ml_addwd(char opt, char ch, char *wd) {
-	register int i;
+	int i;
 	char plus = FALSE;
 	IEWORDS *tempwd;
 
@@ -153,7 +153,7 @@ void ml_checktier(char *s) {
 */
 
 static void lfilter(char *org) {
-	register int i;
+	int i;
 	char *temp, *beg, res, excl, delf;
 
 	isGWordFound = FALSE;
@@ -236,7 +236,7 @@ static void lfilter(char *org) {
 }
 
 static void filterMorfs(char *org) {
-	register int i;
+	int i;
 	char *temp, t;
 
 	i = 0;

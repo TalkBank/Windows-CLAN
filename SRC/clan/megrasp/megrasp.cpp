@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -260,8 +260,8 @@ static vector<double> me_classify( ME_Model& memod, string& patt )
 }
 
 char *fgets_megrasp(char *beg, int size, FILE *fp) {
-	register int i = 1;
-	register char *buf;
+	int i = 1;
+	char *buf;
 
 	size--;
 	buf = beg;
@@ -1125,7 +1125,7 @@ void usage() {
 	fprintf(stderr, "-pS: prefix for POS lines, must be three characters (default: mor)\n");
 	fprintf(stderr, "-mS: model name (default: megrasp.mod)\n");
 #ifdef UNX
-	fprintf(stderr, "+LF: specify full path of the folder with \"megrasp.mod\" file\n");
+	fprintf(stderr, "+MF: specify full path of the folder with \"megrasp.mod\" file\n");
 #endif
 #if !defined(_MAC_CODE) && !defined(_WIN32) && !defined(UNX)
 	fprintf(stderr, "-oS: output file name (default: input file name + .txt)\n");
@@ -1257,7 +1257,7 @@ void getflag(char *f, char *f1, int *i) {
 			break;
 #endif
 #ifdef UNX
-		case 'L':
+		case 'M':
 			int j;
 			if (*f == '/')
 				strcpy(mor_lib_dir, f);

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -82,7 +82,7 @@ typedef struct {
 	short Encod;
 } FONTINFO;
 
-#define FONTARGS char *c, long *index, char *st, long *cnt, NewFontInfo *finfo
+#define FONTARGS char *c, long *index, char *st, long *cnt
 struct NewFontInfo {
 	char  fontName[256];
 	const char  *fontPref;

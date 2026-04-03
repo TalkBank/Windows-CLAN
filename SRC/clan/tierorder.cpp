@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -62,9 +62,6 @@ void usage() {
 	printf("Usage: tierorder [b c q tS %s] filename(s)\n",mainflgs());
 	puts("+b : Do not move bullets to a new speaker tier");
 	printf("+cF: dictionary file. (Default %s)\n", TIERSNAME);
-#ifdef UNX
-	puts("+LF: specify full path F of the lib folder");
-#endif
 	puts("+q : ONLY sort header tiers");
 	puts("+tS: switch S tier with main speaker tier");
 	mainusage(TRUE);
@@ -122,14 +119,6 @@ void getflag(char *f, char *f1, int *i) {
 				isCOptionUsed  = TRUE;
 			}
 			break;
-#ifdef UNX
-		case 'L':
-			strcpy(lib_dir, f);
-			len = strlen(lib_dir);
-			if (len > 0 && lib_dir[len-1] != '/')
-				strcat(lib_dir, "/");
-			break;
-#endif
 		case 'q':
 			isSortHeaderTiers = TRUE;
 			no_arg_option(f);
@@ -217,7 +206,7 @@ static TIERORSER * add2TierOrder(TIERORSER *root, char *tier) {
 
 static void readtiers(void) {
 	FILE *fdic;
-	register int t;
+	int t;
 	FNType mFileName[FNSize];
 
 	if (tiername[0] == EOS)

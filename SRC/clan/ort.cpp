@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -488,8 +488,9 @@ static int foundCode(char *line, int pos, char *pat) {
 }
 
 static int changeCode(char *line, AttTYPE *att, int pos, int wlen, char *from_word, char *to_word) {
-	register int i;
-	register int tlen;
+#pragma unused (from_word)
+	int i;
+	int tlen;
 
 	tlen = strlen(to_word);
 	if (tlen > wlen) {
@@ -515,7 +516,7 @@ static int changeCode(char *line, AttTYPE *att, int pos, int wlen, char *from_wo
 }	
 
 static long FindAndChangeCode(char *line, AttTYPE *att, long isFound) {
-	register int pos, z;
+	int pos, z;
 	struct ccodes *nextone;
 	int wlen;
 	unsigned char isExactMatch;

@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -105,6 +105,7 @@ static void sugar_error(char IsOutOfMem) {
 }
 
 static void initTSVars(struct sugar_speakers *ts, char isAll) {
+#pragma unused (isAll)
 	ts->isMORFound	= FALSE;
 	ts->isPSDFound	= FALSE;
 	ts->tUtt		= (float)0.0;
@@ -181,7 +182,7 @@ static char isNumItemPointedToBy(char *line, int num, const char *tag) {
 	char morWord[1024], graWord[1024], *vb;
 
 	i = 0;
-	while ((i=getNextDepTierPair(uttline, graWord, morWord, NULL, i)) != 0) {
+	while ((i=getNextDepTierPair(line, graWord, morWord, NULL, i)) != 0) {
 		if (graWord[0] != EOS && morWord[0] != EOS) {
 			vb = strchr(graWord, '|');
 			if (vb != NULL) {

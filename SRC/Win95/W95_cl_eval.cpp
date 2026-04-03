@@ -55,7 +55,7 @@ static char AnomicTp, GlobalTp, BrocaTp, WernickeTp, TranssenTp, TransmotTp,
 			ConductionTp, ControlTp, NotAphByWab, MaleOnly, FemaleOnly, SpeechGm,
 			StrokeGm, WindowGm, Impevent, Umbrella, Cat, Flood, Cinderella, Sandwich,
 			Communication, Illness;
-static char AgeRange[256];
+static char AgeRange[256], langSt[8];
 static 	time_t GlobalTime;
 static struct SpeakersListS *spRoot;
 
@@ -83,6 +83,7 @@ void InitEvalOptions(void) {
 	Communication = 0;
 	Illness = 0;
 	AgeRange[0] = EOS;
+	strcpy(langSt, "eng");
 }
 
 static struct SpeakersListS *cleanSpeakersList(struct SpeakersListS *p) {
@@ -189,8 +190,7 @@ void CClanEval::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CClanEval, CDialog)
 	//{{AFX_MSG_MAP(CClanEval)
-	ON_BN_CLICKED(IDC_PORTF_DDB, OnDDB)
-	ON_BN_CLICKED(IDC_PORTF_UDB, OnUDB)
+//	ON_BN_CLICKED(IDC_PORTF_UDB, OnUDB)
 	ON_BN_CLICKED(IDC_PORTF_ANOMIC, OnAnomic)
 	ON_BN_CLICKED(IDC_PORTF_GLOBAL, OnGlobal)
 	ON_BN_CLICKED(IDC_PORTF_CONTROL, OnControl)
@@ -274,7 +274,7 @@ static char isPassNeeded(unCH *fname) {
 	}
 	return(FALSE);
 }
-
+/*
 void CClanEval::OnUDB() 
 {
 	int len;
@@ -283,7 +283,7 @@ void CClanEval::OnUDB()
 	unCH fname[FNSize];
 	FILE *fp;
 	CGetWebPasswd dlg;
-	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
+//	extern bool curlURLDownloadToFile(unCH *fulURLPath, unCH *fname, size_t isProgres);
 
 	UpdateData(true);
 	GotoDlgCtrl(GetDlgItem(IDC_PORTF_AGE));
@@ -307,7 +307,9 @@ void CClanEval::OnUDB()
 		unlink(FileName1);
 		isCancel = FALSE;
 		u_strcpy(fname, FileName1, UTTLINELEN);
-		if (curlURLDownloadToFile(URLPath, fname, 0L) == true) {
+		hResult = URLDownloadToFile(NULL, URLPath, fname, 0, NULL);
+		if (hResult == S_OK) {
+//		if (curlURLDownloadToFile(URLPath, fname, 0L) == true) {
 			while (isPassNeeded(fname)) {
 				dlg.m_Passwd = cl_T("");
 				dlg.m_Username = cl_T("");
@@ -316,7 +318,9 @@ void CClanEval::OnUDB()
 					strcat(URL_passwd, ":");
 					len = strlen(URL_passwd);
 					u_strcpy(URL_passwd + len, dlg.m_Passwd, 128 - len);
-					if (curlURLDownloadToFile(URLPath, fname, 1500000L) != true) {
+					hResult = URLDownloadToFile(NULL, URLPath, fname, 0, NULL);
+					if (hResult == S_OK) {
+//					if (curlURLDownloadToFile(URLPath, fname, 1500000L) != true) {
 						do_warning("Error downloading data from the web (2)", 0);
 						isCancel = TRUE;
 						break;
@@ -344,7 +348,7 @@ void CClanEval::OnUDB()
 	len = strlen(m_AGE_RANGE);
 	m_AGE_RANGECTRL.SetSel(len, len, false);
 }
-
+*/
 void CClanEval::OnAnomic() 
 {
 	UpdateData(true);
@@ -1026,8 +1030,14 @@ void CClanEval::getTierNamesFromFile(char *fname) {
 				isFoundFile = TRUE;
 			}
 		} else if (strncmp(templineC3, "@ID:", 4) == 0) {
+			s = templineC3 + 4;
+			while (isSpace(*s))
+				s++;
+			code = s;
 			s = strchr(templineC3, '|');
 			if (s != NULL) {
+				if (s - code < 7)
+					strncpy(langSt, code, s - code);
 				s++;
 				code = strchr(s, '|');
 				if (code != NULL) {
@@ -1463,7 +1473,9 @@ static void selectEvalDialog() {
 			strcat(templineC3, "\"");
 		}
 		strcat(templineC3, " +u");
-	} else {
+		strcat(templineC3, " +l");
+		strcat(templineC3, langSt);
+		} else {
 		templineC3[0] = EOS;
 	}
 	spRoot = cleanSpeakersList(spRoot);

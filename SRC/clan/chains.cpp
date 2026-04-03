@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -154,7 +154,7 @@ static CHAIN_CODES *chains_create_code(char *code) {
 static void ReadCodesOrder() {
 	FILE *fp;
 	char code[256];
-	register int lp;
+	int lp;
 	CHAIN_CODES *tcode = NULL;
 	FNType mFileName[FNSize];
 
@@ -725,7 +725,7 @@ static CHAIN_CODES *get_code(char *code) {
 static void add_code(char *code, char *diff, int sp,
 				unsigned int flineno, unsigned int utt_line) {
 	char *t;
-	register int len;
+	int len;
 	CHAIN_CODES *tcode;
 
 	tcode = get_code(code);
@@ -804,7 +804,7 @@ static int IsClauseMarker(char *s) {
 }
 
 static int chains_getword(char *code, char *word, int i) {
-	register char sq;
+	char sq;
 
 	while ((*word=code[i++]) != EOS && uS.isskip(code,i-1,&dFnt,MBF) && *word != '[') ;
 	if (*word == EOS)
@@ -829,8 +829,8 @@ static int chains_getword(char *code, char *word, int i) {
 static void AddSecondTierData(int beg, int end, char *code_two,
 				unsigned int slineno, unsigned int utt_line) {
 	char *t;
-	register int i;
-	register int j;
+	int i;
+	int j;
 	char found = FALSE;
 	CHAIN_UTTS  *tu;
 	CHAIN_CODES *tcode;
@@ -884,8 +884,8 @@ static void AddSecondTierData(int beg, int end, char *code_two,
 static void analyse_codes(char *code_one, char *code_two, char *temp_buf,
 		    unsigned int flineno, unsigned int slineno, int speaker,
 		    unsigned int *l_offset, int *utt_offset) {
-	register int  i;
-	register char fn;
+	int  i;
+	char fn;
 	unsigned int  sec_l_offset;
 	int  clause_count;
 	char next_clause;
@@ -970,8 +970,8 @@ static void analyse_codes(char *code_one, char *code_two, char *temp_buf,
 }
 
 void call() {
-	register int i;
-	register int j;
+	int i;
+	int j;
 	int speaker;
 	unsigned int l_offset;
 	unsigned int flineno = 0;

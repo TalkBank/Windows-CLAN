@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -125,7 +125,7 @@ static void comtier_anal(char *com, char *sp) {
 }
 
 void call() {
-	register int i;
+	int i;
 	char buf[BUFSIZ];
 	char sp[SPEAKERLEN];
 

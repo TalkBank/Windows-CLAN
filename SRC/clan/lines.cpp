@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -73,9 +73,9 @@ static void att_cp_one(long pos, char *desSt, char *srcSt, char *desAtt, char sr
 }
 */
 void call() {		/* this function is self-explanatory */
-	register int  i;
-	register int  j;
-	register long tl;
+	int  i;
+	int  j;
+	long tl;
 	char rightTier;
 	char *pos, buf[SPEAKERLEN];
 	AttTYPE *posAtt, bufAtt[SPEAKERLEN];

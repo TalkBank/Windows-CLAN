@@ -341,7 +341,7 @@ BOOL CSetIDs::saveIDFields() {
 				return(FALSE);
 			}
 			if (p->age1y == -1) {
-				sprintf(err_mess, "Please specify a year for age", p->age1m);
+				sprintf(err_mess, "Please specify a year for age: %d", p->age1m);
 				do_warning(err_mess, -1);
 				return(FALSE);
 			}
@@ -353,12 +353,12 @@ BOOL CSetIDs::saveIDFields() {
 				return(FALSE);
 			}
 			if (p->age1y == -1) {
-				sprintf(err_mess, "Please specify a year for age", p->age1d);
+				sprintf(err_mess, "Please specify a year for age: %d", p->age1d);
 				do_warning(err_mess, -1);
 				return(FALSE);
 			}
 			if (p->age1m == -1) {
-				sprintf(err_mess, "Please specify a month for age", p->age1d);
+				sprintf(err_mess, "Please specify a month for age: %d", p->age1d);
 				do_warning(err_mess, -1);
 				return(FALSE);
 			}

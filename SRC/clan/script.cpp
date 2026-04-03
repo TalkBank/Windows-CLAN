@@ -1,5 +1,5 @@
 /**********************************************************************
- "Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+ "Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
  as stated in the attached "gpl.txt" file."
  */
 
@@ -526,7 +526,7 @@ static void script_process_tier(struct script_fname *fnameP, int uttNum, float *
 					CleanUpLine(templineC4);
 					uS.remblanks(tword);
 					script_words_root = script_tree(script_words_root, tword, NULL, fnameP, uttNum, templineC4);
-				} else if (!strncmp(tword, "[: ", 3) || !strncmp(tword, "[::", 3)) {
+				} else if (!strncmp(tword, "[: ", 3) || !strncmp(tword, "[= ", 3)) {
 					findWholeScope(utterance->line, wi, templineC4);
 					uS.remFrontAndBackBlanks(templineC4);
 					CleanUpLine(templineC4);
@@ -994,7 +994,7 @@ static void script_pr_result(void) {
 	excelCommasStrCell(fpout, "File name,Ideal TIMDUR,TIMDUR,# wds produced,# wds per minute,");
 	excelCommasStrCell(fpout, "# wds ideal,# wds correct,% wds correct,# wds omitted,");
 	excelCommasStrCell(fpout, "% wds omitted,# wds added,");
-	excelCommasStrCell(fpout, "# wds [: ],% wds [: ],# wds [:: ],% wds [:: ],");
+	excelCommasStrCell(fpout, "# wds [: ],% wds [: ],# wds [= ],% wds [= ],");
 	excelCommasStrCell(fpout, "# recog errors,# unrecog errors,");
 	excelCommasStrCell(fpout, "# utts with xxx,# utts with 0\n");
 	excelRow(fpout, ExcelRowEnd);
@@ -1021,7 +1021,7 @@ static void script_pr_result(void) {
 		excelLongNumCell(fpout, "%ld", iWds);
 
 		dcolCnt = 0;
-		totalNumErrCode(script_words_root, fn, "[::", &dcolCnt);
+		totalNumErrCode(script_words_root, fn, "[= ", &dcolCnt);
 
 		cnt = 0;
 		totalNumCorrectWords(script_words_root, fn, &cnt);

@@ -1,5 +1,5 @@
 /**********************************************************************
-	"Copyright 1990-2025 Brian MacWhinney. Use is subject to Gnu Public License
+	"Copyright 1990-2026 Brian MacWhinney. Use is subject to Gnu Public License
 	as stated in the attached "gpl.txt" file."
 */
 
@@ -512,7 +512,7 @@ static void smartStrcpy(char *toS, char *fromS) {
 }
 
 static void CompareTiers(char *isErrorsFound) {
-	register int i;
+	int i;
 	char word[1024], rightTier, isErrorFound;
 	float fTotalCodes, sTotalCodes;
 	struct code *p;
